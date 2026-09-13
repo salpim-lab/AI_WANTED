@@ -1,0 +1,196 @@
+// 담당: 이유민
+// 프로토타입 script의 goTo/selectColor/addBubble/showReplies/handleReply 등
+// (getElementById 기반 DOM 조작) 로직을 React state로 새로 짠 것.
+// CheckinPage/CheckoutPage가 이 훅으로 상태를 갖고, 각 화면 컴포넌트에는
+// props로 필요한 조각만 내려준다.
+
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import type { SignalColor } from "@/lib/types/signal";
+import {
+  CHECKOUT_SCENARIO,
+  getCheckinScenario,
+  type ColorScenario,
+  type Item,
+  type Reply,
+} from "./mockScenarios";
+
+export type ChatBubble = { id: number; type: "ai" | "user" | "navy-msg"; text: string };
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+let bubbleId = 0;
+
+export function useCheckinFlow(flow: "checkin" | "checkout") {
+  // 하교는 교사 코멘트 단계(1단계)가 없어서 색 선택부터 시작 — 나머지 단계 번호(2~5)는
+  // runScenario/handleReply 안의 goTo(3)/goTo(4) 호출과 맞추기 위해 그대로 재사용한다.
+  const startStep = flow === "checkin" ? 1 : 2;
+  const [step, setStep] = useState(startStep);
+  const [color, setColor] = useState<SignalColor | null>(null);
+  const [item, setItem] = useState<Item | null>(null);
+  const [messages, setMessages] = useState<ChatBubble[]>([]);
+  const [typing, setTyping] = useState(false);
+  const [replies, setReplies] = useState<Reply[] | null>(null);
+  const [replies2, setReplies2] = useState<{ text: string; next2: string }[] | null>(null);
+  const [consultState, setConsultState] = useState<"hidden" | "shown" | "sent">("hidden");
+
+  // resetDemo 등에서 진행 중인 setTimeout 체인을 무시하기 위한 세대 카운터
+  const genRef = useRef(0);
+
+  const goTo = useCallback((next: number) => setStep(next), []);
+
+  const addBubble = useCallback((type: ChatBubble["type"], text: string) => {
+    setTyping(false);
+    setMessages((prev) => [...prev, { id: bubbleId++, type, text }]);
+  }, []);
+
+  const runScenario = useCallback(
+    async (scenario: ColorScenario) => {
+      const gen = ++genRef.current;
+      const isCurrent = () => genRef.current === gen;
+
+      setItem(scenario.item);
+      setMessages([]);
+      setReplies(null);
+      setReplies2(null);
+      setConsultState("hidden");
+      goTo(3);
+
+      for (const msg of scenario.messages) {
+        await wait(msg.delay);
+        if (!isCurrent()) return;
+        addBubble(msg.isNavy ? "navy-msg" : "ai", msg.text);
+      }
+
+      if (scenario.autoEnd) {
+        await wait(800);
+        if (!isCurrent()) return;
+        await wait(1200);
+        if (!isCurrent()) return;
+        goTo(4);
+        return;
+      }
+
+      if (scenario.replies.length > 0) {
+        await wait(400);
+        if (!isCurrent()) return;
+        setReplies(scenario.replies);
+      }
+    },
+    [addBubble, goTo],
+  );
+
+  const selectColor = useCallback(
+    (c: SignalColor) => {
+      setColor(c);
+      const scenario = flow === "checkin" ? getCheckinScenario(c) : CHECKOUT_SCENARIO;
+      void runScenario(scenario);
+    },
+    [flow, runScenario],
+  );
+
+  const handleReply = useCallback(
+    async (reply: Reply, followups: ColorScenario["followups"]) => {
+      const gen = ++genRef.current;
+      const isCurrent = () => genRef.current === gen;
+
+      setReplies(null);
+      addBubble("user", reply.text);
+
+      const fu = followups[reply.next];
+      if (!fu) {
+        if (reply.next === "skip") goTo(4);
+        return;
+      }
+
+      if (fu.ai) {
+        await wait(reply.next === "skip" ? 400 : 500);
+        if (!isCurrent()) return;
+        setTyping(true);
+        await wait(reply.next === "skip" ? 700 : 700);
+        if (!isCurrent()) return;
+        addBubble("ai", fu.ai);
+      }
+      if (fu.item) setItem(fu.item);
+      if (fu.showConsult) {
+        await wait(300);
+        if (!isCurrent()) return;
+        setConsultState("shown");
+      }
+      if (fu.replies2) {
+        await wait(500);
+        if (!isCurrent()) return;
+        setReplies2(fu.replies2);
+        return;
+      }
+      if (fu.done) {
+        await wait(1400);
+        if (!isCurrent()) return;
+        goTo(4);
+      }
+    },
+    [addBubble, goTo],
+  );
+
+  const handleReply2 = useCallback(
+    async (r: { text: string; next2: string }, followups: ColorScenario["followups"]) => {
+      const gen = ++genRef.current;
+      const isCurrent = () => genRef.current === gen;
+
+      setReplies2(null);
+      addBubble("user", r.text);
+
+      const fu = followups[r.next2];
+      if (!fu) return;
+
+      await wait(400);
+      if (!isCurrent()) return;
+      setTyping(true);
+      await wait(700);
+      if (!isCurrent()) return;
+      if (fu.ai) addBubble("ai", fu.ai);
+      if (fu.item) setItem(fu.item);
+      await wait(1400);
+      if (!isCurrent()) return;
+      goTo(4);
+    },
+    [addBubble, goTo],
+  );
+
+  const requestConsult = useCallback(() => setConsultState("sent"), []);
+
+  const reset = useCallback(() => {
+    genRef.current++;
+    setStep(startStep);
+    setColor(null);
+    setItem(null);
+    setMessages([]);
+    setTyping(false);
+    setReplies(null);
+    setReplies2(null);
+    setConsultState("hidden");
+  }, [startStep]);
+
+  return {
+    startStep,
+    step,
+    color,
+    item,
+    messages,
+    typing,
+    replies,
+    replies2,
+    consultState,
+    goTo,
+    selectColor,
+    handleReply,
+    handleReply2,
+    requestConsult,
+    reset,
+  };
+}
+
+export type CheckinFlow = ReturnType<typeof useCheckinFlow>;

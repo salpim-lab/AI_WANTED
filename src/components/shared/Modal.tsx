@@ -4,13 +4,31 @@
 
 export default function Modal({
   open,
+  title,
   onClose,
   children,
 }: {
   open: boolean;
+  title: string;
   onClose: () => void;
   children?: React.ReactNode;
 }) {
-  if (!open) return null;
-  return <div role="dialog">{children}</div>;
+  return (
+    <div
+      className={"modal-overlay" + (open ? " open" : "")}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal">
+        <div className="modal-title">
+          {title}
+          <button className="modal-close" onClick={onClose} aria-label="닫기">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }

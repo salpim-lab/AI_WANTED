@@ -8,6 +8,7 @@
 // 위젯의 대화 상태가 탭을 넘나들어도 유지된다 (전역 상태관리 불필요).
 // 각 탭 page.tsx 안에는 위젯을 절대 넣지 말 것 — 중복 마운트/충돌 방지.
 
+import "@/styles/prototype-teacher.css";
 import TabNav from "@/components/teacher/TabNav";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";
 
@@ -17,9 +18,19 @@ export default function TeacherLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <TabNav />
-      <main>{children}</main>
+    <div className="teacher-app">
+      <div className="app">
+        <header className="app-header">
+          <div className="logo">
+            살<span>핌</span>
+          </div>
+          <div className="meta">
+            <strong>3학년 2반</strong> · 2026년 9월 13일 (목) · 이선생님
+          </div>
+        </header>
+        <TabNav />
+        <main className="main">{children}</main>
+      </div>
       <TeacherAgentWidget />
     </div>
   );
