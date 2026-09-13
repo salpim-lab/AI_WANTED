@@ -6,9 +6,10 @@ AI 기반 학생 정서 체크인 + 교사 업무 지원 서비스. Next.js(App 
 
 1. **이 README** — 개발 환경 설정
 2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — 폴더 구조, 담당 매핑, 충돌 방지 규칙 (필수)
-3. [`docs/planning/살핌_DB_스키마_v0.3.md`](docs/planning/살핌_DB_스키마_v0.3.md) §1(설계 원칙) + §13(담당자별 작업 경계)
-4. [`docs/planning/PLANNING.md`](docs/planning/PLANNING.md) 중 자기 담당 화면 부분 — 각 컴포넌트 파일 상단 주석에 관련 섹션이 링크돼 있음
-5. [`docs/planning/살핌_기획안.md`](docs/planning/살핌_기획안.md)는 전체를 다 읽지 않아도 됨. AI/기술 설계 관련 담당자는 아래 섹션만:
+3. [`docs/DATABASE_GUIDE.md`](docs/DATABASE_GUIDE.md) — 현재 Cloud DB 상태와 팀 개발 방법
+4. [`docs/planning/살핌_DB_스키마_v0.3.md`](docs/planning/살핌_DB_스키마_v0.3.md) §1(설계 원칙) + §13(담당자별 작업 경계)
+5. [`docs/planning/PLANNING.md`](docs/planning/PLANNING.md) 중 자기 담당 화면 부분 — 각 컴포넌트 파일 상단 주석에 관련 섹션이 링크돼 있음
+6. [`docs/planning/살핌_기획안.md`](docs/planning/살핌_기획안.md)는 전체를 다 읽지 않아도 됨. AI/기술 설계 관련 담당자는 아래 섹션만:
    - **이유민**: 8.1(음성은 저장하지 않음), 8.6(후속 질문 중단 정책), 8.10(지연 예산)
    - **이지현**: 8.4(계층적 기억), 8.7(톤 분석)
    - **김현우**: 8.9(이름 치환), 9(기록의 무결성)
