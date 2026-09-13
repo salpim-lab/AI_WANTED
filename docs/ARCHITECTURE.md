@@ -2,6 +2,8 @@
 
 기술 스택: Next.js(App Router) + TypeScript + Tailwind / Supabase(Postgres+Auth+Realtime) / OpenAI API(서버에서만 호출) / SVG·CSS 섬(추후 Three.js 검토) / Vercel + Supabase Cloud 배포.
 
+DB 테이블 설계와 담당자별 테이블 경계는 `docs/planning/살핌_DB_스키마_v0.3.md` §13이 원본이다. 이 문서의 담당 매핑은 "화면" 기준, 그 문서는 "테이블" 기준이라 대부분 일치하지만 2곳은 다르다(아래 API 목록에 표시) — **테이블 쓰기는 항상 DB 문서 기준을 따르고, UI가 다른 사람 화면에 있으면 그 UI는 API route를 fetch로만 호출한다(그 사람의 lib/supabase 파일을 직접 import하지 않는다).**
+
 ## 담당
 
 | 담당 | 영역 |
@@ -32,8 +34,8 @@ src/
       transcribe/route.ts       # 이유민 — STT, 오디오는 처리 즉시 폐기 (저장 금지)
       chat/route.ts              # 이유민 — 꼬리질문/고정질문 대화
       item-extract/route.ts      # 이유민 — 발화 → 아이템
-      comment-draft/route.ts     # 김현우 — 교사 코멘트 초안
-      daily-analysis/route.ts    # 김현우 — 아이 상세 AI 분석
+      comment-draft/route.ts     # 이유민 — 교사 코멘트 초안 (feedback_drafts 테이블 소유자 기준. UI는 김현우 화면, fetch로만 호출)
+      daily-analysis/route.ts    # 이지현 — 아이 상세 AI 분석 (analysis_runs 테이블 소유자 기준. UI는 김현우 화면, fetch로만 호출)
       pattern-alert/route.ts     # 진승혜 — 패턴 경고 (규칙 기반, LLM 미사용)
       vocab-growth/route.ts      # 진승혜 — 감정 어휘 성장 집계
       teacher-agent/route.ts     # 이지현 — 협진 챗봇 (3 system prompt 병렬 → 합치기)
@@ -62,8 +64,8 @@ src/
         consultationLog.ts      # 김현우
         index.ts                 # 배럴 — export 한 줄만 추가
       interpretation/           # 해석/버전 데이터(코멘트, AI 분석) upsert — 도메인별 파일 분리
-        teacherComment.ts        # 김현우
-        dailyAnalysis.ts         # 김현우
+        teacherComment.ts        # 이유민 (feedback_drafts) — UI는 김현우 화면이지만 파일 소유는 이유민
+        dailyAnalysis.ts         # 이지현 (analysis_runs) — UI는 김현우 화면이지만 파일 소유는 이지현
         index.ts
       queries/                   # 대시보드 집계 읽기 전용 쿼리 — 섹션별 파일 분리
         colorSummary.ts / morningBriefing.ts / relationshipMap.ts

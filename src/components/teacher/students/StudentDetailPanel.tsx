@@ -1,9 +1,12 @@
 // 담당: 김현우
 // 아이 상세 페이지 본문: 등/하교 신호등 색, AI 대화 전문, AI 짧은 분석, 교사 코멘트 작성
 // 참고: docs/planning/PLANNING.md "탭 2. 아이 상세 페이지"
-// 지금은 STUDENT_DETAIL mock을 쓰고, 저장은 화면에만 반영됨 — 실제로는
-// lib/supabase/interpretation/teacherComment.ts 로 upsert하고(저장 시 다음날 등교에 전달),
-// 초안은 /api/ai/comment-draft, 분석은 /api/ai/daily-analysis 응답으로 대체할 것.
+// 지금은 STUDENT_DETAIL mock을 쓰고, 저장은 화면에만 반영됨 — 실제로는 아래 두 라우트를 fetch:
+//   - 초안: POST /api/ai/comment-draft (이유민 소유 — feedback_drafts 테이블)
+//   - 분석: POST /api/ai/daily-analysis (이지현 소유 — analysis_runs 테이블)
+// lib/supabase/interpretation/{teacherComment,dailyAnalysis}.ts는 각각 이유민/이지현 소유라
+// 여기서 직접 import하지 말 것 — 반드시 API route를 통해서만 접근.
+// (참고: docs/planning/살핌_DB_스키마_v0.3.md §13 담당자별 작업 경계)
 
 "use client";
 
