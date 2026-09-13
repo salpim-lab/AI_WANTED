@@ -104,6 +104,7 @@ docs/
 3. **음성은 저장하지 않는다.** `transcribe` 라우트는 오디오를 STT 처리 직후 폐기하고 텍스트만 반환/저장한다.
 4. **선생님 agent는 레이어지 탭이 아니다.** `(teacher)/layout.tsx`에서 한 번만 마운트 — 각 탭 page에 중복으로 넣지 않는다.
 5. **프로토타입 HTML(docs/prototype/)은 마크업·CSS만 참고.** vanilla JS 상태 전환 로직(getElementById 등)은 React state로 새로 짤 것, 그대로 옮기지 않는다.
+6. **Tailwind 전환은 화면별로 점진적으로.** 지금 `styles/prototype-*.css`는 프로토타입 CSS를 그대로 옮겨놓은 임시 상태 — 아직 Tailwind 유틸리티 클래스를 쓰는 화면은 없다. 각자 자기 화면(위 표의 `styles/*.css` 담당)을 실제로 구현할 때, 그 화면의 className을 Tailwind 유틸리티로 바꾸면서 자기 담당 CSS 파일의 해당 규칙을 지워나갈 것 — 남의 CSS 파일은 건드리지 않는다(공용 파일 `*-shared.css`도 자기 화면과 무관하면 손대지 말 것). 한 화면 전환이 끝나면 그 파일에서 지운 규칙만큼 파일이 줄어드는 게 정상이고, 모든 화면이 끝나면 `prototype-*.css` 전체가 삭제되는 게 최종 상태다.
 
 ## 충돌 방지 규칙 (바이브코딩 5인 동시 작업 전제)
 
