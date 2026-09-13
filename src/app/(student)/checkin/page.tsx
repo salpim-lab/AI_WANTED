@@ -7,6 +7,7 @@
 
 "use client";
 
+import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import TeacherComment from "@/components/student/TeacherComment";

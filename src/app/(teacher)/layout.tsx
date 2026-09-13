@@ -8,7 +8,9 @@
 // 위젯의 대화 상태가 탭을 넘나들어도 유지된다 (전역 상태관리 불필요).
 // 각 탭 page.tsx 안에는 위젯을 절대 넣지 말 것 — 중복 마운트/충돌 방지.
 
-import "@/styles/prototype-teacher.css";
+// 이 파일은 헤더/탭바만 그리는 공용 뼈대라 CSS도 "공용 디자인 토큰" 파일만 import한다.
+// 화면별 스타일(대시보드/아이상세/게시판)은 각자 담당 페이지에서 알아서 import — 여기 추가하지 말 것.
+import "@/styles/prototype-teacher-shared.css";
 import TabNav from "@/components/teacher/TabNav";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";
 

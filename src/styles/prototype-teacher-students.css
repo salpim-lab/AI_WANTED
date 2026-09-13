@@ -1,0 +1,64 @@
+/* 담당: 김현우 (단독 소유) — 자리 배치도 + 아이 상세 페이지.
+   import는 (teacher)/students/page.tsx 와 students/[id]/page.tsx 둘 다에서 (같은 담당이라 문제 없음). */
+
+.page-students { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+
+.seating-header { margin-bottom: 16px; }
+.seating-header h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.seating-header p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.seating-teacher-desk { text-align: center; margin-bottom: 14px; }
+.teacher-desk-label { display: inline-block; background: #f3f4f6; border-radius: 8px; padding: 6px 32px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.seat {
+  background: var(--surface); border-radius: 10px; padding: 12px 8px;
+  text-align: center; cursor: pointer; border: 2px solid transparent;
+  box-shadow: var(--shadow); transition: transform 0.1s, box-shadow 0.1s;
+  position: relative; text-decoration: none; display: block; color: inherit;
+}
+.seat:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+.seat .seat-name { font-size: 13px; font-weight: 700; }
+.seat .seat-color { width: 10px; height: 10px; border-radius: 50%; margin: 5px auto 0; }
+.seat.color-green  { border-color: var(--green-ring); }
+.seat.color-yellow { border-color: var(--yellow-ring); }
+.seat.color-red    { border-color: var(--red-ring); box-shadow: 0 0 0 3px rgba(239,68,68,.08); }
+.seat.color-navy   { border-color: var(--navy-ring); box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
+.seat-badge { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; border: 2px solid #fff; }
+.seat-badge-watch { background: var(--red); color: #fff; }
+.seat-badge-unicorn { background: #f59e0b; color: #fff; }
+
+.student-detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.back-btn { background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
+.back-btn:hover { border-color: var(--accent); color: var(--accent); }
+.student-detail-name { font-size: 20px; font-weight: 800; }
+
+.mini-calendar { display: flex; gap: 6px; margin-bottom: 18px; overflow-x: auto; padding-bottom: 4px; }
+.cal-day { min-width: 40px; padding: 6px 4px; border-radius: 8px; text-align: center; cursor: pointer; border: 1.5px solid var(--border); transition: all 0.15s; background: none; font-family: inherit; }
+.cal-day .day-num { font-size: 14px; font-weight: 700; }
+.cal-day .day-dot { width: 6px; height: 6px; border-radius: 50%; margin: 3px auto 0; background: transparent; }
+.cal-day:hover { border-color: var(--accent); }
+.cal-day.today { border-color: var(--accent); background: var(--navy-bg); }
+.cal-day.today .day-num { color: var(--accent); }
+.cal-day.has-red .day-dot { background: var(--red); }
+.cal-day.has-yellow .day-dot { background: var(--yellow); }
+.cal-day.has-green .day-dot { background: var(--green); }
+
+.conv-section { margin-bottom: 16px; }
+.conv-section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.conv-turn { display: flex; gap: 8px; margin-bottom: 8px; }
+.conv-turn .who { font-size: 11px; font-weight: 700; min-width: 40px; padding-top: 3px; }
+.conv-turn.ai-turn .who { color: var(--accent); }
+.conv-turn.student-turn .who { color: var(--muted); }
+.conv-turn .bubble { background: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; flex: 1; }
+.conv-turn.ai-turn .bubble { background: var(--navy-bg); }
+.ai-analysis { background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; font-size: 12px; line-height: 1.6; color: #15803d; margin-bottom: 16px; }
+.ai-analysis .analysis-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: #16a34a; }
+
+.comment-section { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+.comment-section-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.comment-section-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.draft-box { background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 9px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #0c4a6e; margin-bottom: 10px; }
+.draft-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0369a1; margin-bottom: 4px; }
+.comment-textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 13px; line-height: 1.6; font-family: inherit; resize: none; outline: none; transition: border-color 0.15s; }
+.comment-textarea:focus { border-color: var(--accent); }
+.comment-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.comment-note { font-size: 11px; color: var(--muted); margin-left: auto; }

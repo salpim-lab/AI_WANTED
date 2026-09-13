@@ -5,6 +5,7 @@
 
 "use client";
 
+import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";

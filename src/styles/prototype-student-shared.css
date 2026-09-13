@@ -1,0 +1,111 @@
+/* 학생 화면 공통 뼈대(디벗 프레임/상태바/화면 전환/공통 버튼) — 이유민·강윤지 둘 다 걸쳐 있는 파일이라
+   자주 안 바뀌어야 정상. 고칠 일 있으면 미리 얘기하고 고칠 것 (docs/ARCHITECTURE.md 충돌 방지 규칙 3번과 동일 성격).
+   (student)/layout.tsx 에서만 import. */
+
+.device-frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ddd8d0;
+  background-image: radial-gradient(#c9c4bc 1px, transparent 1px);
+  background-size: 20px 20px;
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, sans-serif;
+}
+
+.tablet {
+  width: 768px;
+  height: 576px;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 8px #2a2a2a,
+    0 0 0 10px #1a1a1a,
+    0 24px 60px rgba(0,0,0,.4);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  color: #111827;
+}
+
+.status-bar {
+  height: 32px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  flex-shrink: 0;
+}
+.status-bar .time { font-size: 12px; font-weight: 700; color: #111827; }
+.status-bar .icons { font-size: 11px; color: #6b7280; display: flex; gap: 8px; align-items: center; }
+.status-bar .app-name { font-size: 12px; font-weight: 800; color: #6366f1; }
+
+.screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.screen.active { display: flex; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.screen.active { animation: slideIn 0.25s ease; }
+
+.btn-primary {
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  padding: 13px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s;
+  font-family: inherit;
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:hover  { background: #4f46e5; }
+
+.btn-ghost {
+  background: none;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #6b7280;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.btn-ghost:hover { border-color: #6366f1; color: #6366f1; }
+
+.progress-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+.progress-dots span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  transition: background 0.2s, width 0.2s;
+  display: inline-block;
+}
+.progress-dots span.active {
+  background: #6366f1;
+  width: 18px;
+  border-radius: 3px;
+}
+.progress-dots span.done {
+  background: #a5b4fc;
+}

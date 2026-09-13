@@ -6,6 +6,7 @@
 
 "use client";
 
+import "@/styles/prototype-student-island.css";
 import { useRef, useState } from "react";
 import type { Item } from "./mockScenarios";
 
