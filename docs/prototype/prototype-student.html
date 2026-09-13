@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE — 살핌 · 학생 화면 (등교 플로우)
+  질문: "학생이 아침에 디벗을 열었을 때 흐름이 어떻게 보이면 좋을까?"
+  실제 플로우를 5단계로 체험. THROWAWAY: 검증 후 폐기.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>살핌 · 학생 화면 프로토타입</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green:  #22c55e; --green-bg:  #f0fdf4; --green-light: #dcfce7;
+  --yellow: #eab308; --yellow-bg: #fefce8; --yellow-light: #fef9c3;
+  --red:    #ef4444; --red-bg:    #fef2f2; --red-light:   #fee2e2;
+  --navy:   #6366f1; --navy-bg:   #eef2ff; --navy-light:  #e0e7ff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --surface: #ffffff;
+  --radius: 20px;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, sans-serif;
+  background: #f1f0ed;
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── 디벗 프레임 ──────────────────────────────── */
+.device-frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ddd8d0;
+  background-image: radial-gradient(#c9c4bc 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.tablet {
+  width: 768px;
+  height: 576px;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow:
+    0 0 0 8px #2a2a2a,
+    0 0 0 10px #1a1a1a,
+    0 24px 60px rgba(0,0,0,.4);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 상단 상태바 ──────────────────────────────── */
+.status-bar {
+  height: 32px;
+  background: #f9fafb;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  flex-shrink: 0;
+}
+.status-bar .time { font-size: 12px; font-weight: 700; color: var(--text); }
+.status-bar .icons { font-size: 11px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.status-bar .app-name { font-size: 12px; font-weight: 800; color: #6366f1; }
+
+/* ── 화면 공통 ────────────────────────────────── */
+.screen {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.screen.active { display: flex; }
+
+/* ── 화면 전환 애니메이션 ─────────────────────── */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.screen.active { animation: slideIn 0.25s ease; }
+
+/* ── 공통 버튼 ────────────────────────────────── */
+.btn-primary {
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  padding: 13px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s;
+  font-family: inherit;
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:hover  { background: #4f46e5; }
+
+.btn-ghost {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.btn-ghost:hover { border-color: #6366f1; color: #6366f1; }
+
+/* 진행 표시 */
+.progress-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+.progress-dots span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s, width 0.2s;
+}
+.progress-dots span.active {
+  background: #6366f1;
+  width: 18px;
+  border-radius: 3px;
+}
+.progress-dots span.done {
+  background: #a5b4fc;
+}
+
+
+/* ══════════════════════════════════════════
+   S1 — 교사 코멘트 확인
+══════════════════════════════════════════ */
+#s1 {
+  background: linear-gradient(160deg, #eef2ff 0%, #f0fdf4 100%);
+  justify-content: space-between;
+  padding: 16px 24px 20px;
+}
+
+.s1-greeting {
+  text-align: center;
+}
+.s1-greeting .hello {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.s1-greeting .name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.s1-card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.07);
+  flex: 1;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.s1-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+}
+.s1-card .from {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.s1-card .from::before {
+  content: '📩';
+  font-size: 14px;
+}
+.s1-card .message {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--text);
+  flex: 1;
+}
+.s1-card .message .highlight {
+  color: #6366f1;
+  font-weight: 700;
+}
+.s1-card .from-name {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 12px;
+}
+
+.s1-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.s1-date { font-size: 11px; color: var(--muted); }
+
+
+/* ══════════════════════════════════════════
+   S2 — 색 선택
+══════════════════════════════════════════ */
+#s2 {
+  background: #fafafa;
+  padding: 16px 24px 20px;
+  justify-content: space-between;
+}
+
+.s2-question {
+  text-align: center;
+}
+.s2-question .label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+.s2-question h2 {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.s2-question .sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1;
+  margin: 14px 0;
+}
+
+.color-btn {
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.12s, box-shadow 0.12s;
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+}
+.color-btn:active { transform: scale(0.96); }
+.color-btn:hover  { box-shadow: 0 6px 24px rgba(0,0,0,.13); transform: translateY(-2px); }
+
+.color-btn .emoji { font-size: 36px; }
+.color-btn .color-name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.color-btn .color-desc {
+  font-size: 11px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+
+.color-btn.green  { background: var(--green-light);  color: #15803d; box-shadow: 0 2px 12px rgba(34,197,94,.2); }
+.color-btn.yellow { background: var(--yellow-light); color: #854d0e; box-shadow: 0 2px 12px rgba(234,179,8,.2); }
+.color-btn.red    { background: var(--red-light);    color: #b91c1c; box-shadow: 0 2px 12px rgba(239,68,68,.2); }
+.color-btn.navy   { background: var(--navy-light);   color: #4338ca; box-shadow: 0 2px 12px rgba(99,102,241,.2); }
+
+.s2-skip { font-size: 11px; color: var(--muted); text-align: center; }
+
+
+/* ══════════════════════════════════════════
+   S3 — AI 대화
+══════════════════════════════════════════ */
+#s3 {
+  background: #f9fafb;
+  flex-direction: column;
+}
+
+.s3-header {
+  padding: 12px 18px;
+  background: white;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.s3-header .ai-avatar {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.s3-header .ai-info .ai-name { font-size: 13px; font-weight: 700; }
+.s3-header .ai-info .ai-sub  { font-size: 11px; color: var(--muted); }
+
+.s3-color-badge {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-bubble {
+  max-width: 75%;
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  animation: bubbleIn 0.2s ease;
+}
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.chat-bubble.ai {
+  background: white;
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  color: var(--text);
+}
+.chat-bubble.user {
+  background: #6366f1;
+  color: white;
+  border-bottom-right-radius: 4px;
+  align-self: flex-end;
+}
+.chat-bubble.navy-msg {
+  background: var(--navy-light);
+  color: #4338ca;
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+  font-style: italic;
+}
+
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 15px;
+  background: white;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  align-self: flex-start;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  width: 56px;
+}
+.typing-indicator span {
+  width: 6px; height: 6px;
+  background: #d1d5db;
+  border-radius: 50%;
+  animation: typing 1.2s infinite;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); background: #d1d5db; }
+  30% { transform: translateY(-5px); background: #9ca3af; }
+}
+
+.reply-options {
+  padding: 10px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: white;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.reply-options .reply-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.reply-options-row {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.reply-chip {
+  background: #f3f4f6;
+  border: 1.5px solid var(--border);
+  border-radius: 99px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.reply-chip:hover {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #4338ca;
+}
+.reply-chip:active { transform: scale(0.97); }
+
+
+/* ══════════════════════════════════════════
+   S4 — 아이템 생성
+══════════════════════════════════════════ */
+#s4 {
+  background: linear-gradient(160deg, #fef9c3 0%, #f0fdf4 100%);
+  padding: 16px 24px 20px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.s4-title {
+  text-align: center;
+}
+.s4-title .label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d97706;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+.s4-title h2 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.s4-title p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.item-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.item-box {
+  width: 120px; height: 120px;
+  background: white;
+  border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.1), 0 0 0 4px #fef9c3;
+  animation: itemPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes itemPop {
+  from { opacity: 0; transform: scale(0.5) rotate(-10deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.item-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+.item-reason {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  max-width: 240px;
+  line-height: 1.5;
+  background: white;
+  padding: 8px 14px;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+.s4-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.s4-bottom .skip-note { font-size: 11px; color: var(--muted); }
+
+
+/* ══════════════════════════════════════════
+   S5 — 섬에 배치
+══════════════════════════════════════════ */
+#s5 {
+  background: linear-gradient(180deg, #e0f2fe 0%, #bae6fd 40%, #7dd3fc 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.island-header {
+  padding: 12px 18px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.island-header .title { font-size: 15px; font-weight: 800; }
+.island-header .subtitle { font-size: 11px; color: rgba(0,0,0,.5); }
+.island-header .count-badge {
+  background: white;
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0369a1;
+}
+
+.island-scene {
+  flex: 1;
+  position: relative;
+  cursor: grab;
+}
+.island-scene:active { cursor: grabbing; }
+
+/* 바다 */
+.sea {
+  position: absolute;
+  inset: 0;
+}
+
+/* 섬 SVG */
+.island-svg {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+}
+
+/* 기존 아이템들 */
+.placed-item {
+  position: absolute;
+  font-size: 28px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
+  user-select: none;
+  animation: placeIn 0.3s ease;
+}
+@keyframes placeIn {
+  from { opacity: 0; transform: scale(0) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 새 아이템 — 드래그 가능 */
+.new-item-drag {
+  position: absolute;
+  font-size: 40px;
+  cursor: grab;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.25));
+  user-select: none;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: filter 0.2s;
+  z-index: 10;
+}
+.new-item-drag.dragging {
+  cursor: grabbing;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,.35)) drop-shadow(0 0 20px rgba(99,102,241,.5));
+  transform: scale(1.15) translateX(-43%);
+  transition: none;
+}
+.new-item-drag.placed {
+  animation: settlePop 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@keyframes settlePop {
+  0%   { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.island-hint {
+  position: absolute;
+  top: 85px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0369a1;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,.1);
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.island-complete-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+}
+.island-complete-overlay.show { display: flex; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.complete-emoji { font-size: 64px; }
+.complete-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+.complete-sub   { font-size: 13px; color: var(--muted); }
+
+.island-bottom-bar {
+  padding: 10px 18px 12px;
+  background: rgba(255,255,255,.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.island-bottom-bar .prev-items {
+  display: flex;
+  gap: 4px;
+}
+.island-bottom-bar .prev-items span {
+  font-size: 22px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.15));
+}
+.island-bottom-bar .done-btn {
+  background: #0369a1;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 9px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+  opacity: 0.4;
+  pointer-events: none;
+}
+.island-bottom-bar .done-btn.enabled {
+  opacity: 1;
+  pointer-events: auto;
+}
+.island-bottom-bar .done-btn.enabled:hover { background: #0284c7; }
+
+/* ── 하단 프로토타입 표시 ──────────────────────── */
+#proto-bar {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(24,24,27,.9);
+  color: white;
+  border-radius: 99px;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  pointer-events: none;
+}
+#proto-bar .step-info { color: rgba(255,255,255,.6); }
+.proto-tag {
+  background: #f87171;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+</style>
+</head>
+<body>
+
+<div class="device-frame">
+  <div class="tablet">
+
+    <!-- 상태바 -->
+    <div class="status-bar">
+      <span class="time">오전 8:32</span>
+      <span class="app-name">살핌</span>
+      <span class="icons">
+        <span>WiFi</span>
+        <span>🔋 87%</span>
+      </span>
+    </div>
+
+    <!-- 진행 표시 -->
+    <div class="progress-dots" id="progress-dots">
+      <span class="active" data-step="1"></span>
+      <span data-step="2"></span>
+      <span data-step="3"></span>
+      <span data-step="4"></span>
+      <span data-step="5"></span>
+    </div>
+
+    <!-- ══════════════════════════════
+         S1: 교사 코멘트 확인
+    ══════════════════════════════ -->
+    <div class="screen active" id="s1">
+      <div class="s1-greeting">
+        <div class="hello">좋은 아침이에요 ☀️</div>
+        <div class="name">김민준</div>
+      </div>
+
+      <div class="s1-card">
+        <div class="from">선생님의 한마디</div>
+        <div class="message">
+          민준아, 어제 수업 시간에 <span class="highlight">끝까지 집중해서 문제 푸는 모습</span>이 정말 멋졌어.<br><br>
+          선생님은 민준이가 포기하지 않고 끝까지 해내는 걸 보면 항상 뿌듯해. 오늘도 그 마음으로 시작해보자! 😊
+        </div>
+        <div class="from-name">— 이선생님</div>
+      </div>
+
+      <div class="s1-bottom">
+        <div class="s1-date">2026년 9월 13일 (목)</div>
+        <button class="btn-primary" onclick="goTo(2)">다음으로 →</button>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════
+         S2: 색 선택
+    ══════════════════════════════ -->
+    <div class="screen" id="s2">
+      <div class="s2-question">
+        <div class="label">오늘의 기분</div>
+        <h2>지금 기분은 어때?</h2>
+        <div class="sub">가장 비슷한 색을 골라봐</div>
+      </div>
+
+      <div class="color-grid">
+        <button class="color-btn green" onclick="selectColor('green', '초록', '기분 좋아요 😊')">
+          <span class="emoji">🟢</span>
+          <span class="color-name">초록</span>
+          <span class="color-desc">기분 좋아요</span>
+        </button>
+        <button class="color-btn yellow" onclick="selectColor('yellow', '노랑', '그저 그래요 😐')">
+          <span class="emoji">🟡</span>
+          <span class="color-name">노랑</span>
+          <span class="color-desc">그저 그래요</span>
+        </button>
+        <button class="color-btn red" onclick="selectColor('red', '빨강', '기분이 안 좋아요 😔')">
+          <span class="emoji">🔴</span>
+          <span class="color-name">빨강</span>
+          <span class="color-desc">기분이 안 좋아요</span>
+        </button>
+        <button class="color-btn navy" onclick="selectColor('navy', '남색', '혼자 있을 시간이 필요해요')">
+          <span class="emoji">🔵</span>
+          <span class="color-name">남색</span>
+          <span class="color-desc">혼자 있고 싶어요</span>
+        </button>
+      </div>
+
+      <div class="s2-skip">색만 고르고 끝내도 괜찮아 🙂</div>
+    </div>
+
+
+    <!-- ══════════════════════════════
+         S3: AI 대화
+    ══════════════════════════════ -->
+    <div class="screen" id="s3">
+      <div class="s3-header">
+        <div class="ai-avatar">🤖</div>
+        <div class="ai-info">
+          <div class="ai-name">살핌</div>
+          <div class="ai-sub">선생님은 내용을 볼 수 있어요</div>
+        </div>
+        <div class="s3-color-badge" id="s3-badge"></div>
+      </div>
+
+      <div class="chat-area" id="chat-area"></div>
+
+      <div class="reply-options" id="reply-options" style="display:none">
+        <div class="reply-label">답장하기</div>
+        <div class="reply-options-row" id="reply-row"></div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════
+         S4: 아이템 생성
+    ══════════════════════════════ -->
+    <div class="screen" id="s4">
+      <div class="s4-title">
+        <div class="label">✨ 오늘의 아이템</div>
+        <h2>새 아이템이 생겼어!</h2>
+        <p>오늘 이야기에서 만들어졌어</p>
+      </div>
+
+      <div class="item-reveal">
+        <div class="item-box" id="item-emoji">⚽</div>
+        <div class="item-name" id="item-name">축구공</div>
+        <div class="item-reason" id="item-reason">"어제 축구했어요"에서 만들어졌어</div>
+      </div>
+
+      <div class="s4-bottom">
+        <button class="btn-primary" onclick="goTo(5)">섬에 배치하러 가기 🏝</button>
+        <div class="skip-note">나중에 배치해도 아이템은 사라지지 않아</div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════
+         S5: 섬에 배치
+    ══════════════════════════════ -->
+    <div class="screen" id="s5">
+      <div class="island-header">
+        <div>
+          <div class="title">민준이의 섬 🏝</div>
+          <div class="subtitle">아이템을 섬 위에 올려봐</div>
+        </div>
+        <div class="count-badge" id="item-count">47개 모음</div>
+      </div>
+
+      <div class="island-scene" id="island-scene">
+        <!-- 배경 바다 -->
+        <div class="sea"></div>
+
+        <!-- 섬 -->
+        <svg class="island-svg" viewBox="0 0 340 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- 그림자 -->
+          <ellipse cx="170" cy="148" rx="130" ry="14" fill="rgba(0,0,0,.08)"/>
+          <!-- 섬 본체 -->
+          <ellipse cx="170" cy="120" rx="130" ry="42" fill="#86efac"/>
+          <ellipse cx="170" cy="112" rx="130" ry="40" fill="#4ade80"/>
+          <!-- 모래사장 -->
+          <ellipse cx="170" cy="115" rx="90" ry="24" fill="#fde68a"/>
+          <ellipse cx="170" cy="118" rx="88" ry="20" fill="#fef3c7"/>
+          <!-- 야자수 -->
+          <rect x="118" y="60" width="5" height="52" rx="2" fill="#92400e"/>
+          <ellipse cx="120" cy="62" rx="22" ry="14" fill="#16a34a" transform="rotate(-15 120 62)"/>
+          <ellipse cx="120" cy="60" rx="18" ry="11" fill="#22c55e" transform="rotate(10 120 60)"/>
+          <!-- 야자수2 -->
+          <rect x="218" y="68" width="4" height="44" rx="2" fill="#92400e"/>
+          <ellipse cx="220" cy="70" rx="18" ry="12" fill="#16a34a" transform="rotate(20 220 70)"/>
+        </svg>
+
+        <!-- 기존 배치 아이템들 -->
+        <div class="placed-item" style="left:148px;top:220px;font-size:22px">🌸</div>
+        <div class="placed-item" style="left:196px;top:224px;font-size:20px">⭐</div>
+        <div class="placed-item" style="left:162px;top:240px;font-size:18px">🍎</div>
+        <div class="placed-item" style="left:215px;top:238px;font-size:20px">📚</div>
+        <div class="placed-item" style="left:130px;top:235px;font-size:18px">🎨</div>
+        <div class="placed-item" style="left:178px;top:248px;font-size:16px">🐶</div>
+
+        <!-- 힌트 -->
+        <div class="island-hint" id="island-hint">⬇ 아이템을 잡아서 섬 위에 올려봐</div>
+
+        <!-- 새 아이템 (드래그 가능) -->
+        <div class="new-item-drag" id="drag-item" id="drag-item">⚽</div>
+
+        <!-- 완료 오버레이 -->
+        <div class="island-complete-overlay" id="complete-overlay">
+          <div class="complete-emoji">🎉</div>
+          <div class="complete-title">오늘 체크인 완료!</div>
+          <div class="complete-sub">오늘도 이야기해줘서 고마워 ☺️</div>
+          <button class="btn-primary" style="margin-top:8px" onclick="resetDemo()">처음부터 다시 보기</button>
+        </div>
+      </div>
+
+      <div class="island-bottom-bar">
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px">지금까지 모은 아이템</div>
+          <div class="prev-items">
+            <span>🌸</span><span>⭐</span><span>🍎</span><span>📚</span><span>🎨</span>
+          </div>
+        </div>
+        <button class="island-bottom-bar done-btn" id="done-btn" onclick="showComplete()">완료 ✓</button>
+      </div>
+    </div>
+
+  </div><!-- /tablet -->
+</div><!-- /device-frame -->
+
+<!-- 프로토타입 표시 바 -->
+<div id="proto-bar">
+  <span>살핌 학생 화면 프로토타입</span>
+  <span class="step-info" id="step-label">1단계: 교사 코멘트 확인</span>
+  <span class="proto-tag">PROTO</span>
+</div>
+
+
+<script>
+// ── 상태 ─────────────────────────────────────────
+let currentStep = 1;
+let selectedColor = null;
+
+const STEP_LABELS = {
+  1: '1단계: 교사 코멘트 확인',
+  2: '2단계: 색 선택',
+  3: '3단계: AI 대화',
+  4: '4단계: 아이템 생성',
+  5: '5단계: 섬에 배치',
+};
+
+// 색별 대화 시나리오
+const CHAT_SCENARIOS = {
+  green: {
+    badge: '🟢 초록',
+    badgeStyle: 'background:#dcfce7;color:#15803d',
+    item: { emoji: '⭐', name: '반짝이 별', reason: '"좋은 기분"에서 만들어졌어' },
+    messages: [
+      { from: 'ai', text: '초록이구나! 오늘 기분 좋은 것 같아서 나도 좋다 😊\n뭔가 좋은 일이 있었어? 자랑하고 싶은 거 있으면 말해줘!', delay: 600 },
+    ],
+    replies: [
+      { text: '어제 게임에서 이겼어요!', next: 'green_r1' },
+      { text: '그냥 기분이 좋아요', next: 'green_r2' },
+      { text: '괜찮아요 (넘어가기)', next: 'skip' },
+    ],
+    followups: {
+      green_r1: {
+        ai: '와, 게임에서 이겼구나! 대단한걸 👍\n오늘도 그 기세 이어가자!',
+        item: { emoji: '🎮', name: '게임 컨트롤러', reason: '"게임에서 이겼어요"에서 만들어졌어' },
+        done: true,
+      },
+      green_r2: {
+        ai: '그냥 기분이 좋은 것도 정말 좋은 거야 🌟\n오늘도 좋은 하루 보내!',
+        item: { emoji: '⭐', name: '반짝이 별', reason: '"기분이 좋은 날"에서 만들어졌어' },
+        done: true,
+      },
+      skip: { done: true },
+    },
+  },
+  yellow: {
+    badge: '🟡 노랑',
+    badgeStyle: 'background:#fef9c3;color:#854d0e',
+    item: { emoji: '🌤', name: '구름 낀 해', reason: '"그저 그런 기분"에서 만들어졌어' },
+    messages: [
+      { from: 'ai', text: '노랑이구나. 완전 좋지도 나쁘지도 않은 날이 있지.\n무슨 일인지 말해줄 수 있어?', delay: 700 },
+    ],
+    replies: [
+      { text: '어제 친구랑 좀 싸웠어요', next: 'yellow_r1' },
+      { text: '그냥 좀 피곤해요', next: 'yellow_r2' },
+      { text: '말하기 싫어요', next: 'skip' },
+    ],
+    followups: {
+      yellow_r1: {
+        ai: '친구랑 싸웠구나. 그런 날은 기분이 좀 가라앉지.\n지금은 좀 어때? 괜찮아졌어?',
+        replies2: [
+          { text: '조금 괜찮아졌어요', next2: 'yellow_r1b' },
+          { text: '아직도 기분이 좀 그래요', next2: 'yellow_r1c' },
+        ],
+      },
+      yellow_r1b: {
+        ai: '그래, 다행이다. 오늘 학교에서 잘 풀리면 좋겠어 🙂',
+        item: { emoji: '🤝', name: '악수하는 손', reason: '"친구랑 싸웠다"에서 만들어졌어' },
+        done: true,
+      },
+      yellow_r1c: {
+        ai: '그럼 선생님이 알고 계실 수 있게 해줄게. 오늘 힘들면 언제든 선생님한테 말해도 돼.',
+        item: { emoji: '💛', name: '노란 하트', reason: '"힘든 마음"에서 만들어졌어' },
+        done: true,
+      },
+      yellow_r2: {
+        ai: '피곤하구나. 어젯밤에 잠을 못 잤어?\n오늘 쉬운 하루이길 바랄게 😴',
+        item: { emoji: '😴', name: '졸린 얼굴', reason: '"피곤한 날"에서 만들어졌어' },
+        done: true,
+      },
+      skip: { done: true },
+    },
+  },
+  red: {
+    badge: '🔴 빨강',
+    badgeStyle: 'background:#fee2e2;color:#b91c1c',
+    item: { emoji: '💗', name: '분홍 하트', reason: '"힘든 마음"에서 만들어졌어' },
+    messages: [
+      { from: 'ai', text: '빨강이구나. 기분이 많이 안 좋은 것 같아.\n무슨 일 있었어? 말해줄 수 있으면 얘기해봐.', delay: 700 },
+    ],
+    replies: [
+      { text: '아침에 엄마랑 싸웠어요', next: 'red_r1' },
+      { text: '그냥 다 싫어요', next: 'red_r2' },
+      { text: '말하기 싫어요', next: 'skip' },
+    ],
+    followups: {
+      red_r1: {
+        ai: '아침부터 엄마랑 싸웠구나. 그러면 학교 오는 것도 힘들었겠다.\n오늘 선생님이 알고 있을게. 힘들면 언제든 말해줘.',
+        item: { emoji: '🏠', name: '집', reason: '"엄마랑 싸웠어요"에서 만들어졌어' },
+        done: true,
+      },
+      red_r2: {
+        ai: '그런 날 있어. 다 싫은 것 같은 날.\n선생님한테 직접 얘기하고 싶으면 버튼 눌러줘.',
+        showConsult: true,
+        item: { emoji: '💗', name: '분홍 하트', reason: '"힘든 마음"에서 만들어졌어' },
+        done: true,
+      },
+      skip: {
+        ai: '알겠어. 말하기 싫을 때는 안 해도 돼.\n선생님이 오늘 옆에서 지켜볼게.',
+        item: { emoji: '💗', name: '분홍 하트', reason: '"힘든 날"에서 만들어졌어' },
+        done: true,
+      },
+    },
+  },
+  navy: {
+    badge: '🔵 남색',
+    badgeStyle: 'background:#e0e7ff;color:#4338ca',
+    item: { emoji: '🌙', name: '달', reason: '"혼자만의 시간"에서 만들어졌어' },
+    messages: [
+      { from: 'ai', text: '알겠어. 오늘은 그냥 둘게.\n필요하면 언제든 눌러. 🔵', delay: 600, isNavy: true },
+    ],
+    replies: [],
+    autoEnd: true,
+  },
+};
+
+// ── 화면 전환 ─────────────────────────────────────
+function goTo(step) {
+  const prev = document.getElementById('s' + currentStep);
+  const next = document.getElementById('s' + step);
+  if (prev) prev.classList.remove('active');
+  if (next) next.classList.add('active');
+  currentStep = step;
+
+  // progress dots
+  document.querySelectorAll('.progress-dots span').forEach((dot, i) => {
+    const s = i + 1;
+    dot.className = s < step ? 'done' : s === step ? 'active' : '';
+  });
+
+  document.getElementById('step-label').textContent = STEP_LABELS[step] || '';
+}
+
+// ── 색 선택 ───────────────────────────────────────
+function selectColor(color, name, desc) {
+  selectedColor = color;
+  const scenario = CHAT_SCENARIOS[color];
+
+  // 배지
+  const badge = document.getElementById('s3-badge');
+  badge.textContent = scenario.badge;
+  badge.style.cssText = scenario.badgeStyle + ';padding:4px 12px;border-radius:99px;font-size:12px;font-weight:700;';
+
+  // 아이템 설정
+  setItem(scenario.item);
+
+  // 채팅 초기화
+  const chatArea = document.getElementById('chat-area');
+  chatArea.innerHTML = '';
+  document.getElementById('reply-options').style.display = 'none';
+
+  goTo(3);
+
+  // 메시지 순차 표시
+  const msgs = scenario.messages;
+  let delay = 200;
+  msgs.forEach((msg) => {
+    setTimeout(() => {
+      if (msg.isNavy) {
+        addBubble('navy-msg', msg.text);
+      } else {
+        addBubble('ai', msg.text);
+      }
+      if (scenario.autoEnd) {
+        setTimeout(() => autoEndNavy(scenario), 800);
+      } else if (scenario.replies.length > 0) {
+        setTimeout(() => showReplies(scenario.replies, scenario.followups), 400);
+      }
+    }, delay);
+    delay += msg.delay || 500;
+  });
+}
+
+function autoEndNavy(scenario) {
+  setItem(scenario.item);
+  document.getElementById('reply-options').style.display = 'none';
+  setTimeout(() => goTo(4), 1200);
+}
+
+// ── 채팅 버블 추가 ────────────────────────────────
+function addBubble(type, text) {
+  const chatArea = document.getElementById('chat-area');
+
+  if (type === 'typing') {
+    const t = document.createElement('div');
+    t.className = 'typing-indicator';
+    t.id = 'typing';
+    t.innerHTML = '<span></span><span></span><span></span>';
+    chatArea.appendChild(t);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return;
+  }
+
+  // 타이핑 제거
+  const prev = document.getElementById('typing');
+  if (prev) prev.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble ' + type;
+  bubble.innerHTML = text.replace(/\n/g, '<br>');
+  chatArea.appendChild(bubble);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// ── 답장 옵션 표시 ────────────────────────────────
+function showReplies(replies, followups) {
+  const opts = document.getElementById('reply-options');
+  const row = document.getElementById('reply-row');
+  row.innerHTML = '';
+  opts.style.display = 'flex';
+
+  replies.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'reply-chip';
+    btn.textContent = r.text;
+    btn.onclick = () => handleReply(r, followups);
+    row.appendChild(btn);
+  });
+}
+
+function handleReply(reply, followups) {
+  // 답장 옵션 숨김
+  document.getElementById('reply-options').style.display = 'none';
+
+  // 유저 버블
+  addBubble('user', reply.text);
+
+  if (reply.next === 'skip') {
+    const fu = followups['skip'];
+    if (fu) {
+      if (fu.ai) {
+        setTimeout(() => { addBubble('typing'); }, 400);
+        setTimeout(() => { addBubble('ai', fu.ai); }, 1100);
+      }
+      if (fu.item) setItem(fu.item);
+    }
+    setTimeout(() => goTo(4), 2200);
+    return;
+  }
+
+  const fu = followups[reply.next];
+  if (!fu) return;
+
+  if (fu.ai) {
+    setTimeout(() => { addBubble('typing'); }, 500);
+    setTimeout(() => {
+      addBubble('ai', fu.ai);
+      if (fu.showConsult) {
+        setTimeout(() => addConsultBtn(), 300);
+      }
+      if (fu.replies2) {
+        setTimeout(() => showReplies2(fu.replies2, followups), 500);
+      } else if (fu.done) {
+        if (fu.item) setItem(fu.item);
+        setTimeout(() => goTo(4), 1400);
+      }
+    }, 1200);
+  }
+}
+
+function showReplies2(replies, followups) {
+  const opts = document.getElementById('reply-options');
+  const row = document.getElementById('reply-row');
+  row.innerHTML = '';
+  opts.style.display = 'flex';
+
+  replies.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'reply-chip';
+    btn.textContent = r.text;
+    btn.onclick = () => {
+      opts.style.display = 'none';
+      addBubble('user', r.text);
+      const fu = followups[r.next2];
+      if (fu) {
+        setTimeout(() => addBubble('typing'), 400);
+        setTimeout(() => {
+          addBubble('ai', fu.ai);
+          if (fu.item) setItem(fu.item);
+          setTimeout(() => goTo(4), 1400);
+        }, 1100);
+      }
+    };
+    row.appendChild(btn);
+  });
+}
+
+function addConsultBtn() {
+  const chatArea = document.getElementById('chat-area');
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'align-self:flex-end;margin-top:4px;';
+  wrap.innerHTML = '<button style="background:#fee2e2;border:1.5px solid #fca5a5;border-radius:10px;padding:7px 14px;font-size:12px;font-weight:700;color:#b91c1c;cursor:pointer;font-family:inherit" onclick="this.textContent=\'✓ 신청했어요\';this.style.background=\'#dcfce7\';this.style.borderColor=\'#86efac\';this.style.color=\'#15803d\'">선생님께 직접 얘기하고 싶어요</button>';
+  chatArea.appendChild(wrap);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// ── 아이템 설정 ───────────────────────────────────
+function setItem(item) {
+  document.getElementById('item-emoji').textContent = item.emoji;
+  document.getElementById('item-name').textContent = item.name;
+  document.getElementById('item-reason').textContent = item.reason;
+  document.getElementById('drag-item').textContent = item.emoji;
+}
+
+// ── 드래그 (섬 배치) ──────────────────────────────
+let isDragging = false;
+let placed = false;
+let startX, startY, origX, origY;
+
+const dragItem = document.getElementById('drag-item');
+const scene = document.getElementById('island-scene');
+
+dragItem.addEventListener('mousedown', startDrag);
+dragItem.addEventListener('touchstart', startDrag, { passive: false });
+
+function startDrag(e) {
+  if (placed) return;
+  e.preventDefault();
+  isDragging = true;
+  dragItem.classList.add('dragging');
+
+  const touch = e.touches ? e.touches[0] : e;
+  const rect = dragItem.getBoundingClientRect();
+  startX = touch.clientX - rect.left;
+  startY = touch.clientY - rect.top;
+}
+
+document.addEventListener('mousemove', moveDrag);
+document.addEventListener('touchmove', moveDrag, { passive: false });
+
+function moveDrag(e) {
+  if (!isDragging) return;
+  e.preventDefault();
+  const touch = e.touches ? e.touches[0] : e;
+  const sceneRect = scene.getBoundingClientRect();
+  let x = touch.clientX - sceneRect.left - startX;
+  let y = touch.clientY - sceneRect.top - startY;
+
+  x = Math.max(0, Math.min(sceneRect.width - 50, x));
+  y = Math.max(0, Math.min(sceneRect.height - 50, y));
+
+  dragItem.style.left = x + 'px';
+  dragItem.style.top = y + 'px';
+  dragItem.style.transform = 'none';
+}
+
+document.addEventListener('mouseup', endDrag);
+document.addEventListener('touchend', endDrag);
+
+function endDrag(e) {
+  if (!isDragging) return;
+  isDragging = false;
+  dragItem.classList.remove('dragging');
+
+  const touch = e.changedTouches ? e.changedTouches[0] : e;
+  const sceneRect = scene.getBoundingClientRect();
+  const svgElem = document.querySelector('.island-svg');
+  const svgRect = svgElem.getBoundingClientRect();
+
+  const dropY = touch.clientY;
+  const isOnIsland = dropY > svgRect.top && dropY < svgRect.bottom
+    && touch.clientX > svgRect.left && touch.clientX < svgRect.right;
+
+  if (isOnIsland && !placed) {
+    placed = true;
+    dragItem.classList.add('placed');
+    document.getElementById('island-hint').style.opacity = '0';
+    document.getElementById('done-btn').classList.add('enabled');
+    document.getElementById('item-count').textContent = '48개 모음';
+  }
+}
+
+function showComplete() {
+  document.getElementById('complete-overlay').classList.add('show');
+}
+
+// ── 초기화 ────────────────────────────────────────
+function resetDemo() {
+  placed = false;
+  selectedColor = null;
+  document.getElementById('complete-overlay').classList.remove('show');
+  document.getElementById('island-hint').style.opacity = '1';
+  document.getElementById('done-btn').classList.remove('enabled');
+  document.getElementById('item-count').textContent = '47개 모음';
+
+  const drag = document.getElementById('drag-item');
+  drag.style.left = '50%';
+  drag.style.top = '30px';
+  drag.style.transform = 'translateX(-50%)';
+
+  document.getElementById('chat-area').innerHTML = '';
+  document.getElementById('reply-options').style.display = 'none';
+
+  goTo(1);
+}
+
+// 시작
+goTo(1);
+</script>
+
+</body>
+</html>

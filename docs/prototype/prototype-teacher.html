@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE — 살핌 · 교사 화면
+  탭 4개: 대시보드 / 아이 상세 / 학생관찰일지 / 학부모상담기록
+  THROWAWAY: 검증 후 폐기
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>살핌 · 교사 화면 프로토타입</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green: #22c55e;  --green-bg: #f0fdf4;  --green-ring: #bbf7d0;
+  --yellow: #eab308; --yellow-bg: #fefce8; --yellow-ring: #fef08a;
+  --red: #ef4444;    --red-bg: #fef2f2;    --red-ring: #fecaca;
+  --navy: #6366f1;   --navy-bg: #eef2ff;   --navy-ring: #c7d2fe;
+  --accent: #6366f1;
+  --text: #111827; --muted: #6b7280; --border: #e5e7eb;
+  --surface: #fff; --bg: #f8f7f4;
+  --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);
+}
+html, body { height: 100%; font-family: 'Apple SD Gothic Neo','Noto Sans KR',-apple-system,sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ── app shell ─────────────────────────────── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+
+.app-header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 24px; height: 52px; display: flex; align-items: center;
+  justify-content: space-between; flex-shrink: 0; position: sticky; top: 0; z-index: 200;
+}
+.app-header .logo { font-weight: 800; font-size: 17px; letter-spacing: -0.5px; }
+.app-header .logo span { color: var(--accent); }
+.app-header .meta { font-size: 12px; color: var(--muted); }
+.app-header .meta strong { color: var(--text); font-weight: 600; }
+
+.tab-bar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; padding: 0 24px; flex-shrink: 0; gap: 0;
+}
+.tab-btn {
+  padding: 12px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: none; background: none; color: var(--muted); position: relative;
+  transition: color 0.15s; font-family: inherit;
+}
+.tab-btn::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px; background: var(--accent); transform: scaleX(0);
+  transition: transform 0.2s;
+}
+.tab-btn.active { color: var(--accent); }
+.tab-btn.active::after { transform: scaleX(1); }
+
+.main { flex: 1; overflow-y: auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── shared card ────────────────────────────── */
+.card {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px;
+}
+.card-title {
+  font-size: 13px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .cnt {
+  background: var(--text); color: #fff; font-size: 10px;
+  padding: 1px 7px; border-radius: 99px; font-weight: 700;
+}
+
+/* ── color chips ────────────────────────────── */
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.chip-green  { background: var(--green-bg);  color: #15803d; }
+.chip-yellow { background: var(--yellow-bg); color: #854d0e; }
+.chip-red    { background: var(--red-bg);    color: #b91c1c; }
+.chip-navy   { background: var(--navy-bg);   color: #4338ca; }
+
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.dot-green  { background: var(--green); }
+.dot-yellow { background: var(--yellow); }
+.dot-red    { background: var(--red); }
+.dot-navy   { background: var(--navy); }
+
+/* ── buttons ─────────────────────────────────── */
+.btn { border: none; border-radius: 9px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #4f46e5; }
+.btn-ghost { background: #f3f4f6; color: var(--text); }
+.btn-ghost:hover { background: #e5e7eb; }
+.btn-outline { background: none; border: 1.5px solid var(--border); color: var(--muted); border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* ════════════════════════════════════════════
+   TAB 1 — 대시보드
+════════════════════════════════════════════ */
+#tab-dashboard { padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+
+/* 색 현황 바 */
+.color-stat-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px;
+}
+.color-stat-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 18px; }
+.color-stat-card .label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.color-stat-bar { display: flex; border-radius: 8px; overflow: hidden; height: 22px; margin-bottom: 8px; }
+.color-stat-bar div { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+.color-legend { display: flex; gap: 12px; flex-wrap: wrap; }
+.color-legend span { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+
+/* 아침 브리핑 */
+.briefing-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.briefing-col-title { font-size: 12px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.briefing-student {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 9px; margin-bottom: 7px;
+  border: 1.5px solid var(--border); cursor: pointer; transition: border-color 0.15s;
+}
+.briefing-student:hover { border-color: var(--accent); }
+.briefing-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+.briefing-avatar-red  { background: var(--red-bg);   color: var(--red); }
+.briefing-avatar-navy { background: var(--navy-bg);  color: var(--navy); }
+.briefing-avatar-star { background: #fef3c7; color: #d97706; }
+.briefing-info .bname { font-size: 13px; font-weight: 700; }
+.briefing-info .breason { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.briefing-action { margin-left: auto; }
+
+/* 관계 지도 */
+.relation-map-wrap { position: relative; height: 240px; }
+
+/* 갈등 기록 */
+.conflict-row { border: 1.5px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.conflict-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.conflict-header strong { color: var(--text); }
+.conflict-stmts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.conflict-stmt { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; }
+.conflict-stmt .who { font-weight: 700; margin-bottom: 3px; }
+.conflict-warn { margin-top: 8px; font-size: 11px; color: #b45309; background: #fef3c7; border-radius: 6px; padding: 5px 10px; }
+
+/* 패턴 경고 */
+.pattern-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.pattern-row:last-child { border-bottom: none; padding-bottom: 0; }
+.pattern-icon { font-size: 22px; flex-shrink: 0; margin-top: 1px; }
+.pattern-body .pname { font-size: 13px; font-weight: 700; }
+.pattern-body .pdesc { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+
+/* 오늘의 교실 */
+.classroom-row { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.classroom-row .time-label { font-size: 12px; font-weight: 600; min-width: 34px; color: var(--muted); }
+.classroom-row .bar-wrap { flex: 1; display: flex; border-radius: 6px; overflow: hidden; height: 20px; }
+.classroom-row .bar-wrap div { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+.classroom-delta { font-size: 12px; color: var(--muted); margin-top: 8px; padding: 8px; background: var(--bg); border-radius: 8px; }
+
+/* 감정 어휘 성장 */
+.vocab-chart { display: flex; gap: 5px; align-items: flex-end; height: 120px; margin-bottom: 4px; }
+.vocab-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.vocab-bar-group .student-label { font-size: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+.vocab-bar { width: 100%; border-radius: 3px 3px 0 0; position: relative; transition: height 0.4s; cursor: pointer; }
+.vocab-bar:hover { filter: brightness(1.1); }
+.vocab-bar .val { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+/* ════════════════════════════════════════════
+   TAB 2 — 아이 상세
+════════════════════════════════════════════ */
+#tab-students { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+#tab-students .view { display: none; }
+#tab-students .view.active { display: block; }
+
+/* 자리 배치도 */
+.seating-header { margin-bottom: 16px; }
+.seating-header h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.seating-header p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.seating-teacher-desk { text-align: center; margin-bottom: 14px; }
+.teacher-desk-label { display: inline-block; background: #f3f4f6; border-radius: 8px; padding: 6px 32px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.seat {
+  background: var(--surface); border-radius: 10px; padding: 12px 8px;
+  text-align: center; cursor: pointer; border: 2px solid transparent;
+  box-shadow: var(--shadow); transition: transform 0.1s, box-shadow 0.1s;
+  position: relative;
+}
+.seat:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+.seat .seat-name { font-size: 13px; font-weight: 700; }
+.seat .seat-color { width: 10px; height: 10px; border-radius: 50%; margin: 5px auto 0; }
+.seat.color-green  { border-color: var(--green-ring); }
+.seat.color-yellow { border-color: var(--yellow-ring); }
+.seat.color-red    { border-color: var(--red-ring); box-shadow: 0 0 0 3px rgba(239,68,68,.08); }
+.seat.color-navy   { border-color: var(--navy-ring); box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
+.seat-badge { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; border: 2px solid #fff; }
+.seat-badge-watch { background: var(--red); color: #fff; }
+.seat-badge-unicorn { background: #f59e0b; color: #fff; }
+
+/* 아이 상세 뷰 */
+.student-detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.back-btn { background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; transition: all 0.15s; }
+.back-btn:hover { border-color: var(--accent); color: var(--accent); }
+.student-detail-name { font-size: 20px; font-weight: 800; }
+
+/* 미니 달력 */
+.mini-calendar { display: flex; gap: 6px; margin-bottom: 18px; overflow-x: auto; padding-bottom: 4px; }
+.cal-day { min-width: 40px; padding: 6px 4px; border-radius: 8px; text-align: center; cursor: pointer; border: 1.5px solid var(--border); transition: all 0.15s; }
+.cal-day .day-num { font-size: 14px; font-weight: 700; }
+.cal-day .day-dot { width: 6px; height: 6px; border-radius: 50%; margin: 3px auto 0; background: transparent; }
+.cal-day:hover { border-color: var(--accent); }
+.cal-day.today { border-color: var(--accent); background: var(--navy-bg); }
+.cal-day.today .day-num { color: var(--accent); }
+.cal-day.has-red .day-dot { background: var(--red); }
+.cal-day.has-yellow .day-dot { background: var(--yellow); }
+.cal-day.has-green .day-dot { background: var(--green); }
+
+/* 대화 기록 */
+.conv-section { margin-bottom: 16px; }
+.conv-section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.conv-turn { display: flex; gap: 8px; margin-bottom: 8px; }
+.conv-turn .who { font-size: 11px; font-weight: 700; min-width: 40px; padding-top: 3px; }
+.conv-turn.ai-turn .who { color: var(--accent); }
+.conv-turn.student-turn .who { color: var(--muted); }
+.conv-turn .bubble { background: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; flex: 1; }
+.conv-turn.ai-turn .bubble { background: var(--navy-bg); }
+.ai-analysis { background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; font-size: 12px; line-height: 1.6; color: #15803d; margin-bottom: 16px; }
+.ai-analysis .analysis-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; color: #16a34a; }
+
+/* 코멘트 작성 */
+.comment-section { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+.comment-section-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.comment-section-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.draft-box { background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 9px; padding: 12px 14px; font-size: 13px; line-height: 1.6; color: #0c4a6e; margin-bottom: 10px; }
+.draft-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0369a1; margin-bottom: 4px; }
+.comment-textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 13px; line-height: 1.6; font-family: inherit; resize: none; outline: none; transition: border-color 0.15s; }
+.comment-textarea:focus { border-color: var(--accent); }
+.comment-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.comment-note { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+/* ════════════════════════════════════════════
+   TAB 3 — 학생관찰일지
+════════════════════════════════════════════ */
+#tab-observation { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+
+.board-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.board-toolbar h2 { font-size: 18px; font-weight: 800; flex: 1; }
+.search-input { border: 1.5px solid var(--border); border-radius: 9px; padding: 7px 14px; font-size: 13px; font-family: inherit; outline: none; width: 220px; transition: border-color 0.15s; }
+.search-input:focus { border-color: var(--accent); }
+
+.board-entry {
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px 18px; margin-bottom: 10px;
+}
+.entry-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.entry-header .timestamp { font-size: 11px; color: var(--muted); font-family: monospace; flex-shrink: 0; }
+.entry-header .immutable-badge { font-size: 10px; background: #f3f4f6; color: var(--muted); padding: 2px 7px; border-radius: 4px; font-weight: 600; margin-left: auto; }
+.entry-title { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+.entry-body { font-size: 13px; line-height: 1.7; color: var(--text); }
+.entry-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.entry-tag { font-size: 11px; background: var(--navy-bg); color: #4338ca; padding: 2px 8px; border-radius: 99px; font-weight: 600; cursor: pointer; }
+.entry-tag:hover { background: #c7d2fe; }
+
+/* ════════════════════════════════════════════
+   TAB 4 — 학부모상담기록
+════════════════════════════════════════════ */
+#tab-consultation { padding: 20px 24px; max-width: 900px; margin: 0 auto; }
+
+.consult-entry { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 10px; }
+.consult-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.consult-meta .timestamp { font-size: 11px; color: var(--muted); font-family: monospace; }
+.consult-meta .student-tag { font-size: 12px; background: var(--green-bg); color: #15803d; padding: 2px 9px; border-radius: 99px; font-weight: 700; }
+.consult-meta .parent-tag { font-size: 12px; background: #fef3c7; color: #92400e; padding: 2px 9px; border-radius: 99px; font-weight: 700; }
+.consult-meta .immutable-badge { font-size: 10px; background: #f3f4f6; color: var(--muted); padding: 2px 7px; border-radius: 4px; font-weight: 600; margin-left: auto; }
+.consult-body { font-size: 13px; line-height: 1.7; }
+.consult-file-chip {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; background: #f0fdf4; color: #15803d; border: 1.5px solid #bbf7d0;
+  padding: 4px 10px; border-radius: 8px; font-weight: 600;
+}
+
+/* ════════════════════════════════════════════
+   MODAL
+════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35); backdrop-filter: blur(3px);
+  display: none; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-overlay.open { display: flex; animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--surface); border-radius: 16px; width: 600px; max-width: 95vw;
+  padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.modal-title { font-size: 17px; font-weight: 800; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+.modal-close:hover { background: var(--bg); }
+.modal-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; margin-top: 14px; }
+.modal-textarea { width: 100%; border: 1.5px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 13px; line-height: 1.7; font-family: inherit; resize: none; outline: none; transition: border-color 0.15s; }
+.modal-textarea:focus { border-color: var(--accent); }
+.tag-input-wrap { border: 1.5px solid var(--border); border-radius: 9px; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; min-height: 40px; cursor: text; transition: border-color 0.15s; }
+.tag-input-wrap:focus-within { border-color: var(--accent); }
+.tag-pill { background: var(--navy-bg); color: #4338ca; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; display: flex; align-items: center; gap: 4px; }
+.tag-pill .remove { cursor: pointer; opacity: 0.6; font-size: 11px; }
+.tag-pill .remove:hover { opacity: 1; }
+.tag-suggestions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.tag-suggestion { font-size: 11px; background: var(--bg); border: 1.5px solid var(--border); padding: 3px 10px; border-radius: 99px; cursor: pointer; font-weight: 600; color: var(--muted); transition: all 0.15s; }
+.tag-suggestion:hover { border-color: var(--navy); color: var(--navy); background: var(--navy-bg); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.modal-note { font-size: 11px; color: var(--muted); margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+
+/* 상담기록 모달 - 학생 선택 */
+.student-select-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.student-select-btn { background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); font-family: inherit; transition: all 0.15s; }
+.student-select-btn:hover { border-color: var(--navy); color: var(--navy); }
+.student-select-btn.selected { background: var(--navy-bg); border-color: var(--navy); color: #4338ca; }
+
+.data-export-box { background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; margin-top: 10px; display: none; }
+.data-export-box.show { display: block; animation: fadeIn 0.2s ease; }
+.data-export-label { font-size: 11px; font-weight: 700; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.data-export-items { font-size: 12px; color: #166534; line-height: 1.8; }
+.data-export-items li { margin-left: 14px; }
+
+/* ── proto badge ─────────────────────────── */
+.proto-float {
+  position: fixed; bottom: 16px; right: 16px;
+  background: rgba(24,24,27,.85); color: #fff; border-radius: 99px;
+  padding: 6px 14px; font-size: 11px; font-weight: 700; backdrop-filter: blur(6px);
+  pointer-events: none; z-index: 9999;
+}
+.proto-float span { background: #f87171; padding: 1px 6px; border-radius: 99px; font-size: 9px; margin-left: 6px; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- 헤더 -->
+  <header class="app-header">
+    <div class="logo">살<span>핌</span></div>
+    <div class="meta"><strong>3학년 2반</strong> · 2026년 9월 13일 (목) · 이선생님</div>
+  </header>
+
+  <!-- 탭 -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="dashboard">대시보드</button>
+    <button class="tab-btn" data-tab="students">아이 상세</button>
+    <button class="tab-btn" data-tab="observation">학생관찰일지</button>
+    <button class="tab-btn" data-tab="consultation">학부모상담기록</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ══════════════════════════════════════
+         TAB 1: 대시보드
+    ══════════════════════════════════════ -->
+    <div id="tab-dashboard" class="tab-panel active">
+
+      <!-- 색 현황 -->
+      <div class="color-stat-row">
+        <div class="color-stat-card">
+          <div class="label">등교 색 현황 · 20명</div>
+          <div class="color-stat-bar">
+            <div style="width:60%;background:var(--green)">12</div>
+            <div style="width:25%;background:var(--yellow)">5</div>
+            <div style="width:10%;background:var(--red)">2</div>
+            <div style="width:5%;background:var(--navy)">1</div>
+          </div>
+          <div class="color-legend">
+            <span><span class="dot dot-green"></span> 초록 12</span>
+            <span><span class="dot dot-yellow"></span> 노랑 5</span>
+            <span><span class="dot dot-red"></span> 빨강 2</span>
+            <span><span class="dot dot-navy"></span> 남색 1</span>
+          </div>
+        </div>
+        <div class="color-stat-card">
+          <div class="label">하교 색 현황 · 20명</div>
+          <div class="color-stat-bar">
+            <div style="width:50%;background:var(--green)">10</div>
+            <div style="width:30%;background:var(--yellow)">6</div>
+            <div style="width:15%;background:var(--red)">3</div>
+            <div style="width:5%;background:var(--navy)">1</div>
+          </div>
+          <div class="color-legend">
+            <span><span class="dot dot-green"></span> 초록 10</span>
+            <span><span class="dot dot-yellow"></span> 노랑 6</span>
+            <span><span class="dot dot-red"></span> 빨강 3</span>
+            <span><span class="dot dot-navy"></span> 남색 1</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. 아침 브리핑 -->
+      <div class="card">
+        <div class="card-title">
+          아침 브리핑
+          <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">오늘 살펴볼 아이</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="briefing-student" onclick="openStudentDetail(1)">
+            <div class="briefing-avatar briefing-avatar-red">민</div>
+            <div class="briefing-info"><div class="bname">김민준</div><div class="breason">빨강 3일 연속 · 발화 속도 −34% · 침묵 4.2초</div></div>
+            <button class="btn-outline btn-sm briefing-action">상세 보기</button>
+          </div>
+          <div class="briefing-student" onclick="openStudentDetail(2)">
+            <div class="briefing-avatar briefing-avatar-navy">서</div>
+            <div class="briefing-info"><div class="bname">이서연</div><div class="breason">남색 — 오늘 말 걸지 않는 게 좋아요</div></div>
+            <button class="btn-outline btn-sm briefing-action">상세 보기</button>
+          </div>
+          <div class="briefing-student" onclick="openStudentDetail(3)">
+            <div class="briefing-avatar briefing-avatar-red">예</div>
+            <div class="briefing-info"><div class="bname">박예린</div><div class="breason">노랑→빨강 급변 · 침묵 2.8초↑</div></div>
+            <button class="btn-outline btn-sm briefing-action">상세 보기</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 관계 지도 -->
+      <div class="card">
+        <div class="card-title">관계 지도 <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">발화에서 추출 · 최근 4주</span></div>
+        <div class="relation-map-wrap">
+          <svg width="100%" height="240" viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg">
+            <!-- edges -->
+            <line x1="200" y1="120" x2="350" y2="80"  stroke="#fca5a5" stroke-width="3" stroke-linecap="round"/>
+            <line x1="350" y1="80"  x2="480" y2="130" stroke="#fca5a5" stroke-width="2" stroke-linecap="round"/>
+            <line x1="200" y1="120" x2="310" y2="180" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="480" y1="130" x2="580" y2="90"  stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="480" y1="130" x2="560" y2="180" stroke="#d1d5db" stroke-width="2" stroke-linecap="round"/>
+            <line x1="350" y1="80"  x2="140" y2="60"  stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="310" y1="180" x2="420" y2="210" stroke="#d1d5db" stroke-width="1.5" stroke-linecap="round"/>
+            <!-- isolated node ring -->
+            <circle cx="90" cy="190" r="24" fill="#fef2f2" stroke="#fca5a5" stroke-width="2" stroke-dasharray="4 3"/>
+            <!-- nodes -->
+            <circle cx="200" cy="120" r="22" fill="#fee2e2"/>
+            <text x="200" y="124" text-anchor="middle" font-size="12" font-weight="700" fill="#b91c1c">민준</text>
+            <circle cx="350" cy="80"  r="20" fill="#fef2f2"/>
+            <text x="350" y="84"  text-anchor="middle" font-size="12" font-weight="700" fill="#b91c1c">서연</text>
+            <circle cx="480" cy="130" r="18" fill="#f3f4f6"/>
+            <text x="480" y="134" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">하준</text>
+            <circle cx="310" cy="180" r="18" fill="#f3f4f6"/>
+            <text x="310" y="184" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">예린</text>
+            <circle cx="580" cy="90"  r="16" fill="#f3f4f6"/>
+            <text x="580" y="94"  text-anchor="middle" font-size="11" font-weight="600" fill="#374151">지우</text>
+            <circle cx="560" cy="180" r="16" fill="#f3f4f6"/>
+            <text x="560" y="184" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">시아</text>
+            <circle cx="140" cy="60"  r="16" fill="#f3f4f6"/>
+            <text x="140" y="64"  text-anchor="middle" font-size="11" font-weight="600" fill="#374151">준혁</text>
+            <circle cx="420" cy="210" r="16" fill="#f3f4f6"/>
+            <text x="420" y="214" text-anchor="middle" font-size="11" font-weight="600" fill="#374151">수빈</text>
+            <circle cx="90"  cy="190" r="22" fill="#fff0f0"/>
+            <text x="90"  y="188" text-anchor="middle" font-size="11" font-weight="600" fill="#b91c1c">지안</text>
+            <text x="90"  y="202" text-anchor="middle" font-size="9" fill="#b91c1c">언급 0회</text>
+            <!-- legend -->
+            <rect x="10" y="10" width="12" height="3" rx="1" fill="#fca5a5"/>
+            <text x="26" y="18" font-size="10" fill="#6b7280">갈등 관계</text>
+            <circle cx="106" cy="15" r="5" fill="none" stroke="#fca5a5" stroke-width="1.5" stroke-dasharray="3 2"/>
+            <text x="116" y="18" font-size="10" fill="#6b7280">3주간 언급 없음</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 3. 갈등 기록 -->
+      <div class="card">
+        <div class="card-title">갈등 기록 <span class="cnt">2</span></div>
+        <div class="conflict-row">
+          <div class="conflict-header">
+            <strong>9월 12일 · 점심시간</strong>
+            <span>·</span>
+            <span>김민준 ↔ 이서연</span>
+          </div>
+          <div class="conflict-stmts">
+            <div class="conflict-stmt">
+              <div class="who" style="color:var(--red)">김민준 (하교)</div>
+              "서연이가 먼저 밀었어요. 제가 지나가는데 갑자기 밀었어요."
+            </div>
+            <div class="conflict-stmt">
+              <div class="who" style="color:var(--navy)">이서연 (하교)</div>
+              "민준이가 제 자리에 앉아서 비키라고 했는데 계속 안 비켰어요."
+            </div>
+          </div>
+          <div class="conflict-warn">⚠ 두 진술이 서로 다릅니다. 판단 전 양측 원본을 확인하세요.</div>
+        </div>
+        <div class="conflict-row">
+          <div class="conflict-header">
+            <strong>9월 10일 · 체육 시간</strong>
+            <span>·</span>
+            <span>김민준 ↔ 한지훈</span>
+          </div>
+          <div class="conflict-stmts">
+            <div class="conflict-stmt">
+              <div class="who" style="color:var(--red)">김민준 (하교)</div>
+              "지훈이가 팀 고를 때 저만 안 뽑았어요."
+            </div>
+            <div class="conflict-stmt">
+              <div class="who" style="color:var(--muted)">한지훈 (하교)</div>
+              "뽑으려고 했는데 이미 팀이 다 찼어요."
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. 패턴 경고 -->
+      <div class="card">
+        <div class="card-title">패턴 경고</div>
+        <div class="pattern-row">
+          <div class="pattern-icon">⚽</div>
+          <div class="pattern-body">
+            <div class="pname">김민준 · 체육 있는 날</div>
+            <div class="pdesc">체육 수업이 있는 날 갈등 기록이 3회 있었습니다. (9/3, 9/10, 9/12)<br>오늘 3교시 체육 수업이 있습니다.</div>
+          </div>
+          <span class="chip chip-red" style="margin-left:auto;flex-shrink:0">오늘 체육</span>
+        </div>
+        <div class="pattern-row">
+          <div class="pattern-icon">📅</div>
+          <div class="pattern-body">
+            <div class="pname">이채원 · 월요일 패턴</div>
+            <div class="pdesc">월요일마다 노랑 또는 빨강을 선택하는 경향이 있습니다. (4주 연속)</div>
+          </div>
+          <span class="chip chip-yellow" style="margin-left:auto;flex-shrink:0">월요일</span>
+        </div>
+      </div>
+
+      <!-- 5. 오늘의 교실 -->
+      <div class="card">
+        <div class="card-title">오늘의 교실 <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">학급 전체 등교→하교 변화</span></div>
+        <div class="classroom-row">
+          <div class="time-label">등교</div>
+          <div class="bar-wrap">
+            <div style="width:60%;background:var(--green)">12</div>
+            <div style="width:25%;background:var(--yellow)">5</div>
+            <div style="width:10%;background:var(--red)">2</div>
+            <div style="width:5%;background:var(--navy)">1</div>
+          </div>
+        </div>
+        <div class="classroom-row">
+          <div class="time-label">하교</div>
+          <div class="bar-wrap">
+            <div style="width:50%;background:var(--green)">10</div>
+            <div style="width:30%;background:var(--yellow)">6</div>
+            <div style="width:15%;background:var(--red)">3</div>
+            <div style="width:5%;background:var(--navy)">1</div>
+          </div>
+        </div>
+        <div class="classroom-delta">
+          초록이 2명 줄고 빨강이 1명 늘었습니다. 오후에 교실 분위기가 다소 가라앉은 날이었습니다.
+        </div>
+      </div>
+
+      <!-- 6. 감정 어휘 성장 -->
+      <div class="card">
+        <div class="card-title">
+          감정 어휘 성장
+          <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">누적 어휘 개수 · 학생 20명</span>
+        </div>
+        <div class="vocab-chart" id="vocab-chart"></div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:6px;font-size:11px;color:var(--muted)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1"></span> 평균 이상</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#a5b4fc"></span> 평균 이하</span>
+          <span style="margin-left:auto">학급 평균 <strong style="color:var(--accent)" id="vocab-avg"></strong>개</span>
+        </div>
+      </div>
+
+    </div><!-- /tab-dashboard -->
+
+
+    <!-- ══════════════════════════════════════
+         TAB 2: 아이 상세
+    ══════════════════════════════════════ -->
+    <div id="tab-students" class="tab-panel">
+
+      <!-- 자리 배치도 뷰 -->
+      <div id="view-seating" class="view active">
+        <div style="padding:20px 24px;max-width:900px;margin:0 auto">
+          <div class="seating-header">
+            <h2>아이 상세</h2>
+            <p>자리를 클릭하면 해당 아이의 기록을 볼 수 있어요</p>
+          </div>
+          <div class="seating-teacher-desk"><div class="teacher-desk-label">칠판 / 교탁</div></div>
+          <div class="seating-grid" id="seating-grid"></div>
+          <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap">
+            <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid var(--red)"></span> 살펴볼 아이
+            </span>
+            <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;border:2px solid #fff"></span> 한마디 돌려줄 아이
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 아이 상세 뷰 -->
+      <div id="view-detail" class="view">
+        <div style="padding:20px 24px;max-width:900px;margin:0 auto">
+          <div class="student-detail-header">
+            <button class="back-btn" onclick="backToSeating()">← 자리 배치도</button>
+            <div class="student-detail-name" id="detail-name"></div>
+            <div id="detail-color-badges" style="display:flex;gap:6px;margin-left:8px"></div>
+          </div>
+
+          <!-- 달력 -->
+          <div class="mini-calendar" id="mini-calendar"></div>
+
+          <!-- 기록 본문 -->
+          <div id="detail-content"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-students -->
+
+
+    <!-- ══════════════════════════════════════
+         TAB 3: 학생관찰일지
+    ══════════════════════════════════════ -->
+    <div id="tab-observation" class="tab-panel">
+      <div class="board-toolbar">
+        <h2>학생관찰일지</h2>
+        <input class="search-input" type="text" placeholder="키워드, 아이 이름 검색…" id="obs-search" oninput="filterBoard('observation')">
+        <button class="btn btn-primary" onclick="openModal('obs')">+ 새 기록</button>
+      </div>
+
+      <div id="observation-list">
+        <div class="board-entry" data-tags="김민준 이서연">
+          <div class="entry-header">
+            <span class="timestamp">2026-09-12 14:03:22</span>
+            <span class="immutable-badge">🔒 수정 불가</span>
+          </div>
+          <div class="entry-title">점심시간 갈등 — 민준·서연 진술 청취</div>
+          <div class="entry-body">점심 배식 줄에서 민준이와 서연이가 부딪혔다는 보고를 받고 각각 진술을 들었음. 민준이는 서연이가 먼저 밀었다고 했고, 서연이는 민준이가 자기 자리를 안 비켜줬다고 함. 두 진술이 달라 추가 관찰이 필요. 오늘 하교 시 양측 모두 "이제 괜찮다"고 했으나 지켜볼 예정.</div>
+          <div class="entry-tags">
+            <span class="entry-tag">@김민준</span>
+            <span class="entry-tag">@이서연</span>
+          </div>
+        </div>
+
+        <div class="board-entry" data-tags="김민준">
+          <div class="entry-header">
+            <span class="timestamp">2026-09-10 10:21:07</span>
+            <span class="immutable-badge">🔒 수정 불가</span>
+          </div>
+          <div class="entry-title">체육 시간 관찰 — 민준 팀 구성 갈등</div>
+          <div class="entry-body">체육 수업 팀 구성 시 민준이가 소외감을 느꼈다는 내용을 하교 때 알게 됨. 지훈이는 의도 없었다고 하나 민준이의 감정은 실제였음. 체육 시간 팀 구성 방식을 바꾸는 것을 고려할 필요 있음. 민준이에게 다음날 따로 이야기 나눌 것.</div>
+          <div class="entry-tags">
+            <span class="entry-tag">@김민준</span>
+            <span class="entry-tag">@한지훈</span>
+          </div>
+        </div>
+
+        <div class="board-entry" data-tags="이서연">
+          <div class="entry-header">
+            <span class="timestamp">2026-09-08 09:05:34</span>
+            <span class="immutable-badge">🔒 수정 불가</span>
+          </div>
+          <div class="entry-title">서연 — 남색 3일 연속, 개별 관찰 시작</div>
+          <div class="entry-body">서연이가 3일 연속 남색을 선택. 교실에서도 혼자 앉아있는 시간이 늘어난 것 같음. 억지로 말 걸지 않고 자연스럽게 관찰 중. 학부모 상담 시 가정 내 변화 여부 확인 필요.</div>
+          <div class="entry-tags">
+            <span class="entry-tag">@이서연</span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /tab-observation -->
+
+
+    <!-- ══════════════════════════════════════
+         TAB 4: 학부모상담기록
+    ══════════════════════════════════════ -->
+    <div id="tab-consultation" class="tab-panel">
+      <div class="board-toolbar">
+        <h2>학부모상담기록</h2>
+        <input class="search-input" type="text" placeholder="학생 이름, 키워드 검색…">
+        <button class="btn btn-primary" onclick="openModal('consult')">+ 상담 기록</button>
+      </div>
+
+      <div id="consultation-list">
+        <div class="consult-entry">
+          <div class="consult-meta">
+            <span class="timestamp">2026-09-11 17:30:00</span>
+            <span class="student-tag">김민준</span>
+            <span class="parent-tag">김민준 어머니</span>
+            <span class="immutable-badge">🔒 수정 불가</span>
+          </div>
+          <div class="consult-body">전화 상담. 민준이가 최근 학교 이야기를 잘 안 한다고 걱정하심. 9월 초부터 빨강 선택 빈도가 늘었고 발화량도 줄었다는 내용 공유. 갈등 관련 사안은 학교에서 지속 관찰 중이며 큰 문제로 번지지 않도록 조치하고 있음을 안내. 다음 대면 상담 10/14 예약.</div>
+          <div class="consult-file-chip">📄 김민준 누적 자료 (자동 생성됨)</div>
+        </div>
+
+        <div class="consult-entry">
+          <div class="consult-meta">
+            <span class="timestamp">2026-09-05 16:00:00</span>
+            <span class="student-tag">이서연</span>
+            <span class="parent-tag">이서연 아버지</span>
+            <span class="immutable-badge">🔒 수정 불가</span>
+          </div>
+          <div class="consult-body">방문 상담. 서연이가 최근 남색 선택이 잦아졌다는 내용 공유. 아버지는 집에서도 혼자 방에 있는 시간이 늘었다고 하심. 학교에서는 특별한 갈등보다는 내향적으로 자기 에너지를 충전하는 것으로 보임. 부모님도 억지로 말 걸지 않고 기다려 주시기로 함.</div>
+          <div class="consult-file-chip">📄 이서연 누적 자료 (자동 생성됨)</div>
+        </div>
+      </div>
+    </div><!-- /tab-consultation -->
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════
+     관찰일지 작성 모달
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-obs">
+  <div class="modal">
+    <div class="modal-title">
+      새 관찰 기록
+      <button class="modal-close" onclick="closeModal('obs')">✕</button>
+    </div>
+    <div class="modal-label">내용</div>
+    <textarea class="modal-textarea" rows="5" id="obs-content" placeholder="오늘 관찰한 내용을 적어주세요…"></textarea>
+    <div class="modal-label">관련 아이 태그</div>
+    <div class="tag-input-wrap" id="obs-tags-wrap" onclick="document.getElementById('obs-tag-input').focus()">
+      <input type="text" id="obs-tag-input" style="border:none;outline:none;font-size:12px;min-width:80px;font-family:inherit" placeholder="이름 입력…" onkeydown="handleTagInput(event,'obs')">
+    </div>
+    <div class="tag-suggestions">
+      <span class="tag-suggestion" onclick="addTag('obs','김민준')">김민준</span>
+      <span class="tag-suggestion" onclick="addTag('obs','이서연')">이서연</span>
+      <span class="tag-suggestion" onclick="addTag('obs','박예린')">박예린</span>
+      <span class="tag-suggestion" onclick="addTag('obs','최하준')">최하준</span>
+      <span class="tag-suggestion" onclick="addTag('obs','정지우')">정지우</span>
+      <span class="tag-suggestion" onclick="addTag('obs','한지훈')">한지훈</span>
+    </div>
+    <div class="modal-note">🔒 저장 후 수정할 수 없습니다. 서버 타임스탬프가 자동으로 찍힙니다.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('obs')">취소</button>
+      <button class="btn btn-primary" onclick="saveObservation()">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     학부모상담 작성 모달
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-consult">
+  <div class="modal">
+    <div class="modal-title">
+      학부모 상담 기록
+      <button class="modal-close" onclick="closeModal('consult')">✕</button>
+    </div>
+    <div class="modal-label">관련 학생 선택</div>
+    <div class="student-select-row" id="consult-student-row"></div>
+    <div class="data-export-box" id="data-export-box">
+      <div class="data-export-label">📄 <span id="export-student-name"></span> 상담 자료 리포트</div>
+      <div style="font-size:11px;color:#166534;margin-bottom:8px">아래 데이터를 취합해 PDF 파일로 생성합니다.</div>
+      <ul class="data-export-items" id="export-items"></ul>
+      <button class="btn btn-primary btn-sm" style="margin-top:12px;width:100%;background:#15803d" onclick="simulateExport(this)">
+        📄 리포트 생성 · 파일 다운로드
+      </button>
+    </div>
+    <div class="modal-label">상담 내용</div>
+    <textarea class="modal-textarea" rows="5" id="consult-content" placeholder="상담 일시, 방식(전화/방문), 주요 내용을 적어주세요…"></textarea>
+    <div class="modal-note">🔒 저장 후 수정할 수 없습니다. 서버 타임스탬프가 자동으로 찍힙니다.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('consult')">취소</button>
+      <button class="btn btn-primary" onclick="saveConsultation()">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<div class="proto-float">교사 화면 프로토타입<span>PROTO</span></div>
+
+
+<script>
+// ── 학생 데이터 ─────────────────────────────────
+const STUDENTS = [
+  { id:1,  name:'김민준', morning:'red',    afternoon:'yellow', role:'watch',   watchReason:'빨강 3일 연속' },
+  { id:2,  name:'이서연', morning:'navy',   afternoon:'green',  role:'watch',   watchReason:'남색 — 혼자 있을 시간' },
+  { id:3,  name:'박예린', morning:'red',    afternoon:'yellow', role:'watch',   watchReason:'노랑→빨강 급변' },
+  { id:4,  name:'최하준', morning:'green',  afternoon:'green',  role:'unicorn', unicornDays:13 },
+  { id:5,  name:'정지우', morning:'green',  afternoon:'green',  role:'unicorn', unicornDays:16 },
+  { id:6,  name:'이시아', morning:'green',  afternoon:'yellow', role:'unicorn', unicornDays:14 },
+  { id:7,  name:'김준혁', morning:'yellow', afternoon:'yellow', role:null },
+  { id:8,  name:'박수빈', morning:'green',  afternoon:'green',  role:null },
+  { id:9,  name:'최윤서', morning:'yellow', afternoon:'green',  role:null },
+  { id:10, name:'이채원', morning:'yellow', afternoon:'yellow', role:null },
+  { id:11, name:'김다은', morning:'green',  afternoon:'green',  role:null },
+  { id:12, name:'오성민', morning:'green',  afternoon:'green',  role:null },
+  { id:13, name:'한지훈', morning:'yellow', afternoon:'red',    role:null },
+  { id:14, name:'정현우', morning:'green',  afternoon:'green',  role:null },
+  { id:15, name:'이아린', morning:'green',  afternoon:'yellow', role:null },
+  { id:16, name:'김도현', morning:'green',  afternoon:'green',  role:null },
+  { id:17, name:'오지안', morning:'navy',   afternoon:'green',  role:null },
+  { id:18, name:'박민아', morning:'yellow', afternoon:'yellow', role:null },
+  { id:19, name:'최은서', morning:'green',  afternoon:'green',  role:null },
+  { id:20, name:'정우진', morning:'green',  afternoon:'green',  role:null },
+];
+
+const STUDENT_DETAIL = {
+  1: {
+    conv: {
+      morning: [
+        { from:'ai', text:'빨강이구나. 기분이 많이 안 좋은 것 같아. 무슨 일 있었어?' },
+        { from:'student', text:'아침에 엄마랑 좀 싸웠어요...' },
+        { from:'ai', text:'아침부터 힘들었겠다. 오늘 선생님이 알고 있을게.' },
+      ],
+      afternoon: [
+        { from:'ai', text:'오늘 학교에서 털어놓고 싶은 일 있어?' },
+        { from:'student', text:'그냥 좀 피곤해요. 급식에 돈까스 나왔어요.' },
+        { from:'ai', text:'피곤한 하루였구나. 그래도 돈까스가 있었으니 다행이다 😄' },
+      ],
+    },
+    analysis: '등교 시 발화 속도가 평소 대비 34% 감소했고 첫 응답 전 침묵이 4.2초였습니다. 아침 가정 갈등이 오전 내내 영향을 준 것으로 보이나, 하교 때는 다소 회복된 모습이었습니다.',
+    draft: '민준아, 오늘 힘든 하루였는데도 끝까지 잘 버텨줘서 선생님이 고마워. 내일은 더 좋은 아침으로 시작하자. 선생님은 항상 민준이 편이야 😊',
+  },
+  2: {
+    conv: {
+      morning: [
+        { from:'ai', text:'알겠어. 오늘은 그냥 둘게. 필요하면 언제든 눌러. 🔵' },
+      ],
+      afternoon: [
+        { from:'ai', text:'오늘 학교에서 털어놓고 싶은 일 있어?' },
+        { from:'student', text:'오늘은 괜찮아요.' },
+        { from:'ai', text:'다행이야. 오늘 쉬어가는 날이었으면 좋겠어.' },
+      ],
+    },
+    analysis: '등교 시 남색을 선택해 AI 대화를 원하지 않았고, 하교 때는 스스로 짧게 대화에 응했습니다. 혼자만의 시간을 충분히 가진 후 회복된 모습입니다.',
+    draft: '서연아, 오늘 필요한 시간을 가져서 다행이야. 언제든 선생님이랑 이야기하고 싶으면 찾아와도 돼 🙂',
+  },
+  3: {
+    conv: {
+      morning: [
+        { from:'ai', text:'빨강이구나. 무슨 일 있었어?' },
+        { from:'student', text:'별로 말하고 싶지 않아요.' },
+        { from:'ai', text:'알겠어. 말하기 싫을 때는 안 해도 돼. 선생님이 알고 있을게.' },
+      ],
+      afternoon: [
+        { from:'ai', text:'오늘 학교에서 털어놓고 싶은 일 있어?' },
+        { from:'student', text:'친구랑 좀 싸웠어요. 이제 괜찮아요.' },
+        { from:'ai', text:'그렇구나. 이제 괜찮다니 다행이야.' },
+      ],
+    },
+    analysis: '등교 시 회피 신호가 2회 감지되어 대화를 조기 종료했습니다. 하교 때는 자발적으로 갈등을 언급했고 스스로 해결된 상태임을 표현했습니다.',
+    draft: '예린아, 오늘 힘든 일이 있었는데도 선생님한테 말해줘서 고마워. 앞으로도 무슨 일 있으면 꼭 얘기해줘.',
+  },
+};
+
+const COLOR_KR = { green:'초록', yellow:'노랑', red:'빨강', navy:'남색' };
+const COLOR_CLASS = { green:'chip-green', yellow:'chip-yellow', red:'chip-red', navy:'chip-navy' };
+
+// ── 탭 전환 ─────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── 자리 배치도 렌더링 ───────────────────────────
+function renderSeating() {
+  const grid = document.getElementById('seating-grid');
+  grid.innerHTML = '';
+  STUDENTS.forEach(s => {
+    const seat = document.createElement('div');
+    seat.className = 'seat color-' + s.morning;
+    seat.onclick = () => openStudentDetail(s.id);
+
+    if (s.role === 'watch') {
+      const b = document.createElement('div');
+      b.className = 'seat-badge seat-badge-watch'; b.textContent = '!';
+      seat.appendChild(b);
+    } else if (s.role === 'unicorn') {
+      const b = document.createElement('div');
+      b.className = 'seat-badge seat-badge-unicorn'; b.textContent = '★';
+      seat.appendChild(b);
+    }
+
+    const nameEl = document.createElement('div'); nameEl.className = 'seat-name'; nameEl.textContent = s.name;
+    const dotEl  = document.createElement('div'); dotEl.className = 'seat-color dot-' + s.morning;
+    dotEl.style.cssText = 'width:10px;height:10px;border-radius:50%;margin:5px auto 0;background:' + getColor(s.morning);
+    seat.appendChild(nameEl);
+    seat.appendChild(dotEl);
+    grid.appendChild(seat);
+  });
+}
+
+function getColor(c) {
+  return {green:'#22c55e',yellow:'#eab308',red:'#ef4444',navy:'#6366f1'}[c] || '#ccc';
+}
+
+// ── 아이 상세 열기 ────────────────────────────────
+function openStudentDetail(id) {
+  // 탭 전환
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="students"]').classList.add('active');
+  document.getElementById('tab-students').classList.add('active');
+
+  const s = STUDENTS.find(x => x.id === id);
+  document.getElementById('view-seating').classList.remove('active');
+  document.getElementById('view-detail').classList.add('active');
+
+  document.getElementById('detail-name').textContent = s.name;
+
+  const badges = document.getElementById('detail-color-badges');
+  badges.innerHTML = `
+    <span class="chip ${COLOR_CLASS[s.morning]}">등교 ${COLOR_KR[s.morning]}</span>
+    <span class="chip ${COLOR_CLASS[s.afternoon]}">하교 ${COLOR_KR[s.afternoon]}</span>
+  `;
+
+  renderCalendar(s);
+  renderDetailContent(id, s);
+}
+
+function backToSeating() {
+  document.getElementById('view-detail').classList.remove('active');
+  document.getElementById('view-seating').classList.add('active');
+}
+
+// ── 달력 렌더링 ──────────────────────────────────
+const MOCK_COLORS = ['green','green','yellow','green','red','yellow','green','green','yellow','red','green','green','green'];
+function renderCalendar(s) {
+  const cal = document.getElementById('mini-calendar');
+  cal.innerHTML = '';
+  for (let i = 12; i >= 1; i--) {
+    const d = document.createElement('div');
+    const isToday = i === 13;
+    const mc = MOCK_COLORS[13 - i] || 'green';
+    d.className = 'cal-day' + (isToday ? ' today' : '') + ' has-' + mc;
+    d.innerHTML = `<div class="day-num">${i}</div><div class="day-dot"></div>`;
+    d.onclick = () => { document.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('today')); d.classList.add('today'); };
+    cal.appendChild(d);
+  }
+}
+
+// ── 상세 콘텐츠 렌더링 ───────────────────────────
+function renderDetailContent(id, s) {
+  const el = document.getElementById('detail-content');
+  const data = STUDENT_DETAIL[id];
+
+  if (!data) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:10px">🌱</div>
+        <div>아직 쌓인 기록이 없어요.</div>
+      </div>`;
+    return;
+  }
+
+  const convHtml = (turns) => turns.map(t => `
+    <div class="conv-turn ${t.from}-turn">
+      <div class="who">${t.from === 'ai' ? 'AI' : s.name.slice(1)}</div>
+      <div class="bubble">${t.text}</div>
+    </div>
+  `).join('');
+
+  const draftId = 'comment-text-' + id;
+
+  el.innerHTML = `
+    <div class="conv-section">
+      <div class="conv-section-title">
+        <span class="chip ${COLOR_CLASS[s.morning]}">등교 ${COLOR_KR[s.morning]}</span> 등교 대화
+      </div>
+      ${convHtml(data.conv.morning)}
+    </div>
+    <div class="conv-section">
+      <div class="conv-section-title">
+        <span class="chip ${COLOR_CLASS[s.afternoon]}">하교 ${COLOR_KR[s.afternoon]}</span> 하교 대화
+      </div>
+      ${convHtml(data.conv.afternoon)}
+    </div>
+    <div class="ai-analysis">
+      <div class="analysis-label">AI 분석</div>
+      ${data.analysis}
+    </div>
+    <div class="comment-section">
+      <div class="comment-section-title">내일 전달할 코멘트</div>
+      <div class="comment-section-sub">AI가 초안을 작성했어요. 읽고 수정한 뒤 저장하면 내일 등교 시 ${s.name}에게 전달돼요.</div>
+      <div class="draft-box"><div class="draft-label">AI 초안</div>${data.draft}</div>
+      <textarea class="comment-textarea" id="${draftId}" rows="3">${data.draft}</textarea>
+      <div class="comment-actions">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('${draftId}').value='${data.draft.replace(/'/g,"\\'")}'" >초안으로 되돌리기</button>
+        <button class="btn btn-primary btn-sm" onclick="saveComment('${draftId}', '${s.name}')">저장 · 내일 전달</button>
+        <span class="comment-note">자동 발송 없음 — 저장해야 전달됩니다</span>
+      </div>
+    </div>
+  `;
+}
+
+function saveComment(textareaId, name) {
+  const btn = event.target;
+  btn.textContent = `✓ ${name}에게 전달 예정`;
+  btn.style.background = '#22c55e';
+  btn.disabled = true;
+}
+
+// ── 모달 ─────────────────────────────────────────
+const OBS_TAGS = [];
+function openModal(type) {
+  document.getElementById('modal-' + type).classList.add('open');
+  if (type === 'consult') renderConsultStudents();
+}
+function closeModal(type) {
+  document.getElementById('modal-' + type).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// 태그 기능
+function addTag(type, name) {
+  const wrap = document.getElementById(type + '-tags-wrap');
+  if (wrap.querySelector(`[data-tag="${name}"]`)) return;
+  const pill = document.createElement('div');
+  pill.className = 'tag-pill'; pill.dataset.tag = name;
+  pill.innerHTML = `@${name} <span class="remove" onclick="removeTag('${type}','${name}',this.parentElement)">✕</span>`;
+  wrap.insertBefore(pill, document.getElementById(type + '-tag-input'));
+}
+function removeTag(type, name, el) { el.remove(); }
+function handleTagInput(e, type) {
+  if (e.key === 'Enter') {
+    const val = e.target.value.trim();
+    if (val) { addTag(type, val); e.target.value = ''; }
+  }
+}
+
+// 학생 선택 (상담기록)
+const EXPORT_DATA = {
+  '김민준': ['신호등 색 이력 (9월 1일~13일)', 'AI 대화 전문 13건', 'AI 분석 요약', '학생관찰일지 태그 2건', '갈등 기록 2건'],
+  '이서연': ['신호등 색 이력 (9월 1일~13일)', 'AI 대화 전문 13건', 'AI 분석 요약', '학생관찰일지 태그 1건'],
+};
+
+function renderConsultStudents() {
+  const row = document.getElementById('consult-student-row');
+  row.innerHTML = '';
+  ['김민준','이서연','박예린','최하준','정지우','이시아','김준혁','박수빈'].forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'student-select-btn'; btn.textContent = name;
+    btn.onclick = () => selectConsultStudent(name, btn);
+    row.appendChild(btn);
+  });
+}
+
+function selectConsultStudent(name, btn) {
+  document.querySelectorAll('.student-select-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  const box = document.getElementById('data-export-box');
+  const items = EXPORT_DATA[name] || ['신호등 색 이력', 'AI 대화 전문', 'AI 분석 요약'];
+  document.getElementById('export-student-name').textContent = name;
+  document.getElementById('export-items').innerHTML = items.map(i => `<li>${i}</li>`).join('');
+  box.classList.add('show');
+}
+
+// 저장 (프로토타입 — 실제 목록에 추가)
+function saveObservation() {
+  const content = document.getElementById('obs-content').value.trim();
+  if (!content) return;
+  const tags = [...document.querySelectorAll('#obs-tags-wrap .tag-pill')].map(p => p.dataset.tag);
+  const now = new Date().toISOString().replace('T',' ').slice(0,19);
+  const entry = document.createElement('div');
+  entry.className = 'board-entry';
+  entry.dataset.tags = tags.join(' ');
+  entry.innerHTML = `
+    <div class="entry-header">
+      <span class="timestamp">${now}</span>
+      <span class="immutable-badge">🔒 수정 불가</span>
+    </div>
+    <div class="entry-body">${content}</div>
+    <div class="entry-tags">${tags.map(t=>`<span class="entry-tag">@${t}</span>`).join('')}</div>
+  `;
+  document.getElementById('observation-list').prepend(entry);
+  document.getElementById('obs-content').value = '';
+  document.querySelectorAll('#obs-tags-wrap .tag-pill').forEach(p=>p.remove());
+  closeModal('obs');
+}
+
+function saveConsultation() {
+  const content = document.getElementById('consult-content').value.trim();
+  if (!content) return;
+  const selected = document.querySelector('.student-select-btn.selected');
+  const name = selected ? selected.textContent : '';
+  const now = new Date().toISOString().replace('T',' ').slice(0,19);
+  const entry = document.createElement('div');
+  entry.className = 'consult-entry';
+  entry.innerHTML = `
+    <div class="consult-meta">
+      <span class="timestamp">${now}</span>
+      ${name ? `<span class="student-tag">${name}</span>` : ''}
+      <span class="immutable-badge">🔒 수정 불가</span>
+    </div>
+    <div class="consult-body">${content}</div>
+    ${name ? '<div class="consult-file-chip">📄 ' + name + ' 누적 자료 (자동 생성됨)</div>' : ''}
+  `;
+  document.getElementById('consultation-list').prepend(entry);
+  document.getElementById('consult-content').value = '';
+  closeModal('consult');
+}
+
+function filterBoard(type) {
+  const q = document.getElementById(type === 'observation' ? 'obs-search' : '').value.toLowerCase();
+  document.querySelectorAll(`#${type}-list .board-entry`).forEach(el => {
+    const text = (el.textContent + el.dataset.tags).toLowerCase();
+    el.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+// ── 감정 어휘 성장 차트 (20명) ──────────────────
+const VOCAB_DATA = [
+  { name:'김민준', count:8  },
+  { name:'이서연', count:13 },
+  { name:'박예린', count:6  },
+  { name:'최하준', count:15 },
+  { name:'정지우', count:11 },
+  { name:'이시아', count:9  },
+  { name:'김준혁', count:7  },
+  { name:'박수빈', count:14 },
+  { name:'최윤서', count:10 },
+  { name:'이채원', count:8  },
+  { name:'김다은', count:16 },
+  { name:'오성민', count:12 },
+  { name:'한지훈', count:5  },
+  { name:'정현우', count:11 },
+  { name:'이아린', count:9  },
+  { name:'김도현', count:12 },
+  { name:'오지안', count:7  },
+  { name:'박민아', count:8  },
+  { name:'최은서', count:14 },
+  { name:'정우진', count:10 },
+];
+
+function renderVocabChart() {
+  const chart = document.getElementById('vocab-chart');
+  if (!chart) return;
+  const max = Math.max(...VOCAB_DATA.map(d => d.count));
+  const chartH = 100;
+  const avg = Math.round(VOCAB_DATA.reduce((s, d) => s + d.count, 0) / VOCAB_DATA.length * 10) / 10;
+  document.getElementById('vocab-avg').textContent = avg;
+
+  chart.innerHTML = VOCAB_DATA.map(d => {
+    const h = Math.round((d.count / max) * chartH);
+    const isAbove = d.count >= avg;
+    const color = isAbove ? 'linear-gradient(180deg,#818cf8,#6366f1)' : 'linear-gradient(180deg,#c7d2fe,#a5b4fc)';
+    const valColor = isAbove ? '#4338ca' : '#818cf8';
+    return `
+      <div class="vocab-bar-group" title="${d.name}: ${d.count}개">
+        <div class="vocab-bar" style="height:${h}px;background:${color}">
+          <span class="val" style="color:${valColor}">${d.count}</span>
+        </div>
+        <div class="student-label">${d.name.slice(1)}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── 리포트 생성 시뮬레이션 ──────────────────────
+function simulateExport(btn) {
+  btn.textContent = '⏳ 생성 중...';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = '✓ 리포트 생성 완료 · 다운로드됨';
+    btn.style.background = '#15803d';
+  }, 1400);
+}
+
+// ── 초기화 ────────────────────────────────────────
+renderSeating();
+renderVocabChart();
+</script>
+</body>
+</html>
