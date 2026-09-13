@@ -3,7 +3,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./database.types";
 
 function requirePublicEnv(
-  name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
 ) {
   const value = process.env[name];
 
@@ -18,6 +18,6 @@ function requirePublicEnv(
 export function createClient() {
   return createBrowserClient<Database>(
     requirePublicEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requirePublicEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    requirePublicEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
   );
 }

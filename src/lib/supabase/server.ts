@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 
 function requireServerEnv(
-  name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
 ) {
   const value = process.env[name];
 
@@ -21,7 +21,7 @@ export async function createClient() {
 
   return createServerClient<Database>(
     requireServerEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requireServerEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    requireServerEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
