@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 살핌
 
-## Getting Started
+AI 기반 학생 정서 체크인 + 교사 업무 지원 서비스. Next.js(App Router) + TypeScript + Tailwind / Supabase / OpenAI.
 
-First, run the development server:
+## 시작하기 전에 꼭 읽을 것 (순서대로)
+
+1. **이 README** — 개발 환경 설정
+2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — 폴더 구조, 담당 매핑, 충돌 방지 규칙 (필수)
+3. [`docs/planning/살핌_DB_스키마_v0.3.md`](docs/planning/살핌_DB_스키마_v0.3.md) §1(설계 원칙) + §13(담당자별 작업 경계)
+4. [`docs/planning/PLANNING.md`](docs/planning/PLANNING.md) 중 자기 담당 화면 부분 — 각 컴포넌트 파일 상단 주석에 관련 섹션이 링크돼 있음
+5. [`docs/planning/살핌_기획안.md`](docs/planning/살핌_기획안.md)는 전체를 다 읽지 않아도 됨. AI/기술 설계 관련 담당자는 아래 섹션만:
+   - **이유민**: 8.1(음성은 저장하지 않음), 8.6(후속 질문 중단 정책), 8.10(지연 예산)
+   - **이지현**: 8.4(계층적 기억), 8.7(톤 분석)
+   - **김현우**: 8.9(이름 치환), 9(기록의 무결성)
+   - **전체**: 10(가드레일)
+
+## 개발 환경
+
+- **Node 20 이상 필수** (18.x에서는 `next dev`가 `EFAULT` 에러로 안 뜰 수 있음 — 버전 확인: `node -v`)
+- 패키지 매니저: npm
 
 ```bash
+npm install
+cp .env.local.example .env.local   # 값은 아직 비어있음 — Supabase/OpenAI 키는 별도 공지 예정
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+[http://localhost:3000](http://localhost:3000) 에서 확인. `/checkin`, `/checkout`(학생), `/dashboard`, `/students`, `/observation`, `/consultation`(교사)로 각 화면 진입 가능.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> 지금은 모든 화면이 **mock 데이터**로 동작합니다 (`components/**/mockData.ts`, `mockScenarios.ts`). 실제 Supabase/OpenAI 연동은 각자 담당 화면에서 `app/api/ai/**` 라우트부터 채워나가면 됩니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 아직 설치 안 된 패키지
 
-## Learn More
+`@supabase/supabase-js`, `@supabase/ssr`, `openai` — 실제 연동 시작할 때 설치하세요. (`lib/supabase/*`, `lib/openai/*` 파일에 TODO로 표시돼 있음)
 
-To learn more about Next.js, take a look at the following resources:
+## 스타일
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+프로토타입 HTML의 CSS를 화면별로 그대로 옮겨둔 상태입니다 (`src/styles/prototype-*.css`). Tailwind는 설치돼 있지만 아직 안 쓰고 있어요 — **각자 담당 화면을 실제로 구현할 때 Tailwind로 바꾸면서 자기 담당 CSS 파일을 지워나가는 것**이 방침입니다 (자세한 건 `docs/ARCHITECTURE.md` 원칙 6번).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 배포
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel + Supabase Cloud (무료 티어).
