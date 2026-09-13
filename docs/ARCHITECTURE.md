@@ -57,7 +57,9 @@ src/
 
   lib/
     supabase/
-      client.ts / server.ts   # 브라우저용 / 서버용 클라이언트 (거의 안 바뀜)
+      client.ts / server.ts   # RLS가 적용되는 브라우저용 / 로그인 사용자 서버용 클라이언트
+      admin.ts                # API Route의 검증된 쓰기용(service_role, 서버 전용)
+      database.types.ts       # Cloud 스키마에서 생성한 타입. 직접 수정 금지
       raw/                     # 원본(불변) insert — 도메인별 파일 분리, update/delete 금지
         signalCheckIn.ts        # 이유민
         observationLog.ts       # 김현우

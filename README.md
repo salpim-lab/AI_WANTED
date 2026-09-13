@@ -29,9 +29,9 @@ npm run dev
 
 > 지금은 모든 화면이 **mock 데이터**로 동작합니다 (`components/**/mockData.ts`, `mockScenarios.ts`). 실제 Supabase/OpenAI 연동은 각자 담당 화면에서 `app/api/ai/**` 라우트부터 채워나가면 됩니다.
 
-## 아직 설치 안 된 패키지
+## 외부 서비스 SDK
 
-`@supabase/supabase-js`, `@supabase/ssr`, `openai` — 실제 연동 시작할 때 설치하세요. (`lib/supabase/*`, `lib/openai/*` 파일에 TODO로 표시돼 있음)
+Supabase SDK(`@supabase/supabase-js`, `@supabase/ssr`)는 설치되어 있습니다. `openai`는 AI API 공급자를 결정한 뒤 설치합니다. Supabase 키는 Git에 올리지 않고 팀에 별도로 공유합니다.
 
 ## 스타일
 
