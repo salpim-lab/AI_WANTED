@@ -1,4 +1,5 @@
-// 공용 — 글쓰기 시 "@아이이름" 태그 입력 (학생관찰일지, 학부모상담기록에서 사용)
+// 담당: 김현우 (단독 소유)
+// 글쓰기 시 "@아이이름" 태그 입력 (학생관찰일지, 학부모상담기록에서 사용)
 // 참고: docs/prototype/prototype-teacher.html #obs-tag-input
 
 export default function TagInput({

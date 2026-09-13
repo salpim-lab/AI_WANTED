@@ -1,7 +1,10 @@
 // 4색 신호등 상수 — 여기 값만 고치면 전체 앱에 반영되도록, 색 의미를 하드코딩하지 말고 항상 이걸 참조할 것.
+// 타입은 lib/types/signal.ts가 원본(SSOT) — 여기서 다시 정의하지 않고 가져다 쓴다.
 // 참고: docs/planning/PLANNING.md "2단계: 색 선택(신호등)"
 
-export type SignalColor = "green" | "yellow" | "red" | "navy";
+import type { SignalColor } from "@/lib/types/signal";
+
+export type { SignalColor };
 
 export const SIGNAL_COLORS: Record<
   SignalColor,
