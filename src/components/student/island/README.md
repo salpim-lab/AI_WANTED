@@ -1,17 +1,61 @@
-# 3D 섬 컴포넌트
+# 3D 퍼즐 섬
 
-강윤지 담당 학생용 3D 섬 렌더링 코드 영역입니다.
+강윤지 담당. `salpim-prototype.html`에 들어 있는 섬 이미지를 참고해 만든
+실제 Three.js 메시 모델입니다. 섬 장면에 이미지나 이미지 텍스처를 사용하지 않습니다.
 
-예정 구성:
+## 확인
 
-```text
-IslandBoard.tsx          # 섬 화면 조립
-IslandScene.tsx          # Three.js Canvas, 카메라, 조명
-IslandModel.tsx          # 섬 모델
-IslandItem.tsx           # 배치된 아이템 모델
-DraggableIslandItem.tsx  # 드래그·터치 배치
-useAssetScale.ts         # GLB 바운딩 박스 기반 크기 정규화
-types.ts                 # 3D 섬 컴포넌트 타입
+`npm run dev` 실행 후 `/island`에서 독립 화면을 확인합니다.
+기존 `/checkin`, `/checkout`의 마지막 단계에서도 같은 3D 장면을 사용합니다.
+
+- 드래그/한 손가락: 회전. 휠/두 손가락: 확대·축소.
+- 시점 버튼 또는 캔버스에 포커스한 뒤 방향키, `+`, `-`, `Home` 사용.
+- 선물을 선택한 뒤 빈 잔디 클릭/탭. `빈자리에 놓기`는 키보드 사용자를 위한 대안.
+- `우리 반 퍼즐`은 아홉 조각이 결합되는 구조를 보는 미리 보기입니다.
+
+## 구성
+
+| 파일 | 역할 |
+| --- | --- |
+| `../IslandBoard.tsx` | 기존 등하교 화면의 props를 유지하는 진입점 |
+| `IslandExperience.tsx` | 독립/태블릿 UI, 선물 선택과 임시 배치 상태 |
+| `IslandScene.tsx` | WebGL 렌더러, 카메라, 조명, 레이캐스트, 수명 관리 |
+| `islandModel.ts` | 흙·잔디·집·기와·나무·꽃·연못, 예시 선물의 실제 메시 |
+| `puzzleGeometry.ts` | 퍼즐 외곽선, 학급 내 연결부 규칙, 배치 가능 영역 |
+| `types.ts` | 카메라/배치/퍼즐 타입 |
+
+화면 스타일은 Tailwind로 전환했으며 사용하지 않는 섬 전용 프로토타입 CSS는 제거했습니다.
+정적 메시들은 재질별로 병합합니다. 화면이 보일 때 카메라/배치 변화가 있는 경우에만 렌더링하고,
+화면 해제 시 이벤트, 관찰자, GPU 리소스를 해제합니다.
+
+## 모델 좌표와 퍼즐 결합
+
+- X/Z가 지면 좌표이며 Y는 높이입니다. 배치 기준 높이는 `SURFACE_Y`입니다.
+- 퍼즐 기본 폭은 `TILE_SIZE = 5`. 북/동/남/서 연결부는 `-1`(홈), `1`(돌기), `0`(평면)입니다.
+- `classroomEdges(row, col, rows, cols)`로 옆 조각과 상보적인 연결부를 생성합니다.
+- 실제 외곽 곡선은 기본 간격에서 정확히 맞고, 화면에서는 경계가 보이도록 0.14 간격을 추가합니다.
+- 최초 학생별 조각 배정 시 학급 격자와 위치를 고정해야 학기말에도 같은 윤곽을 유지할 수 있습니다.
+- 집, 연못, 나무, 화단, 울타리, 길, 섬 경계 및 이미 배치된 선물과의 겹침을 검사합니다.
+
+## 현재 범위와 연결할 부분
+
+배치는 React 메모리 상태입니다. 새로고침하면 초기화되며 DB 저장은 하지 않습니다.
+학생명은 기본 예시인 민준이고, 우리 반 퍼즐도 실제 학급 데이터가 아닌 3×3 예시입니다.
+기존 체크인에서 넘어온 아이템은 이름을 유지하되 임시 별 모형으로 표현합니다.
+실제 상담 아이템 모델 연동 시 `createGiftModel`을 `asset_catalog`의 signed GLB URL 로딩으로
+교체하고, 모델 정규화와 학생별 좌표 조회/저장을 연결해야 합니다.
+섬 기반 모델은 이 폴더의 절차적 모델링 코드로 관리합니다. 삭제/소멸 정책은 추가하지 않습니다.
+
+## 검증
+
+Node 22.18 이상에서 추가 패키지 없이 도형/배치 테스트 실행:
+
+```bash
+node --test src/components/student/island/__tests__/puzzleGeometry.test.mjs
+npx tsc --noEmit
+npx eslint src/components/student/island src/components/student/IslandBoard.tsx src/app/island
 ```
 
-GLB 파일 자체를 코드에 포함하지 않고 `asset_catalog`의 Storage 경로를 통해 불러옵니다.
+테스트는 다양한 학급 크기의 연결부, 가로/세로 인접 곡선의 실제 좌표 일치,
+배치 가능/금지 구역을 확인합니다. 기존 프로젝트의 Node 20 실행 조건은 그대로이며,
+위 TypeScript 직접 실행 테스트에만 최신 Node가 필요합니다.
