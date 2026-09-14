@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# salesforce vscode extension cache
+.sf/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
