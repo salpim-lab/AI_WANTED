@@ -149,7 +149,7 @@ npx supabase gen types typescript --linked --schema public \
 6. 필요한 경우 AI 후속 질문도 다음 sequence 메시지로 저장
 7. 면담이 필요하면 meeting_requests에 저장
 8. 체크인이 끝나면 session status를 completed로 변경
-9. 아이템 후보에는 근거 session_id와 message_id를 함께 전달
+9. `item_candidates`에 대표 아이템 후보와 근거 `session_id`/`message_id`를 저장
 ```
 
 `conversation_messages`는 한 번 저장하면 수정하거나 삭제할 수 없다. STT 중간 결과를 계속 UPDATE하지 말고, 한 번의 발화가 확정된 뒤 한 행으로 INSERT한다.
@@ -158,8 +158,8 @@ npx supabase gen types typescript --linked --schema public \
 
 | 담당 | 기능 | 주요 테이블·View |
 |---|---|---|
-| 이유민 | 학생 음성·대화·면담 | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts` |
-| 강윤지 | 섬·아이템 배치 | `islands`, `asset_catalog`, `student_items`, `island_placements` |
+| 이유민 | 학생 음성·대화·면담·아이템 후보 | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts`, `item_candidates` |
+| 강윤지 | 3D 에셋·섬·아이템 배치 | `islands`, `asset_catalog`, `student_items`, `island_placements` |
 | 진승혜 | 교사 대시보드 | `v_students_current`, `v_signal_flags`와 읽기 집계 |
 | 이지현 | 선생님 Agent | `analysis_runs`, `agent_threads`, `agent_messages`, `get_student_context()` |
 | 김현우 | 학생 상세·업무·학부모 상담 | `work_records`, `work_record_students`, `conflict_statements`, `parent_consultations` |
@@ -219,6 +219,7 @@ npx supabase migration new 기능_이름
 
 - 실제 학생 이름·음성·상담 내용을 넣지 않는다.
 - 음성 파일은 DB와 Storage에 저장하지 않는다.
+- 3D GLB와 썸네일은 비공개 Supabase Storage 버킷(`3d-assets`, `3d-thumbnails`)에 저장하고, `asset_catalog`에는 object path를 저장한다.
 - 시드 변경은 `supabase/seed.sql`에서 관리한다.
 - 일반 `db push`에는 시드를 포함하지 않는다.
 - 시연 데이터를 추가할 때도 가상 데이터만 사용한다.
