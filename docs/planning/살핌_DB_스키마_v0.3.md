@@ -46,7 +46,8 @@ flowchart LR
     EN --> CS[checkin_sessions] --> CM[conversation_messages]
     CS --> AR[analysis_runs]
     EN --> MR[meeting_requests]
-    EN --> SI[student_items] --> AC[asset_catalog]
+    EN --> IC[item_candidates] --> AC[asset_catalog]
+    IC --> SI[student_items]
     SI --> IP[island_placements] --> IS[islands]
     CL --> WR[work_records] --> WRS[work_record_students]
     WR --> CFS[conflict_statements]
@@ -295,7 +296,27 @@ where a.status = 'completed'
 | `theme` | text | |
 | `created_at` | timestamptz | |
 
-### 6.2 `asset_catalog` *(v0.3 수정 — dedup_key 추가)*
+### 6.2 `item_candidates` *(v0.3 신규)*
+
+3단계 대화 AI가 추론한 대표 아이템을 3D 에셋 생성 전 저장한다. 후보와 완성된 에셋을 분리하므로, 에셋 생성 실패·재시도와 생성 근거 추적이 가능하다.
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | uuid | PK |
+| `enrollment_id` | uuid | FK → `enrollments.id` |
+| `source_session_id` | uuid | FK → `checkin_sessions.id` |
+| `source_message_id` | uuid | nullable, FK → `conversation_messages.id` |
+| `name` | text | AI가 추론한 대표 아이템 이름 |
+| `reason` | text | 아이템 추론 근거 |
+| `dedup_key` | text | 에셋 재사용 조회 키 |
+| `style_version` | text | 적용할 아트 스타일 버전 |
+| `status` | text | `pending`, `resolved`, `failed` |
+| `asset_id` | uuid | nullable, FK → `asset_catalog.id`, 생성 완료 후 연결 |
+| `created_at` | timestamptz | |
+
+담당: 이유민. `asset_id` 연결과 실제 에셋 생성은 강윤지 담당 영역이다.
+
+### 6.3 `asset_catalog` *(v0.3 수정 — dedup_key 추가)*
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -315,7 +336,7 @@ where a.status = 'completed'
 
 > **v0.2와의 차이:** Supabase안에 있던 `keyword UNIQUE`(키워드당 1개만 생성해 재사용)가 병합 중 사라졌다. 3D 생성은 건당 과금이므로 dedup 키가 없으면 같은 축구공을 학생마다 새로 만든다. 스타일을 바꿀 여지를 남기려고 `style_version`과 묶어 유니크를 건다.
 
-### 6.3 `student_items` (획득, 불변) *(v0.3 수정 — 슬롯·핵심 구분)*
+### 6.4 `student_items` (획득, 불변) *(v0.3 수정 — 슬롯·핵심 구분)*
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -340,7 +361,7 @@ create unique index student_items_daily_core
 >
 > `earned_on`을 생성 컬럼으로 만들지 않은 이유: `at time zone` 변환이 STABLE이라 Postgres가 생성 컬럼에서 거부한다. 기본값으로 채운다.
 
-### 6.4 `island_placements` (배치, 가변) *(v0.2)*
+### 6.5 `island_placements` (배치, 가변) *(v0.2)*
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -692,7 +713,7 @@ audit_log(table_name, row_id, changed_at desc)
 
 | 담당자 | 기능 | 주 테이블 |
 |---|---|---|
-| 이유민 | 학생 대화(상담, 섬 제외) | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts` |
+| 이유민 | 학생 대화(상담, 섬 제외)·아이템 후보 | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts`, `item_candidates` |
 | 강윤지 | 섬·아이템 배치 | `islands`, `asset_catalog`, `student_items`, `island_placements` |
 | 진승혜 | 선생님 대시보드 | 읽기 전용 — `v_students_current`, `v_signal_flags`, 집계 쿼리 |
 | 이지현 | 선생님 Agent | `analysis_runs`, `agent_threads`, `agent_messages`, `get_student_context` |
@@ -713,6 +734,7 @@ audit_log(table_name, row_id, changed_at desc)
 1000_core          조직·사용자·학생·재학·동의   ← 공통 PR, 제일 먼저
 1010_checkin       체크인·대화·면담신청
 1020_island        섬·에셋·획득·배치
+1025_item_candidates 아이템 후보 저장          ← 이유민
 1030_work_records  업무기록·갈등·학부모상담·피드백
 1040_agent         분석결과·Agent
 1050_views         뷰·RPC

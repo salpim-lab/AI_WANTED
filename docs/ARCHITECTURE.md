@@ -8,8 +8,8 @@ DB 테이블 설계와 담당자별 테이블 경계는 `docs/planning/살핌_DB
 
 | 담당 | 영역 |
 |---|---|
-| 이유민 | 학생 화면 — 섬 제외 전체 (교사 코멘트 확인, 색 선택, AI 대화(녹음 기반), 아이템 생성) |
-| 강윤지 | 학생 화면 — 섬 배치 |
+| 이유민 | 학생 화면 — 섬 제외 전체 (교사 코멘트 확인, 색 선택, AI 대화(녹음 기반), 아이템 후보 추론·저장) |
+| 강윤지 | 학생 화면 — 3D 에셋·섬 배치 |
 | 진승혜 | 교사 화면 — 대시보드 |
 | 이지현 | 교사 화면 — 선생님 agent (모든 교사 화면에 뜨는 전역 챗봇) |
 | 김현우 | 교사 화면 — 아이 상세 / 학생관찰일지 / 학부모상담기록 |
@@ -33,7 +33,7 @@ src/
     api/ai/
       transcribe/route.ts       # 이유민 — STT, 오디오는 처리 즉시 폐기 (저장 금지)
       chat/route.ts              # 이유민 — 꼬리질문/고정질문 대화
-      item-extract/route.ts      # 이유민 — 발화 → 아이템
+      item-extract/route.ts      # 이유민 — 발화 → 대표 아이템 후보(item_candidates)
       comment-draft/route.ts     # 이유민 — 교사 코멘트 초안 (feedback_drafts 테이블 소유자 기준. UI는 김현우 화면, fetch로만 호출)
       daily-analysis/route.ts    # 이지현 — 아이 상세 AI 분석 (analysis_runs 테이블 소유자 기준. UI는 김현우 화면, fetch로만 호출)
       pattern-alert/route.ts     # 진승혜 — 패턴 경고 (규칙 기반, LLM 미사용)
@@ -43,7 +43,7 @@ src/
   components/
     student/          # 이유민 (TeacherComment/ColorPicker/ChatPanel/VoiceRecorder/ItemReveal
                        #        + mockScenarios.ts, useCheckinFlow.ts)
-                       # + IslandBoard.tsx는 강윤지 (자기 파일 안에서 자체 드래그 state 관리, 훅 공유 안 함)
+                       # + 3D 섬·에셋·배치는 강윤지
     teacher/
       TabNav.tsx       # 진승혜 (단독 소유 — layout.tsx에서 분리해둠)
       agent/           # 이지현
