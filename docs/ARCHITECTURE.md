@@ -43,7 +43,8 @@ src/
   components/
     student/          # 이유민 (TeacherComment/ColorPicker/ChatPanel/VoiceRecorder/ItemReveal
                        #        + mockScenarios.ts, useCheckinFlow.ts)
-                       # + 3D 섬·에셋·배치는 강윤지
+                       # + island/ 3D 섬·에셋·배치 — 강윤지
+      island/          # 강윤지 — Three.js 섬 장면과 GLB 아이템 배치
     teacher/
       TabNav.tsx       # 진승혜 (단독 소유 — layout.tsx에서 분리해둠)
       agent/           # 이지현
@@ -93,6 +94,9 @@ src/
 supabase/
   migrations/        # DB 스키마 변경 이력
   seed.sql           # 개발용 시드 데이터
+
+assets/
+  3d/                 # 강윤지 — 3D 원본·로컬 검수용 에셋 (최종 파일은 Storage)
 
 docs/
   planning/           # 기획 문서 원본 (PLANNING.md, 살핌_기획안.md, image.png)

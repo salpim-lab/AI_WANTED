@@ -34,6 +34,8 @@ npm run dev
 
 Supabase SDK(`@supabase/supabase-js`, `@supabase/ssr`)는 설치되어 있습니다. `openai`는 AI API 공급자를 결정한 뒤 설치합니다. Supabase 키는 Git에 올리지 않고 팀에 별도로 공유합니다.
 
+3D 에셋 작업 파일은 [`assets/3d/`](assets/3d/)에서 관리합니다. 최종 GLB와 썸네일은 Supabase Storage에 저장하고, DB의 `asset_catalog`에는 Storage 경로와 에셋 메타데이터를 저장합니다.
+
 ## 스타일
 
 프로토타입 HTML의 CSS를 화면별로 그대로 옮겨둔 상태입니다 (`src/styles/prototype-*.css`). Tailwind는 설치돼 있지만 아직 안 쓰고 있어요 — **각자 담당 화면을 실제로 구현할 때 Tailwind로 바꾸면서 자기 담당 CSS 파일을 지워나가는 것**이 방침입니다 (자세한 건 `docs/ARCHITECTURE.md` 원칙 6번).

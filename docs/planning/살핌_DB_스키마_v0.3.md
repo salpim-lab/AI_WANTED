@@ -325,8 +325,8 @@ where a.status = 'completed'
 | `style_version` | text | 아트 스타일 버전 *(v0.3 신규)* |
 | `asset_type` | text | 아이템 분류 |
 | `name` | text | 화면 표시 이름 |
-| `model_url` | text | Storage의 GLB URL |
-| `thumbnail_url` | text | nullable |
+| `model_url` | text | 비공개 Storage의 GLB object path |
+| `thumbnail_url` | text | nullable, 비공개 Storage의 썸네일 object path |
 | `source` | text | `preset`, `generated` |
 | `generation_metadata` | jsonb | nullable, 모델·프롬프트·작업 ID |
 | `status` | text | `processing`, `ready`, `failed` |

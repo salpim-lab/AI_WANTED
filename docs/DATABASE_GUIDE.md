@@ -219,6 +219,7 @@ npx supabase migration new 기능_이름
 
 - 실제 학생 이름·음성·상담 내용을 넣지 않는다.
 - 음성 파일은 DB와 Storage에 저장하지 않는다.
+- 3D GLB와 썸네일은 비공개 Supabase Storage 버킷(`3d-assets`, `3d-thumbnails`)에 저장하고, `asset_catalog`에는 object path를 저장한다.
 - 시드 변경은 `supabase/seed.sql`에서 관리한다.
 - 일반 `db push`에는 시드를 포함하지 않는다.
 - 시연 데이터를 추가할 때도 가상 데이터만 사용한다.
