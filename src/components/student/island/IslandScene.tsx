@@ -8,7 +8,7 @@ import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, dis
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
-import { PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
+import { islandCoordinates, puzzlePieceContains, PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 type Props = {
@@ -156,19 +156,26 @@ export default function IslandScene({
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     // The student's own island is seed 17; in the classroom it is the first of nine.
+    const studentPieceIndex = PUZZLE_STUDENT_PIECE_MAP[1];
     const islands = classroom
       ? [createPuzzleAssemblyModel(17)]
-      : [createPuzzlePieceModel(17, PUZZLE_STUDENT_PIECE_MAP[1])];
+      : [createPuzzlePieceModel(17, studentPieceIndex)];
     const island = islands[0];
     islands.forEach((model) => scene.add(model.group));
     scene.add(createIslandSky(classroom));
-    const heightAt = (x: number, z: number) => island.layout.heightAt(x, z);
+    const heightAt = (x: number, z: number) => {
+      const data = islandCoordinates.toData({ x, z });
+      return island.layout.heightAt(data.x, data.z);
+    };
 
     // Frame from the real geometry: aim at the middle of the island's screen
     // height, then size the view so it fills the target share of the canvas.
     const back = new THREE.Vector3().setFromSphericalCoords(1, Math.PI / 2 - HOME_ELEVATION, HOME_AZIMUTH);
     const extent = screenExtent(islands.map((model) => model.group), back);
-    const target = new THREE.Vector3(0, (extent.top + extent.bottom) / 2 / extent.up.y, 0);
+    const target = islandCoordinates.toWorld(
+      classroom ? { x: 0, z: 0 } : island.puzzle.pieces[studentPieceIndex].seed,
+      (extent.top + extent.bottom) / 2 / extent.up.y,
+    );
     const halfHeight = (extent.top - extent.bottom) / 2;
     const fit = FIT[mode];
     const viewDistance = (extent.halfWidth + halfHeight) * 2.5;
@@ -237,8 +244,8 @@ export default function IslandScene({
     const bubbleAnchor = new THREE.Vector3();
     const ringFacing = new THREE.Vector3(0, 0, 1);
     const groundNormal = new THREE.Vector3();
-    const studentPieceSeed = islands[0].puzzle.pieces[PUZZLE_STUDENT_PIECE_MAP[1]].seed;
-    const initialCharacterPosition = new THREE.Vector3(studentPieceSeed.x, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02, studentPieceSeed.z);
+    const studentPieceSeed = island.puzzle.pieces[studentPieceIndex].seed;
+    const initialCharacterPosition = islandCoordinates.toWorld(studentPieceSeed, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02);
     const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
     const introOffset = new THREE.Spherical();
     let pointerDown: { x: number; y: number } | null = null;
@@ -303,12 +310,13 @@ export default function IslandScene({
     }
 
     function characterDestination(nextProposal: PlacementProposal) {
-      const destination = new THREE.Vector2(nextProposal.x, nextProposal.z);
+      const proposalWorld = islandCoordinates.toWorld(nextProposal);
+      const destination = new THREE.Vector2(proposalWorld.x, proposalWorld.z);
       const towardCenter = destination.clone().multiplyScalar(-1);
       if (towardCenter.lengthSq() < 0.01) towardCenter.set(1, 0.7);
       towardCenter.normalize().multiplyScalar(1.35);
       const x = destination.x + towardCenter.x, z = destination.y + towardCenter.y;
-      return new THREE.Vector3(x, heightAt(x, z) + 0.02, z);
+      return islandCoordinates.toWorld({ x, z }, heightAt(x, z) + 0.02);
     }
 
     function setCharacterState(nextPhase: PlacementPhase, nextProposal: PlacementProposal | null, pop = true) {
@@ -428,7 +436,8 @@ export default function IslandScene({
           // Five strides, one hop per step.
           const stride = Math.sin(progress * Math.PI * 10);
           root.position.lerpVectors(activeWalk.from, activeWalk.to, eased);
-          root.position.y = heightAt(root.position.x, root.position.z) + 0.02 + Math.abs(stride) * 0.1;
+          const walkPoint = islandCoordinates.toData(root.position);
+          root.position.y = heightAt(walkPoint.x, walkPoint.z) + 0.02 + Math.abs(stride) * 0.1;
           root.rotation.set(0, Math.atan2(activeWalk.to.x - activeWalk.from.x, activeWalk.to.z - activeWalk.from.z), 0);
           character.animate(seconds, progress === 1 ? 0 : stride);
           if (progress === 1) {
@@ -473,7 +482,11 @@ export default function IslandScene({
       render();
     }
 
-    const validPoint = (x: number, z: number) => canPlaceAmongGifts(x, z, island.layout, stateRef.current.gifts);
+    const validPoint = (x: number, z: number) => {
+      const data = islandCoordinates.toData({ x, z });
+      return (classroom || puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data))
+        && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts);
+    };
     // First terrain hit, kept only when it lands on the meadow (not the lip, cliff or pebbles).
     const intersect = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -502,7 +515,8 @@ export default function IslandScene({
         groundNormal.copy(hit.face.normal).transformDirection(island.surface.matrixWorld);
         marker.quaternion.setFromUnitVectors(ringFacing, groundNormal);
         marker.position.copy(hit.point).addScaledVector(groundNormal, 0.05);
-        markerMaterial.color.set(validPoint(hit.point.x, hit.point.z) ? "#fff9d4" : "#c57967");
+        const data = islandCoordinates.toData(hit.point);
+        markerMaterial.color.set(validPoint(data.x, data.z) ? "#fff9d4" : "#c57967");
       }
       render();
     };
@@ -518,8 +532,9 @@ export default function IslandScene({
       if (!down || !canChooseLocation() || !current.selected) return;
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) return;
       const point = intersect(event)?.point;
-      if (point && validPoint(point.x, point.z)) {
-        current.onPropose(current.selected, point.x, point.z);
+      const data = point && islandCoordinates.toData(point);
+      if (data && validPoint(data.x, data.z)) {
+        current.onPropose(current.selected, data.x, data.z);
         marker.visible = false;
         render();
       }
@@ -637,7 +652,7 @@ export default function IslandScene({
     runtime.gifts.clear();
     gifts.forEach((gift) => {
       const model = createGiftModel(gift.kind);
-      model.position.set(gift.x, runtime.heightAt(gift.x, gift.z) + 0.02, gift.z);
+      model.position.copy(islandCoordinates.toWorld(gift, runtime.heightAt(gift.x, gift.z) + 0.02));
       model.scale.setScalar(1.35);
       model.name = gift.name;
       runtime.gifts.add(model);

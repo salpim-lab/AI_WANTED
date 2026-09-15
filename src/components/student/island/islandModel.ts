@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { chisel, createTerrainGeometry } from "./islandTerrain";
 import { createIslandLayout, type IslandLayout } from "./placement";
-import { createPuzzlePieceLayerGeometry, getPuzzleLayout, PUZZLE_PIECE_COUNT, PUZZLE_SEED } from "./puzzle";
+import { createPuzzlePieceLayerGeometry, getPuzzleLayout, islandCoordinates, PUZZLE_PIECE_COUNT, PUZZLE_SEED } from "./puzzle";
 import type { GiftKind } from "./types";
 
 const FOLIAGE = ["#6E9A3C", "#7FA844", "#8FB94F", "#A6C962"];
@@ -164,7 +164,8 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
   }
 
   for (const detail of layout.decorations) {
-    const { x, z, radius } = detail;
+    const { x, z } = islandCoordinates.toWorld(detail);
+    const { radius } = detail;
     const y = ground(x, z);
     if (detail.kind === "tree") {
       if (!showTree) continue;
@@ -230,9 +231,10 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
   }
 
   for (const piece of layout.scatter) {
-    if (piece.kind === "tuft") tuft(piece.x, piece.z, piece.size);
-    if (piece.kind === "bloom") bloom(piece.x, piece.z, 0.3 + piece.size * 0.12, BLOSSOM[piece.tone], 0.85);
-    if (piece.kind === "pebble") stone(piece.x, piece.z, 0.2 * piece.size + (piece.tone % 2) * 0.12);
+    const point = islandCoordinates.toWorld(piece);
+    if (piece.kind === "tuft") tuft(point.x, point.z, piece.size);
+    if (piece.kind === "bloom") bloom(point.x, point.z, 0.3 + piece.size * 0.12, BLOSSOM[piece.tone], 0.85);
+    if (piece.kind === "pebble") stone(point.x, point.z, 0.2 * piece.size + (piece.tone % 2) * 0.12);
   }
 
   const details = sculpt.finish();

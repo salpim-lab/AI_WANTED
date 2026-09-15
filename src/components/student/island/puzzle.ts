@@ -1,4 +1,4 @@
-import { BufferGeometry, ExtrudeGeometry, Shape, ShapeGeometry } from "three";
+import { BufferGeometry, ExtrudeGeometry, Shape, ShapeGeometry, Vector2, Vector3 } from "three";
 import type { IslandLayout } from "./placement";
 
 export const PUZZLE_PIECE_COUNT = 20;
@@ -17,6 +17,21 @@ const TAB_MIN_LENGTH = 1.6;
 const TAB_WIDTH = 0.28;
 
 export type PuzzlePoint = { x: number; z: number };
+
+// The one bridge between puzzle data XZ, world XZ, and Shape XY.
+// rotateX(-π/2) maps Shape Y to negative world Z; the Shape encoding lives here.
+export const islandCoordinates = {
+  toWorld(point: PuzzlePoint, y = 0) {
+    return new Vector3(point.x, y, point.z);
+  },
+  toData(point: PuzzlePoint) {
+    return { x: point.x, z: point.z };
+  },
+  toShape(point: PuzzlePoint) {
+    const world = this.toWorld(point);
+    return new Vector2(world.x, -world.z);
+  },
+};
 export type PuzzleEdge = {
   a: PuzzlePoint;
   b: PuzzlePoint;
@@ -54,7 +69,11 @@ function areaOf(polygon: PuzzlePoint[]) {
 
 function pieceShape(piece: PuzzlePiece) {
   const shape = new Shape();
-  getPuzzlePiecePolygon(piece).forEach((point, index) => index === 0 ? shape.moveTo(point.x, point.z) : shape.lineTo(point.x, point.z));
+  getPuzzlePiecePolygon(piece).forEach((point, index) => {
+    const vertex = islandCoordinates.toShape(point);
+    if (index === 0) shape.moveTo(vertex.x, vertex.y);
+    else shape.lineTo(vertex.x, vertex.y);
+  });
   shape.closePath();
   return shape;
 }
