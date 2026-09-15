@@ -26,6 +26,13 @@
 
 # salesforce vscode extension cache
 .sf/
+.sfdx/
+force-app/
+sfdx-project.json
+.forceignore
+
+# local AI session notes and previews (shared task logs live in docs/task-logs)
+.codex/
 
 # debug
 npm-debug.log*
