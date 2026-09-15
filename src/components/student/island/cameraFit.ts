@@ -1,8 +1,9 @@
 import { Box3, MathUtils, OrthographicCamera, Vector3 } from "three";
-import { islandCoordinates } from "./puzzle";
 
 export type IslandCameraMode = "island" | "classroom";
 export type ScreenRect = { left: number; right: number; top: number; bottom: number };
+
+export const HOME_ZOOM = 1.42;
 
 export function boxCorners(box: Box3) {
   const { min, max } = box;
@@ -15,7 +16,7 @@ function safeScreenRect(width: number, height: number, mode: IslandCameraMode): 
   // Header badges end below the title. The camera controls and placement
   // toolbar occupy the bottom strip; this inset is within the canvas itself.
   const top = narrow ? 112 : mode === "island" ? 116 : 108;
-  const bottom = narrow ? 88 : 68;
+  const bottom = narrow ? 96 : mode === "island" ? 86 : 72;
   return { left: side, right: width - side, top, bottom: height - bottom };
 }
 
@@ -32,15 +33,14 @@ export function projectedBoxRect(box: Box3, camera: OrthographicCamera, width: n
 
 export function fitIslandCamera(box: Box3, width: number, height: number, mode: IslandCameraMode) {
   if (box.isEmpty() || width <= 0 || height <= 0) throw new Error("Camera fit needs a nonempty island box and canvas size");
-  const rawCentre = box.getCenter(new Vector3());
-  const target = islandCoordinates.toWorld(islandCoordinates.toData(rawCentre), rawCentre.y);
+  const target = box.getCenter(new Vector3());
   const size = box.getSize(new Vector3());
   // Orthographic apparent size is independent of distance; this offset keeps
   // clipping planes well clear of the tallest tree and lowest bottom rock.
   const distance = size.length() * 2.2 + 5;
   // The personal piece is vertically narrow on desktop and needs a lower
   // angle on short landscape screens to keep its width near the 68% target.
-  const elevation = mode === "island" ? 28 : 35;
+  const elevation = mode === "island" ? 38 : 35;
   const azimuth = mode === "island" ? 0 : Math.PI / 4;
   const back = new Vector3().setFromSphericalCoords(1, Math.PI / 2 - MathUtils.degToRad(elevation), azimuth);
   const home = target.clone().addScaledVector(back, distance);
@@ -71,18 +71,19 @@ export function fitIslandCamera(box: Box3, width: number, height: number, mode: 
   const widthRatio = (projected.right - projected.left) / width;
   const insideSafe = projected.left >= safe.left - 1e-6 && projected.right <= safe.right + 1e-6
     && projected.top >= safe.top - 1e-6 && projected.bottom <= safe.bottom + 1e-6;
-  const minZoom = 0.78;
+  // Keep a little more room for the enlarged footprint when zooming out.
+  const minZoom = 0.72;
   const centreX = (projected.left + projected.right) / 2;
   const centreY = (projected.top + projected.bottom) / 2;
   // User-initiated zoom may cross the overlay safe strip, but the complete
   // box stays on the canvas with an 8px edge. Home always restores safe fit.
-  const maxZoom = Math.max(1, Math.min(1.8,
+  const maxZoom = Math.max(HOME_ZOOM, Math.min(3.2,
     (centreX - 8) / ((centreX - projected.left) || 1),
     (width - centreX - 8) / ((projected.right - centreX) || 1),
     (centreY - 8) / ((centreY - projected.top) || 1),
     (height - centreY - 8) / ((projected.bottom - centreY) || 1),
   ) * 0.96);
-  return { camera, home, target, safe, projected, widthRatio, insideSafe, distance, minZoom, maxZoom };
+  return { camera, home, target, safe, projected, widthRatio, insideSafe, distance, minZoom, maxZoom, homeZoom: HOME_ZOOM };
 }
 
 export function tweenCameraPose(from: Vector3, to: Vector3, fromZoom: number, toZoom: number, progress: number) {

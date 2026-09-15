@@ -1,9 +1,10 @@
 import * as THREE from "three";
+import { createRockCliff } from "./rockCliff";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { chisel, createTerrainGeometry } from "./islandTerrain";
+import { chisel, createTerrainGeometry, STYLIZED_PALETTE, stylizedNoise } from "./islandTerrain";
 import { createIslandLayout, type Decoration, type IslandLayout, type Scatter } from "./placement";
-import { createPuzzlePieceLayerGeometry, getPuzzleBottomRockSpecs, getPuzzleLayout, islandCoordinates, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
+import { createPuzzlePieceLayerGeometry, getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainRing, islandCoordinates, puzzlePieceContains, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
 import { getPuzzleDecorationPlan } from "./puzzleDecorations";
 import type { GiftKind } from "./types";
 
@@ -12,6 +13,7 @@ const NEEDLES = ["#3F7A45", "#4C8A4C", "#5C9A55"];
 const BARK = ["#8E5E3C", "#9E6B44"];
 const STONE = ["#9B948A", "#8A8078", "#A89C8C", "#B0A596"];
 const BLOSSOM = ["#F4ACAA", "#D8B1DF", "#FFF4E2", "#F6D477"];
+const GRASS_BLADE_INSTANCES = 1680;
 
 // The legacy full-island model remains available for other screens; the active
 // puzzle view uses the smooth layered pieces below.
@@ -181,7 +183,7 @@ function sculptNaturalDetails(
       const s = radius / 2;
       // Narrow puzzle pieces need a small crown footprint; lift its familiar
       // faceted trunk and lobes in Y so height stays about 18% of piece W.
-      const heightScale = surfaceY === undefined ? 1 : 1.55;
+      const heightScale = surfaceY === undefined ? 1 : 1.8;
       const top = trunk(x, z, y, 3.0 * s * heightScale, 0.34 * s);
       // A short branch stub gives the trunk a crooked, grown look.
       sculpt.mesh(new THREE.CylinderGeometry(0.06 * s, 0.12 * s, 0.9 * s * heightScale, 5).translate(0, 0.45 * s * heightScale, 0), pick(BARK),
@@ -198,7 +200,7 @@ function sculptNaturalDetails(
     }
     if (detail.kind === "pine") {
       if (!showTree) continue;
-      const s = radius;
+      const s = radius * 1.45;
       const top = trunk(x, z, y, 1.1 * s, 0.2 * s);
       const tiers = 3 + Math.floor(random() * 2);
       for (let k = 0; k < tiers; k++) {
@@ -260,9 +262,35 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
   return details;
 }
 
-function addPuzzleNaturalDetails(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number) {
+function addCliffMoss(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode) {
+  const piece = getPuzzleLayout(layout, PUZZLE_SEED).pieces[pieceIndex];
+  const polygon = getPuzzlePiecePolygon(piece);
+  const centre = polygon.reduce((sum, point) => ({ x: sum.x + point.x, z: sum.z + point.z }), { x: 0, z: 0 });
+  centre.x /= polygon.length; centre.z /= polygon.length;
+  const random = layout.random(1200 + pieceIndex);
+  const stem = new THREE.CylinderGeometry(0.035, 0.065, 1, 4).translate(0, -0.5, 0);
+  // Grass lip vines: most are short, with a few longer uneven drips. Their
+  // bases are sampled from the grass ring and nudged inward from the rim.
+  for (let index = 0; index < 26; index++) {
+    const ring = getPuzzleTerrainRing(layout, pieceIndex, "grass", mode, 1, PUZZLE_SEED);
+    const point = ring[Math.floor((index + random()) / 15 * ring.length) % ring.length].clone();
+    point.x += (centre.x - point.x) * 0.025; point.z += (centre.z - point.z) * 0.025;
+    const length = index % 7 === 0 ? 0.48 + random() * 0.3 : 0.12 + random() * 0.38;
+    sculpt.mesh(stem, index % 4 ? "#6e9a3c" : "#8fb94f", [point.x, point.y, point.z], [1, length, 1], [(random() - 0.5) * 0.16, random() * Math.PI, (random() - 0.5) * 0.16]);
+  }
+  // Small moss patches caught in the soil/rock seam.
+  for (let index = 0; index < 11; index++) {
+    const ring = getPuzzleTerrainRing(layout, pieceIndex, "soil", mode, 0.95, PUZZLE_SEED);
+    const point = ring[Math.floor(random() * ring.length)].clone();
+    point.x += (centre.x - point.x) * 0.07; point.z += (centre.z - point.z) * 0.07;
+    sculpt.mesh(new THREE.IcosahedronGeometry(1, 0), index % 2 ? "#6e9a3c" : "#7fa844", [point.x, point.y - 0.05, point.z], [0.12 + random() * 0.12, 0.08 + random() * 0.08, 0.08 + random() * 0.1], [random(), random(), random()]);
+  }
+}
+
+function addPuzzleNaturalDetails(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode) {
   const plan = getPuzzleDecorationPlan(layout, pieceIndex, PUZZLE_SEED);
   sculptNaturalDetails(sculpt, layout, true, plan.decorations, [], PUZZLE_SEED + pieceIndex * 101, plan.surfaceY);
+  addCliffMoss(sculpt, layout, pieceIndex, mode);
 }
 
 export function createIslandModel(seed = 17, showTree = true) {
@@ -280,33 +308,63 @@ function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, color
   const group = new THREE.Group();
   group.name = `puzzle-piece-layers-${pieceIndex + 1}`;
   let surface: THREE.Mesh | null = null;
-  (["grass", "soil", "rock"] as const).forEach((layer, index) => {
-    const mesh = new THREE.Mesh(
-      createPuzzlePieceLayerGeometry(layout, pieceIndex, layer, mode, PUZZLE_SEED),
-      new THREE.MeshStandardMaterial({ color: index === 0 ? color : index === 1 ? "#b48b6c" : "#90877f", roughness: 0.94, metalness: 0, flatShading: false }),
-    );
+  (["grass", "soil"] as const).forEach((layer, index) => {
+    const geometry = createPuzzlePieceLayerGeometry(layout, pieceIndex, layer, mode, PUZZLE_SEED);
+    const palette = STYLIZED_PALETTE[layer];
+    const positions = geometry.getAttribute("position");
+    const colors = new Float32Array(positions.count * 3);
+    const tint = new THREE.Color();
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i), z = positions.getZ(i), y = positions.getY(i);
+      // Use one world-space field across all puzzle pieces. A per-piece seed
+      // would make the cap triangles read as diagonal seams at assembly time.
+      const noise = stylizedNoise(x, z, index * 17);
+      const paletteIndex = noise > 0.22 ? 0 : noise < -0.24 ? Math.min(2, palette.length - 1) : 1;
+      tint.set(palette[paletteIndex]).multiplyScalar(1 + noise * 0.035 + Math.sin(y * 0.75) * 0.012);
+      colors[i * 3] = tint.r; colors[i * 3 + 1] = tint.g; colors[i * 3 + 2] = tint.b;
+    }
+    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.88, metalness: 0, flatShading: layer !== "grass", vertexColors: true, transparent: false, opacity: 1 });
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.name = `puzzle-piece-${pieceIndex + 1}-${layer}`;
     group.add(mesh);
     if (index === 0) surface = mesh;
   });
+  group.add(createRockCliff(layout, pieceIndex, mode));
   return { group, surface: surface! };
 }
 
-function addRoundedBottomRocks(group: THREE.Group, layout: IslandLayout, mode: PuzzleTerrainMode, pieceIndex = 0) {
-  const rockMaterial = new THREE.MeshStandardMaterial({ color: "#8a8178", roughness: 0.98, metalness: 0 });
-  const geometry = new THREE.SphereGeometry(1, 20, 14);
-  for (const spec of getPuzzleBottomRockSpecs(layout, mode, pieceIndex, PUZZLE_SEED)) {
-    const rock = new THREE.Mesh(geometry, rockMaterial);
-    rock.position.copy(spec.position);
-    rock.scale.copy(spec.scale);
-    rock.rotation.set(spec.rotation.x, spec.rotation.y, spec.rotation.z);
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    rock.name = "rounded-bottom-rock";
-    group.add(rock);
+function addInstancedGrass(group: THREE.Group, layout: IslandLayout, pieceIndex: number, surfaceY: number) {
+  const piece = getPuzzleLayout(layout, PUZZLE_SEED).pieces[pieceIndex];
+  const polygon = getPuzzlePiecePolygon(piece);
+  const random = layout.random(700 + pieceIndex);
+  const geometry = new THREE.ConeGeometry(0.035, 0.34, 3).translate(0, 0.17, 0);
+  const material = new THREE.MeshStandardMaterial({ color: "#7fb347", roughness: 0.88, metalness: 0 });
+  const clusterCount = typeof window !== "undefined" && window.innerWidth < 700 ? 220 : Math.round(GRASS_BLADE_INSTANCES / 4);
+  const mesh = new THREE.InstancedMesh(geometry, material, clusterCount * 4);
+  mesh.name = "instanced-grass-blades"; mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.userData.excludeFromRaycast = true;
+  const bounds = polygon.reduce((box, point) => ({ minX: Math.min(box.minX, point.x), maxX: Math.max(box.maxX, point.x), minZ: Math.min(box.minZ, point.z), maxZ: Math.max(box.maxZ, point.z) }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
+  const helper = new THREE.Object3D();
+  let instance = 0, attempts = 0;
+  while (instance < clusterCount * 4 && attempts++ < clusterCount * 40) {
+    const x = bounds.minX + random() * (bounds.maxX - bounds.minX), z = bounds.minZ + random() * (bounds.maxZ - bounds.minZ);
+    if (!puzzlePieceContains(piece, { x, z })) continue;
+    const centre = polygon.reduce((sum, point) => ({ x: sum.x + point.x, z: sum.z + point.z }), { x: 0, z: 0 });
+    centre.x /= polygon.length; centre.z /= polygon.length;
+    const distanceFromCentre = Math.hypot(x - centre.x, z - centre.z);
+    if (distanceFromCentre < Math.min(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) * 0.18 && random() > 0.22) continue;
+    const clusterScale = 0.65 + random() * 0.7;
+    for (let blade = 0; blade < 4; blade++) {
+      helper.position.set(x + (random() - 0.5) * 0.16, surfaceY, z + (random() - 0.5) * 0.16);
+      helper.rotation.set((random() - 0.5) * 0.35, random() * Math.PI, (random() - 0.5) * 0.35);
+      helper.scale.set(clusterScale * (0.8 + random() * 0.3), clusterScale * (0.8 + random() * 0.45), clusterScale * (0.8 + random() * 0.3));
+      helper.updateMatrix(); mesh.setMatrixAt(instance++, helper.matrix);
+    }
   }
+  mesh.count = instance; mesh.instanceMatrix.needsUpdate = true; group.add(mesh);
 }
 
 // The class view is one shared floating island assembled from deterministic
@@ -325,12 +383,12 @@ export function createPuzzleAssemblyModel(seed = 17) {
   });
   group.add(pieces);
   const garden = new Sculpt(createPalette(true));
-  puzzle.pieces.forEach((piece) => addPuzzleNaturalDetails(garden, layout, piece.index));
+  puzzle.pieces.forEach((piece) => addPuzzleNaturalDetails(garden, layout, piece.index, "classroom"));
   const details = garden.finish();
   details.name = "assembled-puzzle-garden";
   group.add(details);
   const surface = pieces.children[0].children[0] as THREE.Mesh;
-  addRoundedBottomRocks(group, layout, "classroom");
+  addInstancedGrass(group, layout, 0, layout.surfaceY + 0.015);
   return { group, surface, layout, puzzle };
 }
 
@@ -342,18 +400,18 @@ export function createPuzzlePieceModel(seed = 17, pieceIndex = 0) {
   const layers = createPuzzlePieceLayers(layout, pieceIndex, "#a5cc76", "personal");
   group.add(layers.group);
   const garden = new Sculpt(createPalette(true));
-  addPuzzleNaturalDetails(garden, layout, pieceIndex);
+  addPuzzleNaturalDetails(garden, layout, pieceIndex, "personal");
   const details = garden.finish();
   details.name = `puzzle-piece-${pieceIndex + 1}-garden`;
   group.add(details);
   const surface = layers.surface;
-  addRoundedBottomRocks(group, layout, "personal", pieceIndex);
+  addInstancedGrass(group, layout, pieceIndex, layout.surfaceY + 0.015);
   return { group, surface, layout, puzzle };
 }
 
 export function createGiftModel(kind: GiftKind) {
   const sculpt = new Sculpt();
-  sculpt.rod("#be8250", [0, 0.1, 0], [0.18, 0.2, 0.18]);
+  const pot = sculpt.rod("#be8250", [0, 0.1, 0], [0.18, 0.2, 0.18]);
   sculpt.rod("#d19c64", [0, 0.2, 0], [0.205, 0.065, 0.205]);
   sculpt.rod("#6d5639", [0, 0.237, 0], [0.165, 0.008, 0.165]);
 
@@ -384,7 +442,10 @@ export function createGiftModel(kind: GiftKind) {
       [0, 0.69, -0.04],
     );
   }
-  return sculpt.finish();
+  const potBox = new THREE.Box3().setFromObject(pot);
+  const model = sculpt.finish();
+  model.userData.baseDiameter = Math.max(potBox.max.x - potBox.min.x, potBox.max.z - potBox.min.z);
+  return model;
 }
 
 export const GIFT_MODEL_HEIGHT = 0.94;

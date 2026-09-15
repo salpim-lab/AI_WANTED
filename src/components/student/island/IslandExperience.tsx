@@ -50,6 +50,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
   const [proposal, setProposal] = useState<PlacementProposal | null>(null);
   const [phase, setPhase] = useState<PlacementPhase>("ready");
   const [cameraView, setCameraView] = useState<"free" | "top">("free");
+  const [overview, setOverview] = useState(false);
   const [entryStage, setEntryStage] = useState<"intro" | "cta" | "exiting" | "popping" | "placement">("intro");
   const [showHandHint, setShowHandHint] = useState(false);
   const [islandRect, setIslandRect] = useState<IslandScreenRect | null>(null);
@@ -117,6 +118,8 @@ export default function IslandExperience({ compact = false, studentName = "민�
     setSelected(null);
     setPhase("ready");
     setEntryStage("cta");
+    setOverview(false);
+    window.setTimeout(() => sceneRef.current?.camera("home"), 0);
   }
 
   function confirmPlacement() {
@@ -136,6 +139,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
   function finishPlacement() {
     if (phase !== "farewell") return;
     setPhase("complete");
+    setOverview(false);
     onComplete?.();
   }
 
@@ -200,6 +204,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
           onFinish={finishPlacement}
           controlsRef={sceneRef}
           onIslandScreenRect={setIslandRect}
+          onOverviewChange={setOverview}
           onIntroComplete={() => setEntryStage((current) => current === "intro" ? "cta" : current)}
         />
 
@@ -225,12 +230,13 @@ export default function IslandExperience({ compact = false, studentName = "민�
           </div>
         </div>}
 
-        {phase !== "moving" && showSceneControls && <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-4 bg-gradient-to-t from-[#dceee5]/82 to-transparent ${compact ? "pb-3 pt-6" : "pb-5 pt-10"}`}>
+        {phase !== "moving" && showSceneControls && <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-4 ${compact ? "pb-3 pt-6" : "pb-5 pt-10"}`}>
           {mode === "island" && phase === "choosing" && entryStage === "placement" && <p className="pointer-events-none flex items-center gap-2 rounded-full bg-[#f8fff4]/75 px-3 py-1 text-[11px] text-[#45684f] backdrop-blur-sm"><Icon name="hand" size={14}/>섬의 원하는 자리를 눌러 주세요</p>}
           <div ref={toolbarRef} className="flex items-center gap-1 rounded-full border border-white/80 bg-[#fffffa]/90 px-2 py-1.5 shadow-[0_4px_20px_#60837012] backdrop-blur-sm" role="group" aria-label="시점 조작">
             {([ ["left", "left", "왼쪽으로 회전"], ["right", "right", "오른쪽으로 회전"], ["out", "minus", "축소"], ["in", "plus", "확대"], ["top", "top", "위에서 보기"], ["home", "rotate", "처음 시점으로"] ] as [CameraPreset, IconName, string][]).map(([preset, icon, label], index) => <button key={preset} title={label} aria-label={label} onClick={() => camera(preset)} className={`${button} h-8 w-8 text-[#607862] hover:bg-[#eaf0e4] max-sm:w-7 ${index === 2 || index === 4 ? "ml-1 border-l border-[#e2e7dc]" : ""}`}><Icon name={icon} size={17}/></button>)}
           </div>
           {mode === "island" && (phase === "choosing" || phase === "confirming") && entryStage === "placement" && <button onClick={cancelPlacement} className="absolute right-4 bottom-5 rounded-full bg-white/85 px-3 py-1.5 text-[11px] text-[#5e7665]">배치 취소</button>}
+          {mode === "island" && phase === "choosing" && entryStage === "placement" && <button onClick={() => sceneRef.current?.toggleOverview()} className="absolute left-4 bottom-5 rounded-full bg-white/85 px-3 py-1.5 text-[11px] text-[#5e7665]">{overview ? "캐릭터 보기" : "전체 보기"}</button>}
         </div>}
       </section>
 

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { seededRandom } from "./placement";
+import { ISLAND_SCALE, seededRandom } from "./placement";
 
 // Cloud spots in the default camera's frame: `across` runs along the screen,
 // `depth` toward the viewer, `y` is height. Kept below the meadow so they
@@ -30,7 +30,7 @@ export function createIslandSky(classroom: boolean) {
   const clouds = new THREE.Group();
   const spots = classroom
     ? CLASSROOM_CLOUDS.map((spot) => ({ across: spot.across, depth: spot.depth, y: spot.y, size: spot.size }))
-    : ISLAND_CLOUDS;
+    : ISLAND_CLOUDS.map((spot) => ({ ...spot, across: spot.across * ISLAND_SCALE, depth: spot.depth * ISLAND_SCALE }));
   spots.forEach((spot, clusterIndex) => {
     const puffs: THREE.BufferGeometry[] = [];
     const center = new THREE.Vector3(spot.across, spot.y, spot.depth);
@@ -55,6 +55,8 @@ export function createIslandSky(classroom: boolean) {
   });
   puff.dispose();
   clouds.name = "low-poly-clouds";
+  // Personal cliff remains unobstructed at every orbit angle.
+  clouds.visible = classroom;
   clouds.userData.cloudDrift = !classroom;
   return clouds;
 }

@@ -1,14 +1,24 @@
 import { MathUtils } from "three";
 import type { IslandGift } from "./types";
 
-// Mean meadow radius. The oval's long axis is 10% longer, its short axis 10% shorter.
-export const ISLAND_RADIUS = 14;
+// The meadow footprint is intentionally spacious enough for the long-term
+// story collection (about 210 items). Keep the scale explicit so visual
+// details can opt into the old, child-sized world units below.
+export const ISLAND_SCALE = 2.75;
+export const BASE_ISLAND_RADIUS = 14;
+// Mean meadow radius. The footprint is a softly rounded rectangle rather than
+// a noisy oval, so the assembled island reads as a large puzzle board.
+export const ISLAND_RADIUS = BASE_ISLAND_RADIUS * ISLAND_SCALE;
 // Height of the flat meadow surface; the rock body hangs below.
 export const SURFACE_Y = 0.83;
 // Items stay this far inside the rim so they never sit on the rounded grass lip.
 const EDGE_MARGIN = 0.9;
 // The default camera looks from +X/+Z, so this long axis spans the screen horizontally.
 const LONG_AXIS = -Math.PI / 4;
+
+// Suggested placements use this grid as a deterministic, evenly spaced
+// search field instead of the old small-island radial range.
+export const PLACEMENT_GRID_STEP = 0.9;
 
 // Decorations hug the rim, measured by angle (deg, from +X toward +Z) and
 // fraction of the local radius, so they stay inside any seeded outline.
@@ -74,15 +84,15 @@ export function seededRandom(seed: number) {
 
 export function createIslandLayout(seed: number): IslandLayout {
   const random = seededRandom(seed);
+  const ROUNDNESS = 4.6;
   const a = ISLAND_RADIUS * 1.1, b = ISLAND_RADIUS * 0.9;
-  // A few low harmonics wobble the oval into an organic, never-circular rim.
-  const waves = [[2, 0.04], [3, 0.032], [4, 0.022], [5, 0.014], [7, 0.007]].map(([k, amp]) => ({
-    k, amp: amp * (0.6 + random() * 0.8), phase: random() * Math.PI * 2,
-  }));
+  const outlineScale = 1.065;
+  const wobblePhase = random() * Math.PI * 2;
   const radiusAt = (angle: number) => {
     const u = angle - LONG_AXIS;
-    const oval = 1 / Math.hypot(Math.cos(u) / a, Math.sin(u) / b);
-    return oval * (1 + waves.reduce((sum, w) => sum + w.amp * Math.sin(w.k * angle + w.phase), 0));
+    const cos = Math.abs(Math.cos(u)), sin = Math.abs(Math.sin(u));
+    const roundedRectangle = outlineScale / ((cos / a) ** ROUNDNESS + (sin / b) ** ROUNDNESS) ** (1 / ROUNDNESS);
+    return roundedRectangle * (1 + 0.004 * Math.sin(angle * 2 + wobblePhase) + 0.002 * Math.sin(angle * 3 - wobblePhase));
   };
   const polar = (degrees: number, reach: number) => {
     const angle = MathUtils.degToRad(degrees);

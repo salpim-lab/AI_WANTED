@@ -1,6 +1,24 @@
 import { BufferGeometry, Color, DodecahedronGeometry, Float32BufferAttribute, IcosahedronGeometry, Vector3 } from "three";
 import type { IslandLayout } from "./placement";
 
+const ISLAND_SCALE = 2.75;
+
+// Shared broad colour variation for grass, soil and rock. The low frequency
+// keeps the scene hand-painted instead of photographic.
+export const STYLIZED_NOISE_SCALE = 0.22;
+export function stylizedNoise(x: number, z: number, seed = 0) {
+  const phase = seed * 0.731;
+  return Math.sin(x * STYLIZED_NOISE_SCALE + z * 0.13 + phase) * 0.58
+    + Math.sin(x * 0.11 - z * STYLIZED_NOISE_SCALE * 0.82 - phase * 1.7) * 0.27
+    + Math.sin(x * 0.055 + z * 0.071 + phase * 2.3) * 0.15;
+}
+
+export const STYLIZED_PALETTE = {
+  grass: ["#9ccc5a", "#7fb347", "#5f9a3a"],
+  soil: ["#bf8050", "#a86a43", "#915b3c"],
+  rock: ["#8a8f96", "#5f656d", "#3e434a", "#6b625a"],
+} as const;
+
 // Nudges every distinct corner by its own random offset: faces stay joined,
 // but each stone, crown or blade gets a chipped, one-off silhouette.
 export function chisel<T extends BufferGeometry>(geometry: T, random: () => number, amount: number) {
@@ -45,7 +63,9 @@ const EARTH = [
   { scale: 0.78, drop: 5.9, count: 44, color: "#958374" },
   { scale: 0.62, drop: 6.8, count: 40, color: "#7A6B61" },
 ];
-export const TERRAIN_DEPTH = 7.5;
+// The footprint is larger now, but the hanging body grows only moderately so
+// the island does not read as a three-times-thicker rock.
+export const TERRAIN_DEPTH = 18.5;
 
 const RIM_COUNT = 72;
 const MEADOW_RINGS = [0.16, 0.28, 0.4, 0.52, 0.64, 0.76, 0.88];
@@ -122,7 +142,9 @@ export function createTerrainGeometry(layout: IslandLayout) {
   const sides: { ring: Ring; color: string }[] = [{ ring: rim, color: RIM_COLOR }];
   for (const band of GRASS_LIP) {
     const ring = loop(RIM_COUNT, (angle) => {
-      const r = radiusAt(angle) + band.grow;
+      // The enlarged footprint gets a slightly wider soft grass lip, while
+      // the actual soil/rock depth remains deliberately much less scaled.
+      const r = radiusAt(angle) + band.grow * ISLAND_SCALE;
       return new Vector3(Math.cos(angle) * r, surfaceY - band.drop - (band.hem ? hemDrop(angle) : 0), Math.sin(angle) * r);
     });
     sides.push({ ring, color: band.color });

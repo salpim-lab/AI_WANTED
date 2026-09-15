@@ -1,6 +1,8 @@
 import { BufferGeometry, Float32BufferAttribute, Shape, ShapeGeometry, ShapeUtils, Vector2, Vector3 } from "three";
 import type { IslandLayout } from "./placement";
 
+const ISLAND_SCALE = 2.75;
+
 export const PUZZLE_PIECE_COUNT = 20;
 export const PUZZLE_SEED = 20260915;
 // Student 1 starts in the visually central piece; the rest can be reassigned
@@ -11,19 +13,44 @@ export const PUZZLE_STUDENT_PIECE_MAP: Record<number, number> = {
 };
 
 const OUTLINE_SAMPLES = 72;
-const LLOYD_ITERATIONS = 14;
+// Keep the 5×4 scaffold regular. The old Lloyd relaxation made the student
+// piece a many-sided blob; regular cells make its four classic puzzle sides
+// legible at a glance and keep the tab controls below easy to tune.
+const LLOYD_ITERATIONS = 0;
 const EDGE_KEY_DIGITS = 4;
-const TAB_MIN_LENGTH = 1.6;
-const TAB_WIDTH = 0.28;
+export const PUZZLE_TAB_MIN_LENGTH = 1.6;
+export const PUZZLE_TAB_COUNT_SHORT = 1;
+export const PUZZLE_TAB_COUNT_LONG = 1;
+export const PUZZLE_TAB_WIDTH = 0.27;
+export const PUZZLE_TAB_DEPTH = 0.16;
+export const PUZZLE_TAB_SAMPLES = 10;
 
 export type PuzzlePoint = { x: number; z: number };
 
 // Display-only orientation; puzzle data and generated geometry stay unchanged.
-export const ISLAND_DISPLAY_ROTATION = Math.PI / 4;
+export function getPuzzleDisplayRotation(layout: IslandLayout, pieceIndex: number, seed = PUZZLE_SEED) {
+  const piece = getPuzzleLayout(layout, seed).pieces[pieceIndex];
+  if (!piece) throw new Error(`Unknown puzzle piece ${pieceIndex}`);
+  const points = getPuzzlePiecePolygon(piece);
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const meanZ = points.reduce((sum, point) => sum + point.z, 0) / points.length;
+  let xx = 0, zz = 0, xz = 0;
+  points.forEach((point) => {
+    const x = point.x - meanX, z = point.z - meanZ;
+    xx += x * x;
+    zz += z * z;
+    xz += x * z;
+  });
+  const axis = 0.5 * Math.atan2(2 * xz, xx - zz);
+  // PCA gives the footprint's major axis. Rotate that axis onto world X so
+  // the initial +Z camera sees the longest direction as the screen horizontal.
+  return -axis;
+}
 
 // The one bridge between puzzle data XZ, world XZ, and Shape XY.
 // rotateX(-π/2) maps Shape Y to negative world Z; the Shape encoding lives here.
-export const islandCoordinates = {
+export function createIslandCoordinates(displayRotation = 0) {
+  return {
   toWorld(point: PuzzlePoint, y = 0) {
     return new Vector3(point.x, y, point.z);
   },
@@ -31,16 +58,18 @@ export const islandCoordinates = {
     return { x: point.x, z: point.z };
   },
   toDisplayedWorld(point: PuzzlePoint, y = 0) {
-    return this.toWorld(point, y).applyAxisAngle(new Vector3(0, 1, 0), ISLAND_DISPLAY_ROTATION);
+    return this.toWorld(point, y).applyAxisAngle(new Vector3(0, 1, 0), displayRotation);
   },
   fromDisplayedWorld(point: Vector3) {
-    return this.toData(point.clone().applyAxisAngle(new Vector3(0, 1, 0), -ISLAND_DISPLAY_ROTATION));
+    return this.toData(point.clone().applyAxisAngle(new Vector3(0, 1, 0), -displayRotation));
   },
   toShape(point: PuzzlePoint) {
     const world = this.toWorld(point);
     return new Vector2(world.x, -world.z);
   },
-};
+  };
+}
+export const islandCoordinates = createIslandCoordinates();
 export type PuzzleEdge = {
   a: PuzzlePoint;
   b: PuzzlePoint;
@@ -141,35 +170,28 @@ function sampleOutline(layout: IslandLayout) {
   });
 }
 
-function makeInitialSeeds(outline: PuzzlePoint[], seed: number) {
-  const random = layoutRandom(seed);
+function makeInitialSeeds(outline: PuzzlePoint[]) {
   const bounds = outline.reduce((result, point) => ({
     minX: Math.min(result.minX, point.x), maxX: Math.max(result.maxX, point.x),
     minZ: Math.min(result.minZ, point.z), maxZ: Math.max(result.maxZ, point.z),
   }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
   const seeds: PuzzlePoint[] = [];
-  // A lightly jittered 5×4 lattice prevents random corner clusters before
-  // Lloyd relaxation, while still making the final cuts organic.
+  // A regular 5×4 lattice keeps the student piece broad and readable.
   for (let row = 0; row < 4; row++) for (let column = 0; column < 5; column++) {
-    let x = bounds.minX + (column + 0.5) / 5 * (bounds.maxX - bounds.minX);
-    let z = bounds.minZ + (row + 0.5) / 4 * (bounds.maxZ - bounds.minZ);
-    x += (random() - 0.5) * (bounds.maxX - bounds.minX) * 0.045;
-    z += (random() - 0.5) * (bounds.maxZ - bounds.minZ) * 0.045;
-    const candidate = { x, z };
-    if (pointInPolygon(candidate, outline)) seeds.push(candidate);
-    else seeds.push({ x: (x + 0) * 0.92, z: (z + 0) * 0.92 });
+    const x = bounds.minX + (column + 0.5) / 5 * (bounds.maxX - bounds.minX);
+    const z = bounds.minZ + (row + 0.5) / 4 * (bounds.maxZ - bounds.minZ);
+    // No per-cell jitter: the large central student piece should have four
+    // clean sides, while only the shared tab geometry provides the organic
+    // puzzle character.
+    let candidate = { x, z };
+    // The rounded-square corners can sit outside the lattice bounds. Pull
+    // those few seeds toward the centre until every Voronoi cell is valid.
+    for (let shrink = 0; shrink < 8 && !pointInPolygon(candidate, outline); shrink++) {
+      candidate = { x: candidate.x * 0.82, z: candidate.z * 0.82 };
+    }
+    seeds.push(candidate);
   }
   return seeds;
-}
-
-function layoutRandom(seed: number) {
-  let state = seed | 0;
-  return () => {
-    state = (state + 0x6d2b79f5) | 0;
-    let value = Math.imul(state ^ (state >>> 15), 1 | state);
-    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 function makeCells(outline: PuzzlePoint[], seeds: PuzzlePoint[]) {
@@ -188,24 +210,24 @@ function addSharedTabs(cells: PuzzlePoint[][]) {
     if (edges.length !== 2) continue;
     const [a, b] = [edges[0].a, edges[0].b].sort((left, right) => key(left).localeCompare(key(right)));
     const length = Math.hypot(b.x - a.x, b.z - a.z);
-    if (length < TAB_MIN_LENGTH) {
+    if (length < PUZZLE_TAB_MIN_LENGTH) {
       shared.set(id, [{ ...a }, { ...b }]);
       continue;
     }
-    const count = length > 4.5 ? 2 : 1;
+    const count = length > 7 ? PUZZLE_TAB_COUNT_LONG : PUZZLE_TAB_COUNT_SHORT;
     const dx = (b.x - a.x) / length, dz = (b.z - a.z) / length;
     const nx = -dz, nz = dx;
     const points: PuzzlePoint[] = [{ ...a }];
     for (let tab = 0; tab < count; tab++) {
-      const start = (tab + 0.5) / count - TAB_WIDTH / 2;
-      const end = (tab + 0.5) / count + TAB_WIDTH / 2;
+      const start = (tab + 0.5) / count - PUZZLE_TAB_WIDTH / 2;
+      const end = (tab + 0.5) / count + PUZZLE_TAB_WIDTH / 2;
       const t0 = Math.max(0.06, start), t1 = Math.min(0.94, end);
-      const depth = Math.min(length * 0.115, 0.72);
+      const depth = Math.min(length * PUZZLE_TAB_DEPTH, 0.95);
       points.push({ x: a.x + (b.x - a.x) * t0, z: a.z + (b.z - a.z) * t0 });
       // A sampled cosine arc keeps the tab round in the ShapeGeometry outline
       // while preserving the exact same path for the neighbouring piece.
-      for (let sample = 1; sample <= 8; sample++) {
-        const u = sample / 8;
+      for (let sample = 1; sample <= PUZZLE_TAB_SAMPLES; sample++) {
+        const u = sample / PUZZLE_TAB_SAMPLES;
         const t = t0 + (t1 - t0) * u;
         const bulge = Math.sin(Math.PI * u) ** 0.78;
         points.push({ x: a.x + (b.x - a.x) * t + nx * depth * bulge, z: a.z + (b.z - a.z) * t + nz * depth * bulge });
@@ -219,7 +241,7 @@ function addSharedTabs(cells: PuzzlePoint[][]) {
 
 export function createPuzzleLayout(layout: IslandLayout, seed = PUZZLE_SEED): PuzzleLayout {
   const outline = sampleOutline(layout);
-  let seeds = makeInitialSeeds(outline, seed);
+  let seeds = makeInitialSeeds(outline);
   for (let iteration = 0; iteration < LLOYD_ITERATIONS; iteration++) {
     const cells = makeCells(outline, seeds);
     seeds = cells.map((cell, index) => {
@@ -298,8 +320,12 @@ export function getPuzzleTerrainMetrics(layout: IslandLayout, pieceIndex: number
   // Shared class width aligns every internal wall and every soil/rock seam in Y.
   const W = mode === "personal" ? personalWidth
     : puzzle.pieces.reduce((sum, candidate) => sum + pieceWidth(candidate), 0) / puzzle.pieces.length;
-  const grass = W * 0.03, soil = W * 0.08, rock = W * 0.17;
-  return { W, personalWidth, grass, soil, rock, total: grass + soil + rock, bevel: W * 0.015 };
+  // A diorama block should read as roughly 25–30% as deep as its short side.
+  // `terrainW` is the displayed footprint scale, so this totals about 26.7%
+  // of the puzzle piece width while keeping the proportions deterministic.
+  const terrainW = W / ISLAND_SCALE;
+  const grass = terrainW * 0.065, soil = terrainW * 0.19, rock = terrainW * 0.48;
+  return { W, personalWidth, grass, soil, rock, total: grass + soil + rock, bevel: terrainW * 0.018 };
 }
 
 function rimVertices(piece: PuzzlePiece): RimVertex[] {
@@ -323,7 +349,7 @@ function boundaryWave(point: PuzzlePoint, W: number) {
   const sine = Math.sin(point.x * 1.31 + point.z * 0.46) * 0.65
     + Math.sin(point.z * 1.77 - point.x * 0.34) * 0.35;
   const noise = Math.sin(point.x * 6.12 + point.z * 3.71) * Math.sin(point.z * 4.19 - point.x * 2.03);
-  return W * 0.012 * (sine + noise * 0.25);
+  return (W / ISLAND_SCALE) * 0.012 * (sine + noise * 0.25);
 }
 
 function ringAt(piece: PuzzlePiece, rim: RimVertex[], metrics: ReturnType<typeof getPuzzleTerrainMetrics>, mode: PuzzleTerrainMode, layer: PuzzleTerrainLayer, t: number, surfaceY: number) {
@@ -333,14 +359,15 @@ function ringAt(piece: PuzzlePiece, rim: RimVertex[], metrics: ReturnType<typeof
     const boundary = boundaryWave(point, metrics.W) * weight;
     let scale = 1, y = surfaceY;
     if (layer === "grass") {
-      // Two intermediate arcs round the top edge without moving the flat cap.
+      // Only the grass lip overhangs. The tab/socket outline below remains
+      // vertical so neighbouring pieces can meet flush after extrusion.
       scale += (metrics.bevel / metrics.W) * Math.sin(Math.PI * t) * weight;
       y -= metrics.grass * t;
     } else if (layer === "soil") {
       y -= metrics.grass + metrics.soil * t + boundary * ease(t);
     } else {
-      scale -= 0.35 * ease(t) * weight;
       y -= metrics.grass + metrics.soil + boundary * (1 - ease(t)) + metrics.rock * t;
+
     }
     return islandCoordinates.toWorld({ x: centre.x + (point.x - centre.x) * scale, z: centre.z + (point.z - centre.z) * scale }, y);
   });
@@ -352,23 +379,6 @@ export function getPuzzleTerrainRing(layout: IslandLayout, pieceIndex: number, l
   return ringAt(piece, rimVertices(piece), metrics, mode, layer, t, layout.surfaceY + 0.015);
 }
 
-export function getPuzzleBottomRockSpecs(layout: IslandLayout, mode: PuzzleTerrainMode, pieceIndex = 0, seed = PUZZLE_SEED) {
-  const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
-  const random = layout.random(91 + pieceIndex);
-  const centre = mode === "personal" ? getPuzzleLayout(layout, seed).pieces[pieceIndex].seed : { x: 0, z: 0 };
-  return Array.from({ length: 5 }, (_, index) => {
-    const angle = (index + random() * 0.35) / 5 * Math.PI * 2;
-    const radius = metrics.W * (mode === "personal" ? 0.18 + random() * 0.07 : 0.75 + random() * 0.2);
-    const height = metrics.total * (0.17 + random() * 0.08);
-    return {
-      position: islandCoordinates.toWorld({ x: centre.x + Math.cos(angle) * radius, z: centre.z + Math.sin(angle) * radius }, layout.surfaceY + 0.015 - metrics.total - height * 0.34),
-      scale: new Vector3(metrics.W * (0.09 + random() * 0.035), height / 2, metrics.W * (0.08 + random() * 0.035)),
-      rotation: new Vector3(random() * 0.22, random() * Math.PI, random() * 0.22),
-      height,
-    };
-  });
-}
-
 export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex: number, layer: PuzzleTerrainLayer, mode: PuzzleTerrainMode, seed = PUZZLE_SEED) {
   const cacheKey = `${layout.seed}:${seed}:${pieceIndex}:terrain:${mode}:${layer}`;
   const cached = geometryCache.get(cacheKey);
@@ -378,12 +388,24 @@ export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex:
   const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
   const rim = rimVertices(piece);
   // Rock has nine contours: its bottom retains every puzzle tab and socket.
-  const fractions = layer === "rock" ? [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
+  const fractions = layer === "rock" ? [0, 1]
     : layer === "grass" ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1];
   const rings = fractions.map((t) => ringAt(piece, rim, metrics, mode, layer, t, layout.surfaceY + 0.015));
   const positions = rings.flatMap((ring) => ring.flatMap((point) => [point.x, point.y, point.z]));
-  const indices: number[] = [];
   const n = rim.length;
+  // Side UVs follow the actual perimeter rather than the vertex count. This
+  // keeps texture scale stable through straight edges and puzzle tabs.
+  const perimeter: number[] = [0];
+  for (let index = 1; index <= n; index++) {
+    const previous = rim[index - 1], current = rim[index % n];
+    perimeter[index] = perimeter[index - 1] + Math.hypot(current.x - previous.x, current.z - previous.z);
+  }
+  const perimeterLength = perimeter[n] || 1;
+  const uvs: number[] = [];
+  for (let row = 0; row < rings.length; row++) for (let index = 0; index < n; index++) {
+    uvs.push(perimeter[index] / perimeterLength * 7.5, row / Math.max(1, rings.length - 1));
+  }
+  const indices: number[] = [];
   const clockwise = areaOf(rim) < 0;
   for (let row = 0; row < rings.length - 1; row++) for (let index = 0; index < n; index++) {
     const next = (index + 1) % n, upper = row * n, lower = (row + 1) * n;
@@ -407,6 +429,7 @@ export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex:
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();

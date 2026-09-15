@@ -17,6 +17,7 @@ export type PlacementPhase = "ready" | "choosing" | "moving" | "confirming" | "f
 export type SceneHandle = {
   camera: (preset: CameraPreset) => void;
   placeSuggested: () => void;
+  toggleOverview: () => void;
 };
 
 export type IslandScreenRect = { left: number; right: number; top: number; bottom: number };
