@@ -9,8 +9,8 @@ import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
 import { islandCoordinates, puzzlePieceContains, PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
-import { fitIslandCamera, tweenCameraPose } from "./cameraFit";
-import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
+import { fitIslandCamera, projectedBoxRect, tweenCameraPose } from "./cameraFit";
+import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 type Props = {
   mode: ViewMode;
@@ -25,6 +25,8 @@ type Props = {
   onConfirm: () => void;
   onFinish: () => void;
   controlsRef: Ref<SceneHandle>;
+  onIslandScreenRect?: (rect: IslandScreenRect) => void;
+  onIntroComplete?: () => void;
 };
 
 type Runtime = {
@@ -38,7 +40,7 @@ type Runtime = {
 
 // First entry: the camera swings in from a little to the side and above,
 // zooming in, and settles on the home view.
-const INTRO_MS = 1800;
+const INTRO_MS = 1500;
 const INTRO_TURN = -0.55;
 const INTRO_RISE = 0.14;
 const INTRO_ZOOM = 0.8;
@@ -46,7 +48,7 @@ const INTRO_ZOOM = 0.8;
 // and its bubble follows once the pop has landed.
 const POP_MS = 400;
 const BURST_MS = 700;
-const BUBBLE_DELAY_MS = 60;
+const BUBBLE_DELAY_MS = 0;
 // easeOutBack with this overshoot peaks at 1.15.
 const POP_OVERSHOOT = 2.165;
 const CHARACTER_SCALE = 1.5;
@@ -72,10 +74,14 @@ export default function IslandScene({
   onConfirm,
   onFinish,
   controlsRef,
+  onIslandScreenRect,
+  onIntroComplete,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<Runtime | null>(null);
+  const onIslandScreenRectRef = useRef(onIslandScreenRect);
+  const onIntroCompleteRef = useRef(onIntroComplete);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive });
   // When the intro began: it plays once per visit, and a rebuilt scene
   // (StrictMode re-run, quick view switch) picks it up where it was.
@@ -84,9 +90,11 @@ export default function IslandScene({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    onIslandScreenRectRef.current = onIslandScreenRect;
+    onIntroCompleteRef.current = onIntroComplete;
     stateRef.current = { gifts, selected, proposal, phase, onPropose, onArrive };
     runtimeRef.current?.render();
-  }, [gifts, selected, proposal, phase, onPropose, onArrive]);
+  }, [gifts, selected, proposal, phase, onPropose, onArrive, onIslandScreenRect, onIntroComplete]);
 
   useImperativeHandle(controlsRef, () => ({
     camera: (preset) => runtimeRef.current?.camera(preset),
@@ -224,11 +232,14 @@ export default function IslandScene({
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
     let bubbleShown: HTMLElement | null = null;
+    let lastScreenRect: IslandScreenRect | null = null;
     let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
     let tween: { from: THREE.Vector3; to: THREE.Vector3; start: number; zoom: number; nextZoom: number; home: boolean } | null = null;
     introStartRef.current ??= calm ? -Infinity : performance.now();
     let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
     if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
+    else queueMicrotask(() => { if (!disposed) onIntroCompleteRef.current?.(); });
+    controls.enabled = !intro;
 
     // `remaining` 1 is the intro's opening shot, 0 the home view.
     function placeIntroCamera(remaining: number) {
@@ -277,12 +288,13 @@ export default function IslandScene({
 
     function characterDestination(nextProposal: PlacementProposal) {
       const proposalWorld = islandCoordinates.toWorld(nextProposal);
-      const destination = new THREE.Vector2(proposalWorld.x, proposalWorld.z);
-      const towardCenter = destination.clone().multiplyScalar(-1);
-      if (towardCenter.lengthSq() < 0.01) towardCenter.set(1, 0.7);
-      towardCenter.normalize().multiplyScalar(1.35);
-      const x = destination.x + towardCenter.x, z = destination.y + towardCenter.y;
-      return islandCoordinates.toWorld({ x, z }, heightAt(x, z) + 0.02);
+      const destination = islandCoordinates.toWorld(nextProposal, heightAt(nextProposal.x, nextProposal.z) + 0.02);
+      console.log("[island placement] character move target", {
+        proposalData: nextProposal,
+        proposalWorld,
+        destination,
+      });
+      return destination;
     }
 
     function setCharacterState(nextPhase: PlacementPhase, nextProposal: PlacementProposal | null, pop = true) {
@@ -304,6 +316,11 @@ export default function IslandScene({
           start: performance.now(),
           duration: THREE.MathUtils.clamp(distance / 4.8 * 1000, 480, 2200),
         };
+        console.log("[island placement] walk started", {
+          from: current.root.position.clone(),
+          to: destination,
+          distance,
+        });
       } else {
         walk = null;
         current.root.position.y = characterBaseY;
@@ -336,19 +353,35 @@ export default function IslandScene({
       }
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
-      const halfWidth = bubble.offsetWidth / 2;
-      const x = THREE.MathUtils.clamp((bubbleAnchor.x * 0.5 + 0.5) * width, halfWidth + 8, width - halfWidth - 8);
-      const y = THREE.MathUtils.clamp((-bubbleAnchor.y * 0.5 + 0.5) * height, bubble.offsetHeight + 18, height - 8);
-      bubble.style.left = `${x}px`;
-      bubble.style.top = `${y}px`;
+      const anchorX = (bubbleAnchor.x * 0.5 + 0.5) * width;
+      const anchorY = (-bubbleAnchor.y * 0.5 + 0.5) * height;
+      const bubbleWidth = bubble.offsetWidth;
+      const bubbleHeight = bubble.offsetHeight;
+      const topClearance = width < 500 ? 108 : 116;
+      const bottomClearance = 70;
+      const aboveTop = anchorY - bubbleHeight - 10;
+      const aboveX = THREE.MathUtils.clamp(anchorX, bubbleWidth / 2 + 8, width - bubbleWidth / 2 - 8);
+      const side: "left" | "right" = anchorX > width / 2 ? "left" : "right";
+      const sideX = side === "left"
+        ? THREE.MathUtils.clamp(anchorX - bubbleWidth - 18, 8, width - bubbleWidth - 8)
+        : THREE.MathUtils.clamp(anchorX + 18, 8, width - bubbleWidth - 8);
+      const useSide = aboveTop < topClearance || (width < 500 && aboveX + bubbleWidth / 2 > width - 100 && aboveTop < 142);
+      const left = useSide ? sideX : aboveX - bubbleWidth / 2;
+      const top = useSide
+        ? THREE.MathUtils.clamp(anchorY - bubbleHeight / 2, topClearance, height - bottomClearance - bubbleHeight)
+        : THREE.MathUtils.clamp(aboveTop, topClearance, height - bottomClearance - bubbleHeight);
+      bubble.style.left = `${left}px`;
+      bubble.style.top = `${top}px`;
+      bubble.style.transform = "none";
+      bubble.dataset.tail = useSide ? side : "bottom";
       bubble.style.opacity = "1";
       bubble.style.visibility = "visible";
       if (bubbleShown !== bubble) {
         bubbleShown = bubble;
         if (!calm) {
           bubble.animate(
-            [{ opacity: 0, transform: "scale(0.72)" }, { opacity: 1, transform: "scale(1)" }],
-            { duration: 280, easing: "cubic-bezier(0.34, 1.45, 0.64, 1)" },
+            [{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "scale(1)" }],
+            { duration: 250, easing: "ease-out" },
           );
         }
       }
@@ -371,7 +404,14 @@ export default function IslandScene({
       if (intro) {
         const progress = Math.min((now - intro.start) / INTRO_MS, 1);
         placeIntroCamera(1 - easeInOutCubic(progress));
-        if (progress === 1) intro = null;
+        if (progress === 1) {
+          camera.position.copy(home);
+          camera.zoom = 1;
+          camera.updateProjectionMatrix();
+          intro = null;
+          controls.enabled = true;
+          onIntroCompleteRef.current?.();
+        }
         else keepAnimating = true;
       }
 
@@ -416,6 +456,11 @@ export default function IslandScene({
             root.position.copy(activeWalk.to);
             characterBaseY = activeWalk.to.y;
             walk = null;
+            console.log("[island placement] walk arrived", {
+              characterPosition: root.position.clone(),
+              target: activeWalk.to,
+              error: root.position.distanceTo(activeWalk.to),
+            });
             current.onArrive();
           } else {
             keepAnimating = true;
@@ -434,6 +479,13 @@ export default function IslandScene({
       screenSunPosition(camera, controls.target, sunDistance / 16, sunlight.position);
       fill.position.copy(fillOffset).applyQuaternion(camera.quaternion).add(controls.target);
       updateBubble(now);
+      if (onIslandScreenRectRef.current && !intro) {
+        const rect = projectedBoxRect(islandBox, camera, canvas.clientWidth, canvas.clientHeight);
+        if (!lastScreenRect || Object.keys(rect).some((key) => Math.abs(rect[key as keyof IslandScreenRect] - lastScreenRect![key as keyof IslandScreenRect]) > 1)) {
+          lastScreenRect = rect;
+          onIslandScreenRectRef.current(rect);
+        }
+      }
       renderer.render(scene, camera);
       if (changing || tween || keepAnimating) render();
     }
@@ -505,6 +557,12 @@ export default function IslandScene({
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) return;
       const point = intersect(event)?.point;
       const data = point && islandCoordinates.toData(point);
+      console.log("[island placement] click pipeline", {
+        click: { x: event.clientX, y: event.clientY },
+        hit: point,
+        placementData: data,
+        valid: data ? validPoint(data.x, data.z) : false,
+      });
       if (data && validPoint(data.x, data.z)) {
         current.onPropose(current.selected, data.x, data.z);
         marker.visible = false;
@@ -555,7 +613,7 @@ export default function IslandScene({
       if (visible) render();
     });
     intersectionObserver.observe(host);
-    const onControlStart = () => { tween = null; intro = null; };
+    const onControlStart = () => { tween = null; if (performance.now() - introStartRef.current! >= INTRO_MS) intro = null; };
     const onContextLost = (event: Event) => { event.preventDefault(); setError(true); };
     controls.addEventListener("change", render);
     controls.addEventListener("start", onControlStart);
@@ -647,13 +705,13 @@ export default function IslandScene({
     {bubbleVisible && <div
       key={phase}
       ref={bubbleRef}
-      className="invisible absolute z-30 w-[172px] origin-bottom -translate-x-1/2 -translate-y-[calc(100%+10px)] break-keep rounded-2xl border border-white/90 bg-[#fffdf5]/96 px-3 py-2.5 text-center leading-snug shadow-[0_8px_24px_#496b5530] opacity-0 backdrop-blur-sm"
+    className="island-bubble invisible absolute z-30 w-max max-w-[240px] origin-bottom break-keep rounded-2xl border border-white/90 bg-[#fffdf5]/96 px-2.5 py-2 text-center leading-snug shadow-[0_8px_24px_#496b5530] opacity-0 backdrop-blur-sm"
       role="status"
       aria-live="polite"
     >
-      <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-white/90 bg-[#fffdf5]" aria-hidden="true"/>
+      <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-b border-r border-white/90 bg-[#fffdf5]" aria-hidden="true"/>
       {phase === "choosing" && <>
-        <p className="text-[16px] font-bold tracking-[-0.35px]">오늘 아이템 어디에 배치할까?</p>
+        <p className="text-[16px] font-bold tracking-[-0.35px] break-keep">오늘 아이템 어디에 놓을까?</p>
         <p className="mt-1 text-[12px] text-[#8b7664]">{itemName}을 놓을 자리를 골라 줘!</p>
         <button onClick={() => runtimeRef.current?.suggested()} className="mt-2 h-8 rounded-full border border-[#ccd7c5] bg-white px-3 text-[12px] font-semibold text-[#397258]">빈자리 추천받기</button>
       </>}

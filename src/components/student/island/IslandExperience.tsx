@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
+import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 const IslandScene = dynamic(() => import("./IslandScene"), {
   ssr: false,
@@ -50,15 +50,41 @@ export default function IslandExperience({ compact = false, studentName = "민�
   const [proposal, setProposal] = useState<PlacementProposal | null>(null);
   const [phase, setPhase] = useState<PlacementPhase>("ready");
   const [cameraView, setCameraView] = useState<"free" | "top">("free");
-  const [introReadyMode, setIntroReadyMode] = useState<ViewMode | null>(null);
-  const [handHintMode, setHandHintMode] = useState<ViewMode | null>(null);
+  const [entryStage, setEntryStage] = useState<"intro" | "cta" | "exiting" | "popping" | "placement">("intro");
+  const [showHandHint, setShowHandHint] = useState(false);
+  const [islandRect, setIslandRect] = useState<IslandScreenRect | null>(null);
+  const [toolbarTop, setToolbarTop] = useState(0);
+  const [panelHeight, setPanelHeight] = useState(760);
   const sceneRef = useRef<SceneHandle>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const timersRef = useRef<number[]>([]);
   const giftId = useRef(0);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setIntroReadyMode(mode), 1900);
-    return () => window.clearTimeout(timer);
-  }, [mode]);
+    const timers = timersRef.current;
+    return () => timers.forEach(window.clearTimeout);
+  }, []);
+
+  const after = (delay: number, callback: () => void) => {
+    const timer = window.setTimeout(callback, delay);
+    timersRef.current.push(timer);
+  };
+
+  const measureToolbar = useCallback(() => {
+    const panel = panelRef.current?.getBoundingClientRect();
+    const toolbar = toolbarRef.current?.getBoundingClientRect();
+    if (panel) setPanelHeight(panel.height);
+    if (panel && toolbar) setToolbarTop(toolbar.top - panel.top);
+  }, []);
+
+  useEffect(() => {
+    const observer = new ResizeObserver(measureToolbar);
+    if (panelRef.current) observer.observe(panelRef.current);
+    if (toolbarRef.current) observer.observe(toolbarRef.current);
+    measureToolbar();
+    return () => observer.disconnect();
+  }, [measureToolbar, mode, entryStage]);
 
   const propose = useCallback((kind: GiftKind, x: number, z: number) => {
     if (phase !== "choosing" && phase !== "confirming") return;
@@ -72,9 +98,25 @@ export default function IslandExperience({ compact = false, studentName = "민�
 
   // The character pops onto the island holding today's item.
   function startPlacement() {
-    if (phase !== "ready") return;
-    setSelected(acquired.kind);
-    setPhase("choosing");
+    if (phase !== "ready" || entryStage !== "cta" || baseItemCount > 0) return;
+    setShowHandHint(false);
+    setEntryStage("exiting");
+    after(200, () => {
+      setEntryStage("popping");
+      setPhase("choosing");
+      after(400, () => {
+        setSelected(acquired.kind);
+        setEntryStage("placement");
+      });
+    });
+  }
+
+  function cancelPlacement() {
+    if (phase !== "choosing" && phase !== "confirming") return;
+    setProposal(null);
+    setSelected(null);
+    setPhase("ready");
+    setEntryStage("cta");
   }
 
   function confirmPlacement() {
@@ -82,6 +124,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
     setGifts((current) => [...current, { ...proposal, id: `gift-${++giftId.current}` }]);
     setSelected(null);
     setPhase("farewell");
+    setEntryStage("placement");
   }
 
   function chooseAgain() {
@@ -110,20 +153,21 @@ export default function IslandExperience({ compact = false, studentName = "민�
   }
 
   const button = "inline-flex items-center justify-center gap-2 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2d7255] disabled:cursor-not-allowed disabled:opacity-40";
-  const placementActive = phase === "moving" || phase === "confirming" || phase === "farewell";
+  const placementActive = phase === "moving" || phase === "confirming" || phase === "farewell" || entryStage === "popping" || entryStage === "exiting";
   const hasPlacedItem = baseItemCount > 0 || gifts.length > 0;
-  const introComplete = introReadyMode === mode;
-  const showPlacementCta = mode === "island" && phase === "ready" && introComplete && !hasPlacedItem;
-  const showHandHint = handHintMode === mode;
-  const showSceneControls = mode === "classroom" || introComplete || phase !== "ready";
+  const showPlacementCta = mode === "island" && phase === "ready" && (entryStage === "cta" || entryStage === "exiting") && !hasPlacedItem;
+  const showSceneControls = mode === "classroom" || entryStage !== "intro";
+  const ctaHeight = 84;
+  const toolbarLimit = toolbarTop || panelHeight - 70;
+  const ctaTop = Math.max(8, Math.min(Math.max((islandRect?.bottom ?? panelHeight * 0.72) + 10, 0), toolbarLimit - ctaHeight - 12));
 
   useEffect(() => {
     if (!showPlacementCta) return;
-    const timer = window.setTimeout(() => setHandHintMode(mode), 3500);
+    const timer = window.setTimeout(() => setShowHandHint(true), 4000);
     return () => window.clearTimeout(timer);
-  }, [showPlacementCta, mode]);
+  }, [showPlacementCta]);
 
-  return <div lang="ko" className={`island-experience ${compact ? "flex min-h-0 flex-1 flex-col" : "min-h-dvh"} bg-[#f7f8f2] text-[#294638] [font-family:'Apple_SD_Gothic_Neo','Malgun_Gothic',sans-serif] [&_button]:cursor-pointer`}>
+  return <div lang="ko" className={`island-experience ${compact ? "island-compact flex min-h-0 flex-1 flex-col" : "min-h-dvh"} bg-[#f7f8f2] text-[#294638] [font-family:'Apple_SD_Gothic_Neo','Malgun_Gothic',sans-serif] [&_button]:cursor-pointer`}>
     {!compact && <header className="border-b border-[#e1e7dc] bg-[#fcfcf7]">
       <div className="mx-auto flex h-[82px] max-w-[1440px] items-center justify-between gap-4 px-6 lg:px-12">
         <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><span className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#2b7657] text-[#f9f8e9]"><Icon name="leaf" size={25}/></span><span className="text-[25px] font-extrabold tracking-[-1.5px]">살핌</span><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
@@ -142,7 +186,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
         <p className="mt-2 text-[13px] leading-relaxed text-[#879182]">{mode === "island" ? "하루 두 개의 이야기가 쌓여도 넉넉한, 한 학기 동안의 섬이야." : "서로 다른 이야기가 모여, 하나의 커다란 우리 반 섬이 돼요."}</p>
       </div><span className="mb-1 hidden items-center gap-2 rounded-full border border-[#e1e6d7] bg-[#f0f3e8] px-4 py-2.5 text-[11px] text-[#7d8c6f] sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-[#96ac75]"/>{mode === "island" ? phase === "complete" ? "오늘의 배치 완료" : "오늘의 아이템 배치 중" : "학기말 모아 보기 · 미리 보기"}</span></div>}
 
-      <section className={`relative isolate overflow-hidden rounded-[26px] border border-[#d6e3d7] bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "h-[600px] sm:h-[760px]"}`} aria-label="3D 떠 있는 섬">
+      <section ref={panelRef} data-island-bottom={islandRect?.bottom} className={`relative isolate overflow-hidden rounded-[26px] border border-[#d6e3d7] bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "island-viewport-panel"}`} aria-label="3D 떠 있는 섬">
         <IslandScene
           mode={mode}
           gifts={gifts}
@@ -156,6 +200,8 @@ export default function IslandExperience({ compact = false, studentName = "민�
           onConfirm={confirmPlacement}
           onFinish={finishPlacement}
           controlsRef={sceneRef}
+          onIslandScreenRect={setIslandRect}
+          onIntroComplete={() => setEntryStage((current) => current === "intro" ? "cta" : current)}
         />
 
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 ${compact ? "p-4" : "p-6"}`}>
@@ -166,26 +212,27 @@ export default function IslandExperience({ compact = false, studentName = "민�
           </div>
         </div>
 
-        {!compact && phase !== "moving" && <div className="absolute left-6 top-[96px] z-10 hidden sm:flex rounded-full border border-white/50 bg-[#ecf4ed]/75 p-1 backdrop-blur-sm">
+        {!compact && phase !== "moving" && entryStage !== "intro" && <div className="absolute left-6 top-[96px] z-10 hidden sm:flex rounded-full border border-white/50 bg-[#ecf4ed]/75 p-1 backdrop-blur-sm">
           <button onClick={() => camera("home")} aria-pressed={cameraView === "free"} className={`${button} px-3 py-1.5 text-[11px] ${cameraView === "free" ? "bg-white text-[#456b50] shadow-sm" : "text-[#829480]"}`}><Icon name="rotate" size={13}/>자유롭게 둘러보기</button>
           <button onClick={() => camera("top")} aria-pressed={cameraView === "top"} className={`${button} px-3 py-1.5 text-[11px] ${cameraView === "top" ? "bg-white text-[#456b50] shadow-sm" : "text-[#829480]"}`}><Icon name="top" size={13}/>위에서 보기</button>
         </div>}
 
         {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
-        {showPlacementCta && <div className="absolute inset-x-0 bottom-[17%] z-20 flex flex-col items-center gap-2">
+        {showPlacementCta && <div className={`island-cta-enter absolute inset-x-0 z-20 flex flex-col items-center gap-1 ${entryStage === "exiting" ? "island-cta-exit" : ""}`} style={{ top: ctaTop }}>
           <p className="rounded-full bg-white/72 px-3 py-1 text-[12px] font-semibold text-[#527463] shadow-sm backdrop-blur-sm">여기를 눌러서 시작해 봐!</p>
           <div className="relative">
-            {showHandHint && <Icon name="hand" size={31} className="absolute -right-9 -top-7 animate-[island-cta-tap_1.1s_ease-in-out_2] rotate-[-16deg] text-[#3d7659]"/>}
-            <button onClick={startPlacement} className={`${button} h-[52px] min-w-[242px] bg-[#347657] px-7 text-[16px] font-bold text-white shadow-[0_8px_22px_#34765738] animate-[island-cta-float_2.8s_ease-in-out_infinite] hover:bg-[#2c6a4d]`}><Icon name="leaf" size={19}/>🌱 내 섬에 아이템 놓기</button>
+            {showHandHint && <Icon name="hand" size={31} className="island-cta-hand absolute -right-5 -top-5 text-[#3d7659]"/>}
+            <button onClick={startPlacement} disabled={entryStage === "exiting"} className={`${button} island-cta-button h-[52px] min-w-[242px] whitespace-nowrap bg-[#347657] px-5 text-[16px] font-bold text-white shadow-[0_8px_22px_#34765738] hover:bg-[#2c6a4d]`}>🌱 내 섬에 아이템 놓기</button>
           </div>
         </div>}
 
-        {phase !== "moving" && showSceneControls && <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 bg-gradient-to-t from-[#dceee5]/82 to-transparent ${compact ? "pb-3 pt-6" : "pb-5 pt-10"}`}>
-          {mode === "island" && phase === "choosing" && <p className="pointer-events-none flex items-center gap-2 text-[11px] text-[#688774]"><Icon name="hand" size={14}/>섬의 원하는 자리를 눌러 주세요</p>}
-          <div className="flex items-center gap-1 rounded-full border border-white/80 bg-[#fffffa]/90 px-2 py-1.5 shadow-[0_4px_20px_#60837012] backdrop-blur-sm" role="group" aria-label="시점 조작">
+        {phase !== "moving" && showSceneControls && <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-4 bg-gradient-to-t from-[#dceee5]/82 to-transparent ${compact ? "pb-3 pt-6" : "pb-5 pt-10"}`}>
+          {mode === "island" && phase === "choosing" && entryStage === "placement" && <p className="pointer-events-none flex items-center gap-2 rounded-full bg-[#f8fff4]/75 px-3 py-1 text-[11px] text-[#45684f] backdrop-blur-sm"><Icon name="hand" size={14}/>섬의 원하는 자리를 눌러 주세요</p>}
+          <div ref={toolbarRef} className="flex items-center gap-1 rounded-full border border-white/80 bg-[#fffffa]/90 px-2 py-1.5 shadow-[0_4px_20px_#60837012] backdrop-blur-sm" role="group" aria-label="시점 조작">
             {([ ["left", "left", "왼쪽으로 회전"], ["right", "right", "오른쪽으로 회전"], ["out", "minus", "축소"], ["in", "plus", "확대"], ["top", "top", "위에서 보기"], ["home", "rotate", "처음 시점으로"] ] as [CameraPreset, IconName, string][]).map(([preset, icon, label], index) => <button key={preset} title={label} aria-label={label} onClick={() => camera(preset)} className={`${button} h-8 w-8 text-[#607862] hover:bg-[#eaf0e4] max-sm:w-7 ${index === 2 || index === 4 ? "ml-1 border-l border-[#e2e7dc]" : ""}`}><Icon name={icon} size={17}/></button>)}
           </div>
+          {mode === "island" && (phase === "choosing" || phase === "confirming") && entryStage === "placement" && <button onClick={cancelPlacement} className="absolute right-4 bottom-5 rounded-full bg-white/85 px-3 py-1.5 text-[11px] text-[#5e7665]">배치 취소</button>}
         </div>}
       </section>
 

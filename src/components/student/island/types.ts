@@ -18,3 +18,5 @@ export type SceneHandle = {
   camera: (preset: CameraPreset) => void;
   placeSuggested: () => void;
 };
+
+export type IslandScreenRect = { left: number; right: number; top: number; bottom: number };
