@@ -9,6 +9,7 @@ import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
 import { islandCoordinates, puzzlePieceContains, PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
+import { fitIslandCamera, tweenCameraPose } from "./cameraFit";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 type Props = {
@@ -55,38 +56,8 @@ const BUBBLE_ANCHOR = 1.86;
 const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 const easeOutBack = (t: number) => 1 + (POP_OVERSHOOT + 1) * (t - 1) ** 3 + POP_OVERSHOOT * (t - 1) ** 2;
 
-// Isometric-style quarter view: 45° around, 30° above the horizon, low enough
-// to show the thick soil and rock under the meadow.
-const HOME_AZIMUTH = Math.PI / 4;
-const HOME_ELEVATION = THREE.MathUtils.degToRad(30);
-// Share of the canvas the island may fill at the home view; whichever axis
-// runs out first decides the zoom.
-const FIT = { island: { width: 0.66, height: 0.84 }, classroom: { width: 0.9, height: 0.86 } };
+const HOME_TWEEN_MS = 500;
 const CLASSROOM_SPACING = 33;
-
-// Islands' extent on the screen axes of a camera at `back` looking at the origin
-// (orthographic, so only direction matters): half-width about the centre and
-// the vertical range, plus the camera's up axis in world space.
-function screenExtent(roots: THREE.Object3D[], back: THREE.Vector3) {
-  const right = new THREE.Vector3(), up = new THREE.Vector3(), forward = new THREE.Vector3();
-  new THREE.Matrix4().lookAt(back, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).extractBasis(right, up, forward);
-  const point = new THREE.Vector3();
-  const extent = { halfWidth: 0, bottom: Infinity, top: -Infinity, up };
-  for (const root of roots) {
-    root.updateMatrixWorld(true);
-    root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const position = object.geometry.getAttribute("position");
-      for (let i = 0; i < position.count; i++) {
-        point.fromBufferAttribute(position, i).applyMatrix4(object.matrixWorld);
-        extent.halfWidth = Math.max(extent.halfWidth, Math.abs(point.dot(right)));
-        extent.bottom = Math.min(extent.bottom, point.dot(up));
-        extent.top = Math.max(extent.top, point.dot(up));
-      }
-    });
-  }
-  return extent;
-}
 
 export default function IslandScene({
   mode,
@@ -168,20 +139,14 @@ export default function IslandScene({
       return island.layout.heightAt(data.x, data.z);
     };
 
-    // Frame from the real geometry: aim at the middle of the island's screen
-    // height, then size the view so it fills the target share of the canvas.
-    const back = new THREE.Vector3().setFromSphericalCoords(1, Math.PI / 2 - HOME_ELEVATION, HOME_AZIMUTH);
-    const extent = screenExtent(islands.map((model) => model.group), back);
-    const target = islandCoordinates.toWorld(
-      classroom ? { x: 0, z: 0 } : island.puzzle.pieces[studentPieceIndex].seed,
-      (extent.top + extent.bottom) / 2 / extent.up.y,
-    );
-    const halfHeight = (extent.top - extent.bottom) / 2;
-    const fit = FIT[mode];
-    const viewDistance = (extent.halfWidth + halfHeight) * 2.5;
-    const home = back.clone().multiplyScalar(viewDistance).add(target);
-    const camera = new THREE.OrthographicCamera(-5, 5, 4, -4, 0.1, viewDistance * 4);
-    camera.position.copy(home);
+    // The entire terrain, bottom rocks and garden contribute to one box.
+    // Eight projected box corners fit inside the canvas UI's safe rectangle.
+    const islandBox = new THREE.Box3().setFromObject(island.group);
+    const initialSize = host.getBoundingClientRect();
+    let homeFit = fitIslandCamera(islandBox, Math.max(initialSize.width, 1), Math.max(initialSize.height, 1), mode);
+    const { target, home } = homeFit;
+    const viewDistance = homeFit.distance;
+    const camera = homeFit.camera;
 
     const controls = new OrbitControls(camera, canvas);
     controls.target.copy(target);
@@ -190,11 +155,12 @@ export default function IslandScene({
     controls.enablePan = false;
     controls.minPolarAngle = 0.035;
     controls.maxPolarAngle = Math.PI / 2.12;
-    controls.minZoom = 0.65;
-    controls.maxZoom = 4.5;
+    controls.minZoom = homeFit.minZoom;
+    controls.maxZoom = homeFit.maxZoom;
     controls.rotateSpeed = 0.65;
     controls.zoomSpeed = 0.85;
     controls.update();
+    controls.saveState();
 
     // Hemisphere + a warm ambient floor keep shaded rock mid-toned instead of green-black.
     scene.add(new THREE.HemisphereLight("#d4f1e7", "#c4b19a", 1.4));
@@ -259,7 +225,7 @@ export default function IslandScene({
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
     let bubbleShown: HTMLElement | null = null;
     let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
-    let tween: { from: THREE.Vector3; to: THREE.Vector3; start: number; zoom: number; nextZoom: number } | null = null;
+    let tween: { from: THREE.Vector3; to: THREE.Vector3; start: number; zoom: number; nextZoom: number; home: boolean } | null = null;
     introStartRef.current ??= calm ? -Infinity : performance.now();
     let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
     if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
@@ -410,12 +376,18 @@ export default function IslandScene({
       }
 
       if (tween) {
-        const progress = Math.min((now - tween.start) / 480, 1);
-        const eased = 1 - (1 - progress) ** 3;
-        camera.position.lerpVectors(tween.from, tween.to, eased);
-        camera.zoom = THREE.MathUtils.lerp(tween.zoom, tween.nextZoom, eased);
+        const progress = Math.min((now - tween.start) / HOME_TWEEN_MS, 1);
+        const pose = tweenCameraPose(tween.from, tween.to, tween.zoom, tween.nextZoom, progress);
+        camera.position.copy(pose.position);
+        camera.zoom = pose.zoom;
         camera.updateProjectionMatrix();
-        if (progress === 1) tween = null;
+        if (progress === 1) {
+          camera.position.copy(tween.to);
+          camera.zoom = tween.nextZoom;
+          controls.target.copy(target);
+          if (tween.home) controls.reset();
+          tween = null;
+        }
         else keepAnimating = true;
       }
 
@@ -476,9 +448,9 @@ export default function IslandScene({
         next.sub(target).applyAxisAngle(new THREE.Vector3(0, 1, 0), preset === "left" ? -Math.PI / 6 : Math.PI / 6).add(target);
       }
       if (preset === "in" || preset === "out") {
-        nextZoom = THREE.MathUtils.clamp(camera.zoom * (preset === "in" ? 1.2 : 1 / 1.2), 0.65, 4.5);
+        nextZoom = THREE.MathUtils.clamp(camera.zoom * (preset === "in" ? 1.2 : 1 / 1.2), homeFit.minZoom, homeFit.maxZoom);
       }
-      tween = { from: camera.position.clone(), to: next, start: performance.now(), zoom: camera.zoom, nextZoom };
+      tween = { from: camera.position.clone(), to: next, start: performance.now(), zoom: camera.zoom, nextZoom, home: preset === "home" };
       render();
     }
 
@@ -563,15 +535,15 @@ export default function IslandScene({
       const { width, height } = host.getBoundingClientRect();
       if (!width || !height) return;
       renderer.setSize(width, height);
-      const aspect = width / height;
-      // Vertical view size: whichever of width or height limits the island first.
-      const span = Math.max(halfHeight * 2 / fit.height, extent.halfWidth * 2 / (fit.width * aspect));
-      // Portrait: sit the island lower so the character's bubble fits above it.
-      const lift = classroom ? 0 : span * THREE.MathUtils.clamp((1.1 - aspect) * 0.3, 0, 0.16);
-      camera.left = -span * aspect / 2;
-      camera.right = span * aspect / 2;
-      camera.top = span / 2 + lift;
-      camera.bottom = -span / 2 + lift;
+      homeFit = fitIslandCamera(islandBox, width, height, mode);
+      camera.left = homeFit.camera.left;
+      camera.right = homeFit.camera.right;
+      camera.top = homeFit.camera.top;
+      camera.bottom = homeFit.camera.bottom;
+      controls.minZoom = homeFit.minZoom;
+      controls.maxZoom = homeFit.maxZoom;
+      camera.zoom = THREE.MathUtils.clamp(camera.zoom, controls.minZoom, controls.maxZoom);
+      if (tween) tween.nextZoom = THREE.MathUtils.clamp(tween.nextZoom, controls.minZoom, controls.maxZoom);
       camera.updateProjectionMatrix();
       render();
     };
