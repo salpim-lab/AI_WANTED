@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { chisel, createTerrainGeometry } from "./islandTerrain";
 import { createIslandLayout, type IslandLayout } from "./placement";
-import { createPuzzlePieceLayerGeometry, getPuzzleLayout, islandCoordinates, PUZZLE_PIECE_COUNT, PUZZLE_SEED } from "./puzzle";
+import { createPuzzlePieceLayerGeometry, getPuzzleBottomRockSpecs, getPuzzleLayout, islandCoordinates, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
 import type { GiftKind } from "./types";
 
 const FOLIAGE = ["#6E9A3C", "#7FA844", "#8FB94F", "#A6C962"];
@@ -253,42 +253,32 @@ export function createIslandModel(seed = 17, showTree = true) {
   return { group, surface, layout };
 }
 
-const PUZZLE_LAYERS = [
-  { depth: 0.38, y: 0, color: "#a8d477" },
-  { depth: 1.95, y: -0.38, color: "#b77a4c" },
-  { depth: 4.55, y: -2.33, color: "#8d8176" },
-] as const;
-
-function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, color: string) {
+function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, color: string, mode: PuzzleTerrainMode) {
   const group = new THREE.Group();
   group.name = `puzzle-piece-layers-${pieceIndex + 1}`;
   let surface: THREE.Mesh | null = null;
-  PUZZLE_LAYERS.forEach((layer, index) => {
+  (["grass", "soil", "rock"] as const).forEach((layer, index) => {
     const mesh = new THREE.Mesh(
-      createPuzzlePieceLayerGeometry(layout, pieceIndex, layer.depth, PUZZLE_SEED),
-      new THREE.MeshStandardMaterial({ color: index === 0 ? color : layer.color, roughness: 0.94, metalness: 0, flatShading: false }),
+      createPuzzlePieceLayerGeometry(layout, pieceIndex, layer, mode, PUZZLE_SEED),
+      new THREE.MeshStandardMaterial({ color: index === 0 ? color : index === 1 ? "#b48b6c" : "#90877f", roughness: 0.94, metalness: 0, flatShading: false }),
     );
-    mesh.position.y = layout.surfaceY + 0.015 + layer.y;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    mesh.name = `puzzle-piece-${pieceIndex + 1}-${index === 0 ? "grass" : index === 1 ? "soil" : "rock"}`;
+    mesh.name = `puzzle-piece-${pieceIndex + 1}-${layer}`;
     group.add(mesh);
     if (index === 0) surface = mesh;
   });
   return { group, surface: surface! };
 }
 
-function addRoundedBottomRocks(group: THREE.Group, layout: IslandLayout) {
-  const random = layout.random(91);
-  const rockMaterial = new THREE.MeshStandardMaterial({ color: "#827b72", roughness: 0.98, metalness: 0 });
-  for (let index = 0; index < 9; index++) {
-    const angle = (index / 9 + random() * 0.08) * Math.PI * 2;
-    const radius = layout.radiusAt(angle) * (0.58 + random() * 0.15);
-    const size = 0.65 + random() * 0.6;
-    const rock = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), rockMaterial);
-    rock.position.set(Math.cos(angle) * radius, layout.surfaceY - 6.55 + random() * 0.35, Math.sin(angle) * radius);
-    rock.scale.set(size * (1.25 + random() * 0.35), size * (0.55 + random() * 0.25), size * (0.9 + random() * 0.3));
-    rock.rotation.set(random() * 0.35, random() * Math.PI, random() * 0.35);
+function addRoundedBottomRocks(group: THREE.Group, layout: IslandLayout, mode: PuzzleTerrainMode, pieceIndex = 0) {
+  const rockMaterial = new THREE.MeshStandardMaterial({ color: "#8a8178", roughness: 0.98, metalness: 0 });
+  const geometry = new THREE.SphereGeometry(1, 20, 14);
+  for (const spec of getPuzzleBottomRockSpecs(layout, mode, pieceIndex, PUZZLE_SEED)) {
+    const rock = new THREE.Mesh(geometry, rockMaterial);
+    rock.position.copy(spec.position);
+    rock.scale.copy(spec.scale);
+    rock.rotation.set(spec.rotation.x, spec.rotation.y, spec.rotation.z);
     rock.castShadow = true;
     rock.receiveShadow = true;
     rock.name = "rounded-bottom-rock";
@@ -308,11 +298,11 @@ export function createPuzzleAssemblyModel(seed = 17) {
   const pieces = new THREE.Group();
   pieces.name = `puzzle-pieces-${PUZZLE_PIECE_COUNT}`;
   puzzle.pieces.forEach((piece, index) => {
-    pieces.add(createPuzzlePieceLayers(layout, piece.index, palette[index % palette.length]).group);
+    pieces.add(createPuzzlePieceLayers(layout, piece.index, palette[index % palette.length], "classroom").group);
   });
   group.add(pieces);
   const surface = pieces.children[0].children[0] as THREE.Mesh;
-  addRoundedBottomRocks(group, layout);
+  addRoundedBottomRocks(group, layout, "classroom");
   return { group, surface, layout, puzzle };
 }
 
@@ -321,9 +311,10 @@ export function createPuzzlePieceModel(seed = 17, pieceIndex = 0) {
   const puzzle = getPuzzleLayout(layout, PUZZLE_SEED);
   const group = new THREE.Group();
   group.name = `student-puzzle-piece-${pieceIndex + 1}`;
-  const layers = createPuzzlePieceLayers(layout, pieceIndex, "#a5cc76");
+  const layers = createPuzzlePieceLayers(layout, pieceIndex, "#a5cc76", "personal");
   group.add(layers.group);
   const surface = layers.surface;
+  addRoundedBottomRocks(group, layout, "personal", pieceIndex);
   return { group, surface, layout, puzzle };
 }
 

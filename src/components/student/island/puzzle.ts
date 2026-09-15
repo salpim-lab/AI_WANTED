@@ -1,4 +1,4 @@
-import { BufferGeometry, ExtrudeGeometry, Shape, ShapeGeometry, Vector2, Vector3 } from "three";
+import { BufferGeometry, Float32BufferAttribute, Shape, ShapeGeometry, ShapeUtils, Vector2, Vector3 } from "three";
 import type { IslandLayout } from "./placement";
 
 export const PUZZLE_PIECE_COUNT = 20;
@@ -247,7 +247,7 @@ export function getPuzzlePiecePolygon(piece: PuzzlePiece) {
   const points: PuzzlePoint[] = [];
   piece.edges.forEach((edge) => {
     const curve = edge.internal ? edge.tab : [edge.a, edge.b];
-    const forward = key(edge.a) < key(edge.b);
+    const forward = key(edge.a) === key(curve[0]);
     const ordered = forward ? curve : [...curve].reverse();
     points.push(...(points.length ? ordered.slice(1) : ordered));
   });
@@ -267,23 +267,141 @@ export function createPuzzlePieceGeometry(layout: IslandLayout, pieceIndex: numb
   return geometry;
 }
 
-export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex: number, depth: number, seed = PUZZLE_SEED) {
-  const cacheKey = `${layout.seed}:${seed}:${pieceIndex}:layer:${depth}`;
+export type PuzzleTerrainMode = "personal" | "classroom";
+export type PuzzleTerrainLayer = "grass" | "soil" | "rock";
+
+type RimVertex = PuzzlePoint & { exteriorWeight: number };
+
+function pieceWidth(piece: PuzzlePiece) {
+  const points = getPuzzlePiecePolygon(piece);
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minZ = Math.min(...points.map((point) => point.z));
+  const maxZ = Math.max(...points.map((point) => point.z));
+  return ((maxX - minX) + (maxZ - minZ)) / 2;
+}
+
+export function getPuzzleTerrainMetrics(layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode, seed = PUZZLE_SEED) {
+  const puzzle = getPuzzleLayout(layout, seed);
+  const piece = puzzle.pieces[pieceIndex];
+  if (!piece) throw new Error(`Unknown puzzle piece ${pieceIndex}`);
+  const personalWidth = pieceWidth(piece);
+  // Shared class width aligns every internal wall and every soil/rock seam in Y.
+  const W = mode === "personal" ? personalWidth
+    : puzzle.pieces.reduce((sum, candidate) => sum + pieceWidth(candidate), 0) / puzzle.pieces.length;
+  const grass = W * 0.03, soil = W * 0.08, rock = W * 0.17;
+  return { W, personalWidth, grass, soil, rock, total: grass + soil + rock, bevel: W * 0.015 };
+}
+
+function rimVertices(piece: PuzzlePiece): RimVertex[] {
+  const rim: RimVertex[] = [];
+  for (const edge of piece.edges) {
+    const path = edge.internal ? edge.tab : Array.from({ length: 9 }, (_, index) => ({
+      x: edge.a.x + (edge.b.x - edge.a.x) * index / 8,
+      z: edge.a.z + (edge.b.z - edge.a.z) * index / 8,
+    }));
+    const ordered = key(edge.a) === key(path[0]) ? path : [...path].reverse();
+    for (let index = 0; index < ordered.length - 1; index++) {
+      rim.push({ ...ordered[index], exteriorWeight: edge.internal ? 0 : Math.sin(Math.PI * index / (ordered.length - 1)) });
+    }
+  }
+  return rim;
+}
+
+const ease = (t: number) => t * t * (3 - 2 * t);
+
+function boundaryWave(point: PuzzlePoint, W: number) {
+  const sine = Math.sin(point.x * 1.31 + point.z * 0.46) * 0.65
+    + Math.sin(point.z * 1.77 - point.x * 0.34) * 0.35;
+  const noise = Math.sin(point.x * 6.12 + point.z * 3.71) * Math.sin(point.z * 4.19 - point.x * 2.03);
+  return W * 0.012 * (sine + noise * 0.25);
+}
+
+function ringAt(piece: PuzzlePiece, rim: RimVertex[], metrics: ReturnType<typeof getPuzzleTerrainMetrics>, mode: PuzzleTerrainMode, layer: PuzzleTerrainLayer, t: number, surfaceY: number) {
+  const centre = centroidOf(piece.polygon);
+  return rim.map((point) => {
+    const weight = mode === "personal" ? 1 : point.exteriorWeight;
+    const boundary = boundaryWave(point, metrics.W) * weight;
+    let scale = 1, y = surfaceY;
+    if (layer === "grass") {
+      // Two intermediate arcs round the top edge without moving the flat cap.
+      scale += (metrics.bevel / metrics.W) * Math.sin(Math.PI * t) * weight;
+      y -= metrics.grass * t;
+    } else if (layer === "soil") {
+      y -= metrics.grass + metrics.soil * t + boundary * ease(t);
+    } else {
+      scale -= 0.35 * ease(t) * weight;
+      y -= metrics.grass + metrics.soil + boundary * (1 - ease(t)) + metrics.rock * t;
+    }
+    return islandCoordinates.toWorld({ x: centre.x + (point.x - centre.x) * scale, z: centre.z + (point.z - centre.z) * scale }, y);
+  });
+}
+
+export function getPuzzleTerrainRing(layout: IslandLayout, pieceIndex: number, layer: PuzzleTerrainLayer, mode: PuzzleTerrainMode, t: number, seed = PUZZLE_SEED) {
+  const piece = getPuzzleLayout(layout, seed).pieces[pieceIndex];
+  const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
+  return ringAt(piece, rimVertices(piece), metrics, mode, layer, t, layout.surfaceY + 0.015);
+}
+
+export function getPuzzleBottomRockSpecs(layout: IslandLayout, mode: PuzzleTerrainMode, pieceIndex = 0, seed = PUZZLE_SEED) {
+  const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
+  const random = layout.random(91 + pieceIndex);
+  const centre = mode === "personal" ? getPuzzleLayout(layout, seed).pieces[pieceIndex].seed : { x: 0, z: 0 };
+  return Array.from({ length: 5 }, (_, index) => {
+    const angle = (index + random() * 0.35) / 5 * Math.PI * 2;
+    const radius = metrics.W * (mode === "personal" ? 0.18 + random() * 0.07 : 0.75 + random() * 0.2);
+    const height = metrics.total * (0.17 + random() * 0.08);
+    return {
+      position: islandCoordinates.toWorld({ x: centre.x + Math.cos(angle) * radius, z: centre.z + Math.sin(angle) * radius }, layout.surfaceY + 0.015 - metrics.total - height * 0.34),
+      scale: new Vector3(metrics.W * (0.09 + random() * 0.035), height / 2, metrics.W * (0.08 + random() * 0.035)),
+      rotation: new Vector3(random() * 0.22, random() * Math.PI, random() * 0.22),
+      height,
+    };
+  });
+}
+
+export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex: number, layer: PuzzleTerrainLayer, mode: PuzzleTerrainMode, seed = PUZZLE_SEED) {
+  const cacheKey = `${layout.seed}:${seed}:${pieceIndex}:terrain:${mode}:${layer}`;
   const cached = geometryCache.get(cacheKey);
   if (cached) return cached.clone();
   const piece = getPuzzleLayout(layout, seed).pieces[pieceIndex];
   if (!piece) throw new Error(`Unknown puzzle piece ${pieceIndex}`);
-  const geometry = new ExtrudeGeometry(pieceShape(piece), {
-    depth,
-    bevelEnabled: false,
-    steps: 1,
-    curveSegments: 8,
-  });
-  // ExtrudeGeometry grows toward +Z. Move that range below the top plane
-  // before rotating XY into the island's XZ ground plane.
-  geometry.translate(0, 0, -depth);
-  geometry.rotateX(-Math.PI / 2);
+  const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
+  const rim = rimVertices(piece);
+  // Rock has nine contours: its bottom retains every puzzle tab and socket.
+  const fractions = layer === "rock" ? [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]
+    : layer === "grass" ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1];
+  const rings = fractions.map((t) => ringAt(piece, rim, metrics, mode, layer, t, layout.surfaceY + 0.015));
+  const positions = rings.flatMap((ring) => ring.flatMap((point) => [point.x, point.y, point.z]));
+  const indices: number[] = [];
+  const n = rim.length;
+  const clockwise = areaOf(rim) < 0;
+  for (let row = 0; row < rings.length - 1; row++) for (let index = 0; index < n; index++) {
+    const next = (index + 1) % n, upper = row * n, lower = (row + 1) * n;
+    const quad = [upper + index, upper + next, lower + index, upper + next, lower + next, lower + index];
+    if (clockwise) {
+      indices.push(quad[0], quad[2], quad[1], quad[3], quad[5], quad[4]);
+    } else indices.push(...quad);
+  }
+  for (const [row, top] of [[0, true], [rings.length - 1, false]] as const) {
+    const contour = rings[row].map((point) => islandCoordinates.toShape(point));
+    for (const [ia, ib, ic] of ShapeUtils.triangulateShape(contour, [])) {
+      const a = rings[row][ia], b = rings[row][ib], c = rings[row][ic];
+      const winding = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z);
+      // Sampling straight shore sections creates collinear triplets; omitting
+      // their zero-area triangles keeps cap normals stable after Float32 packing.
+      if (Math.abs(winding) < 1e-7) continue;
+      const upward = winding > 0;
+      const flip = top !== upward;
+      indices.push(row * n + ia, row * n + (flip ? ic : ib), row * n + (flip ? ib : ic));
+    }
+  }
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
   geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
   geometryCache.set(cacheKey, geometry.clone());
   return geometry;
 }
