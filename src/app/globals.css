@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes island-cta-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes island-cta-tap {
+  0%, 100% { transform: translateY(0) rotate(-16deg) scale(1); opacity: 0.78; }
+  45% { transform: translateY(8px) rotate(-16deg) scale(0.9); opacity: 1; }
+}

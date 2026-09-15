@@ -71,7 +71,7 @@ test("a thick floating body: grass lip overhangs, the rock tapers to a hanging t
     const minY = Math.min(...vertices.map((v) => v.y));
     const depth = SURFACE_Y - minY;
     assert.ok(Math.abs(depth - TERRAIN_DEPTH) < 1e-4, `depth ${depth}`);
-    assert.ok(depth / ISLAND_RADIUS > 0.9 && depth / ISLAND_RADIUS < 1.3, `depth ratio ${depth / ISLAND_RADIUS}`);
+    assert.ok(depth / ISLAND_RADIUS > 0.45 && depth / ISLAND_RADIUS < 0.7, `depth ratio ${depth / ISLAND_RADIUS}`);
 
     const reach = (from, to) => Math.max(...vertices
       .filter((v) => v.y < SURFACE_Y - from && v.y >= SURFACE_Y - to)
@@ -82,7 +82,7 @@ test("a thick floating body: grass lip overhangs, the rock tapers to a hanging t
       .filter((v) => v.y < SURFACE_Y - from && v.y >= SURFACE_Y - to && Math.hypot(v.x, v.z) < layout.radiusAt(Math.atan2(v.z, v.x)) * 1.05)
       .map((v) => Math.hypot(v.x, v.z) / layout.radiusAt(Math.atan2(v.z, v.x))));
     assert.ok(body(2.7, 4.1) > 0.9, "soil walls keep the body thick");
-    assert.ok(body(8.4, 10) < 0.75, "rock narrows below the soil");
-    assert.ok(body(12.5, 14.5) < 0.4, "rock tapers toward the tip");
+    assert.ok(body(4.8, 6.2) < 0.98, "rock rounds below the soil");
+    assert.ok(body(6.3, 7.4) < 0.95, "rounded bottom closes the body");
   }
 });

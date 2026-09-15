@@ -30,29 +30,22 @@ type Ring = Vector3[];
 // Each ring's colour paints the band between it and the next ring.
 const RIM_COLOR = "#A8D467";
 const GRASS_LIP = [
-  { grow: 0.32, drop: 0.22, color: "#8DC152" },
-  { grow: 0.46, drop: 0.65, color: "#78AE47" },
-  { grow: 0.32, drop: 1.2, color: "#557F37", hem: true },
+  { grow: 0.24, drop: 0.18, color: "#8DC152" },
+  { grow: 0.34, drop: 0.46, color: "#78AE47" },
+  { grow: 0.22, drop: 0.82, color: "#557F37", hem: true },
   // Tucked just under the hem so the grass reads as a thick overhanging carpet.
-  { grow: -0.1, drop: 1.1, color: "#B97B4C", hem: true },
+  { grow: -0.08, drop: 0.76, color: "#B97B4C", hem: true },
 ];
-// Soil walls stay nearly full width, then rock steps inward layer by layer
-// down to a hanging tip. Shelves (short drops) catch light as strata lines.
+// Soil is a short warm band; the larger rock band stays rounded and broad.
 const EARTH = [
-  { scale: 0.99, drop: 2.6, count: 64, color: "#D39A66" },
-  { scale: 0.965, drop: 2.8, count: 60, color: "#A86C43" },
-  { scale: 0.95, drop: 4.2, count: 56, color: "#9A7A62" },
-  { scale: 0.9, drop: 4.45, count: 48, color: "#A89484" },
-  { scale: 0.87, drop: 6.0, count: 44, color: "#BDAE9F" },
-  { scale: 0.78, drop: 6.3, count: 38, color: "#958374" },
-  { scale: 0.72, drop: 8.0, count: 32, color: "#AD9E91" },
-  { scale: 0.6, drop: 8.3, count: 26, color: "#85756A" },
-  { scale: 0.5, drop: 10.0, count: 22, color: "#7A6B61" },
-  { scale: 0.36, drop: 11.6, count: 16, color: "#6F6159" },
-  { scale: 0.22, drop: 13.0, count: 11, color: "#665952" },
-  { scale: 0.1, drop: 14.3, count: 7, color: "#5E534D" },
+  { scale: 0.99, drop: 1.65, count: 64, color: "#D39A66" },
+  { scale: 0.97, drop: 2.45, count: 60, color: "#A86C43" },
+  { scale: 0.93, drop: 3.7, count: 56, color: "#9A7A62" },
+  { scale: 0.88, drop: 4.75, count: 48, color: "#A89484" },
+  { scale: 0.78, drop: 5.9, count: 44, color: "#958374" },
+  { scale: 0.62, drop: 6.8, count: 40, color: "#7A6B61" },
 ];
-export const TERRAIN_DEPTH = 15.5;
+export const TERRAIN_DEPTH = 7.5;
 
 const RIM_COUNT = 72;
 const MEADOW_RINGS = [0.16, 0.28, 0.4, 0.52, 0.64, 0.76, 0.88];
@@ -152,9 +145,16 @@ export function createTerrainGeometry(layout: IslandLayout) {
       color: band.color,
     });
   }
-  // The tip sits slightly off-centre so the underside doesn't look lathe-turned.
-  sides.push({ ring: [new Vector3((random() - 0.5) * 1.6, surfaceY - TERRAIN_DEPTH, (random() - 0.5) * 1.6)], color: "" });
+  // A broad rounded bottom closes the body; several separate rocks below add
+  // the irregular silhouette instead of converging to one cone tip.
+  const bottom = loop(40, (angle) => {
+    const r = radiusAt(angle) * (0.5 + random() * 0.06);
+    return new Vector3(Math.cos(angle) * r, surfaceY - TERRAIN_DEPTH, Math.sin(angle) * r);
+  });
+  sides.push({ ring: bottom, color: "#746b63" });
   for (let k = 0; k < sides.length - 1; k++) stitch(sides[k].ring, sides[k + 1].ring, () => sides[k].color);
+  const bottomCenter = new Vector3(0, surfaceY - TERRAIN_DEPTH, 0);
+  for (let index = 0; index < bottom.length; index++) triangle(bottomCenter, bottom[index], bottom[(index + 1) % bottom.length], "#746b63");
 
   // A chipped polyhedron (non-indexed, so every three corners are one face),
   // stretched, turned and moved into place; faces above `capAt` take the cap colour.
@@ -174,7 +174,7 @@ export function createTerrainGeometry(layout: IslandLayout) {
     const angle = (k / 3 + random() * 0.2) * Math.PI * 2;
     const r = radiusAt(angle) + 2.4 + random() * 1.6;
     const size = 0.5 + random() * 0.55;
-    const center = new Vector3(Math.cos(angle) * r, surfaceY - 5 - random() * 5, Math.sin(angle) * r);
+    const center = new Vector3(Math.cos(angle) * r, surfaceY - 2 - random() * 2.5, Math.sin(angle) * r);
     const stretch = new Vector3(size * (0.9 + random() * 0.4), size * (1 + random() * 0.5), size * (0.9 + random() * 0.4));
     stone(center, stretch, random() * Math.PI, center.y + size * 0.3, "#8DC152", "#9A8A80");
   }

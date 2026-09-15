@@ -3,7 +3,7 @@ import type { IslandGift } from "./types";
 
 // Mean meadow radius. The oval's long axis is 10% longer, its short axis 10% shorter.
 export const ISLAND_RADIUS = 14;
-// Height of the meadow rim. Gentle hills rise above it; the rock body hangs below.
+// Height of the flat meadow surface; the rock body hangs below.
 export const SURFACE_Y = 0.83;
 // Items stay this far inside the rim so they never sit on the rounded grass lip.
 const EDGE_MARGIN = 0.9;
@@ -40,12 +40,6 @@ const SHORE_SCATTER = [
   { kind: "bloom", count: 18 },
   { kind: "pebble", count: 16 },
 ] as const;
-
-const HILLS = [
-  { angle: 228, reach: 0.32, height: 1.35, width: 5.4 },
-  { angle: 150, reach: 0.5, height: 0.95, width: 3.6 },
-  { angle: 335, reach: 0.42, height: 0.75, width: 3.2 },
-];
 
 export type DecorationKind = (typeof DECORATION_LAYOUT)[number]["kind"];
 export type Decoration = { kind: DecorationKind; x: number; z: number; radius: number };
@@ -96,19 +90,7 @@ export function createIslandLayout(seed: number): IslandLayout {
     return { x: Math.cos(angle) * r, z: Math.sin(angle) * r };
   };
 
-  const hills = HILLS.map((hill) => ({
-    ...polar(hill.angle + (random() - 0.5) * 30, hill.reach),
-    height: hill.height * (0.85 + random() * 0.3),
-    width: hill.width,
-  }));
-  const heightAt = (x: number, z: number) => {
-    const s = Math.hypot(x, z) / radiusAt(Math.atan2(z, x));
-    if (s >= 1) return SURFACE_Y;
-    const inland = 1 - MathUtils.smoothstep(s, 0.3, 1);
-    const dome = 0.3 * (1 - s * s);
-    const bumps = hills.reduce((sum, h) => sum + h.height * Math.exp(-((x - h.x) ** 2 + (z - h.z) ** 2) / (2 * h.width ** 2)), 0);
-    return SURFACE_Y + dome + bumps * inland;
-  };
+  const heightAt = () => SURFACE_Y;
 
   const decorations: Decoration[] = DECORATION_LAYOUT.map(({ kind, angle, reach, radius }) => ({ kind, radius, ...polar(angle, reach) }));
   const scatter = createScatter(seededRandom(seed * 7919 + 2), radiusAt, decorations);

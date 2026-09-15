@@ -4,10 +4,11 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
-import { createGiftModel, createIslandModel, disposeObject } from "./islandModel";
+import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject } from "./islandModel";
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
+import { PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 type Props = {
@@ -144,7 +145,7 @@ export default function IslandScene({
     const canvas = renderer.domElement;
     canvas.setAttribute("aria-label", mode === "island"
       ? "회전할 수 있는, 하늘에 떠 있는 큰 섬. 잔디를 누르면 캐릭터가 아이템을 들고 그 자리로 걸어갑니다."
-      : "아홉 개의 떠 있는 섬이 모인 우리 반 섬 미리 보기");
+      : "20개의 퍼즐 조각이 맞춰진 우리 반 섬 미리 보기");
     canvas.setAttribute("role", "img");
     canvas.tabIndex = 0;
     host.appendChild(canvas);
@@ -156,13 +157,9 @@ export default function IslandScene({
 
     // The student's own island is seed 17; in the classroom it is the first of nine.
     const islands = classroom
-      ? Array.from({ length: 9 }, (_, index) => {
-        const model = createIslandModel(17 + index * 137, index === 0);
-        model.group.position.set((index % 3 - 1) * CLASSROOM_SPACING, Math.sin(index * 2.3) * 1.4, (Math.floor(index / 3) - 1) * CLASSROOM_SPACING);
-        return model;
-      })
-      : [createIslandModel(17, true)];
-    const island = islands[classroom ? 4 : 0];
+      ? [createPuzzleAssemblyModel(17)]
+      : [createPuzzlePieceModel(17, PUZZLE_STUDENT_PIECE_MAP[1])];
+    const island = islands[0];
     islands.forEach((model) => scene.add(model.group));
     scene.add(createIslandSky(classroom));
     const heightAt = (x: number, z: number) => island.layout.heightAt(x, z);
@@ -240,7 +237,8 @@ export default function IslandScene({
     const bubbleAnchor = new THREE.Vector3();
     const ringFacing = new THREE.Vector3(0, 0, 1);
     const groundNormal = new THREE.Vector3();
-    const initialCharacterPosition = new THREE.Vector3(2.4, heightAt(2.4, 3.4) + 0.02, 3.4);
+    const studentPieceSeed = islands[0].puzzle.pieces[PUZZLE_STUDENT_PIECE_MAP[1]].seed;
+    const initialCharacterPosition = new THREE.Vector3(studentPieceSeed.x, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02, studentPieceSeed.z);
     const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
     const introOffset = new THREE.Spherical();
     let pointerDown: { x: number; y: number } | null = null;

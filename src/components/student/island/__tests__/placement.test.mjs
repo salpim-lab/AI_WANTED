@@ -21,23 +21,18 @@ test("the rim is an organic oval: not a circle, smooth, and different per seed",
   assert.notDeepEqual(profiles[0], profiles[1]);
 });
 
-test("the meadow has gentle hills that settle onto the rim", () => {
+test("the meadow stays at one exact flat surface height", () => {
   for (const seed of seeds) {
     const { radiusAt, heightAt } = createIslandLayout(seed);
-    let highest = -Infinity;
     for (const angle of around(90)) {
       const r = radiusAt(angle);
       assert.ok(Math.abs(heightAt(Math.cos(angle) * r * 0.999, Math.sin(angle) * r * 0.999) - SURFACE_Y) < 0.01, "rim is level");
       for (let s = 0; s < 0.99; s += 0.05) {
         const x = Math.cos(angle) * r * s, z = Math.sin(angle) * r * s;
         const y = heightAt(x, z);
-        highest = Math.max(highest, y);
-        assert.ok(y >= SURFACE_Y - 1e-9);
-        const slope = Math.hypot(heightAt(x + 0.05, z) - y, heightAt(x, z + 0.05) - y) / 0.05;
-        assert.ok(slope < 0.4, `slope ${slope}`);
+        assert.equal(y, SURFACE_Y);
       }
     }
-    assert.ok(highest > SURFACE_Y + 1 && highest < SURFACE_Y + 2.5, `hill top ${highest}`);
   }
 });
 
