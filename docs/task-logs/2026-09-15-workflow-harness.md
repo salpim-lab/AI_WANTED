@@ -51,7 +51,7 @@
 - Git 추적 목록: `.sf/**` 없음
 - Node 스크립트 문법 검사, Git diff 검사, ESLint 실행: 통과. 기존 미구현 코드 경고 7개
 - PR 태스크 일지 검사: `GITHUB_BASE_REF=main`으로 통과
-- PR 자동 검사: GitHub Actions 결과 확인 중
+- PR 자동 검사: GitHub Actions `Repository hygiene` 통과 (PR #4 최신 push 기준)
 - DB 마이그레이션·Cloud 데이터·API 비용: 변경 없음
 - 남은 제한: 삭제 커밋이 `main`에 머지되기 전에는 최신 `main` checkout에 기존 파일이 남는다. 과거 Git 기록에는 삭제 이전 blob이 남는다.
 
