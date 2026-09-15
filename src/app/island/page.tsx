@@ -4,7 +4,7 @@ import IslandExperience from "@/components/student/island/IslandExperience";
 
 export const metadata: Metadata = {
   title: "나의 작은 섬 · 살핌",
-  description: "이야기가 자라는 나만의 3D 퍼즐 섬. 서로의 섬이 모여 우리 반 마을이 됩니다.",
+  description: "이야기가 자라는 나만의 3D 떠 있는 섬. 서로의 섬이 모여 우리 반 마을이 됩니다.",
 };
 
 export default function IslandPage() {

@@ -8,6 +8,6 @@ export function screenSunPosition(camera: Camera, target: Vector3, distanceScale
   backward.set(0, 0, 1).applyQuaternion(camera.quaternion);
   const sine = Math.max(0, Math.min(1, backward.y));
   const cosine = Math.sqrt(1 - sine * sine);
-  cameraOffset.z = 5 * (sine - cosine);
+  cameraOffset.z = 12 * sine - 5 * cosine;
   return result.copy(cameraOffset).applyQuaternion(camera.quaternion).multiplyScalar(distanceScale).add(target);
 }

@@ -3,8 +3,10 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { createChildCharacter, createGiftModel, createIslandModel, disposeObject, ISLAND_SHADOW_Y } from "./islandModel";
-import { canPlaceAmongGifts, classroomEdges, SURFACE_Y, TILE_SIZE } from "./puzzleGeometry";
+import { createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
+import { createGiftModel, createIslandModel, disposeObject } from "./islandModel";
+import { createIslandSky } from "./islandSky";
+import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
@@ -23,15 +25,67 @@ type Props = {
   controlsRef: Ref<SceneHandle>;
 };
 
-type CharacterPose = "holding" | "waving";
-
 type Runtime = {
   camera: (preset: CameraPreset) => void;
   suggested: () => void;
   gifts: THREE.Group;
+  heightAt: (x: number, z: number) => number;
   render: () => void;
   setCharacterState: (phase: PlacementPhase, proposal: PlacementProposal | null) => void;
 };
+
+// First entry: the camera swings in from a little to the side and above,
+// zooming in, and settles on the home view.
+const INTRO_MS = 1800;
+const INTRO_TURN = -0.55;
+const INTRO_RISE = 0.14;
+const INTRO_ZOOM = 0.8;
+// The character pops in (0 → 1.15 → 1), sparkles trail on a little longer,
+// and its bubble follows once the pop has landed.
+const POP_MS = 400;
+const BURST_MS = 700;
+const BUBBLE_DELAY_MS = 60;
+// easeOutBack with this overshoot peaks at 1.15.
+const POP_OVERSHOOT = 2.165;
+const CHARACTER_SCALE = 1.5;
+// Just above the hair, in the character's own units.
+const BUBBLE_ANCHOR = 1.86;
+
+const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+const easeOutBack = (t: number) => 1 + (POP_OVERSHOOT + 1) * (t - 1) ** 3 + POP_OVERSHOOT * (t - 1) ** 2;
+
+// Isometric-style quarter view: 45° around, 30° above the horizon, low enough
+// to show the thick soil and rock under the meadow.
+const HOME_AZIMUTH = Math.PI / 4;
+const HOME_ELEVATION = THREE.MathUtils.degToRad(30);
+// Share of the canvas the island may fill at the home view; whichever axis
+// runs out first decides the zoom.
+const FIT = { island: { width: 0.66, height: 0.84 }, classroom: { width: 0.9, height: 0.86 } };
+const CLASSROOM_SPACING = 33;
+
+// Islands' extent on the screen axes of a camera at `back` looking at the origin
+// (orthographic, so only direction matters): half-width about the centre and
+// the vertical range, plus the camera's up axis in world space.
+function screenExtent(roots: THREE.Object3D[], back: THREE.Vector3) {
+  const right = new THREE.Vector3(), up = new THREE.Vector3(), forward = new THREE.Vector3();
+  new THREE.Matrix4().lookAt(back, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).extractBasis(right, up, forward);
+  const point = new THREE.Vector3();
+  const extent = { halfWidth: 0, bottom: Infinity, top: -Infinity, up };
+  for (const root of roots) {
+    root.updateMatrixWorld(true);
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const position = object.geometry.getAttribute("position");
+      for (let i = 0; i < position.count; i++) {
+        point.fromBufferAttribute(position, i).applyMatrix4(object.matrixWorld);
+        extent.halfWidth = Math.max(extent.halfWidth, Math.abs(point.dot(right)));
+        extent.bottom = Math.min(extent.bottom, point.dot(up));
+        extent.top = Math.max(extent.top, point.dot(up));
+      }
+    });
+  }
+  return extent;
+}
 
 export default function IslandScene({
   mode,
@@ -51,6 +105,9 @@ export default function IslandScene({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<Runtime | null>(null);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive });
+  // When the intro began: it plays once per visit, and a rebuilt scene
+  // (StrictMode re-run, quick view switch) picks it up where it was.
+  const introStartRef = useRef<number | null>(null);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -70,37 +127,57 @@ export default function IslandScene({
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "low-power" });
+      // Transparent so the host's CSS sky gradient shows through.
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     } catch {
       queueMicrotask(() => setError(true));
       return;
     }
 
+    renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1;
+    renderer.toneMappingExposure = 1.12;
 
     const canvas = renderer.domElement;
     canvas.setAttribute("aria-label", mode === "island"
-      ? "회전할 수 있는 큰 퍼즐 섬. 잔디를 누르면 캐릭터가 아이템을 들고 그 자리로 걸어갑니다."
-      : "아홉 개의 퍼즐 섬이 맞물린 우리 반 섬 미리 보기");
+      ? "회전할 수 있는, 하늘에 떠 있는 큰 섬. 잔디를 누르면 캐릭터가 아이템을 들고 그 자리로 걸어갑니다."
+      : "아홉 개의 떠 있는 섬이 모인 우리 반 섬 미리 보기");
     canvas.setAttribute("role", "img");
     canvas.tabIndex = 0;
     host.appendChild(canvas);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#dceee5");
-    const camera = new THREE.OrthographicCamera(-5, 5, 4, -4, 0.1, 440);
     const classroom = mode === "classroom";
-    const scale = (classroom ? 2.9 : 0.82) * (TILE_SIZE / 5);
-    const target = new THREE.Vector3(0, classroom ? -1.45 : -0.45, 0);
-    // ~24° elevation: the meadow leads while the cliff still reads as its supporting rim.
-    const home = new THREE.Vector3(9.6, 6.95, 12.3).multiplyScalar(scale).add(target);
+    // Reduced motion: no intro, pop or idle loop; the character simply stands there.
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // The student's own island is seed 17; in the classroom it is the first of nine.
+    const islands = classroom
+      ? Array.from({ length: 9 }, (_, index) => {
+        const model = createIslandModel(17 + index * 137, index === 0);
+        model.group.position.set((index % 3 - 1) * CLASSROOM_SPACING, Math.sin(index * 2.3) * 1.4, (Math.floor(index / 3) - 1) * CLASSROOM_SPACING);
+        return model;
+      })
+      : [createIslandModel(17, true)];
+    const island = islands[classroom ? 4 : 0];
+    islands.forEach((model) => scene.add(model.group));
+    scene.add(createIslandSky(classroom));
+    const heightAt = (x: number, z: number) => island.layout.heightAt(x, z);
+
+    // Frame from the real geometry: aim at the middle of the island's screen
+    // height, then size the view so it fills the target share of the canvas.
+    const back = new THREE.Vector3().setFromSphericalCoords(1, Math.PI / 2 - HOME_ELEVATION, HOME_AZIMUTH);
+    const extent = screenExtent(islands.map((model) => model.group), back);
+    const target = new THREE.Vector3(0, (extent.top + extent.bottom) / 2 / extent.up.y, 0);
+    const halfHeight = (extent.top - extent.bottom) / 2;
+    const fit = FIT[mode];
+    const viewDistance = (extent.halfWidth + halfHeight) * 2.5;
+    const home = back.clone().multiplyScalar(viewDistance).add(target);
+    const camera = new THREE.OrthographicCamera(-5, 5, 4, -4, 0.1, viewDistance * 4);
     camera.position.copy(home);
-    const viewDistance = home.distanceTo(target);
-    scene.fog = new THREE.Fog("#dceee5", viewDistance * 0.95, viewDistance * 2.6);
 
     const controls = new OrbitControls(camera, canvas);
     controls.target.copy(target);
@@ -116,19 +193,21 @@ export default function IslandScene({
     controls.update();
 
     // Hemisphere + a warm ambient floor keep shaded rock mid-toned instead of green-black.
-    scene.add(new THREE.HemisphereLight("#dcf2ea", "#b5ab91", 1.7));
-    scene.add(new THREE.AmbientLight("#f4ead8", 0.85));
-    const sunlight = new THREE.DirectionalLight("#fff0d4", 2.4);
+    scene.add(new THREE.HemisphereLight("#d4f1e7", "#c4b19a", 1.4));
+    scene.add(new THREE.AmbientLight("#f4ead8", 0.55));
+    const sunlight = new THREE.DirectionalLight("#fff0d4", 2.0);
     sunlight.castShadow = true;
     sunlight.shadow.mapSize.set(2048, 2048);
-    const shadowSize = (classroom ? 13 : 6) * TILE_SIZE / 5;
+    const shadowSize = ISLAND_RADIUS * 1.5 + (classroom ? CLASSROOM_SPACING : 0);
+    // The sun sits this far from the target, clear of every island it lights.
+    const sunDistance = shadowSize * 2.2;
     Object.assign(sunlight.shadow.camera, {
       left: -shadowSize,
       right: shadowSize,
       top: shadowSize,
       bottom: -shadowSize,
       near: 0.5,
-      far: 220,
+      far: sunDistance * 2.5,
     });
     sunlight.shadow.normalBias = 0.035;
     sunlight.shadow.bias = -0.0002;
@@ -136,33 +215,11 @@ export default function IslandScene({
     sunlight.target.position.copy(target);
     scene.add(sunlight, sunlight.target);
 
-    // Soft teal bounce from the viewer's lower right keeps the camera-facing cliff readable.
-    const fill = new THREE.DirectionalLight("#a8ddd4", 1.55);
+    // Soft sky bounce from the viewer's lower right keeps the hanging rock readable.
+    const fill = new THREE.DirectionalLight("#bfe0ee", 0.85);
     const fillOffset = new THREE.Vector3(6, -3.5, 9);
     fill.target.position.copy(target);
     scene.add(fill, fill.target);
-
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(500, 500),
-      new THREE.ShadowMaterial({ color: "#5b8572", opacity: 0.12 }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = ISLAND_SHADOW_Y;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    const island = createIslandModel(classroomEdges(1, 1), classroom ? 565 : 17);
-    scene.add(island.group);
-    if (classroom) {
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          if (row === 1 && col === 1) continue;
-          const other = createIslandModel(classroomEdges(row, col), 17 + (row * 3 + col) * 137);
-          other.group.position.set((col - 1) * (TILE_SIZE + 0.28), 0, (row - 1) * (TILE_SIZE + 0.28));
-          scene.add(other.group);
-        }
-      }
-    }
 
     const giftGroup = new THREE.Group();
     const characterGroup = new THREE.Group();
@@ -175,34 +232,76 @@ export default function IslandScene({
       depthWrite: false,
     });
     const marker = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.61, 48), markerMaterial);
-    marker.rotation.x = -Math.PI / 2;
     marker.visible = false;
     scene.add(marker);
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const bubbleAnchor = new THREE.Vector3();
-    const initialCharacterPosition = new THREE.Vector3(-1.8, SURFACE_Y + 0.02, 3.2);
+    const ringFacing = new THREE.Vector3(0, 0, 1);
+    const groundNormal = new THREE.Vector3();
+    const initialCharacterPosition = new THREE.Vector3(2.4, heightAt(2.4, 3.4) + 0.02, 3.4);
+    const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
+    const introOffset = new THREE.Spherical();
     let pointerDown: { x: number; y: number } | null = null;
     let frame = 0;
     let disposed = false;
     let visible = true;
-    let characterPose: CharacterPose | null = null;
+    let character: ChildCharacter | null = null;
+    let characterBaseY = initialCharacterPosition.y;
+    // Clicks and the bubble wait until the pop-in has landed.
+    let characterReadyAt = 0;
+    let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
+    let bubbleShown: HTMLElement | null = null;
     let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
     let tween: { from: THREE.Vector3; to: THREE.Vector3; start: number; zoom: number; nextZoom: number } | null = null;
+    introStartRef.current ??= calm ? -Infinity : performance.now();
+    let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
+    if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
 
-    function ensureCharacter(pose: CharacterPose) {
-      const previousPosition = characterGroup.children[0]?.position.clone() ?? initialCharacterPosition.clone();
-      if (characterPose === pose && characterGroup.children[0]) return characterGroup.children[0];
-      disposeObject(characterGroup);
-      characterGroup.clear();
-      const character = createChildCharacter("star", pose === "holding");
-      character.position.copy(previousPosition);
-      character.scale.setScalar(1.5);
-      character.userData.baseY = previousPosition.y;
-      characterGroup.add(character);
-      characterPose = pose;
-      return character;
+    // `remaining` 1 is the intro's opening shot, 0 the home view.
+    function placeIntroCamera(remaining: number) {
+      introOffset.copy(homeOffset);
+      introOffset.theta += remaining * INTRO_TURN;
+      introOffset.phi -= remaining * INTRO_RISE;
+      camera.position.setFromSpherical(introOffset).add(target);
+      camera.zoom = THREE.MathUtils.lerp(1, INTRO_ZOOM, remaining);
+      camera.updateProjectionMatrix();
+    }
+
+    function endEntrance() {
+      if (!entrance) return;
+      scene.remove(entrance.burst.group);
+      disposeObject(entrance.burst.group);
+      entrance = null;
+    }
+
+    function removeCharacter() {
+      endEntrance();
+      if (!character) return;
+      characterGroup.remove(character.root);
+      disposeObject(character.root);
+      character = null;
+    }
+
+    // `pop` plays the entrance; a rebuilt scene (view switch) shows the character as is.
+    function summonCharacter(pop: boolean) {
+      const next = createChildCharacter("star");
+      next.root.position.copy(initialCharacterPosition);
+      next.root.scale.setScalar(CHARACTER_SCALE);
+      characterBaseY = initialCharacterPosition.y;
+      characterGroup.add(next.root);
+      characterReadyAt = 0;
+      if (pop && !calm) {
+        const burst = createPopBurst();
+        burst.group.position.copy(initialCharacterPosition);
+        burst.group.scale.setScalar(CHARACTER_SCALE);
+        scene.add(burst.group);
+        entrance = { start: performance.now(), burst };
+        characterReadyAt = entrance.start + POP_MS + BUBBLE_DELAY_MS;
+        next.root.scale.setScalar(0);
+      }
+      return next;
     }
 
     function characterDestination(nextProposal: PlacementProposal) {
@@ -210,65 +309,77 @@ export default function IslandScene({
       const towardCenter = destination.clone().multiplyScalar(-1);
       if (towardCenter.lengthSq() < 0.01) towardCenter.set(1, 0.7);
       towardCenter.normalize().multiplyScalar(1.35);
-      return new THREE.Vector3(
-        destination.x + towardCenter.x,
-        SURFACE_Y + 0.02,
-        destination.y + towardCenter.y,
-      );
+      const x = destination.x + towardCenter.x, z = destination.y + towardCenter.y;
+      return new THREE.Vector3(x, heightAt(x, z) + 0.02, z);
     }
 
-    function setCharacterState(nextPhase: PlacementPhase, nextProposal: PlacementProposal | null) {
-      if (classroom || nextPhase === "complete") {
+    function setCharacterState(nextPhase: PlacementPhase, nextProposal: PlacementProposal | null, pop = true) {
+      if (classroom || nextPhase === "ready" || nextPhase === "complete") {
         walk = null;
-        disposeObject(characterGroup);
-        characterGroup.clear();
-        characterPose = null;
+        removeCharacter();
         render();
         return;
       }
 
-      if (nextPhase === "farewell") {
-        walk = null;
-        ensureCharacter("waving");
-        render();
-        return;
-      }
-
-      const character = ensureCharacter("holding");
+      const current = character ?? (character = summonCharacter(pop));
+      current.setPose(nextPhase === "farewell" ? "waving" : "holding");
       if (nextPhase === "moving" && nextProposal) {
         const destination = characterDestination(nextProposal);
-        const distance = character.position.distanceTo(destination);
+        const distance = current.root.position.distanceTo(destination);
         walk = {
-          from: character.position.clone(),
+          from: current.root.position.clone(),
           to: destination,
           start: performance.now(),
           duration: THREE.MathUtils.clamp(distance / 4.8 * 1000, 480, 2200),
         };
       } else {
         walk = null;
-        character.position.y = character.userData.baseY as number;
+        current.root.position.y = characterBaseY;
       }
       render();
     }
 
-    function updateBubble() {
+    function hideBubble(bubble: HTMLElement | null) {
+      if (bubble) {
+        bubble.style.opacity = "0";
+        bubble.style.visibility = "hidden";
+      }
+      bubbleShown = null;
+    }
+
+    // Pinned just above the character's head; pops in each time it appears.
+    function updateBubble(now: number) {
       const bubble = bubbleRef.current;
-      const character = characterGroup.children[0];
       const current = stateRef.current;
-      if (!bubble || !character || classroom || current.phase === "moving" || current.phase === "complete") {
-        if (bubble) bubble.style.opacity = "0";
+      if (!bubble || !character || classroom || now < characterReadyAt || current.phase === "moving" || current.phase === "complete") {
+        hideBubble(bubble);
         return;
       }
 
-      character.updateWorldMatrix(true, false);
-      bubbleAnchor.set(0, 2.0, 0).applyMatrix4(character.matrixWorld).project(camera);
+      character.root.updateWorldMatrix(true, false);
+      bubbleAnchor.set(0, BUBBLE_ANCHOR, 0).applyMatrix4(character.root.matrixWorld).project(camera);
+      if (bubbleAnchor.z <= -1 || bubbleAnchor.z >= 1) {
+        hideBubble(bubble);
+        return;
+      }
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
-      const x = THREE.MathUtils.clamp((bubbleAnchor.x * 0.5 + 0.5) * width, 150, width - 150);
-      const y = THREE.MathUtils.clamp((-bubbleAnchor.y * 0.5 + 0.5) * height, 145, height - 30);
+      const halfWidth = bubble.offsetWidth / 2;
+      const x = THREE.MathUtils.clamp((bubbleAnchor.x * 0.5 + 0.5) * width, halfWidth + 8, width - halfWidth - 8);
+      const y = THREE.MathUtils.clamp((-bubbleAnchor.y * 0.5 + 0.5) * height, bubble.offsetHeight + 18, height - 8);
       bubble.style.left = `${x}px`;
       bubble.style.top = `${y}px`;
-      bubble.style.opacity = bubbleAnchor.z > -1 && bubbleAnchor.z < 1 ? "1" : "0";
+      bubble.style.opacity = "1";
+      bubble.style.visibility = "visible";
+      if (bubbleShown !== bubble) {
+        bubbleShown = bubble;
+        if (!calm) {
+          bubble.animate(
+            [{ opacity: 0, transform: "scale(0.72)" }, { opacity: 1, transform: "scale(1)" }],
+            { duration: 280, easing: "cubic-bezier(0.34, 1.45, 0.64, 1)" },
+          );
+        }
+      }
     }
 
     function render() {
@@ -285,6 +396,13 @@ export default function IslandScene({
 
       if (!current.selected || current.phase === "moving" || current.phase === "farewell" || current.phase === "complete") marker.visible = false;
 
+      if (intro) {
+        const progress = Math.min((now - intro.start) / INTRO_MS, 1);
+        placeIntroCamera(1 - easeInOutCubic(progress));
+        if (progress === 1) intro = null;
+        else keepAnimating = true;
+      }
+
       if (tween) {
         const progress = Math.min((now - tween.start) / 480, 1);
         const eased = 1 - (1 - progress) ** 3;
@@ -295,44 +413,58 @@ export default function IslandScene({
         else keepAnimating = true;
       }
 
-      const character = characterGroup.children[0];
-      if (character && activeWalk) {
-        const progress = Math.min((now - activeWalk.start) / activeWalk.duration, 1);
-        const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
-        character.position.lerpVectors(activeWalk.from, activeWalk.to, eased);
-        character.position.y = activeWalk.to.y + Math.abs(Math.sin(progress * Math.PI * 10)) * 0.1;
-        character.rotation.y = Math.atan2(activeWalk.to.x - activeWalk.from.x, activeWalk.to.z - activeWalk.from.z);
-        if (progress === 1) {
-          character.position.copy(activeWalk.to);
-          character.userData.baseY = activeWalk.to.y;
-          walk = null;
-          current.onArrive();
+      if (character) {
+        const root = character.root;
+        const seconds = calm ? 0 : now / 1000;
+        if (entrance) {
+          const elapsed = now - entrance.start;
+          root.scale.setScalar(CHARACTER_SCALE * easeOutBack(Math.min(elapsed / POP_MS, 1)));
+          entrance.burst.update(Math.min(elapsed / BURST_MS, 1));
+          if (elapsed >= BURST_MS) endEntrance();
+          keepAnimating = true;
+        }
+
+        if (activeWalk) {
+          const progress = Math.min((now - activeWalk.start) / activeWalk.duration, 1);
+          const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
+          // Five strides, one hop per step.
+          const stride = Math.sin(progress * Math.PI * 10);
+          root.position.lerpVectors(activeWalk.from, activeWalk.to, eased);
+          root.position.y = heightAt(root.position.x, root.position.z) + 0.02 + Math.abs(stride) * 0.1;
+          root.rotation.set(0, Math.atan2(activeWalk.to.x - activeWalk.from.x, activeWalk.to.z - activeWalk.from.z), 0);
+          character.animate(seconds, progress === 1 ? 0 : stride);
+          if (progress === 1) {
+            root.position.copy(activeWalk.to);
+            characterBaseY = activeWalk.to.y;
+            walk = null;
+            current.onArrive();
+          } else {
+            keepAnimating = true;
+          }
         } else {
-          keepAnimating = true;
+          const hop = current.phase === "farewell" && !calm ? Math.abs(Math.sin(now * 0.006)) * 0.05 : 0;
+          root.position.y = characterBaseY + hop;
+          root.lookAt(camera.position.x, root.position.y, camera.position.z);
+          character.animate(seconds);
         }
-      } else if (character) {
-        const baseY = character.userData.baseY as number;
-        character.position.y = current.phase === "farewell" ? baseY + Math.sin(now * 0.012) * 0.06 : baseY;
-        character.lookAt(camera.position.x, character.position.y, camera.position.z);
-        if (current.phase === "farewell") {
-          character.rotateY(Math.sin(now * 0.008) * 0.09);
-          keepAnimating = true;
-        }
+        // Breathing and waving keep the loop running while the character is out.
+        if (!calm) keepAnimating = true;
       }
 
       const changing = controls.update();
-      screenSunPosition(camera, controls.target, classroom ? 3 : 1.7, sunlight.position);
+      screenSunPosition(camera, controls.target, sunDistance / 16, sunlight.position);
       fill.position.copy(fillOffset).applyQuaternion(camera.quaternion).add(controls.target);
-      updateBubble();
+      updateBubble(now);
       renderer.render(scene, camera);
       if (changing || tween || keepAnimating) render();
     }
 
     function moveCamera(preset: CameraPreset) {
+      intro = null;
       let next = camera.position.clone();
       let nextZoom = camera.zoom;
       if (preset === "home") { next = home.clone(); nextZoom = 1; }
-      if (preset === "top") next = new THREE.Vector3(0, 15 * scale, 0.02).add(target);
+      if (preset === "top") next = new THREE.Vector3(0, viewDistance, 0.02).add(target);
       if (preset === "left" || preset === "right") {
         next.sub(target).applyAxisAngle(new THREE.Vector3(0, 1, 0), preset === "left" ? -Math.PI / 6 : Math.PI / 6).add(target);
       }
@@ -343,7 +475,8 @@ export default function IslandScene({
       render();
     }
 
-    const validPoint = (x: number, z: number) => canPlaceAmongGifts(x, z, island.outline, stateRef.current.gifts);
+    const validPoint = (x: number, z: number) => canPlaceAmongGifts(x, z, island.layout, stateRef.current.gifts);
+    // First terrain hit, kept only when it lands on the meadow (not the lip, cliff or pebbles).
     const intersect = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       pointer.set(
@@ -352,21 +485,26 @@ export default function IslandScene({
       );
       scene.updateMatrixWorld(true);
       raycaster.setFromCamera(pointer, camera);
-      return raycaster.intersectObject(island.surface)[0]?.point;
+      const hit = raycaster.intersectObject(island.surface)[0];
+      return hit && hit.point.y >= SURFACE_Y - 0.01 ? hit : undefined;
     };
 
     const canChooseLocation = () => {
       const current = stateRef.current;
-      return !!current.selected && !classroom && (current.phase === "choosing" || current.phase === "confirming");
+      return !!current.selected && !classroom && !!character && performance.now() >= characterReadyAt
+        && (current.phase === "choosing" || current.phase === "confirming");
     };
 
     const onMove = (event: PointerEvent) => {
       if (!canChooseLocation()) return;
-      const point = intersect(event);
-      marker.visible = !!point;
-      if (point) {
-        marker.position.set(point.x, SURFACE_Y + 0.025, point.z);
-        markerMaterial.color.set(validPoint(point.x, point.z) ? "#fff9d4" : "#c57967");
+      const hit = intersect(event);
+      marker.visible = !!hit;
+      if (hit?.face) {
+        // Lay the ring on the facet under the pointer so slopes don't clip it.
+        groundNormal.copy(hit.face.normal).transformDirection(island.surface.matrixWorld);
+        marker.quaternion.setFromUnitVectors(ringFacing, groundNormal);
+        marker.position.copy(hit.point).addScaledVector(groundNormal, 0.05);
+        markerMaterial.color.set(validPoint(hit.point.x, hit.point.z) ? "#fff9d4" : "#c57967");
       }
       render();
     };
@@ -381,7 +519,7 @@ export default function IslandScene({
       const current = stateRef.current;
       if (!down || !canChooseLocation() || !current.selected) return;
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) return;
-      const point = intersect(event);
+      const point = intersect(event)?.point;
       if (point && validPoint(point.x, point.z)) {
         current.onPropose(current.selected, point.x, point.z);
         marker.visible = false;
@@ -413,9 +551,10 @@ export default function IslandScene({
       if (!width || !height) return;
       renderer.setSize(width, height);
       const aspect = width / height;
-      const span = Math.max(7.5, (classroom ? 8.5 : 10) / aspect) * scale;
+      // Vertical view size: whichever of width or height limits the island first.
+      const span = Math.max(halfHeight * 2 / fit.height, extent.halfWidth * 2 / (fit.width * aspect));
       // Portrait: sit the island lower so the character's bubble fits above it.
-      const lift = classroom ? 0 : span * THREE.MathUtils.clamp((1.1 - aspect) * 0.2, 0, 0.12);
+      const lift = classroom ? 0 : span * THREE.MathUtils.clamp((1.1 - aspect) * 0.3, 0, 0.16);
       camera.left = -span * aspect / 2;
       camera.right = span * aspect / 2;
       camera.top = span / 2 + lift;
@@ -431,7 +570,7 @@ export default function IslandScene({
       if (visible) render();
     });
     intersectionObserver.observe(host);
-    const onControlStart = () => { tween = null; };
+    const onControlStart = () => { tween = null; intro = null; };
     const onContextLost = (event: Event) => { event.preventDefault(); setError(true); };
     controls.addEventListener("change", render);
     controls.addEventListener("start", onControlStart);
@@ -447,12 +586,13 @@ export default function IslandScene({
     runtimeRef.current = {
       camera: moveCamera,
       gifts: giftGroup,
+      heightAt,
       render,
       setCharacterState,
       suggested: () => {
         const current = stateRef.current;
-        if (!current.selected || classroom || (current.phase !== "choosing" && current.phase !== "confirming")) return;
-        for (let radius = 0; radius < TILE_SIZE / 2 - 0.6; radius += 0.9) {
+        if (!current.selected || !canChooseLocation()) return;
+        for (let radius = 0; radius < ISLAND_RADIUS; radius += 0.9) {
           for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 7) {
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
@@ -466,7 +606,7 @@ export default function IslandScene({
     };
 
     resize();
-    setCharacterState(stateRef.current.phase, stateRef.current.proposal);
+    setCharacterState(stateRef.current.phase, stateRef.current.proposal, false);
     queueMicrotask(() => { if (!disposed) setReady(true); });
 
     return () => {
@@ -499,7 +639,7 @@ export default function IslandScene({
     runtime.gifts.clear();
     gifts.forEach((gift) => {
       const model = createGiftModel(gift.kind);
-      model.position.set(gift.x, SURFACE_Y + 0.02, gift.z);
+      model.position.set(gift.x, runtime.heightAt(gift.x, gift.z) + 0.02, gift.z);
       model.scale.setScalar(1.35);
       model.name = gift.name;
       runtime.gifts.add(model);
@@ -511,37 +651,39 @@ export default function IslandScene({
     runtimeRef.current?.setCharacterState(phase, proposal);
   }, [proposal, phase, mode]);
 
-  const bubbleVisible = mode === "island" && phase !== "moving" && phase !== "complete";
+  const bubbleVisible = mode === "island" && phase !== "ready" && phase !== "moving" && phase !== "complete";
 
   return <div
     ref={hostRef}
-    className="absolute inset-0 [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]"
+    className="absolute inset-0 bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)] [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]"
     style={{ cursor: selected && (phase === "choosing" || phase === "confirming") ? "crosshair" : "grab" }}
   >
+    {/* Keyed by phase so each new message pops in; the scene shows and places it. */}
     {bubbleVisible && <div
+      key={phase}
       ref={bubbleRef}
-      className="absolute z-30 w-[min(286px,76%)] -translate-x-1/2 -translate-y-[calc(100%+14px)] rounded-[20px] border border-white/90 bg-[#fffdf5]/96 px-5 py-4 text-center shadow-[0_14px_38px_#496b5538] opacity-0 backdrop-blur-sm transition-opacity"
+      className="invisible absolute z-30 w-[172px] origin-bottom -translate-x-1/2 -translate-y-[calc(100%+10px)] break-keep rounded-2xl border border-white/90 bg-[#fffdf5]/96 px-3 py-2.5 text-center leading-snug shadow-[0_8px_24px_#496b5530] opacity-0 backdrop-blur-sm"
       role="status"
       aria-live="polite"
     >
-      <span className="absolute -bottom-2 left-1/2 h-4 w-4 -translate-x-1/2 rotate-45 border-b border-r border-white/90 bg-[#fffdf5]" aria-hidden="true"/>
+      <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-white/90 bg-[#fffdf5]" aria-hidden="true"/>
       {phase === "choosing" && <>
         <p className="text-[16px] font-bold tracking-[-0.35px]">오늘 아이템 어디에 배치할까?</p>
-        <p className="mt-1.5 text-[11px] text-[#8b7664]">{itemName}을 놓을 자리를 골라 줘!</p>
-        <button onClick={() => runtimeRef.current?.suggested()} className="mt-3 rounded-full border border-[#ccd7c5] bg-white px-4 py-2 text-[11px] font-semibold text-[#397258]">빈자리 추천받기</button>
+        <p className="mt-1 text-[12px] text-[#8b7664]">{itemName}을 놓을 자리를 골라 줘!</p>
+        <button onClick={() => runtimeRef.current?.suggested()} className="mt-2 h-8 rounded-full border border-[#ccd7c5] bg-white px-3 text-[12px] font-semibold text-[#397258]">빈자리 추천받기</button>
       </>}
       {phase === "confirming" && <>
-        <p className="text-[17px] font-bold tracking-[-0.4px]">여기로 정할까?</p>
-        <p className="mt-1.5 text-[12px] text-[#8b7664]">정하면 수정 못 해!</p>
-        <div className="mt-3 flex justify-center gap-2">
-          <button onClick={onChooseAgain} className="rounded-full border border-[#d8ddcf] bg-white px-4 py-2.5 text-xs text-[#71806f]">다른 자리 볼래</button>
-          <button onClick={onConfirm} className="rounded-full bg-[#347657] px-4 py-2.5 text-xs font-semibold text-white">여기로 정할래</button>
+        <p className="text-[16px] font-bold tracking-[-0.35px]">여기로 정할까?</p>
+        <p className="mt-1 text-[12px] text-[#8b7664]">정하면 수정 못 해!</p>
+        <div className="mt-2 flex gap-1.5">
+          <button onClick={onChooseAgain} className="h-8 flex-1 whitespace-nowrap rounded-full border border-[#d8ddcf] bg-white px-1.5 text-[12px] text-[#71806f]">다른 자리</button>
+          <button onClick={onConfirm} className="h-8 flex-1 whitespace-nowrap rounded-full bg-[#347657] px-1.5 text-[12px] font-semibold text-white">여기로 정할래</button>
         </div>
       </>}
       {phase === "farewell" && <>
-        <p className="text-[20px] font-bold text-[#347657]">내일 또 봐!</p>
-        <p className="mt-1.5 text-[11px] text-[#809079]">여기서 계속 인사하고 있을게 👋</p>
-        <button onClick={onFinish} className="mt-3 rounded-full bg-[#347657] px-5 py-2.5 text-xs font-semibold text-white">배치 종료</button>
+        <p className="text-[16px] font-bold text-[#347657]">내일 또 봐!</p>
+        <p className="mt-1 text-[12px] text-[#809079]">여기서 계속 인사하고 있을게 👋</p>
+        <button onClick={onFinish} className="mt-2 h-8 rounded-full bg-[#347657] px-4 text-[12px] font-semibold text-white">배치 종료</button>
       </>}
     </div>}
 

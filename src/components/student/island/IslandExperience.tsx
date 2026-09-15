@@ -46,9 +46,9 @@ export default function IslandExperience({ compact = false, studentName = "민�
   };
   const [mode, setMode] = useState<ViewMode>("island");
   const [gifts, setGifts] = useState<IslandGift[]>([]);
-  const [selected, setSelected] = useState<GiftKind | null>(acquired.kind);
+  const [selected, setSelected] = useState<GiftKind | null>(null);
   const [proposal, setProposal] = useState<PlacementProposal | null>(null);
-  const [phase, setPhase] = useState<PlacementPhase>("choosing");
+  const [phase, setPhase] = useState<PlacementPhase>("ready");
   const [cameraView, setCameraView] = useState<"free" | "top">("free");
   const sceneRef = useRef<SceneHandle>(null);
   const giftId = useRef(0);
@@ -62,6 +62,13 @@ export default function IslandExperience({ compact = false, studentName = "민�
   const arrive = useCallback(() => {
     setPhase((current) => current === "moving" ? "confirming" : current);
   }, []);
+
+  // The character pops onto the island holding today's item.
+  function startPlacement() {
+    if (phase !== "ready") return;
+    setSelected(acquired.kind);
+    setPhase("choosing");
+  }
 
   function confirmPlacement() {
     if (!proposal || phase !== "confirming") return;
@@ -104,20 +111,20 @@ export default function IslandExperience({ compact = false, studentName = "민�
         <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><span className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#2b7657] text-[#f9f8e9]"><Icon name="leaf" size={25}/></span><span className="text-[25px] font-extrabold tracking-[-1.5px]">살핌</span><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
         <nav className="flex items-center gap-1 rounded-full bg-[#edf0e7] p-1" aria-label="섬 둘러보기">
           <button disabled={placementActive} onClick={() => changeMode("island")} aria-pressed={mode === "island"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "island" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="home" size={16}/>나의 섬</button>
-          <button disabled={placementActive} onClick={() => changeMode("classroom")} aria-pressed={mode === "classroom"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "classroom" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="puzzle" size={16}/>우리 반 퍼즐</button>
+          <button disabled={placementActive} onClick={() => changeMode("classroom")} aria-pressed={mode === "classroom"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "classroom" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="puzzle" size={16}/>우리 반 섬</button>
         </nav>
         <div className="hidden items-center gap-2.5 md:flex"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#f1e8c9] text-[#a18b49]"><Icon name="sun" size={21}/></span><span className="text-sm font-semibold">{studentName}<span className="ml-1 font-normal text-[#8e9788]">의 공간</span></span></div>
       </div>
     </header>}
 
-    <main className={compact ? "flex min-h-0 flex-1 flex-col p-3" : "mx-auto max-w-[1440px] px-5 pb-8 pt-9 sm:px-8 lg:px-12"}>
-      {!compact && <div className="mb-7 flex items-end justify-between gap-4"><div>
+    <main className={compact ? "flex min-h-0 flex-1 flex-col p-3" : "mx-auto max-w-[1440px] px-2 pb-8 pt-9 sm:px-8 lg:px-12"}>
+      {!compact && <div className="mb-7 px-3 sm:px-0 flex items-end justify-between gap-4"><div>
         <p className="mb-2.5 text-[10px] font-bold tracking-[0.25em] text-[#83957d]">MY LITTLE ISLAND</p>
         <h1 className="text-[25px] font-bold leading-snug tracking-[-1.1px] sm:text-[31px]">{mode === "island" ? "이야기로 채워 갈, 나의 섬" : "우리의 섬이 만나면"}<span className="ml-2 text-[#a9b97c]">.</span></h1>
         <p className="mt-2 text-[13px] leading-relaxed text-[#879182]">{mode === "island" ? "하루 두 개의 이야기가 쌓여도 넉넉한, 한 학기 동안의 섬이야." : "서로 다른 이야기가 모여, 하나의 커다란 우리 반 섬이 돼요."}</p>
       </div><span className="mb-1 hidden items-center gap-2 rounded-full border border-[#e1e6d7] bg-[#f0f3e8] px-4 py-2.5 text-[11px] text-[#7d8c6f] sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-[#96ac75]"/>{mode === "island" ? phase === "complete" ? "오늘의 배치 완료" : "오늘의 아이템 배치 중" : "학기말 모아 보기 · 미리 보기"}</span></div>}
 
-      <section className={`relative isolate overflow-hidden rounded-[26px] border border-[#d6e3d7] bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "h-[590px] sm:h-[670px]"}`} aria-label="3D 퍼즐 섬">
+      <section className={`relative isolate overflow-hidden rounded-[26px] border border-[#d6e3d7] bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "h-[600px] sm:h-[760px]"}`} aria-label="3D 떠 있는 섬">
         <IslandScene
           mode={mode}
           gifts={gifts}
@@ -134,24 +141,25 @@ export default function IslandExperience({ compact = false, studentName = "민�
         />
 
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 ${compact ? "p-4" : "p-6"}`}>
-          <div><div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium tracking-[0.06em] text-[#799888]"><span className="h-1.5 w-1.5 rounded-full bg-[#7fa886]"/>{mode === "island" ? "꽃과 풀이 드문드문 자라는 섬" : "아홉 조각으로 보는 예시"}</div><h2 className={`${compact ? "text-lg" : "text-[23px]"} font-bold tracking-[-0.7px] text-[#345845]`}>{mode === "island" ? `${studentName}이의 섬` : "함께 만드는 우리"}</h2></div>
+          <div><div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium tracking-[0.06em] text-[#345f56]"><span className="h-1.5 w-1.5 rounded-full bg-[#7fa886]"/>{mode === "island" ? "구름 위에 떠 있는, 작은 숲과 꽃의 섬" : "아홉 개의 섬으로 보는 예시"}</div><h2 className={`${compact ? "text-lg" : "text-[23px]"} font-bold tracking-[-0.7px] text-[#345845]`}>{mode === "island" ? `${studentName}이의 섬` : "함께 만드는 우리"}</h2></div>
           <div className="flex flex-col items-end gap-2">
             <span className="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/60 px-3 py-1.5 text-[11px] text-[#6f8c78]"><Icon name={mode === "island" ? "leaf" : "puzzle"} size={14}/>{mode === "island" ? `${baseItemCount + gifts.length}개의 이야기` : "학기말 미리 보기"}</span>
             {mode === "island" && phase !== "complete" && <span title={acquired.description} className="flex items-center gap-2 rounded-full border border-[#eadfbf] bg-[#fffaf0]/90 px-3 py-1.5 text-[11px] font-semibold text-[#75643d]"><span>{acquired.emoji}</span>{acquired.name}</span>}
           </div>
         </div>
 
-        {!compact && phase !== "moving" && <div className="absolute left-6 top-[96px] z-10 flex rounded-full border border-white/50 bg-[#ecf4ed]/75 p-1 backdrop-blur-sm">
+        {!compact && phase !== "moving" && <div className="absolute left-6 top-[96px] z-10 hidden sm:flex rounded-full border border-white/50 bg-[#ecf4ed]/75 p-1 backdrop-blur-sm">
           <button onClick={() => camera("home")} aria-pressed={cameraView === "free"} className={`${button} px-3 py-1.5 text-[11px] ${cameraView === "free" ? "bg-white text-[#456b50] shadow-sm" : "text-[#829480]"}`}><Icon name="rotate" size={13}/>자유롭게 둘러보기</button>
           <button onClick={() => camera("top")} aria-pressed={cameraView === "top"} className={`${button} px-3 py-1.5 text-[11px] ${cameraView === "top" ? "bg-white text-[#456b50] shadow-sm" : "text-[#829480]"}`}><Icon name="top" size={13}/>위에서 보기</button>
         </div>}
 
-        {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬과 퍼즐을 맞춰요.</div>}
+        {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
         {phase !== "moving" && <div className={`absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 bg-gradient-to-t from-[#dceee5]/82 to-transparent ${compact ? "pb-3 pt-6" : "pb-5 pt-10"}`}>
           {mode === "island" && phase === "choosing" && <p className="pointer-events-none flex items-center gap-2 text-[11px] text-[#688774]"><Icon name="hand" size={14}/>섬의 원하는 자리를 눌러 주세요</p>}
           <div className="flex items-center gap-1 rounded-full border border-white/80 bg-[#fffffa]/90 px-2 py-1.5 shadow-[0_4px_20px_#60837012] backdrop-blur-sm" role="group" aria-label="시점 조작">
-            {([ ["left", "left", "왼쪽으로 회전"], ["right", "right", "오른쪽으로 회전"], ["out", "minus", "축소"], ["in", "plus", "확대"], ["top", "top", "위에서 보기"], ["home", "rotate", "처음 시점으로"] ] as [CameraPreset, IconName, string][]).map(([preset, icon, label], index) => <button key={preset} title={label} aria-label={label} onClick={() => camera(preset)} className={`${button} h-8 w-8 text-[#607862] hover:bg-[#eaf0e4] ${index === 2 || index === 4 ? "ml-1 border-l border-[#e2e7dc]" : ""}`}><Icon name={icon} size={17}/></button>)}
+            {([ ["left", "left", "왼쪽으로 회전"], ["right", "right", "오른쪽으로 회전"], ["out", "minus", "축소"], ["in", "plus", "확대"], ["top", "top", "위에서 보기"], ["home", "rotate", "처음 시점으로"] ] as [CameraPreset, IconName, string][]).map(([preset, icon, label], index) => <button key={preset} title={label} aria-label={label} onClick={() => camera(preset)} className={`${button} h-8 w-8 text-[#607862] hover:bg-[#eaf0e4] max-sm:w-7 ${index === 2 || index === 4 ? "ml-1 border-l border-[#e2e7dc]" : ""}`}><Icon name={icon} size={17}/></button>)}
+            {mode === "island" && phase === "ready" && <button onClick={startPlacement} className={`${button} ml-1.5 h-8 bg-[#347657] pl-3 pr-3.5 text-[12px] font-semibold text-white hover:bg-[#2c6a4d]`}><Icon name="star" size={15} className="max-sm:hidden"/>아이템 배치하기</button>}
           </div>
         </div>}
       </section>

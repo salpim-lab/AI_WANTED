@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ShapeUtils, Vector3 } from "three";
-import { createTerrainGeometry, terrainProportions } from "../islandTerrain.ts";
-import { classroomEdges, createPuzzleShape, insideOutline, SURFACE_Y, TILE_SIZE } from "../puzzleGeometry.ts";
+import { Vector3 } from "three";
+import { createTerrainGeometry, TERRAIN_DEPTH } from "../islandTerrain.ts";
+import { createIslandLayout, ISLAND_RADIUS, SURFACE_Y } from "../placement.ts";
 
-const pieces = [[1, 1, 17], [0, 0, 17], [2, 1, 565], [1, 2, 900]];
-const build = (row, col, seed) => createTerrainGeometry(createPuzzleShape(classroomEdges(row, col)), { tileSize: TILE_SIZE, surfaceY: SURFACE_Y, seed });
+const seeds = [17, 565, 900, 1233];
+const build = (seed) => createTerrainGeometry(createIslandLayout(seed));
 
 function triangles(geometry) {
   const position = geometry.getAttribute("position");
@@ -17,50 +17,72 @@ function triangles(geometry) {
 }
 
 test("terrain is generated deterministically from its seed", () => {
-  const a = build(1, 1, 17).getAttribute("position").array;
-  const b = build(1, 1, 17).getAttribute("position").array;
-  const c = build(1, 1, 18).getAttribute("position").array;
+  const a = build(17).getAttribute("position").array;
+  const b = build(17).getAttribute("position").array;
+  const c = build(18).getAttribute("position").array;
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, c);
 });
 
-test("the flat meadow covers exactly the puzzle outline", () => {
-  for (const [row, col, seed] of pieces) {
-    const shape = createPuzzleShape(classroomEdges(row, col));
-    let area = 0;
-    for (const [a, b, c] of triangles(build(row, col, seed))) {
-      if ([a, b, c].every((v) => Math.abs(v.y - SURFACE_Y) < 1e-6)) area += b.clone().sub(a).cross(c.clone().sub(a)).length() / 2;
-    }
-    const expected = Math.abs(ShapeUtils.area(shape.getPoints(64)));
-    assert.ok(Math.abs(area - expected) / expected < 0.002, `meadow ${area} vs outline ${expected}`);
-  }
-});
-
-test("the base is a closed, outward-facing solid with diorama proportions", () => {
-  const size = terrainProportions(TILE_SIZE);
-  assert.ok(size.grass / TILE_SIZE >= 0.015 && size.grass / TILE_SIZE <= 0.025);
-  assert.ok(size.soil / TILE_SIZE >= 0.015 && size.soil / TILE_SIZE <= 0.03);
-  for (const [row, col, seed] of pieces) {
-    let volume = 0, minY = Infinity;
-    for (const [a, b, c] of triangles(build(row, col, seed))) {
+test("the island is a watertight, outward-facing solid", () => {
+  for (const seed of seeds) {
+    const edges = new Map();
+    const key = (v) => `${v.x.toFixed(4)},${v.y.toFixed(4)},${v.z.toFixed(4)}`;
+    let volume = 0;
+    for (const [a, b, c] of triangles(build(seed))) {
       volume += a.dot(b.clone().cross(c)) / 6;
-      minY = Math.min(minY, a.y, b.y, c.y);
-    }
-    assert.ok(volume > 0, "faces wind outward");
-    const depth = (SURFACE_Y - minY) / TILE_SIZE;
-    assert.ok(depth >= 0.11 && depth <= 0.16, `side depth ${(depth * 100).toFixed(1)}% of a tile`);
-  }
-});
-
-test("soil, rock and boulders stay tucked under the grass cap", () => {
-  const belowDrips = SURFACE_Y - terrainProportions(TILE_SIZE).grass * 1.85;
-  for (const [row, col, seed] of pieces) {
-    const outline = createPuzzleShape(classroomEdges(row, col)).getPoints(64);
-    for (const [a, b, c] of triangles(build(row, col, seed))) {
-      const center = a.clone().add(b).add(c).divideScalar(3);
-      for (const point of [a, b, c, center]) {
-        if (point.y < belowDrips) assert.ok(insideOutline(point.x, point.z, outline), `${point.toArray()} pokes out of the cap`);
+      for (const [p, q] of [[a, b], [b, c], [c, a]]) {
+        const forward = `${key(p)}|${key(q)}`;
+        edges.set(forward, (edges.get(forward) ?? 0) + 1);
       }
     }
+    assert.ok(volume > 0, "faces wind outward");
+    for (const [edge, count] of edges) {
+      const [p, q] = edge.split("|");
+      assert.equal(count, 1, `edge ${edge} is used twice in the same direction`);
+      assert.equal(edges.get(`${q}|${p}`), 1, `edge ${edge} has no opposite face`);
+    }
+  }
+});
+
+test("the meadow follows the gentle hills and covers the whole outline", () => {
+  for (const seed of seeds) {
+    const layout = createIslandLayout(seed);
+    let area = 0;
+    for (const [a, b, c] of triangles(createTerrainGeometry(layout))) {
+      if (![a, b, c].every((v) => v.y >= SURFACE_Y - 1e-5)) continue;
+      for (const v of [a, b, c]) {
+        if (Math.hypot(v.x, v.z) < layout.radiusAt(Math.atan2(v.z, v.x)) - 1e-3) {
+          assert.ok(Math.abs(v.y - layout.heightAt(v.x, v.z)) < 1e-4, "meadow vertex sits on heightAt");
+        }
+      }
+      area += Math.abs((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)) / 2;
+    }
+    let expected = 0;
+    for (let i = 0; i < 3600; i++) expected += layout.radiusAt(i / 3600 * Math.PI * 2) ** 2 / 2 * (Math.PI * 2 / 3600);
+    assert.ok(Math.abs(area - expected) / expected < 0.01, `meadow ${area} vs outline ${expected}`);
+  }
+});
+
+test("a thick floating body: grass lip overhangs, the rock tapers to a hanging tip", () => {
+  for (const seed of seeds) {
+    const layout = createIslandLayout(seed);
+    const vertices = triangles(createTerrainGeometry(layout)).flat();
+    const minY = Math.min(...vertices.map((v) => v.y));
+    const depth = SURFACE_Y - minY;
+    assert.ok(Math.abs(depth - TERRAIN_DEPTH) < 1e-4, `depth ${depth}`);
+    assert.ok(depth / ISLAND_RADIUS > 0.9 && depth / ISLAND_RADIUS < 1.3, `depth ratio ${depth / ISLAND_RADIUS}`);
+
+    const reach = (from, to) => Math.max(...vertices
+      .filter((v) => v.y < SURFACE_Y - from && v.y >= SURFACE_Y - to)
+      .map((v) => Math.hypot(v.x, v.z) / layout.radiusAt(Math.atan2(v.z, v.x))));
+    assert.ok(reach(0.1, 1.9) > 1.02, "grass lip rolls past the meadow rim");
+    // Floating pebbles sit outside the body; measure the body within the rim.
+    const body = (from, to) => Math.max(...vertices
+      .filter((v) => v.y < SURFACE_Y - from && v.y >= SURFACE_Y - to && Math.hypot(v.x, v.z) < layout.radiusAt(Math.atan2(v.z, v.x)) * 1.05)
+      .map((v) => Math.hypot(v.x, v.z) / layout.radiusAt(Math.atan2(v.z, v.x))));
+    assert.ok(body(2.7, 4.1) > 0.9, "soil walls keep the body thick");
+    assert.ok(body(8.4, 10) < 0.75, "rock narrows below the soil");
+    assert.ok(body(12.5, 14.5) < 0.4, "rock tapers toward the tip");
   }
 });
