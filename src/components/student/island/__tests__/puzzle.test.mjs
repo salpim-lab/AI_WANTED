@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createJiti } from "jiti";
 import { Box3, Mesh, MeshBasicMaterial, Raycaster, SphereGeometry, Vector3 } from "three";
 import { createIslandLayout } from "../placement.ts";
 import { createPuzzleLayout, createPuzzlePieceLayerGeometry, getPuzzleBottomRockSpecs, getPuzzlePiecePolygon, getPuzzleTerrainMetrics, getPuzzleTerrainRing, puzzleAreaStats, puzzlePieceContains, PUZZLE_PIECE_COUNT, PUZZLE_STUDENT_PIECE_MAP } from "../puzzle.ts";
+const jiti = createJiti(import.meta.url, { interopDefault: false, fsCache: false });
+const { distanceToPuzzleRim, getPuzzleDecorationPlan } = await jiti.import("../puzzleDecorations.ts");
 
 test("rendered piece and raycast hits use the same XZ direction as puzzle data", () => {
   const island = createIslandLayout(17);
@@ -204,6 +207,62 @@ test("all 20 class pieces match the neighbouring wall at every shared height", (
     }
   }
   assert.ok(shared.size > 100);
+});
+
+test("each of 20 pieces has deterministic, clear, flat-ground natural details", () => {
+  const island = createIslandLayout(17);
+  const expected = { tree: 2, rock: 2, flower: 3, bush: 2, grass: 3 };
+  for (let pieceIndex = 0; pieceIndex < PUZZLE_PIECE_COUNT; pieceIndex++) {
+    const plan = getPuzzleDecorationPlan(island, pieceIndex);
+    const counts = Object.fromEntries(Object.keys(expected).map((kind) => [kind, plan.decorations.filter((detail) => detail.kind === kind).length]));
+    assert.deepEqual(counts, expected);
+    assert.equal(plan.surfaceY, island.surfaceY + 0.015);
+    const grassTop = getPuzzleTerrainRing(island, pieceIndex, "grass", "personal", 0);
+    assert.ok(grassTop.every((point) => Math.abs(point.y - plan.surfaceY) < 1e-8));
+    for (const detail of plan.decorations) {
+      assert.equal(puzzlePieceContains(plan.piece, detail), true, `${pieceIndex} ${detail.kind} inside actual tab/socket outline`);
+      assert.ok(distanceToPuzzleRim(detail, plan.polygon) >= plan.edgeMargin + detail.footprint,
+        `${pieceIndex} ${detail.kind} clears jigsaw rim with its footprint`);
+      assert.ok(Math.hypot(detail.x - plan.centre.x, detail.z - plan.centre.z) >= plan.centreMargin + detail.footprint,
+        `${pieceIndex} ${detail.kind} clears central item field`);
+      for (const other of plan.decorations) {
+        if (other === detail) break;
+        assert.ok(Math.hypot(detail.x - other.x, detail.z - other.z) >= detail.footprint + other.footprint + plan.spacing,
+          `${pieceIndex} ${detail.kind} clears neighbouring decoration`);
+      }
+    }
+  }
+});
+
+test("rendered garden vertices stay on their pieces and leave the actual central field empty", async () => {
+  const { createPuzzlePieceModel, createPuzzleAssemblyModel } = await jiti.import("../islandModel.ts");
+  let renderedVertices = 0;
+  for (let pieceIndex = 0; pieceIndex < PUZZLE_PIECE_COUNT; pieceIndex++) {
+    const model = createPuzzlePieceModel(17, pieceIndex);
+    const plan = getPuzzleDecorationPlan(model.layout, pieceIndex);
+    const garden = model.group.getObjectByName(`puzzle-piece-${pieceIndex + 1}-garden`);
+    assert.ok(garden);
+    garden.traverse((object) => {
+      if (!object.isMesh) return;
+      const positions = object.geometry.getAttribute("position");
+      for (let index = 0; index < positions.count; index++) {
+        const point = { x: positions.getX(index), z: positions.getZ(index) };
+        assert.equal(puzzlePieceContains(plan.piece, point), true, `piece ${pieceIndex} garden vertex on meadow`);
+        assert.ok(Math.hypot(point.x - plan.centre.x, point.z - plan.centre.z) >= plan.W * 0.2,
+          `piece ${pieceIndex} keeps centre field empty`);
+        renderedVertices++;
+      }
+    });
+    assert.ok(renderedVertices > 0);
+  }
+  const classroom = createPuzzleAssemblyModel(17);
+  const mainPassMeshes = (() => {
+    let count = 0;
+    classroom.group.traverse((object) => { if (object.isMesh) count++; });
+    return count;
+  })();
+  assert.ok(mainPassMeshes <= 100, `${mainPassMeshes} class-view main-pass draw calls`);
+  assert.ok(renderedVertices > 100000);
 });
 
 test("the half-island is a deterministic 20-piece organic Voronoi layout", () => {

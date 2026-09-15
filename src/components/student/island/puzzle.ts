@@ -407,7 +407,7 @@ export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex:
 }
 
 export function puzzlePieceContains(piece: PuzzlePiece, point: PuzzlePoint) {
-  return pointInPolygon(point, piece.polygon);
+  return pointInPolygon(point, getPuzzlePiecePolygon(piece));
 }
 
 export function puzzleAreaStats(layout: PuzzleLayout) {

@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { chisel, createTerrainGeometry } from "./islandTerrain";
-import { createIslandLayout, type IslandLayout } from "./placement";
+import { createIslandLayout, type Decoration, type IslandLayout, type Scatter } from "./placement";
 import { createPuzzlePieceLayerGeometry, getPuzzleBottomRockSpecs, getPuzzleLayout, islandCoordinates, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
+import { getPuzzleDecorationPlan } from "./puzzleDecorations";
 import type { GiftKind } from "./types";
 
 const FOLIAGE = ["#6E9A3C", "#7FA844", "#8FB94F", "#A6C962"];
@@ -107,9 +108,16 @@ export class Sculpt {
 // Faceted, flat-shaded shore garden: chipped stones, cone pines, angular
 // broadleaf crowns, bushes, blade tufts and diamond-petal flowers. Only the
 // island outline stays soft; everything standing on it keeps sharp edges.
-function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
-  const sculpt = new Sculpt(createPalette(true));
-  const random = layout.random(3);
+function sculptNaturalDetails(
+  sculpt: Sculpt,
+  layout: IslandLayout,
+  showTree: boolean,
+  decorations: readonly Pick<Decoration, "kind" | "x" | "z" | "radius">[],
+  scatter: readonly Scatter[],
+  randomSalt: number,
+  surfaceY?: number,
+) {
+  const random = layout.random(randomSalt);
   const pick = <T,>(list: readonly T[]) => list[Math.floor(random() * list.length)];
   const blade = new THREE.ConeGeometry(1, 1, 3).translate(0, 0.5, 0);
   const stem = new THREE.CylinderGeometry(1, 1, 1, 4).translate(0, 0.5, 0);
@@ -118,8 +126,9 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
     () => chisel(new THREE.IcosahedronGeometry(1, 0), random, 0.18),
     () => chisel(new THREE.DodecahedronGeometry(1, 0), random, 0.16),
   ];
-  // Sink slightly so bases don't float where the meadow slopes.
-  const ground = (x: number, z: number) => layout.heightAt(x, z) - 0.06;
+  // Legacy meadow slopes slightly; puzzle caps are exactly flat and their
+  // decoration bases sit on that cap, not on the soil or bevel ring.
+  const ground = (x: number, z: number) => surfaceY ?? layout.heightAt(x, z) - 0.06;
 
   function stone(x: number, z: number, size: number) {
     const y = ground(x, z);
@@ -163,26 +172,29 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
     return new THREE.Vector3(0, height, 0).applyEuler(lean).add(new THREE.Vector3(x, y, z));
   }
 
-  for (const detail of layout.decorations) {
+  for (const detail of decorations) {
     const { x, z } = islandCoordinates.toWorld(detail);
     const { radius } = detail;
     const y = ground(x, z);
     if (detail.kind === "tree") {
       if (!showTree) continue;
       const s = radius / 2;
-      const top = trunk(x, z, y, 3.0 * s, 0.34 * s);
+      // Narrow puzzle pieces need a small crown footprint; lift its familiar
+      // faceted trunk and lobes in Y so height stays about 18% of piece W.
+      const heightScale = surfaceY === undefined ? 1 : 1.55;
+      const top = trunk(x, z, y, 3.0 * s * heightScale, 0.34 * s);
       // A short branch stub gives the trunk a crooked, grown look.
-      sculpt.mesh(new THREE.CylinderGeometry(0.06 * s, 0.12 * s, 0.9 * s, 5).translate(0, 0.45 * s, 0), pick(BARK),
-        [x, y + 1.7 * s, z], [1, 1, 1], [0, random() * Math.PI, 0.9]);
+      sculpt.mesh(new THREE.CylinderGeometry(0.06 * s, 0.12 * s, 0.9 * s * heightScale, 5).translate(0, 0.45 * s * heightScale, 0), pick(BARK),
+        [x, y + 1.7 * s * heightScale, z], [1, 1, 1], [0, random() * Math.PI, 0.9]);
       const lobes = 4 + Math.floor(random() * 2);
       for (let k = 0; k < lobes; k++) {
         const a = k / lobes * Math.PI * 2 + random() * 0.6;
         const size = (1.0 + random() * 0.35) * s;
         sculpt.mesh(pick(shards)(), pick(FOLIAGE),
-          [top.x + Math.cos(a) * 0.85 * s, top.y + (random() - 0.3) * 0.5 * s, top.z + Math.sin(a) * 0.85 * s],
-          [size, size * 0.85, size], [random(), random() * Math.PI, random()]);
+          [top.x + Math.cos(a) * 0.85 * s, top.y + (random() - 0.3) * 0.5 * s * heightScale, top.z + Math.sin(a) * 0.85 * s],
+          [size, size * 0.85 * heightScale, size], [random(), random() * Math.PI, random()]);
       }
-      sculpt.mesh(pick(shards)(), pick(FOLIAGE), [top.x, top.y + 0.75 * s, top.z], [1.05 * s, 0.9 * s, 1.05 * s], [random(), random(), 0]);
+      sculpt.mesh(pick(shards)(), pick(FOLIAGE), [top.x, top.y + 0.75 * s * heightScale, top.z], [1.05 * s, 0.9 * s * heightScale, 1.05 * s], [random(), random(), 0]);
     }
     if (detail.kind === "pine") {
       if (!showTree) continue;
@@ -210,16 +222,17 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
     if (detail.kind === "grass") {
       for (let k = 0; k < 4; k++) {
         const a = k * 2.4 + random();
-        tuft(x + Math.cos(a) * radius * 0.45, z + Math.sin(a) * radius * 0.45, 1.1 + random() * 0.3);
+        const size = surfaceY === undefined ? 1.1 + random() * 0.3 : 0.5 + random() * 0.08;
+        tuft(x + Math.cos(a) * radius * 0.45, z + Math.sin(a) * radius * 0.45, size);
       }
     }
     if (detail.kind === "flower") {
       const color = pick(BLOSSOM.slice(0, 3));
       for (let k = 0; k < 4; k++) {
         const a = k * 2.4 + random();
-        bloom(x + Math.cos(a) * radius * 0.5, z + Math.sin(a) * radius * 0.5, 0.45 + random() * 0.25, k === 3 ? pick(BLOSSOM) : color, 1.15);
+        bloom(x + Math.cos(a) * radius * 0.5, z + Math.sin(a) * radius * 0.5, 0.45 + random() * 0.25, k === 3 ? pick(BLOSSOM) : color, surfaceY === undefined ? 1.15 : 0.68);
       }
-      tuft(x, z, 1);
+      tuft(x, z, surfaceY === undefined ? 1 : 0.5);
     }
     if (detail.kind === "rock") {
       // Two or three chipped stones of clearly different sizes, huddled together.
@@ -230,16 +243,26 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
     }
   }
 
-  for (const piece of layout.scatter) {
+  for (const piece of scatter) {
     const point = islandCoordinates.toWorld(piece);
     if (piece.kind === "tuft") tuft(point.x, point.z, piece.size);
     if (piece.kind === "bloom") bloom(point.x, point.z, 0.3 + piece.size * 0.12, BLOSSOM[piece.tone], 0.85);
     if (piece.kind === "pebble") stone(point.x, point.z, 0.2 * piece.size + (piece.tone % 2) * 0.12);
   }
 
+}
+
+function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
+  const sculpt = new Sculpt(createPalette(true));
+  sculptNaturalDetails(sculpt, layout, showTree, layout.decorations, layout.scatter, 3);
   const details = sculpt.finish();
   details.name = "rim-garden";
   return details;
+}
+
+function addPuzzleNaturalDetails(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number) {
+  const plan = getPuzzleDecorationPlan(layout, pieceIndex, PUZZLE_SEED);
+  sculptNaturalDetails(sculpt, layout, true, plan.decorations, [], PUZZLE_SEED + pieceIndex * 101, plan.surfaceY);
 }
 
 export function createIslandModel(seed = 17, showTree = true) {
@@ -301,6 +324,11 @@ export function createPuzzleAssemblyModel(seed = 17) {
     pieces.add(createPuzzlePieceLayers(layout, piece.index, palette[index % palette.length], "classroom").group);
   });
   group.add(pieces);
+  const garden = new Sculpt(createPalette(true));
+  puzzle.pieces.forEach((piece) => addPuzzleNaturalDetails(garden, layout, piece.index));
+  const details = garden.finish();
+  details.name = "assembled-puzzle-garden";
+  group.add(details);
   const surface = pieces.children[0].children[0] as THREE.Mesh;
   addRoundedBottomRocks(group, layout, "classroom");
   return { group, surface, layout, puzzle };
@@ -313,6 +341,11 @@ export function createPuzzlePieceModel(seed = 17, pieceIndex = 0) {
   group.name = `student-puzzle-piece-${pieceIndex + 1}`;
   const layers = createPuzzlePieceLayers(layout, pieceIndex, "#a5cc76", "personal");
   group.add(layers.group);
+  const garden = new Sculpt(createPalette(true));
+  addPuzzleNaturalDetails(garden, layout, pieceIndex);
+  const details = garden.finish();
+  details.name = `puzzle-piece-${pieceIndex + 1}-garden`;
+  group.add(details);
   const surface = layers.surface;
   addRoundedBottomRocks(group, layout, "personal", pieceIndex);
   return { group, surface, layout, puzzle };
