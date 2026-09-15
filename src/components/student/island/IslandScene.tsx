@@ -4,12 +4,14 @@ import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "reac
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CHARACTER_MODEL_HEIGHT, createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
-import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject, GIFT_MODEL_HEIGHT } from "./islandModel";
+import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject, GIFT_MODEL_HEIGHT, replaceLandscapeProps } from "./islandModel";
+import { loadIslandPropLibrary } from "./islandAssets";
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_SCALE, PLACEMENT_GRID_STEP, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
 import { createIslandCoordinates, getPuzzleDisplayRotation, getPuzzleTerrainMetrics, puzzlePieceContains, PUZZLE_SEED, PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
-import { distanceToPuzzleRim, getPuzzleDecorationPlan } from "./puzzleDecorations";
+import { distanceToPuzzleRim } from "./puzzleDecorations";
+import { getPieceLandscape } from "./pieceLandscape";
 import { fitIslandCamera, HOME_ZOOM, projectedBoxRect, tweenCameraPose } from "./cameraFit";
 import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
@@ -133,8 +135,9 @@ export default function IslandScene({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    // Neutral keeps the saturated greens and warm roofs that ACES washes out.
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const canvas = renderer.domElement;
@@ -168,10 +171,10 @@ export default function IslandScene({
     scene.add(sky);
     const pieceMetrics = !classroom ? getPuzzleTerrainMetrics(island.layout, studentPieceIndex, "personal", 17) : null;
     const characterScale = pieceMetrics ? (pieceMetrics.W / 2.75) * 0.10 / CHARACTER_MODEL_HEIGHT : 0;
-    const pieceDecorationPlan = !classroom ? getPuzzleDecorationPlan(island.layout, studentPieceIndex, 17) : null;
-    const heightAt = (x: number, z: number) => {
-      return island.layout.heightAt(x, z);
-    };
+    // The student's own piece defines item heights in both views: terraces
+    // lift items, and water, banks, houses, stairs and paths reject them.
+    const pieceLandscape = getPieceLandscape(island.layout, studentPieceIndex);
+    const heightAt = (x: number, z: number) => pieceLandscape.heightAt(x, z);
 
     // The entire terrain, bottom rocks and garden contribute to one box.
     // Eight projected box corners fit inside the canvas UI's safe rectangle.
@@ -200,9 +203,10 @@ export default function IslandScene({
     controls.saveState();
 
     // Hemisphere + a warm ambient floor keep shaded rock mid-toned instead of green-black.
-    scene.add(new THREE.HemisphereLight("#c7e8ef", "#8d694d", 1.45));
-    scene.add(new THREE.AmbientLight("#f4ead8", 0.55));
-    const sunlight = new THREE.DirectionalLight("#ffe0b1", 2.25);
+    // Warm late-morning sun over a soft sky/earth bounce; shadows stay soft.
+    scene.add(new THREE.HemisphereLight("#cdeaf5", "#9a7550", 1.15));
+    scene.add(new THREE.AmbientLight("#fff1dc", 0.38));
+    const sunlight = new THREE.DirectionalLight("#ffd8a3", 2.7);
     sunlight.castShadow = true;
     sunlight.shadow.mapSize.set(2048, 2048);
     const islandSize = Math.max(islandBox.getSize(new THREE.Vector3()).x, islandBox.getSize(new THREE.Vector3()).z);
@@ -224,7 +228,7 @@ export default function IslandScene({
     scene.add(sunlight, sunlight.target);
 
     // Soft sky bounce from the viewer's lower right keeps the hanging rock readable.
-    const fill = new THREE.DirectionalLight("#bfe0ee", 0.85);
+    const fill = new THREE.DirectionalLight("#bfe0ee", 0.6);
     const fillOffset = new THREE.Vector3(6, -3.5, 9);
     fill.target.position.copy(target);
     scene.add(fill, fill.target);
@@ -376,7 +380,7 @@ export default function IslandScene({
     function characterDestination(nextProposal: PlacementProposal) {
       const destination = displayedCoordinates.toDisplayedWorld(nextProposal);
       const destinationData = displayedCoordinates.fromDisplayedWorld(destination);
-      destination.y = island.layout.heightAt(destinationData.x, destinationData.z) + 0.02;
+      destination.y = heightAt(destinationData.x, destinationData.z) + 0.02;
       console.log("[island placement] character move target", JSON.stringify({
         proposalData: nextProposal,
         destination,
@@ -499,7 +503,7 @@ export default function IslandScene({
             focusTarget(root.position, FOLLOW_TWEEN_MS);
           }
           const walkPoint = displayedCoordinates.fromDisplayedWorld(root.position);
-          root.position.y = island.layout.heightAt(walkPoint.x, walkPoint.z) + 0.02 + Math.abs(stride) * 0.1;
+          root.position.y = heightAt(walkPoint.x, walkPoint.z) + 0.02 + Math.abs(stride) * 0.1;
           root.rotation.set(0, Math.atan2(activeWalk.to.x - activeWalk.from.x, activeWalk.to.z - activeWalk.from.z), 0);
           character.animate(seconds, progress === 1 ? 0 : stride);
           if (progress === 1) {
@@ -583,25 +587,23 @@ export default function IslandScene({
 
     const validPoint = (x: number, z: number) => {
       const data = displayedCoordinates.fromDisplayedWorld(new THREE.Vector3(x, 0, z));
-      const inPiece = classroom || puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data);
-      const awayFromRim = classroom || !pieceDecorationPlan || distanceToPuzzleRim(data, pieceDecorationPlan.polygon) >= pieceDecorationPlan.edgeMargin;
-      const clearOfPieceDecorations = classroom || !pieceDecorationPlan || pieceDecorationPlan.decorations.every((detail) =>
-        Math.hypot(detail.x - data.x, detail.z - data.z) >= detail.footprint + 0.08,
-      );
-      return inPiece && awayFromRim && clearOfPieceDecorations
+      if (classroom) return canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, itemRadius, itemRadius * 2);
+      return pieceLandscape.canPlace(data.x, data.z, itemRadius)
         && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, itemRadius, itemRadius * 2);
     };
     const resolvePlacement = (data: { x: number; z: number }) => {
-      if (classroom || !pieceDecorationPlan) return validPoint(data.x, data.z) ? data : null;
+      if (classroom || !pieceMetrics) return validPoint(data.x, data.z) ? data : null;
       const insidePiece = puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data);
-      const awayFromRim = distanceToPuzzleRim(data, pieceDecorationPlan.polygon) >= pieceDecorationPlan.edgeMargin;
+      const awayFromRim = distanceToPuzzleRim(data, pieceLandscape.polygon) >= pieceLandscape.edgeMargin;
       if (!insidePiece || !awayFromRim) return null;
-      if (validPoint(data.x, data.z)) return data;
-      const step = Math.max(0.12, (pieceDecorationPlan.W / ISLAND_SCALE) * 0.025);
-      for (let radius = step; radius <= pieceDecorationPlan.W * 0.34; radius += step) {
+      const world = displayedCoordinates.toDisplayedWorld(data);
+      if (validPoint(world.x, world.z)) return data;
+      const step = Math.max(0.12, (pieceMetrics.W / ISLAND_SCALE) * 0.025);
+      for (let radius = step; radius <= pieceMetrics.W * 0.34; radius += step) {
         for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
           const candidate = { x: data.x + Math.cos(angle) * radius, z: data.z + Math.sin(angle) * radius };
-          if (validPoint(candidate.x, candidate.z)) return candidate;
+          const candidateWorld = displayedCoordinates.toDisplayedWorld(candidate);
+          if (validPoint(candidateWorld.x, candidateWorld.z)) return candidate;
         }
       }
       return null;
@@ -616,7 +618,8 @@ export default function IslandScene({
       scene.updateMatrixWorld(true);
       raycaster.setFromCamera(pointer, camera);
       const hit = raycaster.intersectObject(island.surface)[0];
-      return hit && hit.point.y >= SURFACE_Y - 0.01 ? hit : undefined;
+      // Water sits below the meadow; it still answers (and resolves to the shore).
+      return hit && (hit.point.y >= SURFACE_Y - 0.01 || hit.object.userData.surfaceKind === "water") ? hit : undefined;
     };
 
     const canChooseLocation = () => {
@@ -669,7 +672,7 @@ export default function IslandScene({
       if (data && resolved) {
         setPlacementNotice(null);
         current.onPropose(current.selected, resolved.x, resolved.z);
-        marker.position.copy(displayedCoordinates.toDisplayedWorld(resolved, island.layout.heightAt(resolved.x, resolved.z) + 0.05));
+        marker.position.copy(displayedCoordinates.toDisplayedWorld(resolved, heightAt(resolved.x, resolved.z) + 0.05));
         marker.visible = true;
         render();
       } else if (data) {
@@ -746,6 +749,14 @@ export default function IslandScene({
     canvas.addEventListener("webglcontextlost", onContextLost);
     document.addEventListener("visibilitychange", render);
 
+    // Poly Pizza models replace the procedural stand-ins once decoded. The
+    // loading card waits briefly for them so the swap is rarely visible.
+    const assetsReady = loadIslandPropLibrary().then((library) => {
+      if (disposed || !library.size) return;
+      island.props = replaceLandscapeProps(island.group, island.props, island.layout, island.pieceIndices, library);
+      render();
+    }).catch((error) => console.warn("[island assets] failed to load", error));
+
     runtimeRef.current = {
       camera: moveCamera,
       gifts: giftGroup,
@@ -757,7 +768,9 @@ export default function IslandScene({
       suggested: () => {
         const current = stateRef.current;
         if (!current.selected || !canChooseLocation()) return;
-        const bounds = pieceTargetBounds();
+        // Scan in puzzle data coordinates: (x, z) is what gets proposed.
+        const polygon = island.puzzle.pieces[studentPieceIndex].polygon;
+        const bounds = new THREE.Box3().setFromPoints(polygon.map((point) => new THREE.Vector3(point.x, 0, point.z)));
         for (let x = bounds.min.x; x <= bounds.max.x; x += PLACEMENT_GRID_STEP) {
           for (let z = bounds.min.z; z <= bounds.max.z; z += PLACEMENT_GRID_STEP) {
             const world = displayedCoordinates.toDisplayedWorld({ x, z });
@@ -788,7 +801,7 @@ export default function IslandScene({
 
     resize();
     setCharacterState(stateRef.current.phase, stateRef.current.proposal, false);
-    queueMicrotask(() => { if (!disposed) setReady(true); });
+    Promise.race([assetsReady, new Promise((resolve) => window.setTimeout(resolve, 2500))]).then(() => { if (!disposed) setReady(true); });
 
     return () => {
       disposed = true;

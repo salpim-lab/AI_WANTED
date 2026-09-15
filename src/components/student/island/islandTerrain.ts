@@ -3,7 +3,7 @@ import type { IslandLayout } from "./placement";
 
 const ISLAND_SCALE = 2.75;
 
-// Shared broad colour variation for grass, soil and rock. The low frequency
+// Shared broad colour variation for grass and rock. The low frequency
 // keeps the scene hand-painted instead of photographic.
 export const STYLIZED_NOISE_SCALE = 0.22;
 export function stylizedNoise(x: number, z: number, seed = 0) {
@@ -15,7 +15,6 @@ export function stylizedNoise(x: number, z: number, seed = 0) {
 
 export const STYLIZED_PALETTE = {
   grass: ["#9ccc5a", "#7fb347", "#5f9a3a"],
-  soil: ["#bf8050", "#a86a43", "#915b3c"],
   rock: ["#8a8f96", "#5f656d", "#3e434a", "#6b625a"],
 } as const;
 
@@ -44,7 +43,7 @@ export function chisel<T extends BufferGeometry>(geometry: T, random: () => numb
 type Ring = Vector3[];
 
 // Side profile below the meadow rim, top to tip. Grass rings grow outward by
-// world units (the rounded lip); soil and rock rings scale the local radius.
+// world units (the rounded lip); rock rings scale the local radius.
 // Each ring's colour paints the band between it and the next ring.
 const RIM_COLOR = "#A8D467";
 const GRASS_LIP = [
@@ -52,16 +51,15 @@ const GRASS_LIP = [
   { grow: 0.34, drop: 0.46, color: "#78AE47" },
   { grow: 0.22, drop: 0.82, color: "#557F37", hem: true },
   // Tucked just under the hem so the grass reads as a thick overhanging carpet.
-  { grow: -0.08, drop: 0.76, color: "#B97B4C", hem: true },
+  { grow: -0.08, drop: 0.76, color: "#4f7f2f", hem: true },
 ];
-// Soil is a short warm band; the larger rock band stays rounded and broad.
-const EARTH = [
-  { scale: 0.99, drop: 1.65, count: 64, color: "#D39A66" },
-  { scale: 0.97, drop: 2.45, count: 60, color: "#A86C43" },
-  { scale: 0.93, drop: 3.7, count: 56, color: "#9A7A62" },
-  { scale: 0.88, drop: 4.75, count: 48, color: "#A89484" },
-  { scale: 0.78, drop: 5.9, count: 44, color: "#958374" },
-  { scale: 0.62, drop: 6.8, count: 40, color: "#7A6B61" },
+const ROCK_STRATA = [
+  { scale: 0.99, drop: 1.65, count: 64, color: "#6f757c" },
+  { scale: 0.97, drop: 2.45, count: 60, color: "#5c6168" },
+  { scale: 0.93, drop: 3.7, count: 56, color: "#4a4f56" },
+  { scale: 0.88, drop: 4.75, count: 48, color: "#7c7a74" },
+  { scale: 0.78, drop: 5.9, count: 44, color: "#66605a" },
+  { scale: 0.62, drop: 6.8, count: 40, color: "#4a4f56" },
 ];
 // The footprint is larger now, but the hanging body grows only moderately so
 // the island does not read as a three-times-thicker rock.
@@ -143,7 +141,7 @@ export function createTerrainGeometry(layout: IslandLayout) {
   for (const band of GRASS_LIP) {
     const ring = loop(RIM_COUNT, (angle) => {
       // The enlarged footprint gets a slightly wider soft grass lip, while
-      // the actual soil/rock depth remains deliberately much less scaled.
+      // the actual rock depth remains deliberately much less scaled.
       const r = radiusAt(angle) + band.grow * ISLAND_SCALE;
       return new Vector3(Math.cos(angle) * r, surfaceY - band.drop - (band.hem ? hemDrop(angle) : 0), Math.sin(angle) * r);
     });
@@ -156,7 +154,7 @@ export function createTerrainGeometry(layout: IslandLayout) {
   // Shared by every ring, so bulges line up into vertical cliff ridges.
   const ridgeWaves = [5, 7, 11].map((k) => ({ k, phase: random() * Math.PI * 2 }));
   const ridges = (angle: number) => ridgeWaves.reduce((sum, w) => sum + Math.sin(w.k * angle + w.phase), 0) / 3;
-  for (const band of EARTH) {
+  for (const band of ROCK_STRATA) {
     const rough = 0.2 + (1 - band.scale) * 0.6;
     sides.push({
       ring: loop(band.count, (angle) => {
@@ -201,12 +199,12 @@ export function createTerrainGeometry(layout: IslandLayout) {
     stone(center, stretch, random() * Math.PI, center.y + size * 0.3, "#8DC152", "#9A8A80");
   }
 
-  // Stones jut from the soil and upper rock walls, half buried in the cliff.
+  // Stones jut from the upper rock walls, half buried in the cliff.
   // They stay above the narrowing lower rock so the body still tapers.
   const wallScale = (drop: number) => {
-    const next = EARTH.findIndex((band) => band.drop >= drop);
-    if (next <= 0) return EARTH[Math.max(next, 0)].scale;
-    const upper = EARTH[next - 1], lower = EARTH[next];
+    const next = ROCK_STRATA.findIndex((band) => band.drop >= drop);
+    if (next <= 0) return ROCK_STRATA[Math.max(next, 0)].scale;
+    const upper = ROCK_STRATA[next - 1], lower = ROCK_STRATA[next];
     return upper.scale + (lower.scale - upper.scale) * (drop - upper.drop) / (lower.drop - upper.drop);
   };
   for (let k = 0; k < 9; k++) {

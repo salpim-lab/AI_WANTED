@@ -299,7 +299,7 @@ export function createPuzzlePieceGeometry(layout: IslandLayout, pieceIndex: numb
 }
 
 export type PuzzleTerrainMode = "personal" | "classroom";
-export type PuzzleTerrainLayer = "grass" | "soil" | "rock";
+export type PuzzleTerrainLayer = "grass" | "rock";
 
 type RimVertex = PuzzlePoint & { exteriorWeight: number };
 
@@ -317,15 +317,15 @@ export function getPuzzleTerrainMetrics(layout: IslandLayout, pieceIndex: number
   const piece = puzzle.pieces[pieceIndex];
   if (!piece) throw new Error(`Unknown puzzle piece ${pieceIndex}`);
   const personalWidth = pieceWidth(piece);
-  // Shared class width aligns every internal wall and every soil/rock seam in Y.
+  // Shared class width aligns every internal wall and the grass/rock seam in Y.
   const W = mode === "personal" ? personalWidth
     : puzzle.pieces.reduce((sum, candidate) => sum + pieceWidth(candidate), 0) / puzzle.pieces.length;
   // A diorama block should read as roughly 25–30% as deep as its short side.
   // `terrainW` is the displayed footprint scale, so this totals about 26.7%
   // of the puzzle piece width while keeping the proportions deterministic.
   const terrainW = W / ISLAND_SCALE;
-  const grass = terrainW * 0.065, soil = terrainW * 0.19, rock = terrainW * 0.48;
-  return { W, personalWidth, grass, soil, rock, total: grass + soil + rock, bevel: terrainW * 0.018 };
+  const grass = terrainW * 0.065, rock = terrainW * (0.19 + 0.48);
+  return { W, personalWidth, grass, rock, total: grass + rock, bevel: terrainW * 0.018 };
 }
 
 function rimVertices(piece: PuzzlePiece): RimVertex[] {
@@ -361,12 +361,10 @@ function ringAt(piece: PuzzlePiece, rim: RimVertex[], metrics: ReturnType<typeof
     if (layer === "grass") {
       // Only the grass lip overhangs. The tab/socket outline below remains
       // vertical so neighbouring pieces can meet flush after extrusion.
-      scale += (metrics.bevel / metrics.W) * Math.sin(Math.PI * t) * weight;
+      scale -= (metrics.bevel / metrics.W) * Math.sin(Math.PI * t) * weight;
       y -= metrics.grass * t;
-    } else if (layer === "soil") {
-      y -= metrics.grass + metrics.soil * t + boundary * ease(t);
     } else {
-      y -= metrics.grass + metrics.soil + boundary * (1 - ease(t)) + metrics.rock * t;
+      y -= metrics.grass + boundary * (1 - ease(t)) + metrics.rock * t;
 
     }
     return islandCoordinates.toWorld({ x: centre.x + (point.x - centre.x) * scale, z: centre.z + (point.z - centre.z) * scale }, y);
@@ -379,8 +377,11 @@ export function getPuzzleTerrainRing(layout: IslandLayout, pieceIndex: number, l
   return ringAt(piece, rimVertices(piece), metrics, mode, layer, t, layout.surfaceY + 0.015);
 }
 
-export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex: number, layer: PuzzleTerrainLayer, mode: PuzzleTerrainMode, seed = PUZZLE_SEED) {
-  const cacheKey = `${layout.seed}:${seed}:${pieceIndex}:terrain:${mode}:${layer}`;
+// `holes` cut the top cap only (ponds and brooks); the outline rings, side
+// walls and bottom cap are unchanged, so pieces still meet flush.
+export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex: number, layer: PuzzleTerrainLayer, mode: PuzzleTerrainMode, seed = PUZZLE_SEED, holes: PuzzlePoint[][] = []) {
+  const holeKey = holes.map((hole) => `${hole.length}@${hole[0].x.toFixed(3)},${hole[0].z.toFixed(3)}`).join(";");
+  const cacheKey = `${layout.seed}:${seed}:${pieceIndex}:terrain:${mode}:${layer}:${holeKey}`;
   const cached = geometryCache.get(cacheKey);
   if (cached) return cached.clone();
   const piece = getPuzzleLayout(layout, seed).pieces[pieceIndex];
@@ -388,8 +389,7 @@ export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex:
   const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, seed);
   const rim = rimVertices(piece);
   // Rock has nine contours: its bottom retains every puzzle tab and socket.
-  const fractions = layer === "rock" ? [0, 1]
-    : layer === "grass" ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1];
+  const fractions = layer === "rock" ? [0, 1] : [0, 0.25, 0.5, 0.75, 1];
   const rings = fractions.map((t) => ringAt(piece, rim, metrics, mode, layer, t, layout.surfaceY + 0.015));
   const positions = rings.flatMap((ring) => ring.flatMap((point) => [point.x, point.y, point.z]));
   const n = rim.length;
@@ -414,17 +414,23 @@ export function createPuzzlePieceLayerGeometry(layout: IslandLayout, pieceIndex:
       indices.push(quad[0], quad[2], quad[1], quad[3], quad[5], quad[4]);
     } else indices.push(...quad);
   }
+  const holeStart = positions.length / 3;
+  const holeY = rings[0][0].y;
+  const holePoints = holes.flat();
+  holePoints.forEach((point) => { positions.push(point.x, holeY, point.z); uvs.push(0, 0); });
   for (const [row, top] of [[0, true], [rings.length - 1, false]] as const) {
     const contour = rings[row].map((point) => islandCoordinates.toShape(point));
-    for (const [ia, ib, ic] of ShapeUtils.triangulateShape(contour, [])) {
-      const a = rings[row][ia], b = rings[row][ib], c = rings[row][ic];
-      const winding = (b.z - a.z) * (c.x - a.x) - (b.x - a.x) * (c.z - a.z);
+    const cut = top ? holes.map((hole) => hole.map((point) => islandCoordinates.toShape(point))) : [];
+    const vertex = (i: number) => i < n ? { index: row * n + i, point: rings[row][i] } : { index: holeStart + i - n, point: holePoints[i - n] };
+    for (const [ia, ib, ic] of ShapeUtils.triangulateShape(contour, cut)) {
+      const [a, b, c] = [vertex(ia), vertex(ib), vertex(ic)];
+      const winding = (b.point.z - a.point.z) * (c.point.x - a.point.x) - (b.point.x - a.point.x) * (c.point.z - a.point.z);
       // Sampling straight shore sections creates collinear triplets; omitting
       // their zero-area triangles keeps cap normals stable after Float32 packing.
       if (Math.abs(winding) < 1e-7) continue;
       const upward = winding > 0;
       const flip = top !== upward;
-      indices.push(row * n + ia, row * n + (flip ? ic : ib), row * n + (flip ? ib : ic));
+      indices.push(a.index, (flip ? c : b).index, (flip ? b : c).index);
     }
   }
   const geometry = new BufferGeometry();

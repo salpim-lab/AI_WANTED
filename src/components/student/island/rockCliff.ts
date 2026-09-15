@@ -1,13 +1,19 @@
 import * as THREE from "three";
 import type { IslandLayout } from "./placement";
 import { chisel } from "./islandTerrain";
+import { SKIRT_MAX_LENGTH, SKIRT_STONE_CLEARANCE } from "./grassSkirt";
 import { getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainMetrics, getPuzzleTerrainRing, puzzlePieceContains, type PuzzleTerrainMode, type PuzzlePoint } from "./puzzle";
 
-export const ROCK_ROWS = 4;
-export const ROCK_SIZE_RANGE = [1 / 8, 1 / 3] as const;
+// Courses of angular slabs stacked like strata. Row heights overlap slightly
+// so the dark core never shows through as gaps.
+export const ROCK_ROWS = 5;
+export const ROCK_ROW_OVERLAP = [1.02, 1.3] as const;
+export const ROCK_WIDTH_RANGE = [0.17, 0.34] as const;
 export const ROCK_VARIANTS = 7;
-export const ROCK_SPACING = 0.72;
-export const ROCK_PALETTE = ["#6f757c", "#5c6168", "#4a4f56", "#7c7a74", "#66605a"];
+export const ROCK_SPACING = 0.74;
+// Top course (warm grey-brown) to bottom course (dark grey).
+export const ROCK_PALETTE = ["#857c72", "#766f68", "#68635f", "#5a5754", "#4c4a4a"];
+export const ROCK_ACCENTS = ["#7a6a5c", "#6c6f73", "#8d8479"];
 // Set true to reproduce the reviewed one-long-edge prototype.
 export const ROCK_SINGLE_EDGE = false;
 
@@ -32,13 +38,13 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
   const polygon = getPuzzlePiecePolygon(piece);
   const contains = (p: PuzzlePoint) => puzzlePieceContains(piece, p);
   const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode);
-  const H = metrics.rock, top = layout.surfaceY + 0.015 - metrics.grass - metrics.soil;
+  const H = metrics.rock, top = layout.surfaceY + 0.015 - metrics.grass;
   const bottom = top - H;
   const random = layout.random(8910 + pieceIndex);
   const group = new THREE.Group(); group.name = "stacked-rock-cliff";
   const material = new THREE.MeshStandardMaterial({ color: "#ffffff", flatShading: true, roughness: 0.94, metalness: 0, fog: false, transparent: false, opacity: 1 });
   const shapes = Array.from({ length: ROCK_VARIANTS }, (_, i) => {
-    const g = chisel(i % 3 === 0 ? new THREE.BoxGeometry(1.5, 1.4, 1.3).toNonIndexed() : new THREE.DodecahedronGeometry(1, 0), random, 0.12);
+    const g = chisel(i % 4 === 3 ? new THREE.DodecahedronGeometry(1, 0) : new THREE.BoxGeometry(1.5, 1.1 + (i % 3) * 0.15, 1.3, 2, 1, 1).toNonIndexed(), random, 0.1);
     g.computeBoundingBox(); const size = g.boundingBox!.getSize(new THREE.Vector3());
     g.center().scale(1 / size.x, 1 / size.y, 1 / size.z); g.deleteAttribute("uv"); g.computeBoundingBox(); return g;
   });
@@ -51,9 +57,12 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
     helper.rotation.set((random() - 0.5) * 0.28, Math.atan2(inward.x, inward.z) + (random() - 0.5) * 0.45, (random() - 0.5) * 0.28);
     helper.scale.set(width, height, depth);
     let fits = false;
+    // Stones in the curtain band stay far enough inside to sit behind the grass.
+    const clearance = p.y > top - SKIRT_MAX_LENGTH * H - height * 0.5 ? SKIRT_STONE_CLEARANCE : 0;
+    const clear = new THREE.Vector3(clearance, 0, clearance);
     for (let attempt = 0; attempt < 160; attempt++) {
       helper.updateMatrix(); box.copy(g.boundingBox!).applyMatrix4(helper.matrix);
-      if (rockBoxInside(box, polygon, contains)) { fits = true; break; }
+      if (rockBoxInside(box.clone().expandByVector(clear), polygon, contains)) { fits = true; break; }
       if (attempt < 3) helper.position.addScaledVector(inward, H * 0.015);
       else {
         // At a concave corner the local normal can meet the opposite wall;
@@ -72,7 +81,7 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
           helper.position.x = THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, ix / 16);
           helper.position.z = THREE.MathUtils.lerp(bounds.min.z, bounds.max.z, iz / 16);
           helper.updateMatrix(); box.copy(g.boundingBox!).applyMatrix4(helper.matrix);
-          fits = rockBoxInside(box, polygon, contains);
+          fits = rockBoxInside(box.clone().expandByVector(clear), polygon, contains);
         }
         if (!fits) { helper.scale.x *= 0.8; helper.scale.z *= 0.8; }
       }
@@ -83,7 +92,7 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
     helper.position.y -= Math.max(0, box.max.y + Math.max(0, bottom - box.min.y) - (seam ? top + H * 0.07 : top));
     helper.updateMatrix(); buckets[variant].push({ matrix: helper.matrix.clone(), color });
   }
-  const ring = getPuzzleTerrainRing(layout, pieceIndex, "soil", mode, 1);
+  const ring = getPuzzleTerrainRing(layout, pieceIndex, "rock", mode, 0);
   // A simple vertical, untextured core, behind the stones. Local edge normals
   // retain the tab curves instead of scaling the outline toward its centroid.
   const inset = H * 0.5;
@@ -119,20 +128,23 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
     const path = edge.internal ? edge.tab : [edge.a, edge.b];
     const lengths = [0]; for (let i = 1; i < path.length; i++) lengths.push(lengths[i-1] + Math.hypot(path[i].x-path[i-1].x, path[i].z-path[i-1].z));
     const length = lengths[lengths.length-1];
+    const rowHeight = H / ROCK_ROWS;
     for (let row = 0; row < ROCK_ROWS; row++) {
-      let distance = H * 0.025;
+      // Stagger the courses like laid stone.
+      let distance = H * 0.025 + (row % 2) * H * 0.09;
       while (distance < length) {
         let k = 1; while (k < lengths.length-1 && lengths[k] < distance) k++;
         const t = (distance-lengths[k-1])/(lengths[k]-lengths[k-1]);
         const a = new THREE.Vector3(path[k-1].x, 0, path[k-1].z), b = new THREE.Vector3(path[k].x, 0, path[k].z);
         const p = a.clone().lerp(b, t), inward = normalAt(a,b);
-        const height = H * (ROCK_SIZE_RANGE[0] + random() * (ROCK_SIZE_RANGE[1]-ROCK_SIZE_RANGE[0]));
-        const width = H * (0.24 + random() * 0.25), depth = H * (0.28 + random() * 0.15);
-        p.y = top - H * ((row+0.5)/ROCK_ROWS + (random()-0.5)*0.095);
-        const color = row > 1 && random() < 0.65 ? ROCK_PALETTE[random() < 0.7 ? 2 : 1] : ROCK_PALETTE[Math.floor(random()*ROCK_PALETTE.length)];
-        place(p, inward, width, height * 1.1, depth, color);
-        if (row === 0 && random() < 0.2) place(p.clone().setY(top), inward, H*0.13, H*0.12, H*0.2, ROCK_PALETTE[0], true);
-        if (row > 0 && random() < 0.07) place(p.clone().add(new THREE.Vector3(0,H*0.12,0)), inward, H*0.14, H*0.08, depth*0.95, "#6e9a3c");
+        const height = rowHeight * (ROCK_ROW_OVERLAP[0] + random() * (ROCK_ROW_OVERLAP[1] - ROCK_ROW_OVERLAP[0]));
+        const width = H * (ROCK_WIDTH_RANGE[0] + random() * (ROCK_WIDTH_RANGE[1] - ROCK_WIDTH_RANGE[0])), depth = H * (0.24 + random() * 0.12);
+        p.y = top - rowHeight * (row + 0.5) + (random() - 0.5) * rowHeight * 0.18;
+        const color = random() < 0.18 ? ROCK_ACCENTS[Math.floor(random() * ROCK_ACCENTS.length)] : ROCK_PALETTE[Math.min(ROCK_PALETTE.length - 1, row + (random() < 0.3 ? 1 : 0))];
+        place(p, inward, width, height, depth, color);
+        // Thin pale ledges mark some course boundaries (strata lines).
+        if (row > 0 && random() < 0.16) place(p.clone().setY(top - rowHeight * row), inward, width * 0.9, rowHeight * 0.16, depth * 1.02, "#9a9088");
+        if (row > 1 && random() < 0.05) place(p.clone().add(new THREE.Vector3(0, rowHeight * 0.4, 0)), inward, H * 0.12, H * 0.06, depth * 0.98, "#6e9a3c");
         distance += width * ROCK_SPACING;
       }
     }

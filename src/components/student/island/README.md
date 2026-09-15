@@ -31,6 +31,13 @@
 | `islandTerrain.ts` | 언덕 잔디 윗면, 흘러내리는 잔디 테, 흙·바위 지층, 절벽 돌·떠 있는 돌 생성(시드 기반, 단일 geometry), 깎인 돌 모양 `chisel` |
 | `islandSky.ts` | 섬 아래·주변의 로우폴리 구름 |
 | `placement.ts` | 시드별 타원 윤곽·언덕 높이, 자연물 배치, 배치 가능 영역 |
+| `pieceLandscape.ts` | 퍼즐 조각별 디오라마 플랜(시드 기반): 단 지형, 개울·연못·폭포, 집·계단·길·다리·울타리·바위산·나무 배치, `heightAt`/`canPlace` |
+| `pieceTerrainMesh.ts` | 플랜 → 단(둥근 흙 절벽), 물·모래 기슭·물가 벽, 폭포, 흙길 메시 |
+| `isoContour.ts` | 개울 SDF의 marching squares(캡 구멍 윤곽, 물 채움 삼각형) |
+| `landscapeProps.ts` | 소품 절차 모델(단위 규약) + 종류·변형별 InstancedMesh 배치 |
+| `islandAssets.ts` | Poly Pizza GLB(`public/models/island/`) 1회 로드·meshopt 해제·절차 모델 박스에 맞춤 |
+| `grassSkirt.ts` | 윤곽을 따라 흘러내린 둥근 잔디 커튼 |
+| `rockCliff.ts` | 층층이 쌓인 암벽 돌(InstancedMesh) |
 | `sunlight.ts` | 카메라 기준 왼쪽 위 광원과 그림자 방향 계산 |
 | `types.ts` | 카메라/배치 타입 |
 
@@ -51,6 +58,19 @@
 - 활엽수 2그루, 침엽수 4그루, 수풀 4개, 풀 1군락, 꽃 3군락, 바위 무리 3개를 가장자리에 둡니다. 키 큰 나무는 기본 카메라 반대편(150°~300°)에만 둡니다. 학급 모드에서는 학생 본인 섬(시드 17)에만 나무를 표시합니다.
 - `layout.scatter`의 풀 다발·작은 꽃·자갈(시드당 약 120개)은 배치를 막지 않는 대신, 원래 배치할 수 없는 가장자리 띠(테두리에서 0.25~0.75 안쪽)와 자연물 점유 영역 안에만 놓입니다.
 - 섬 윤곽만 둥글고, 위에 올라가는 자연물은 모두 `flatShading` 로우폴리입니다. 돌·수관·수풀은 Icosahedron/Dodecahedron을 `chisel`로 깎고, 침엽수는 7각 원뿔 3~4단, 활엽수는 기울어진 6각 줄기와 곁가지, 풀은 3각 원뿔 잎, 꽃잎은 납작한 팔면체입니다.
+
+## 퍼즐 조각 디오라마 (윗면·벽면·소품)
+
+레퍼런스: `docs/planning/island-reference/` (forest-diorama: 단차·물길·집·계단·길 배치, floating-island: 암벽·흘러내린 잔디·색감·나무 밀도).
+
+- 외곽선은 `puzzle.ts`의 기존 데이터/함수를 그대로 씁니다. 윗면 캡에는 물 구멍만 뚫고(`createPuzzlePieceLayerGeometry(..., holes)`), 외곽 링·옆면·바닥은 바뀌지 않습니다.
+- 모든 단은 외곽선에서 1.25 이상 떨어져 있어 테두리 높이는 20조각 모두 `SURFACE_Y`로 같습니다(학급 조립 시 이음매가 평평). 단은 1~2개(총 2~3층), 높이는 조각 폭 기준(`terrainW × 0.105~0.12`, 2단 `× 0.08~0.092`).
+- 단 경계는 `TIER_PROFILE`의 둥근 흙 절벽이고 윗부분은 잔디가 불규칙하게 흘러내립니다. 개울·연못은 조각 안쪽(외곽선에서 1.35 이상)에만 있고, 폭포는 1단 절벽에서 연못으로만 떨어집니다.
+- 배치 좌표계·저장 데이터(`IslandGift`의 조각 데이터 좌표 x, z)는 그대로입니다. 높이는 `getPieceLandscape(layout, piece).heightAt`이 메시와 같은 값을 돌려주고, `canPlace`가 물·기슭·절벽·집·계단·다리·길·울타리·나무 둘레를 막습니다. 섬마다 `ITEM_CAPACITY`(210)개 이상이 들어가도록 숲을 솎아냅니다.
+- 소품은 조각 인덱스 시드로만 결정되어 섬마다 다르고 새로고침해도 같습니다. 모든 소품은 `PROP_REACH`(모델 최대 반경)만큼 외곽선 안쪽에 둡니다.
+- 벽면: 잔디 커튼은 윤곽의 국소 법선으로 `SKIRT_INSET` 안쪽에 두고, 커튼 높이의 돌은 `SKIRT_STONE_CLEARANCE`만큼 더 들어가 커튼 뒤에 숨습니다. 조절값은 `SKIRT_*`, `ROCK_*`.
+- 모델: Poly Pizza(Quaternius, CC0) GLB를 블렌더에서 정리해 `public/models/island/`에 둡니다(`CREDITS.md`). 장면은 절차 모델로 먼저 만들고 GLB가 오면 같은 자리에 교체합니다(로딩 카드는 최대 2.5초 대기). 학급 보기는 조약돌·꽃·물거품을 빼고 덤불을 절반만 그립니다.
+- 조명은 NeutralToneMapping + 따뜻한 방향광(`#ffd8a3`)과 부드러운 반사광입니다.
 
 ## 캐릭터
 
@@ -89,6 +109,7 @@ Node 22.18 이상에서 추가 패키지 없이 도형/배치 테스트 실행:
 
 ```bash
 node --test src/components/student/island/__tests__/placement.test.mjs src/components/student/island/__tests__/islandTerrain.test.mjs
+node --test src/components/student/island/__tests__/pieceLandscape.test.mjs src/components/student/island/__tests__/rockCliff.test.mjs
 npx tsc --noEmit
 npx eslint src/components/student/island src/components/student/IslandBoard.tsx src/app/island
 ```
