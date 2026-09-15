@@ -4,7 +4,7 @@
 |---|---|
 | 담당 | 이유민 |
 | 브랜치 | `feature/yumin-workflow-harness` |
-| 상태 | 구현 완료, PR 리뷰 준비 |
+| 상태 | PR #4 리뷰 중 |
 | 시작일 | 2026-09-15 |
 
 ## 합의 기록
@@ -49,14 +49,15 @@
 
 - Salesforce 경로 검사: 삭제 전 실패, 삭제 후 통과
 - Git 추적 목록: `.sf/**` 없음
-- Node 스크립트 문법 검사 및 Git diff 검사: PR 전 실행
-- PR 자동 검사: GitHub PR 생성 후 결과 확인
+- Node 스크립트 문법 검사, Git diff 검사, ESLint 실행: 통과. 기존 미구현 코드 경고 7개
+- PR 태스크 일지 검사: `GITHUB_BASE_REF=main`으로 통과
+- PR 자동 검사: GitHub Actions 결과 확인 중
 - DB 마이그레이션·Cloud 데이터·API 비용: 변경 없음
 - 남은 제한: 삭제 커밋이 `main`에 머지되기 전에는 최신 `main` checkout에 기존 파일이 남는다. 과거 Git 기록에는 삭제 이전 blob이 남는다.
 
 ## Git·PR
 
-- commit: 검증 후 기록
-- push: 검증 후 기록
-- PR: 검증 후 기록
+- commit: `d97fba2` — 워크플로우와 파일 차단 최초 구현
+- push: `origin/feature/yumin-workflow-harness` 완료
+- PR: [#4](https://github.com/leejihyeon114/AI_WANTED/pull/4) — `main` 대상, 리뷰 중
 - merge: 사람의 리뷰 이후 진행
