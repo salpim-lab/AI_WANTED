@@ -3,12 +3,13 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
-import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject } from "./islandModel";
+import { CHARACTER_MODEL_HEIGHT, createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
+import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject, GIFT_MODEL_HEIGHT } from "./islandModel";
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_RADIUS, SURFACE_Y } from "./placement";
 import { screenSunPosition } from "./sunlight";
-import { islandCoordinates, puzzlePieceContains, PUZZLE_STUDENT_PIECE_MAP } from "./puzzle";
+import { getPuzzleTerrainMetrics, islandCoordinates, puzzlePieceContains, PUZZLE_STUDENT_PIECE_MAP, ISLAND_DISPLAY_ROTATION } from "./puzzle";
+import { distanceToPuzzleRim, getPuzzleDecorationPlan } from "./puzzleDecorations";
 import { fitIslandCamera, projectedBoxRect, tweenCameraPose } from "./cameraFit";
 import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
@@ -18,7 +19,6 @@ type Props = {
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
-  itemName: string;
   onPropose: (kind: GiftKind, x: number, z: number) => void;
   onArrive: () => void;
   onChooseAgain: () => void;
@@ -33,6 +33,7 @@ type Runtime = {
   camera: (preset: CameraPreset) => void;
   suggested: () => void;
   gifts: THREE.Group;
+  giftScale: number;
   heightAt: (x: number, z: number) => number;
   render: () => void;
   setCharacterState: (phase: PlacementPhase, proposal: PlacementProposal | null) => void;
@@ -51,9 +52,7 @@ const BURST_MS = 700;
 const BUBBLE_DELAY_MS = 0;
 // easeOutBack with this overshoot peaks at 1.15.
 const POP_OVERSHOOT = 2.165;
-const CHARACTER_SCALE = 1.5;
 // Just above the hair, in the character's own units.
-const BUBBLE_ANCHOR = 1.86;
 
 const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 const easeOutBack = (t: number) => 1 + (POP_OVERSHOOT + 1) * (t - 1) ** 3 + POP_OVERSHOOT * (t - 1) ** 2;
@@ -67,7 +66,6 @@ export default function IslandScene({
   selected,
   proposal,
   phase,
-  itemName,
   onPropose,
   onArrive,
   onChooseAgain,
@@ -78,16 +76,17 @@ export default function IslandScene({
   onIntroComplete,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const bubbleRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<Runtime | null>(null);
   const onIslandScreenRectRef = useRef(onIslandScreenRect);
   const onIntroCompleteRef = useRef(onIntroComplete);
+  const noticeTimerRef = useRef<number | null>(null);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive });
   // When the intro began: it plays once per visit, and a rebuilt scene
   // (StrictMode re-run, quick view switch) picks it up where it was.
   const introStartRef = useRef<number | null>(null);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
+  const [placementNotice, setPlacementNotice] = useState<string | null>(null);
 
   useEffect(() => {
     onIslandScreenRectRef.current = onIslandScreenRect;
@@ -95,6 +94,10 @@ export default function IslandScene({
     stateRef.current = { gifts, selected, proposal, phase, onPropose, onArrive };
     runtimeRef.current?.render();
   }, [gifts, selected, proposal, phase, onPropose, onArrive, onIslandScreenRect, onIntroComplete]);
+
+  useEffect(() => () => {
+    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+  }, []);
 
   useImperativeHandle(controlsRef, () => ({
     camera: (preset) => runtimeRef.current?.camera(preset),
@@ -140,8 +143,13 @@ export default function IslandScene({
       ? [createPuzzleAssemblyModel(17)]
       : [createPuzzlePieceModel(17, studentPieceIndex)];
     const island = islands[0];
+    if (!classroom) island.group.rotation.y = ISLAND_DISPLAY_ROTATION;
     islands.forEach((model) => scene.add(model.group));
-    scene.add(createIslandSky(classroom));
+    const sky = createIslandSky(classroom);
+    scene.add(sky);
+    const pieceMetrics = !classroom ? getPuzzleTerrainMetrics(island.layout, studentPieceIndex, "personal", 17) : null;
+    const characterScale = pieceMetrics ? pieceMetrics.W * 0.10 / CHARACTER_MODEL_HEIGHT : 0;
+    const pieceDecorationPlan = !classroom ? getPuzzleDecorationPlan(island.layout, studentPieceIndex, 17) : null;
     const heightAt = (x: number, z: number) => {
       const data = islandCoordinates.toData({ x, z });
       return island.layout.heightAt(data.x, data.z);
@@ -209,17 +217,18 @@ export default function IslandScene({
       opacity: 0.9,
       depthWrite: false,
     });
-    const marker = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.61, 48), markerMaterial);
+    const itemRadius = pieceMetrics ? pieceMetrics.W * 0.07 * 0.22 : 0.5;
+    const markerDiameter = pieceMetrics ? pieceMetrics.W * 0.07 * 1.6 : 1;
+    const marker = new THREE.Mesh(new THREE.RingGeometry(markerDiameter * 0.42, markerDiameter * 0.5, 48), markerMaterial);
     marker.visible = false;
     scene.add(marker);
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-    const bubbleAnchor = new THREE.Vector3();
     const ringFacing = new THREE.Vector3(0, 0, 1);
     const groundNormal = new THREE.Vector3();
     const studentPieceSeed = island.puzzle.pieces[studentPieceIndex].seed;
-    const initialCharacterPosition = islandCoordinates.toWorld(studentPieceSeed, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02);
+    const initialCharacterPosition = islandCoordinates.toDisplayedWorld(studentPieceSeed, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02);
     const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
     const introOffset = new THREE.Spherical();
     let pointerDown: { x: number; y: number } | null = null;
@@ -231,7 +240,6 @@ export default function IslandScene({
     // Clicks and the bubble wait until the pop-in has landed.
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
-    let bubbleShown: HTMLElement | null = null;
     let lastScreenRect: IslandScreenRect | null = null;
     let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number } | null = null;
     let tween: { from: THREE.Vector3; to: THREE.Vector3; start: number; zoom: number; nextZoom: number; home: boolean } | null = null;
@@ -270,14 +278,14 @@ export default function IslandScene({
     function summonCharacter(pop: boolean) {
       const next = createChildCharacter("star");
       next.root.position.copy(initialCharacterPosition);
-      next.root.scale.setScalar(CHARACTER_SCALE);
+      next.root.scale.setScalar(characterScale);
       characterBaseY = initialCharacterPosition.y;
       characterGroup.add(next.root);
       characterReadyAt = 0;
       if (pop && !calm) {
         const burst = createPopBurst();
         burst.group.position.copy(initialCharacterPosition);
-        burst.group.scale.setScalar(CHARACTER_SCALE);
+        burst.group.scale.setScalar(pieceMetrics ? pieceMetrics.W * 0.025 : characterScale);
         scene.add(burst.group);
         entrance = { start: performance.now(), burst };
         characterReadyAt = entrance.start + POP_MS + BUBBLE_DELAY_MS;
@@ -287,13 +295,16 @@ export default function IslandScene({
     }
 
     function characterDestination(nextProposal: PlacementProposal) {
-      const proposalWorld = islandCoordinates.toWorld(nextProposal);
-      const destination = islandCoordinates.toWorld(nextProposal, heightAt(nextProposal.x, nextProposal.z) + 0.02);
-      console.log("[island placement] character move target", {
+      const proposalWorld = islandCoordinates.toDisplayedWorld(nextProposal);
+      const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).setY(0).normalize();
+      const destination = proposalWorld.clone().addScaledVector(cameraRight, (pieceMetrics?.W ?? 4) * 0.12);
+      const destinationData = islandCoordinates.fromDisplayedWorld(destination);
+      destination.y = heightAt(destinationData.x, destinationData.z) + 0.02;
+      console.log("[island placement] character move target", JSON.stringify({
         proposalData: nextProposal,
         proposalWorld,
         destination,
-      });
+      }));
       return destination;
     }
 
@@ -316,11 +327,11 @@ export default function IslandScene({
           start: performance.now(),
           duration: THREE.MathUtils.clamp(distance / 4.8 * 1000, 480, 2200),
         };
-        console.log("[island placement] walk started", {
+        console.log("[island placement] walk started", JSON.stringify({
           from: current.root.position.clone(),
           to: destination,
           distance,
-        });
+        }));
       } else {
         walk = null;
         current.root.position.y = characterBaseY;
@@ -328,63 +339,8 @@ export default function IslandScene({
       render();
     }
 
-    function hideBubble(bubble: HTMLElement | null) {
-      if (bubble) {
-        bubble.style.opacity = "0";
-        bubble.style.visibility = "hidden";
-      }
-      bubbleShown = null;
-    }
-
-    // Pinned just above the character's head; pops in each time it appears.
-    function updateBubble(now: number) {
-      const bubble = bubbleRef.current;
-      const current = stateRef.current;
-      if (!bubble || !character || classroom || now < characterReadyAt || current.phase === "moving" || current.phase === "complete") {
-        hideBubble(bubble);
-        return;
-      }
-
-      character.root.updateWorldMatrix(true, false);
-      bubbleAnchor.set(0, BUBBLE_ANCHOR, 0).applyMatrix4(character.root.matrixWorld).project(camera);
-      if (bubbleAnchor.z <= -1 || bubbleAnchor.z >= 1) {
-        hideBubble(bubble);
-        return;
-      }
-      const width = canvas.clientWidth;
-      const height = canvas.clientHeight;
-      const anchorX = (bubbleAnchor.x * 0.5 + 0.5) * width;
-      const anchorY = (-bubbleAnchor.y * 0.5 + 0.5) * height;
-      const bubbleWidth = bubble.offsetWidth;
-      const bubbleHeight = bubble.offsetHeight;
-      const topClearance = width < 500 ? 108 : 116;
-      const bottomClearance = 70;
-      const aboveTop = anchorY - bubbleHeight - 10;
-      const aboveX = THREE.MathUtils.clamp(anchorX, bubbleWidth / 2 + 8, width - bubbleWidth / 2 - 8);
-      const side: "left" | "right" = anchorX > width / 2 ? "left" : "right";
-      const sideX = side === "left"
-        ? THREE.MathUtils.clamp(anchorX - bubbleWidth - 18, 8, width - bubbleWidth - 8)
-        : THREE.MathUtils.clamp(anchorX + 18, 8, width - bubbleWidth - 8);
-      const useSide = aboveTop < topClearance || (width < 500 && aboveX + bubbleWidth / 2 > width - 100 && aboveTop < 142);
-      const left = useSide ? sideX : aboveX - bubbleWidth / 2;
-      const top = useSide
-        ? THREE.MathUtils.clamp(anchorY - bubbleHeight / 2, topClearance, height - bottomClearance - bubbleHeight)
-        : THREE.MathUtils.clamp(aboveTop, topClearance, height - bottomClearance - bubbleHeight);
-      bubble.style.left = `${left}px`;
-      bubble.style.top = `${top}px`;
-      bubble.style.transform = "none";
-      bubble.dataset.tail = useSide ? side : "bottom";
-      bubble.style.opacity = "1";
-      bubble.style.visibility = "visible";
-      if (bubbleShown !== bubble) {
-        bubbleShown = bubble;
-        if (!calm) {
-          bubble.animate(
-            [{ opacity: 0, transform: "scale(0.9)" }, { opacity: 1, transform: "scale(1)" }],
-            { duration: 250, easing: "ease-out" },
-          );
-        }
-      }
+    function updateBubble() {
+      // Guidance is a fixed overlay card; it never follows or occludes the character.
     }
 
     function render() {
@@ -436,7 +392,7 @@ export default function IslandScene({
         const seconds = calm ? 0 : now / 1000;
         if (entrance) {
           const elapsed = now - entrance.start;
-          root.scale.setScalar(CHARACTER_SCALE * easeOutBack(Math.min(elapsed / POP_MS, 1)));
+          root.scale.setScalar(characterScale * easeOutBack(Math.min(elapsed / POP_MS, 1)));
           entrance.burst.update(Math.min(elapsed / BURST_MS, 1));
           if (elapsed >= BURST_MS) endEntrance();
           keepAnimating = true;
@@ -456,11 +412,11 @@ export default function IslandScene({
             root.position.copy(activeWalk.to);
             characterBaseY = activeWalk.to.y;
             walk = null;
-            console.log("[island placement] walk arrived", {
+            console.log("[island placement] walk arrived", JSON.stringify({
               characterPosition: root.position.clone(),
               target: activeWalk.to,
               error: root.position.distanceTo(activeWalk.to),
-            });
+            }));
             current.onArrive();
           } else {
             keepAnimating = true;
@@ -468,7 +424,7 @@ export default function IslandScene({
         } else {
           const hop = current.phase === "farewell" && !calm ? Math.abs(Math.sin(now * 0.006)) * 0.05 : 0;
           root.position.y = characterBaseY + hop;
-          root.lookAt(camera.position.x, root.position.y, camera.position.z);
+          root.rotation.y = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
           character.animate(seconds);
         }
         // Breathing and waving keep the loop running while the character is out.
@@ -476,9 +432,18 @@ export default function IslandScene({
       }
 
       const changing = controls.update();
+      if (sky.userData.cloudDrift) {
+        sky.children.forEach((cloud, index) => {
+          cloud.position.x = Math.sin(now * 0.00008 + index * 1.7) * 0.45;
+        });
+        keepAnimating = true;
+      }
+      giftGroup.children.forEach((gift) => {
+        gift.rotation.y = Math.atan2(camera.position.x - gift.position.x, camera.position.z - gift.position.z);
+      });
       screenSunPosition(camera, controls.target, sunDistance / 16, sunlight.position);
       fill.position.copy(fillOffset).applyQuaternion(camera.quaternion).add(controls.target);
-      updateBubble(now);
+      updateBubble();
       if (onIslandScreenRectRef.current && !intro) {
         const rect = projectedBoxRect(islandBox, camera, canvas.clientWidth, canvas.clientHeight);
         if (!lastScreenRect || Object.keys(rect).some((key) => Math.abs(rect[key as keyof IslandScreenRect] - lastScreenRect![key as keyof IslandScreenRect]) > 1)) {
@@ -507,9 +472,29 @@ export default function IslandScene({
     }
 
     const validPoint = (x: number, z: number) => {
-      const data = islandCoordinates.toData({ x, z });
-      return (classroom || puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data))
-        && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts);
+      const data = islandCoordinates.fromDisplayedWorld(new THREE.Vector3(x, 0, z));
+      const inPiece = classroom || puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data);
+      const awayFromRim = classroom || !pieceDecorationPlan || distanceToPuzzleRim(data, pieceDecorationPlan.polygon) >= pieceDecorationPlan.edgeMargin;
+      const clearOfPieceDecorations = classroom || !pieceDecorationPlan || pieceDecorationPlan.decorations.every((detail) =>
+        Math.hypot(detail.x - data.x, detail.z - data.z) >= detail.footprint + 0.08,
+      );
+      return inPiece && awayFromRim && clearOfPieceDecorations
+        && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, itemRadius, itemRadius * 2);
+    };
+    const resolvePlacement = (data: { x: number; z: number }) => {
+      if (classroom || !pieceDecorationPlan) return validPoint(data.x, data.z) ? data : null;
+      const insidePiece = puzzlePieceContains(island.puzzle.pieces[studentPieceIndex], data);
+      const awayFromRim = distanceToPuzzleRim(data, pieceDecorationPlan.polygon) >= pieceDecorationPlan.edgeMargin;
+      if (!insidePiece || !awayFromRim) return null;
+      if (validPoint(data.x, data.z)) return data;
+      const step = Math.max(0.12, pieceDecorationPlan.W * 0.025);
+      for (let radius = step; radius <= pieceDecorationPlan.W * 0.34; radius += step) {
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
+          const candidate = { x: data.x + Math.cos(angle) * radius, z: data.z + Math.sin(angle) * radius };
+          if (validPoint(candidate.x, candidate.z)) return candidate;
+        }
+      }
+      return null;
     };
     // First terrain hit, kept only when it lands on the meadow (not the lip, cliff or pebbles).
     const intersect = (event: PointerEvent) => {
@@ -539,8 +524,8 @@ export default function IslandScene({
         groundNormal.copy(hit.face.normal).transformDirection(island.surface.matrixWorld);
         marker.quaternion.setFromUnitVectors(ringFacing, groundNormal);
         marker.position.copy(hit.point).addScaledVector(groundNormal, 0.05);
-        const data = islandCoordinates.toData(hit.point);
-        markerMaterial.color.set(validPoint(data.x, data.z) ? "#fff9d4" : "#c57967");
+      const data = islandCoordinates.fromDisplayedWorld(hit.point);
+        markerMaterial.color.set(resolvePlacement(data) ? "#fff9d4" : "#c57967");
       }
       render();
     };
@@ -556,17 +541,25 @@ export default function IslandScene({
       if (!down || !canChooseLocation() || !current.selected) return;
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) return;
       const point = intersect(event)?.point;
-      const data = point && islandCoordinates.toData(point);
-      console.log("[island placement] click pipeline", {
+      const data = point && islandCoordinates.fromDisplayedWorld(point);
+      const resolved = data && resolvePlacement(data);
+      console.log("[island placement] click pipeline", JSON.stringify({
         click: { x: event.clientX, y: event.clientY },
         hit: point,
         placementData: data,
-        valid: data ? validPoint(data.x, data.z) : false,
-      });
-      if (data && validPoint(data.x, data.z)) {
-        current.onPropose(current.selected, data.x, data.z);
+        resolvedPlacement: resolved,
+        adjusted: !!data && !!resolved && (Math.hypot(resolved.x - data.x, resolved.z - data.z) > 1e-6),
+        valid: !!resolved,
+      }));
+      if (data && resolved) {
+        setPlacementNotice(null);
+        current.onPropose(current.selected, resolved.x, resolved.z);
         marker.visible = false;
         render();
+      } else if (data) {
+        setPlacementNotice("조각 안쪽의 빈 윗면을 눌러 주세요.");
+        if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = window.setTimeout(() => setPlacementNotice(null), 2200);
       }
     };
 
@@ -629,6 +622,7 @@ export default function IslandScene({
     runtimeRef.current = {
       camera: moveCamera,
       gifts: giftGroup,
+      giftScale: pieceMetrics ? pieceMetrics.W * 0.07 / GIFT_MODEL_HEIGHT : 1,
       heightAt,
       render,
       setCharacterState,
@@ -640,6 +634,7 @@ export default function IslandScene({
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             if (validPoint(x, z)) {
+              console.log("[island placement] suggested placement", JSON.stringify({ x, z }));
               current.onPropose(current.selected, x, z);
               return;
             }
@@ -682,8 +677,8 @@ export default function IslandScene({
     runtime.gifts.clear();
     gifts.forEach((gift) => {
       const model = createGiftModel(gift.kind);
-      model.position.copy(islandCoordinates.toWorld(gift, runtime.heightAt(gift.x, gift.z) + 0.02));
-      model.scale.setScalar(1.35);
+      model.position.copy(islandCoordinates.toDisplayedWorld(gift, runtime.heightAt(gift.x, gift.z) + 0.02));
+      model.scale.setScalar(runtime.giftScale);
       model.name = gift.name;
       runtime.gifts.add(model);
     });
@@ -701,32 +696,24 @@ export default function IslandScene({
     className="absolute inset-0 bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)] [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]"
     style={{ cursor: selected && (phase === "choosing" || phase === "confirming") ? "crosshair" : "grab" }}
   >
-    {/* Keyed by phase so each new message pops in; the scene shows and places it. */}
+    {/* Fixed guidance card; it is reserved by cameraFit's top safe strip. */}
     {bubbleVisible && <div
       key={phase}
-      ref={bubbleRef}
-    className="island-bubble invisible absolute z-30 w-max max-w-[240px] origin-bottom break-keep rounded-2xl border border-white/90 bg-[#fffdf5]/96 px-2.5 py-2 text-center leading-snug shadow-[0_8px_24px_#496b5530] opacity-0 backdrop-blur-sm"
+    className="island-bubble island-guidance-card absolute left-1/2 top-4 z-30 flex w-[min(320px,calc(100%-24px))] -translate-x-1/2 items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-left leading-snug shadow-[0_8px_24px_#496b5530] backdrop-blur-md"
       role="status"
       aria-live="polite"
     >
-      <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-b border-r border-white/90 bg-[#fffdf5]" aria-hidden="true"/>
       {phase === "choosing" && <>
-        <p className="text-[16px] font-bold tracking-[-0.35px] break-keep">오늘 아이템 어디에 놓을까?</p>
-        <p className="mt-1 text-[12px] text-[#8b7664]">{itemName}을 놓을 자리를 골라 줘!</p>
-        <button onClick={() => runtimeRef.current?.suggested()} className="mt-2 h-8 rounded-full border border-[#ccd7c5] bg-white px-3 text-[12px] font-semibold text-[#397258]">빈자리 추천받기</button>
+        <div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[-0.35px] break-keep">오늘 아이템 어디에 놓을까?</p><p className="text-[12px] text-[#8b7664] break-keep">반짝이 별을 놓을 자리를 골라 줘!</p>{placementNotice && <p className="text-[11px] font-semibold text-[#b36c55]" role="status">{placementNotice}</p>}</div>
+        <button onClick={() => runtimeRef.current?.suggested()} className="h-[30px] shrink-0 rounded-full border border-[#ccd7c5] bg-white px-2.5 text-[12px] font-semibold text-[#397258]">빈자리 추천</button>
       </>}
       {phase === "confirming" && <>
-        <p className="text-[16px] font-bold tracking-[-0.35px]">여기로 정할까?</p>
-        <p className="mt-1 text-[12px] text-[#8b7664]">정하면 수정 못 해!</p>
-        <div className="mt-2 flex gap-1.5">
-          <button onClick={onChooseAgain} className="h-8 flex-1 whitespace-nowrap rounded-full border border-[#d8ddcf] bg-white px-1.5 text-[12px] text-[#71806f]">다른 자리</button>
-          <button onClick={onConfirm} className="h-8 flex-1 whitespace-nowrap rounded-full bg-[#347657] px-1.5 text-[12px] font-semibold text-white">여기로 정할래</button>
-        </div>
+        <div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[-0.35px]">여기로 정할까?</p><p className="text-[12px] text-[#8b7664]">정하면 수정 못 해!</p></div>
+        <div className="flex shrink-0 gap-1.5"><button onClick={onChooseAgain} className="h-[30px] rounded-full border border-[#d8ddcf] bg-white px-2 text-[12px] text-[#71806f]">다른 자리</button><button onClick={onConfirm} className="h-[30px] rounded-full bg-[#347657] px-2 text-[12px] font-semibold text-white">정하기</button></div>
       </>}
       {phase === "farewell" && <>
-        <p className="text-[16px] font-bold text-[#347657]">내일 또 봐!</p>
-        <p className="mt-1 text-[12px] text-[#809079]">여기서 계속 인사하고 있을게 👋</p>
-        <button onClick={onFinish} className="mt-2 h-8 rounded-full bg-[#347657] px-4 text-[12px] font-semibold text-white">배치 종료</button>
+        <div className="min-w-0 flex-1"><p className="text-[15px] font-bold text-[#347657]">내일 또 봐!</p><p className="text-[12px] text-[#809079]">여기서 계속 인사하고 있을게 👋</p></div>
+        <button onClick={onFinish} className="h-[30px] shrink-0 rounded-full bg-[#347657] px-2.5 text-[12px] font-semibold text-white">배치 종료</button>
       </>}
     </div>}
 

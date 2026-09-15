@@ -387,6 +387,8 @@ export function createGiftModel(kind: GiftKind) {
   return sculpt.finish();
 }
 
+export const GIFT_MODEL_HEIGHT = 0.94;
+
 export function disposeObject(root: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();

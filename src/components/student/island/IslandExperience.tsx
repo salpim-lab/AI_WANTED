@@ -23,7 +23,7 @@ function Icon({ name, size = 20, className = "" }: { name: IconName; size?: numb
     home: <path d="m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8"/>,
     left: <path d="m14 6-6 6 6 6"/>,
     right: <path d="m10 6 6 6-6 6"/>,
-    hand: <path d="M8 12V5a2 2 0 0 1 4 0v6-7a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v8c0 4-2 6-6 6h-2c-2 0-3-1-4-3l-4-5c-1-2 1-4 3-2l1 1Z"/>,
+    hand: <path d="M7.2 12.8 17.9 2.1M17.9 2.1l-1.2 4.9M17.9 2.1 13 3.3M7.2 12.8l-2.5 2.5a2.4 2.4 0 0 0 0 3.4l1.5 1.5a2.4 2.4 0 0 0 3.4 0l7.5-7.5"/>,
     star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{paths[name]}</svg>;
@@ -157,7 +157,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
   const hasPlacedItem = baseItemCount > 0 || gifts.length > 0;
   const showPlacementCta = mode === "island" && phase === "ready" && (entryStage === "cta" || entryStage === "exiting") && !hasPlacedItem;
   const showSceneControls = mode === "classroom" || entryStage !== "intro";
-  const ctaHeight = 84;
+  const ctaHeight = 64;
   const toolbarLimit = toolbarTop || panelHeight - 70;
   const ctaTop = Math.max(8, Math.min(Math.max((islandRect?.bottom ?? panelHeight * 0.72) + 10, 0), toolbarLimit - ctaHeight - 12));
 
@@ -193,7 +193,6 @@ export default function IslandExperience({ compact = false, studentName = "민�
           selected={selected}
           proposal={proposal}
           phase={phase}
-          itemName={acquired.name}
           onPropose={propose}
           onArrive={arrive}
           onChooseAgain={chooseAgain}
@@ -220,7 +219,6 @@ export default function IslandExperience({ compact = false, studentName = "민�
         {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
         {showPlacementCta && <div className={`island-cta-enter absolute inset-x-0 z-20 flex flex-col items-center gap-1 ${entryStage === "exiting" ? "island-cta-exit" : ""}`} style={{ top: ctaTop }}>
-          <p className="rounded-full bg-white/72 px-3 py-1 text-[12px] font-semibold text-[#527463] shadow-sm backdrop-blur-sm">여기를 눌러서 시작해 봐!</p>
           <div className="relative">
             {showHandHint && <Icon name="hand" size={31} className="island-cta-hand absolute -right-5 -top-5 text-[#3d7659]"/>}
             <button onClick={startPlacement} disabled={entryStage === "exiting"} className={`${button} island-cta-button h-[52px] min-w-[242px] whitespace-nowrap bg-[#347657] px-5 text-[16px] font-bold text-white shadow-[0_8px_22px_#34765738] hover:bg-[#2c6a4d]`}>🌱 내 섬에 아이템 놓기</button>

@@ -4,6 +4,8 @@ import type { GiftKind } from "./types";
 
 export type CharacterPose = "holding" | "waving";
 
+export const CHARACTER_MODEL_HEIGHT = 1.78;
+
 const SKIN = "#e8b98d";
 const SHIRT = "#f2c86f";
 const SHORTS = "#6687a0";

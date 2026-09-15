@@ -18,6 +18,9 @@ const TAB_WIDTH = 0.28;
 
 export type PuzzlePoint = { x: number; z: number };
 
+// Display-only orientation; puzzle data and generated geometry stay unchanged.
+export const ISLAND_DISPLAY_ROTATION = Math.PI / 4;
+
 // The one bridge between puzzle data XZ, world XZ, and Shape XY.
 // rotateX(-π/2) maps Shape Y to negative world Z; the Shape encoding lives here.
 export const islandCoordinates = {
@@ -26,6 +29,12 @@ export const islandCoordinates = {
   },
   toData(point: PuzzlePoint) {
     return { x: point.x, z: point.z };
+  },
+  toDisplayedWorld(point: PuzzlePoint, y = 0) {
+    return this.toWorld(point, y).applyAxisAngle(new Vector3(0, 1, 0), ISLAND_DISPLAY_ROTATION);
+  },
+  fromDisplayedWorld(point: Vector3) {
+    return this.toData(point.clone().applyAxisAngle(new Vector3(0, 1, 0), -ISLAND_DISPLAY_ROTATION));
   },
   toShape(point: PuzzlePoint) {
     const world = this.toWorld(point);

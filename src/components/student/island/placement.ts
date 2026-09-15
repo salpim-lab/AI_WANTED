@@ -135,13 +135,13 @@ function createScatter(random: () => number, radiusAt: (angle: number) => number
 
 // Only the rim, sparse natural details and confirmed items constrain the
 // large long-term placement field.
-export function canPlaceGift(x: number, z: number, layout: IslandLayout): boolean {
+export function canPlaceGift(x: number, z: number, layout: IslandLayout, itemRadius = 0.55): boolean {
   const inside = Math.hypot(x, z) <= layout.radiusAt(Math.atan2(z, x)) - EDGE_MARGIN;
   return inside && !layout.decorations.some((detail) =>
-    Math.hypot(detail.x - x, detail.z - z) < detail.radius + 0.55,
+    Math.hypot(detail.x - x, detail.z - z) < detail.radius + itemRadius,
   );
 }
 
-export function canPlaceAmongGifts(x: number, z: number, layout: IslandLayout, gifts: IslandGift[], movingId: string | null = null): boolean {
-  return canPlaceGift(x, z, layout) && !gifts.some((gift) => gift.id !== movingId && Math.hypot(gift.x - x, gift.z - z) < 0.75);
+export function canPlaceAmongGifts(x: number, z: number, layout: IslandLayout, gifts: IslandGift[], movingId: string | null = null, itemRadius = 0.55, itemGap = 0.75): boolean {
+  return canPlaceGift(x, z, layout, itemRadius) && !gifts.some((gift) => gift.id !== movingId && Math.hypot(gift.x - x, gift.z - z) < itemGap);
 }

@@ -38,7 +38,11 @@ export function fitIslandCamera(box: Box3, width: number, height: number, mode: 
   // Orthographic apparent size is independent of distance; this offset keeps
   // clipping planes well clear of the tallest tree and lowest bottom rock.
   const distance = size.length() * 2.2 + 5;
-  const back = new Vector3().setFromSphericalCoords(1, Math.PI / 2 - MathUtils.degToRad(35), Math.PI / 4);
+  // The personal piece is vertically narrow on desktop and needs a lower
+  // angle on short landscape screens to keep its width near the 68% target.
+  const elevation = mode === "island" ? 28 : 35;
+  const azimuth = mode === "island" ? 0 : Math.PI / 4;
+  const back = new Vector3().setFromSphericalCoords(1, Math.PI / 2 - MathUtils.degToRad(elevation), azimuth);
   const home = target.clone().addScaledVector(back, distance);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, distance * 4);
   camera.position.copy(home);
@@ -52,8 +56,10 @@ export function fitIslandCamera(box: Box3, width: number, height: number, mode: 
   const visibleHeight = Math.max(...view.map((point) => point.y)) - Math.min(...view.map((point) => point.y));
   const safe = safeScreenRect(width, height, mode);
   const safeHeight = Math.max(1, safe.bottom - safe.top);
-  // Width aims for 60% of the canvas; portrait views may be height-limited.
-  const unitsPerPixel = Math.max(visibleWidth / (width * 0.6), visibleHeight / (safeHeight * 0.98));
+  // The personal island aims for roughly 68% of the canvas; the classroom
+  // preview keeps its existing 60% framing. Portrait views may be height-limited.
+  const widthTarget = mode === "island" ? 0.68 : 0.6;
+  const unitsPerPixel = Math.max(visibleWidth / (width * widthTarget), visibleHeight / (safeHeight * 0.98));
   const xShift = (width / 2 - (safe.left + safe.right) / 2) * unitsPerPixel;
   const yShift = ((safe.top + safe.bottom) / 2 - height / 2) * unitsPerPixel;
   camera.left = -width * unitsPerPixel / 2 + xShift;
