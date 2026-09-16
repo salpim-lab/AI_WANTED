@@ -44,8 +44,8 @@
 .mood-btn__bezel {
   display: grid;
   place-items: center;
-  width: 22cqh;
-  height: 22cqh;
+  width: 19.5cqh;
+  height: 19.5cqh;
   border-radius: 999px;
   /* 목업처럼 "파인 소켓"으로 보이려면 위가 어둡고 아래에 반사광이 있어야 한다.
      평평한 회색 원이면 버튼이 그냥 얹힌 것처럼 보인다. */
@@ -61,9 +61,9 @@
 /* 돔 — 볼록한 색 버튼. 위쪽 하이라이트가 입체감의 핵심이다. */
 .mood-btn__dome {
   position: relative;
-  width: 19.5cqh;
-  height: 19.5cqh;
-  margin-top: 0.8cqh;
+  width: 17.2cqh;
+  height: 17.2cqh;
+  margin-top: 0.7cqh;
   border-radius: 999px;
   background:
     /* 왼쪽 위 또렷한 쉼표 광택 — 목업의 특징. 작고 밝고 경계가 분명하다 */
@@ -75,15 +75,15 @@
     radial-gradient(ellipse 56% 22% at 50% 94%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 68%),
     linear-gradient(178deg, var(--dome-light) 0%, var(--dome) 44%, var(--dome-mid) 82%, var(--dome-wall) 100%);
   box-shadow:
-    0 1.1cqh 0 var(--dome-wall),
-    0 1.3cqh 0.45cqh rgba(28, 32, 60, 0.24),
-    0 2.1cqh 1.6cqh var(--dome-shadow);
+    0 1cqh 0 var(--dome-wall),
+    0 1.15cqh 0.4cqh rgba(28, 32, 60, 0.24),
+    0 1.9cqh 1.4cqh var(--dome-shadow);
   transition: transform 0.07s ease, box-shadow 0.07s ease;
 }
 
 /* 누르면 실제로 눌린다 */
 .mood-btn:active .mood-btn__dome {
-  transform: translateY(0.9cqh);
+  transform: translateY(0.8cqh);
   box-shadow:
     0 0.2cqh 0 var(--dome-wall),
     0 0.35cqh 0.3cqh rgba(28, 32, 60, 0.28),
@@ -100,7 +100,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0.4cqh;
-  min-width: 19cqh;
+  min-width: 18cqh;
   padding: 1.3cqh 1.6cqh;
   border-radius: 1.8cqh;
   background: var(--label-bg);
