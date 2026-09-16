@@ -4,3 +4,4 @@
 export * from "./signalCheckIn";
 export * from "./observationLog";
 export * from "./consultationLog";
+export * from "./viewLog";

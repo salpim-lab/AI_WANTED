@@ -1,42 +1,46 @@
 // 담당: 김현우
-// 아이 상세 페이지 상단: 날짜 선택용 작은 달력 (기본값: 당일)
-// 지금은 최근 13일 mock 색 이력만 보여줌 — 실제로는 studentId 기준 색 이력 쿼리로 교체.
+// 아이 상세 헤더 아래 최근 N일 날짜 칸 — Server Component. 선택은 URL(?date=)로 하므로 상태가 없다.
+// 칸의 점은 그날 등교 색(없으면 하교 색). 그 이전 날짜는 헤더의 날짜 입력(StudentDatePicker)으로 고른다.
 // 참고: docs/prototype/prototype-teacher.html #mini-calendar
 
-"use client";
-
-import { useState } from "react";
-import { MOCK_CALENDAR_COLORS } from "./mockData";
+import Link from "next/link";
+import { weekdayKst } from "@/components/shared/datetime";
+import { SIGNAL_DOT } from "@/components/shared/signalStyles";
+import type { ColorHistoryDay } from "@/lib/types/teacherRecord";
 
 export default function MiniCalendar({
-  onSelectDate,
+  studentId,
+  history,
+  selectedDate,
+  today,
 }: {
-  onSelectDate?: (dayIndex: number) => void;
+  studentId: string;
+  history: ColorHistoryDay[];
+  selectedDate: string;
+  today: string;
 }) {
-  const [selected, setSelected] = useState(12); // 마지막 칸 = 오늘(mock)
-
-  const days = Array.from({ length: 13 }, (_, i) => 13 - i); // 13 ~ 1
-
   return (
-    <div className="mini-calendar">
-      {days.map((dayNum, i) => {
-        const isToday = i === selected;
-        const color = MOCK_CALENDAR_COLORS[i] ?? "green";
+    <nav aria-label="최근 날짜" className="flex gap-1.5 overflow-x-auto pb-1">
+      {history.map((day) => {
+        const selected = day.date === selectedDate;
+        const color = day.morning ?? day.afternoon;
         return (
-          <button
-            key={dayNum}
-            type="button"
-            className={`cal-day has-${color}` + (isToday ? " today" : "")}
-            onClick={() => {
-              setSelected(i);
-              onSelectDate?.(i);
-            }}
+          <Link
+            key={day.date}
+            href={day.date === today ? `/students/${studentId}` : `/students/${studentId}?date=${day.date}`}
+            scroll={false}
+            aria-current={selected ? "date" : undefined}
+            aria-label={day.date}
+            className={`min-w-10 flex-1 rounded-lg border-[1.5px] px-1 py-1.5 text-center transition-colors hover:border-indigo-500 ${
+              selected ? "border-indigo-500 bg-indigo-50 text-indigo-500" : "border-gray-200"
+            }`}
           >
-            <div className="day-num">{dayNum}</div>
-            <div className="day-dot" />
-          </button>
+            <div className="text-[10px] text-gray-400">{weekdayKst(day.date)}</div>
+            <div className="text-sm font-bold">{Number(day.date.slice(8))}</div>
+            <div className={`mx-auto mt-[3px] size-1.5 rounded-full ${color ? SIGNAL_DOT[color] : "bg-transparent"}`} />
+          </Link>
         );
       })}
-    </div>
+    </nav>
   );
 }
