@@ -1,17 +1,19 @@
 import * as THREE from "three";
+import { parseExtendedShape, createExtendedGeometry, type ExtendedShape } from "./itemShapes";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { createExtrudedItem, parseExtrudedItem, type ExtrudedItemSpec } from "./extrudedItem";
 
 type Vec3 = [number, number, number];
-type CommonPart = { id: string; position: Vec3; rotation: Vec3; color: string; mirror?: "x" };
+type CommonPart = { id: string; position: Vec3; rotation: Vec3; color: string; mirror?: "x"; repeat?: { count: number; step: Vec3 } };
 export type ItemPart = CommonPart & (
   | { shape: "box"; size: Vec3; roundness: number }
-  | { shape: "pyramid"; width: number; depth: number; height: number; sides?: 3 | 4 }
+  | { shape: "pyramid"; width: number; depth: number; height: number; sides?: number }
   | { shape: "ellipsoid"; size: Vec3 }
   | { shape: "cylinder"; radius: number; height: number }
   | { shape: "curvedTube"; points: Vec3[]; radius: number }
   | { shape: "extrudedShape"; points: [number, number][]; depth: number; bevel: number }
+  | ExtendedShape
 );
 export type AssembledItemSpec = { version: 1; name: string; parts: ItemPart[] };
 export type LabItemSpec = ExtrudedItemSpec | AssembledItemSpec;
@@ -53,6 +55,13 @@ export function parseLabItem(value: unknown): LabItemSpec {
     if (typeof p.color !== "string" || !/^#[0-9a-f]{6}$/i.test(p.color)) throw new Error("부품 색은 #F5C84C 형식이어야 해요.");
     if (p.mirror !== undefined && p.mirror !== "x") throw new Error("대칭 축은 x만 지원해요.");
     const common: CommonPart = { id: p.id, color: p.color, mirror: p.mirror as "x" | undefined, position: vector(p.position, -2, 2), rotation: vector(p.rotation, -Math.PI * 2, Math.PI * 2) };
+    if (p.repeat !== undefined) {
+      const repeat = object(p.repeat);
+      const count = number(repeat.count, 2, 30);
+      if (!Number.isInteger(count)) throw new Error("반복 개수는 정수여야 해요.");
+      common.repeat = { count, step: vector(repeat.step, -2, 2) };
+      for (let i = 1; i < count; i++) vector(common.position.map((v, axis) => v + common.repeat!.step[axis] * i), -2, 2);
+    }
     if (p.shape === "box") {
       const size = vector(p.size, 0.02, 2);
       return { ...common, shape: "box", size, roundness: number(p.roundness, 0, Math.min(...size) / 2) };
@@ -69,10 +78,11 @@ export function parseLabItem(value: unknown): LabItemSpec {
       if (points.some((point, i) => i > 0 && point.every((n, axis) => n === points[i - 1][axis]))) throw new Error("연속된 곡선 제어점은 서로 달라야 해요.");
       return { ...common, shape: "curvedTube", points, radius: number(p.radius, 0.01, 0.3) };
     }
-    if (p.shape === "pyramid" && p.sides !== undefined && p.sides !== 3 && p.sides !== 4) throw new Error("이번 뿔 도형은 밑면 변 수 3 또는 4를 지원해요.");
-    if (p.shape === "pyramid") return { ...common, shape: "pyramid", sides: p.sides as 3 | 4 | undefined, width: number(p.width, 0.02, 2), depth: number(p.depth, 0.02, 2), height: number(p.height, 0.02, 2) };
-    throw new Error("지원하는 도형은 box, pyramid, ellipsoid, cylinder, curvedTube, extrudedShape예요.");
+    if (p.shape === "pyramid" && p.sides !== undefined && (!Number.isInteger(p.sides) || number(p.sides, 3, 12) < 3)) throw new Error("각뿔의 변 수는 3~12 정수여야 해요.");
+    if (p.shape === "pyramid") return { ...common, shape: "pyramid", sides: p.sides as number | undefined, width: number(p.width, 0.02, 2), depth: number(p.depth, 0.02, 2), height: number(p.height, 0.02, 2) };
+    return { ...common, ...parseExtendedShape(p) };
   });
+  if (parts.reduce((count, part) => count + (part.mirror ? 2 : 1) * (part.repeat?.count ?? 1), 0) > 60) throw new Error("복제 후 부품은 최대 60개예요.");
   return { version: 1, name: v.name, parts };
 }
 
@@ -98,8 +108,8 @@ export function createLabItem(value: unknown): THREE.Group {
     switch (part.shape) {
       case "box": geometry = part.roundness > 0 ? new RoundedBoxGeometry(...part.size, 2, part.roundness) : new THREE.BoxGeometry(...part.size); break;
       case "pyramid":
-        if (part.sides === 3) {
-          geometry = new THREE.ConeGeometry(1, part.height, 3);
+        if (part.sides !== undefined && part.sides !== 4) {
+          geometry = new THREE.ConeGeometry(1, part.height, part.sides);
           geometry.rotateY(Math.PI / 6);
           geometry.computeBoundingBox();
           const size = geometry.boundingBox!.getSize(new THREE.Vector3());
@@ -116,6 +126,7 @@ export function createLabItem(value: unknown): THREE.Group {
         tube.dispose(); caps.forEach(cap => cap.dispose());
         break;
       }
+      default: geometry = createExtendedGeometry(part); break;
       case "extrudedShape": {
         const shape = new THREE.Shape();
         part.points.forEach(([x, y], i) => i ? shape.lineTo(x, y) : shape.moveTo(x, y));
@@ -129,14 +140,19 @@ export function createLabItem(value: unknown): THREE.Group {
     mesh.name = part.id;
     mesh.position.set(...part.position);
     mesh.rotation.set(...part.rotation);
-    content.add(mesh);
-    if (part.mirror === "x") {
-      const mirrored = new THREE.Group();
-      mirrored.scale.x = -1;
-      const copy = mesh.clone();
-      copy.name = `${part.id}-mirrored`;
-      mirrored.add(copy);
-      content.add(mirrored);
+    for (let i = 0; i < (part.repeat?.count ?? 1); i++) {
+      const copy = i === 0 ? mesh : mesh.clone();
+      copy.name = i === 0 ? part.id : `${part.id}-repeat-${i}`;
+      if (part.repeat) copy.position.set(...part.position.map((v, axis) => v + part.repeat!.step[axis] * i) as Vec3);
+      content.add(copy);
+      if (part.mirror === "x") {
+        const mirrored = new THREE.Group();
+        mirrored.scale.x = -1;
+        const reflected = copy.clone();
+        reflected.name = `${copy.name}-mirrored`;
+        mirrored.add(reflected);
+        content.add(mirrored);
+      }
     }
   }
   const bounds = new THREE.Box3().setFromObject(content);
