@@ -72,11 +72,15 @@ export function createExtrudedItem(value: unknown) {
 }
 
 export function disposeExtrudedItem(group: THREE.Group) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materialsToDispose = new Set<THREE.Material>();
   group.traverse(object => {
     if (object instanceof THREE.Mesh) {
-      object.geometry.dispose();
+      geometries.add(object.geometry);
       const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach(material => material.dispose());
+      materials.forEach(material => materialsToDispose.add(material));
     }
   });
+  geometries.forEach(geometry => geometry.dispose());
+  materialsToDispose.forEach(material => material.dispose());
 }

@@ -246,6 +246,7 @@ export type Database = {
       }
       checkin_sessions: {
         Row: {
+          transcript: Json | null
           attempt: number
           completed_at: string | null
           created_at: string
@@ -259,6 +260,7 @@ export type Database = {
           stop_reason: string | null
         }
         Insert: {
+          transcript?: Json | null
           attempt?: number
           completed_at?: string | null
           created_at?: string
@@ -272,6 +274,7 @@ export type Database = {
           stop_reason?: string | null
         }
         Update: {
+          transcript?: Json | null
           attempt?: number
           completed_at?: string | null
           created_at?: string
