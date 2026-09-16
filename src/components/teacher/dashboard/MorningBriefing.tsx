@@ -1,34 +1,73 @@
 // 담당: 진승혜
-// 대시보드 섹션 1: 오늘 살펴볼 아이 3명 + 한마디 돌려줄 아이 3명
+// 대시보드 영역 1: 아침 브리핑 — 대시보드에서 가장 먼저 읽혀야 하는 카드다.
+// "오늘 먼저 살펴볼 아이" + "한마디 돌려줄 아이" 두 열.
+// 경고창처럼 보이지 않게: 테두리·경고색 대신 부드러운 배경 row + 이름/상태/이유의 3단 위계.
 // 참고: 살핌_기획안.md "6.2 아침 브리핑 — 두 개의 열"
-// (지금은 "살펴볼 아이" 3명만 프로토타입에 있어서 그대로 옮김 — "한마디 돌려줄 아이" 열은 데이터 정해지면 추가)
+// 데이터: page.tsx 가 선택 날짜의 morning checkin 기준으로 조립해 props 로 내려준다.
+// 링크는 기존 /students/[id] 유지 (김현우 담당 화면 — 구현은 건드리지 않는다)
 
 import Link from "next/link";
-import { BRIEFING_STUDENTS } from "./mockData";
+import type { BriefingStudent } from "./mockData";
 
-export default function MorningBriefing() {
+const TONE_CLASS: Record<BriefingStudent["tone"], string> = {
+  green: "tone-green",
+  yellow: "tone-yellow",
+  red: "tone-red",
+  navy: "tone-navy",
+  star: "tone-star",
+};
+
+function BriefingColumn({ title, students }: { title: string; students: BriefingStudent[] }) {
   return (
-    <div className="card">
+    <div className="briefing-col">
+      <div className="briefing-col-title">
+        {title}
+        <span className="briefing-col-hint">{students.length}명</span>
+      </div>
+
+      <ul className="briefing-list">
+        {students.map((s) => (
+          <li key={s.studentId}>
+            <Link href={`/students/${s.studentId}`} className={`briefing-row ${TONE_CLASS[s.tone]}`}>
+              <span className="briefing-avatar">{s.initial}</span>
+              <span className="briefing-info">
+                <span className="briefing-line">
+                  <strong className="bname">{s.name}</strong>
+                  <span className="bstatus">{s.status}</span>
+                </span>
+                <span className="breason">{s.reason}</span>
+              </span>
+              <span className="briefing-go" aria-hidden>
+                →
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function MorningBriefing({
+  watch,
+  praise,
+  isToday,
+}: {
+  watch: BriefingStudent[];
+  praise: BriefingStudent[];
+  isToday: boolean;
+}) {
+  return (
+    <section className="card briefing-card">
       <div className="card-title">
         아침 브리핑
-        <span style={{ fontSize: 11, color: "var(--muted)", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>
-          오늘 살펴볼 아이
-        </span>
+        <span className="card-sub">{isToday ? "오늘 하루를 시작하기 전에" : "이 날의 등교 기록"}</span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        {BRIEFING_STUDENTS.map((s) => (
-          <div className="briefing-student" key={s.id}>
-            <div className={`briefing-avatar ${s.avatarClass}`}>{s.initial}</div>
-            <div className="briefing-info">
-              <div className="bname">{s.name}</div>
-              <div className="breason">{s.reason}</div>
-            </div>
-            <Link href={`/students/${s.id}`} className="btn-outline btn-sm briefing-action">
-              상세 보기
-            </Link>
-          </div>
-        ))}
+
+      <div className="briefing-cols">
+        <BriefingColumn title={isToday ? "오늘 먼저 살펴볼 아이" : "먼저 살펴본 아이"} students={watch} />
+        <BriefingColumn title="한마디 돌려줄 아이" students={praise} />
       </div>
-    </div>
+    </section>
   );
 }

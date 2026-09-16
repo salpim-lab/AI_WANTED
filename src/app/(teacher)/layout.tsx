@@ -12,6 +12,7 @@
 // 화면별 스타일(대시보드/아이상세/게시판)은 각자 담당 페이지에서 알아서 import — 여기 추가하지 말 것.
 import "@/styles/prototype-teacher-shared.css";
 import TabNav from "@/components/teacher/TabNav";
+import CurrentDate from "@/components/teacher/CurrentDate";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";
 
 export default function TeacherLayout({
@@ -27,11 +28,16 @@ export default function TeacherLayout({
             살<span>핌</span>
           </div>
           <div className="meta">
-            <strong>3학년 2반</strong> · 2026년 9월 13일 (목) · 이선생님
+            <strong>3학년 2반</strong> · <CurrentDate /> · 이선생님
           </div>
         </header>
-        <TabNav />
-        <main className="main">{children}</main>
+        {/* 네비(왼쪽 사이드바) + 본문을 가로로 묶는 래퍼.
+            .app-body 의 스타일은 TabNav 가 import 하는
+            styles/prototype-teacher-sidebar.css(진승혜)에 있다. */}
+        <div className="app-body">
+          <TabNav />
+          <main className="main">{children}</main>
+        </div>
       </div>
       <TeacherAgentWidget />
     </div>

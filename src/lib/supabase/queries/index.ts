@@ -7,3 +7,4 @@ export * from "./morningBriefing";
 export * from "./relationshipMap";
 export * from "./conflictLog";
 export * from "./classroomToday";
+export * from "./participation";
