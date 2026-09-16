@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import { createRockCliff } from "./rockCliff";
 import { createGrassOverhang, requireInsideOutline } from "./grassOverhang";
+import { createWallProbe, pickRecessed, wallMatrix, WALL_PROBE, type WallBlocker, type WallHit } from "./wallProbe";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { chisel, createMeadowMaterial, createTerrainGeometry, stylizedGrassColor } from "./islandTerrain";
 import { createIslandLayout, type Decoration, type IslandLayout, type Scatter } from "./placement";
-import { createPuzzlePieceLayerGeometry, getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainRing, islandCoordinates, puzzlePieceContains, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
+import { createPuzzlePieceLayerGeometry, getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainMetrics, getPuzzleTerrainRing, islandCoordinates, puzzlePieceContains, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
 import { createLandscapeProps, type PropKey } from "./landscapeProps";
 import { getPieceLandscape, SHORE_WIDTH, type PieceLandscape } from "./pieceLandscape";
 import { createPieceTerrainMeshes, landscapeCapHoles } from "./pieceTerrainMesh";
@@ -265,27 +266,53 @@ function createNaturalDetails(layout: IslandLayout, showTree: boolean) {
   return details;
 }
 
-function addCliffMoss(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode) {
+// The rock and the grass hanging over it, so garden details can be seated on
+// the wall rather than on the outline.
+type PieceWall = { cliff: THREE.Object3D; overhang: THREE.Object3D };
+
+function addCliffMoss(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode, wall: PieceWall) {
   const piece = getPuzzleLayout(layout, PUZZLE_SEED).pieces[pieceIndex];
-  const polygon = getPuzzlePiecePolygon(piece);
-  const centre = polygon.reduce((sum, point) => ({ x: sum.x + point.x, z: sum.z + point.z }), { x: 0, z: 0 });
-  centre.x /= polygon.length; centre.z /= polygon.length;
+  const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode, PUZZLE_SEED);
   const random = layout.random(1200 + pieceIndex);
+  const probeWall = createWallProbe(wall.cliff, metrics.rock, {
+    ceiling: wall.overhang.userData.wallCeiling as number | undefined,
+    blockers: wall.overhang.userData.wallBlockers as WallBlocker[] | undefined,
+  });
   // Moss clusters sit in gaps between cliff stones, including the lower rows.
-  for (let index = 0; index < 19; index++) {
+  // Twice as many spots are probed as are kept; the most recessed win.
+  type Spot = { hit: WallHit; size: number; noise: number; scale: number[]; color: string };
+  const spots: Spot[] = [];
+  for (let index = 0; index < 38; index++) {
     const ring = getPuzzleTerrainRing(layout, pieceIndex, "rock", mode, 0.12 + random() * 0.7, PUZZLE_SEED);
-    const point = ring[Math.floor(random() * ring.length)].clone();
-    point.x += (centre.x - point.x) * 0.12; point.z += (centre.z - point.z) * 0.12;
+    const at = random() * ring.length;
+    const point = ring[Math.floor(at)].clone();
+    const next = ring[(Math.floor(at) + 1) % ring.length], previous = ring[(Math.floor(at) + ring.length - 1) % ring.length];
     const sx = 0.07 + random() * 0.06, sy = 0.06 + random() * 0.05, sz = 0.06 + random() * 0.05;
-    const footprint = [new THREE.Vector3(point.x + sx, point.y, point.z + sz), new THREE.Vector3(point.x + sx, point.y, point.z - sz), new THREE.Vector3(point.x - sx, point.y, point.z + sz), new THREE.Vector3(point.x - sx, point.y, point.z - sz)];
-    if (!footprint.every(p => puzzlePieceContains(piece, { x: p.x, z: p.z }))) continue;
-    requireInsideOutline(footprint, piece, "Cliff moss");
-    sculpt.mesh(new THREE.IcosahedronGeometry(1, 0), index % 2 ? "#6e9a3c" : "#7fa844", [point.x, point.y - 0.05, point.z], [sx, sy, sz], [random(), random(), random()]);
+    const noise = random();
+    // Inward is whichever side of the rim tangent the piece is on.
+    const inward = new THREE.Vector3(-(next.z - previous.z), 0, next.x - previous.x).normalize();
+    if (!puzzlePieceContains(piece, { x: point.x + inward.x * 0.05, z: point.z + inward.z * 0.05 })) inward.negate();
+    const hit = probeWall.seat(point, inward, Math.max(sx, sy));
+    if (hit) spots.push({ hit, size: Math.max(sx, sy), noise, scale: [sx, sy, sz * 0.7], color: index % 2 ? "#6e9a3c" : "#7fa844" });
+  }
+  const unit = new THREE.Vector3(1, 1, 1);
+  for (const spot of pickRecessed(spots, 19)) {
+    // A cushion flattened against the face; its depth is the thin axis, and
+    // 10–20% of the pad is sunk into the rock.
+    const embed = WALL_PROBE.embed[0] + random() * (WALL_PROBE.embed[1] - WALL_PROBE.embed[0]);
+    const [sx, sy, sz] = spot.scale;
+    const seat = spot.hit.point.clone().addScaledVector(spot.hit.normal, sz * (1 - 2 * embed));
+    const matrix = wallMatrix({ ...spot.hit, point: seat }, unit, 0, new THREE.Matrix4().makeRotationZ((random() - 0.5) * 0.8));
+    const corners = [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z) => new THREE.Vector3(x * sx, y * sy, z * sz).applyMatrix4(matrix))));
+    if (!corners.every((p) => puzzlePieceContains(piece, { x: p.x, z: p.z }))) continue;
+    requireInsideOutline(corners, piece, "Cliff moss");
+    const mesh = sculpt.mesh(new THREE.IcosahedronGeometry(1, 0), spot.color, [0, 0, 0], [sx, sy, sz]);
+    matrix.decompose(mesh.position, mesh.quaternion, unit.clone());
   }
 }
 
-function addPuzzleNaturalDetails(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode) {
-  addCliffMoss(sculpt, layout, pieceIndex, mode);
+function addPuzzleNaturalDetails(sculpt: Sculpt, layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode, wall: PieceWall) {
+  addCliffMoss(sculpt, layout, pieceIndex, mode, wall);
 }
 
 export function createIslandModel(seed = 17, showTree = true) {
@@ -332,9 +359,12 @@ function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, mode:
   const terrain = createPieceTerrainMeshes(landscape);
   [...terrain.children].forEach((child) => (child.userData.excludeFromRaycast ? group : surface).add(child));
   group.add(surface);
-  group.add(createRockCliff(layout, pieceIndex, mode));
-  group.add(createGrassOverhang(layout, pieceIndex, mode, material));
-  return { group, surface, landscape };
+  const cliff = createRockCliff(layout, pieceIndex, mode);
+  // Built before it joins the group, so the rock moss is seated in piece
+  // space; the probe updates the cliff's matrices itself.
+  const overhang = createGrassOverhang(layout, pieceIndex, mode, material, cliff);
+  group.add(cliff, overhang);
+  return { group, surface, landscape, wall: { cliff, overhang } };
 }
 
 // Grass never grows in water, on paths, stairs or under houses.
@@ -415,15 +445,17 @@ export function createPuzzleAssemblyModel(seed = 17, library?: ReadonlyMap<PropK
   pieces.name = `puzzle-pieces-${PUZZLE_PIECE_COUNT}`;
   const surface = new THREE.Group();
   surface.name = "assembled-placement-surface";
+  const walls: PieceWall[] = [];
   puzzle.pieces.forEach((piece) => {
     const layers = createPuzzlePieceLayers(layout, piece.index, "classroom");
+    walls[piece.index] = layers.wall;
     pieces.add(layers.group);
     // Re-parented: every piece's walkable top lives in one raycast group.
     surface.add(layers.surface);
   });
   group.add(pieces, surface);
   const garden = new Sculpt(createPalette(true));
-  puzzle.pieces.forEach((piece) => addPuzzleNaturalDetails(garden, layout, piece.index, "classroom"));
+  puzzle.pieces.forEach((piece) => addPuzzleNaturalDetails(garden, layout, piece.index, "classroom", walls[piece.index]));
   const details = garden.finish();
   details.name = "assembled-puzzle-garden";
   group.add(details);
@@ -441,7 +473,7 @@ export function createPuzzlePieceModel(seed = 17, pieceIndex = 0, library?: Read
   const layers = createPuzzlePieceLayers(layout, pieceIndex, "personal");
   group.add(layers.group);
   const garden = new Sculpt(createPalette(true));
-  addPuzzleNaturalDetails(garden, layout, pieceIndex, "personal");
+  addPuzzleNaturalDetails(garden, layout, pieceIndex, "personal", layers.wall);
   const details = garden.finish();
   details.name = `puzzle-piece-${pieceIndex + 1}-garden`;
   group.add(details);

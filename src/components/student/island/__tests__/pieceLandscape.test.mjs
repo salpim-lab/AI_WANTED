@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";
-import { Group, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from "three";
+import { DoubleSide, Group, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from "three";
 const jiti = createJiti(import.meta.url, { interopDefault: false, fsCache: false });
 const { createIslandLayout } = await jiti.import("../placement.ts");
 const { getPuzzleLayout, getPuzzlePiecePolygon, puzzlePieceContains, createPuzzlePieceLayerGeometry, getPuzzleTerrainMetrics, PUZZLE_SEED, PUZZLE_STUDENT_PIECE_MAP } = await jiti.import("../puzzle.ts");
@@ -10,6 +10,7 @@ const L = await jiti.import("../pieceLandscape.ts");
 const { createPieceTerrainMeshes, landscapeCapHoles } = await jiti.import("../pieceTerrainMesh.ts");
 const { createLandscapeProps, createProceduralModel } = await jiti.import("../landscapeProps.ts");
 const { createGrassOverhang, GRASS_OVERHANG } = await jiti.import("../grassOverhang.ts");
+const { createRockCliff } = await jiti.import("../rockCliff.ts");
 
 const layout = createIslandLayout(17);
 const pieces = getPuzzleLayout(layout).pieces;
@@ -103,7 +104,7 @@ test("no prop, terrace, water, path or curtain vertex leaves its puzzle outline"
     // The overhang is the one part allowed past the outline, and only by the
     // lip's own reach. createGrassOverhang throws if anything exceeds it.
     for (const mode of ["personal", "classroom"]) {
-      const overhang = createGrassOverhang(layout, plan.pieceIndex, mode);
+      const overhang = createGrassOverhang(layout, plan.pieceIndex, mode, undefined, createRockCliff(layout, plan.pieceIndex, mode));
       const budget = getPuzzleTerrainMetrics(layout, plan.pieceIndex, mode).total * GRASS_OVERHANG.lip.overhang * 1.02;
       for (const child of overhang.children) {
         const position = child.geometry.getAttribute("position");
@@ -122,6 +123,34 @@ test("no prop, terrace, water, path or curtain vertex leaves its puzzle outline"
       overhang.children[0].material.dispose();
     }
   }
+});
+
+test("rock moss grows out of the stones, not out of the air in front of them", () => {
+  // Each tuft is seated on the stone a ray from the outline meets, with its
+  // root sunk slightly into it: some stone surface is always within half the
+  // tuft's size of its root. On the outline-based placement most were not.
+  const raycaster = new Raycaster(), matrix = new Matrix4();
+  let tufts = 0;
+  for (const piece of pieces) {
+    const cliff = createRockCliff(layout, piece.index, "personal");
+    const overhang = createGrassOverhang(layout, piece.index, "personal", undefined, cliff);
+    // Roots are inside a stone, so the ray has to see its back faces.
+    cliff.children.forEach((child) => { child.material.side = DoubleSide; });
+    const stones = cliff.children.filter((child) => child.isInstancedMesh);
+    const moss = overhang.getObjectByName("rock-moss");
+    assert.ok(moss && moss.count > 0, `rock moss on piece ${piece.index}`);
+    for (let i = 0; i < moss.count; i++) {
+      moss.getMatrixAt(i, matrix);
+      const root = new Vector3().setFromMatrixPosition(matrix);
+      const size = new Vector3().setFromMatrixColumn(matrix, 2).length();
+      raycaster.far = size * 0.5;
+      const touching = Array.from({ length: 16 }, (_, a) => new Vector3(Math.cos(a * Math.PI / 8), 0, Math.sin(a * Math.PI / 8)))
+        .some((direction) => { raycaster.set(root, direction); return raycaster.intersectObjects(stones, false).length > 0; });
+      assert.ok(touching, `rock moss ${i} on piece ${piece.index} floats off the wall`);
+      tufts++;
+    }
+  }
+  assert.ok(tufts > pieces.length * 10);
 });
 
 test("no piece's grass overhang reaches into a neighbour once the class assembles", () => {

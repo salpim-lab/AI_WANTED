@@ -65,7 +65,12 @@ const easeOutBack = (t: number) => 1 + (POP_OVERSHOOT + 1) * (t - 1) ** 3 + POP_
 const HOME_TWEEN_MS = 500;
 const FOCUS_TWEEN_MS = 600;
 const FOLLOW_TWEEN_MS = 400;
-const CONFIRM_HOLD_MS = 500;
+const CHARACTER_ZOOM_IN_MS = 900;
+const CHARACTER_HOLD_MS = 1200;
+const CHARACTER_ZOOM_OUT_MS = 900;
+const ZOOM_BUTTON_MS = 280;
+const USER_ZOOM_RESPONSE = 18;
+const USER_ZOOM_EPSILON = 0.0001;
 const DRAG_THRESHOLD = 8;
 const SAFE_EDGE = 0.15;
 const CLASSROOM_SPACING = 33;
@@ -167,8 +172,6 @@ export default function IslandScene({
     const displayedCoordinates = createIslandCoordinates(displayRotation);
     if (!classroom) island.group.rotation.y = displayRotation;
     islands.forEach((model) => scene.add(model.group));
-    const sky = createIslandSky(classroom);
-    scene.add(sky);
     const pieceMetrics = !classroom ? getPuzzleTerrainMetrics(island.layout, studentPieceIndex, "personal", 17) : null;
     const characterScale = pieceMetrics ? (pieceMetrics.W / 2.75) * 0.10 / CHARACTER_MODEL_HEIGHT : 0;
     // The student's own piece defines item heights in both views: terraces
@@ -179,6 +182,9 @@ export default function IslandScene({
     // The entire terrain, bottom rocks and garden contribute to one box.
     // Eight projected box corners fit inside the canvas UI's safe rectangle.
     const islandBox = new THREE.Box3().setFromObject(island.group);
+    // Added after measuring, so the clouds never enter the camera fit.
+    const sky = createIslandSky(classroom, islandBox);
+    scene.add(sky.group);
     const initialSize = host.getBoundingClientRect();
     let homeFit = fitIslandCamera(islandBox, Math.max(initialSize.width, 1), Math.max(initialSize.height, 1), mode);
     const { target, home } = homeFit;
@@ -198,7 +204,13 @@ export default function IslandScene({
     controls.minZoom = homeFit.minZoom;
     controls.maxZoom = homeFit.maxZoom;
     controls.rotateSpeed = 0.65;
-    controls.zoomSpeed = 0.85;
+    controls.zoomSpeed = 1.4;
+    controls.zoomToCursor = true;
+    // Handle zoom in the frame loop: OrbitControls damping only smooths rotation/pan.
+    controls.enableZoom = false;
+    controls.minDistance = viewDistance * 0.1;
+    controls.maxDistance = viewDistance;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     controls.update();
     controls.saveState();
 
@@ -261,7 +273,15 @@ export default function IslandScene({
     const initialCharacterPosition = displayedCoordinates.toDisplayedWorld(studentPieceSeed, heightAt(studentPieceSeed.x, studentPieceSeed.z) + 0.02);
     const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
     const introOffset = new THREE.Spherical();
-    let pointerDown: { x: number; y: number } | null = null;
+    let pointerDown: { x: number; y: number; id: number; dragged: boolean } | null = null;
+    const activePointers = new Set<number>();
+    let hoverPointer: PointerEvent | null = null;
+    let characterShot = false;
+    let greetingStartAt: number | null = null;
+    let userZoom: { zoom: number; cursor: THREE.Vector3 } | null = null;
+    let lastFrameAt = performance.now();
+    const touchPoints = new Map<number, THREE.Vector2>();
+    let pinchDistance = 0;
     let frame = 0;
     let disposed = false;
     let visible = true;
@@ -271,10 +291,10 @@ export default function IslandScene({
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
     let lastScreenRect: IslandScreenRect | null = null;
-    let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number; clickData?: { x: number; z: number } } | null = null;
+    let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number; clickData?: { x: number; z: number }; farewell?: boolean } | null = null;
     let overview = false;
     let placementCamera = false;
-    let tween: { from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; target: THREE.Vector3; start: number; duration: number; zoom: number; nextZoom: number; home: boolean; onDone?: () => void } | null = null;
+    let tween: { from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; target: THREE.Vector3; start: number; duration: number; zoom: number; nextZoom: number; home: boolean; easeInOut?: boolean; onDone?: () => void } | null = null;
     introStartRef.current ??= calm ? -Infinity : performance.now();
     let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
     if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
@@ -373,9 +393,60 @@ export default function IslandScene({
     };
     const setPlacementControls = (active: boolean) => {
       placementCamera = active;
-      controls.enableRotate = !active;
+      controls.enableRotate = true;
       controls.enablePan = active && !overview;
     };
+
+    function finishCharacterShot() {
+      if (!characterShot) return;
+      characterShot = false;
+      greetingStartAt = null;
+      tween = null;
+      camera.position.copy(home);
+      camera.zoom = homeFit.homeZoom;
+      controls.target.copy(target);
+      camera.updateProjectionMatrix();
+      controls.enabled = true;
+      controls.update();
+      render();
+    }
+
+    function startCharacterShot(
+      worldFocus = initialCharacterPosition.clone().add(new THREE.Vector3(0, characterScale * CHARACTER_MODEL_HEIGHT / 2, 0)),
+      closeZoom = homeFit.homeZoom * 3.5,
+    ) {
+      if (calm) return;
+      characterShot = true;
+      controls.enabled = false;
+      marker.visible = false;
+      const focus = worldFocus.clone();
+      const zoom = THREE.MathUtils.clamp(closeZoom, controls.minZoom, controls.maxZoom);
+      // The fitted orthographic frustum is shifted for the toolbar safe area.
+      // Compensate that shift so the character projects to actual canvas centre.
+      const focusProbe = camera.clone();
+      focusProbe.position.copy(poseForTarget(focus, zoom).position);
+      focusProbe.lookAt(focus);
+      focusProbe.updateMatrixWorld(true);
+      focus.addScaledVector(new THREE.Vector3().setFromMatrixColumn(focusProbe.matrixWorld, 0), -(camera.left + camera.right) / 2);
+      focus.addScaledVector(new THREE.Vector3().setFromMatrixColumn(focusProbe.matrixWorld, 1), -(camera.top + camera.bottom) / 2);
+      userZoom = null;
+      const transition = (nextTarget: THREE.Vector3, nextZoom: number, duration: number, onDone: () => void) => {
+        const pose = poseForTarget(nextTarget, nextZoom);
+        controls.enabled = false;
+        tween = { from: camera.position.clone(), to: pose.position, fromTarget: controls.target.clone(), target: nextTarget.clone(), start: performance.now(), duration, zoom: camera.zoom, nextZoom, home: false, easeInOut: true, onDone };
+        render();
+      };
+      transition(focus, zoom, CHARACTER_ZOOM_IN_MS, () => {
+        greetingStartAt = stateRef.current.phase === "choosing" ? performance.now() : null;
+        transition(focus, zoom, CHARACTER_HOLD_MS, () => {
+          greetingStartAt = null;
+          transition(target, homeFit.homeZoom, CHARACTER_ZOOM_OUT_MS, () => {
+            characterShot = false;
+            controls.enabled = true;
+          });
+        });
+      });
+    }
 
     function characterDestination(nextProposal: PlacementProposal) {
       const destination = displayedCoordinates.toDisplayedWorld(nextProposal);
@@ -388,28 +459,94 @@ export default function IslandScene({
       return destination;
     }
 
+    function farewellDestination(proposal: PlacementProposal) {
+      const origin = characterDestination(proposal);
+      const bodyRadius = characterScale * 0.45;
+      const clearance = itemRadius * 1.6 + bodyRadius;
+      camera.updateMatrixWorld(true);
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const sideAngle = Math.atan2(right.z, right.x);
+      const safeTerrain = (point: THREE.Vector3) => {
+        const data = displayedCoordinates.fromDisplayedWorld(point);
+        return pieceLandscape.canPlace(data.x, data.z, bodyRadius);
+      };
+      const clearOfGifts = (point: THREE.Vector3, departing = false) => stateRef.current.gifts.every((gift) => {
+        // The first steps leave the item that was just deposited.
+        if (departing && Math.hypot(gift.x - proposal.x, gift.z - proposal.z) < 1e-6) return true;
+        const position = displayedCoordinates.toDisplayedWorld(gift);
+        return Math.hypot(position.x - point.x, position.z - point.z) >= clearance;
+      });
+      // Prefer either screen side, then try nearby angles further inside the island.
+      for (let ring = 1; ring <= 6; ring++) {
+        for (let index = 0; index < 16; index++) {
+          const angle = sideAngle + (index % 2 ? Math.PI : 0) + Math.floor(index / 2) * Math.PI / 8;
+          const destination = origin.clone().add(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(clearance * (1 + (ring - 1) * 0.35)));
+          if (!safeTerrain(destination) || !clearOfGifts(destination)) continue;
+          let clearPath = true;
+          for (let step = 1; step <= 12; step++) {
+            const point = origin.clone().lerp(destination, step / 12);
+            if (!safeTerrain(point) || !clearOfGifts(point, true)) { clearPath = false; break; }
+          }
+          if (!clearPath) continue;
+          const data = displayedCoordinates.fromDisplayedWorld(destination);
+          destination.y = heightAt(data.x, data.z) + 0.02;
+          return destination;
+        }
+      }
+      return null;
+    }
+
+    function beginFarewellWave() {
+      if (disposed || stateRef.current.phase !== "farewell" || !character) return;
+      character.setPose("waving");
+      character.root.rotation.y = Math.atan2(camera.position.x - character.root.position.x, camera.position.z - character.root.position.z);
+      character.animate(calm ? 0 : performance.now() / 1000);
+      if (calm) { moveCamera("home"); return; }
+      // Frame the actual deposited gift and character together, including room
+      // for the raised hand, so neither is cropped by the close-up.
+      const subjects = new THREE.Box3().setFromObject(character.root);
+      const placedGift = giftGroup.children[giftGroup.children.length - 1];
+      if (placedGift) subjects.union(new THREE.Box3().setFromObject(placedGift));
+      subjects.expandByScalar(characterScale * 0.5);
+      const centre = subjects.getCenter(new THREE.Vector3());
+      const probe = camera.clone();
+      probe.position.copy(poseForTarget(centre, 1).position);
+      probe.lookAt(centre);
+      probe.zoom = 1;
+      probe.updateProjectionMatrix();
+      const rect = projectedBoxRect(subjects, probe, canvas.clientWidth, canvas.clientHeight);
+      const zoom = Math.min(homeFit.homeZoom * 3.5,
+        canvas.clientWidth * 0.7 / Math.max(rect.right - rect.left, 0.001),
+        canvas.clientHeight * 0.55 / Math.max(rect.bottom - rect.top, 0.001));
+      startCharacterShot(centre, zoom);
+    }
+
     function setCharacterState(nextPhase: PlacementPhase, nextProposal: PlacementProposal | null, pop = true) {
       setPlacementControls(nextPhase === "choosing" || nextPhase === "confirming");
       if (classroom || nextPhase === "ready" || nextPhase === "complete") {
         walk = null;
+        if (characterShot) finishCharacterShot();
         removeCharacter();
         setPlacementControls(false);
         render();
         return;
       }
 
+      const appearing = !character;
       const current = character ?? (character = summonCharacter(pop));
-      if (nextPhase === "choosing" && !placementCamera) focusTarget(initialCharacterPosition);
-      current.setPose(nextPhase === "farewell" ? "waving" : "holding");
-      if (nextPhase === "moving" && nextProposal) {
-        const destination = characterDestination(nextProposal);
+      if (appearing && pop && nextPhase === "choosing") startCharacterShot();
+      current.setPose(nextPhase === "farewell" ? "walking" : "holding");
+      const farewellTarget = nextPhase === "farewell" && nextProposal ? farewellDestination(nextProposal) : null;
+      if ((nextPhase === "moving" && nextProposal) || farewellTarget) {
+        const destination = farewellTarget ?? characterDestination(nextProposal!);
         const distance = current.root.position.distanceTo(destination);
         walk = {
           from: current.root.position.clone(),
           to: destination,
           start: performance.now(),
           duration: THREE.MathUtils.clamp(distance / 4.8 * 1000, 480, 2200),
-          clickData: nextProposal,
+          clickData: nextPhase === "moving" ? nextProposal ?? undefined : undefined,
+          farewell: nextPhase === "farewell",
         };
         console.log("[island placement] walk started", JSON.stringify({
           from: current.root.position.clone(),
@@ -420,11 +557,7 @@ export default function IslandScene({
         walk = null;
         current.root.position.y = characterBaseY;
       }
-      if (nextPhase === "farewell") {
-        window.setTimeout(() => {
-          if (stateRef.current.phase === "farewell") moveCamera("home");
-        }, CONFIRM_HOLD_MS);
-      }
+      if (nextPhase === "farewell" && !walk) beginFarewellWave();
       render();
     }
 
@@ -443,6 +576,8 @@ export default function IslandScene({
       const current = stateRef.current;
       const activeWalk = walk;
       let keepAnimating = false;
+      const deltaSeconds = Math.min(Math.max((now - lastFrameAt) / 1000, 0), 0.05);
+      lastFrameAt = now;
 
       if (!current.selected || current.phase === "moving" || current.phase === "farewell" || current.phase === "complete") marker.visible = false;
 
@@ -462,10 +597,13 @@ export default function IslandScene({
 
       if (tween) {
         const progress = Math.min((now - tween.start) / tween.duration, 1);
-        const pose = tweenCameraPose(tween.from, tween.to, tween.zoom, tween.nextZoom, progress);
+        const eased = tween.easeInOut ? easeInOutCubic(progress) : 1 - (1 - progress) ** 3;
+        const pose = tween.easeInOut
+          ? { position: tween.from.clone().lerp(tween.to, eased), zoom: THREE.MathUtils.lerp(tween.zoom, tween.nextZoom, eased) }
+          : tweenCameraPose(tween.from, tween.to, tween.zoom, tween.nextZoom, progress);
         camera.position.copy(pose.position);
         camera.zoom = pose.zoom;
-        controls.target.copy(tween.fromTarget).lerp(tween.target, 1 - (1 - progress) ** 3);
+        controls.target.copy(tween.fromTarget).lerp(tween.target, eased);
         camera.updateProjectionMatrix();
         if (progress === 1) {
           camera.position.copy(tween.to);
@@ -520,7 +658,8 @@ export default function IslandScene({
               displayedCoordinates.fromDisplayedWorld(root.position).z - activeWalk.clickData.z,
             ) : null,
             }));
-            current.onArrive();
+            if (activeWalk.farewell) beginFarewellWave();
+            else current.onArrive();
           } else {
             keepAnimating = true;
           }
@@ -528,19 +667,31 @@ export default function IslandScene({
           const hop = current.phase === "farewell" && !calm ? Math.abs(Math.sin(now * 0.006)) * 0.05 : 0;
           root.position.y = characterBaseY + hop;
           root.rotation.y = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
-          character.animate(seconds);
+          const greetingProgress = greetingStartAt === null ? undefined : THREE.MathUtils.clamp((now - greetingStartAt) / CHARACTER_HOLD_MS, 0, 1);
+          character.animate(seconds, 0, greetingProgress);
         }
         // Breathing and waving keep the loop running while the character is out.
         if (!calm) keepAnimating = true;
       }
 
-      const changing = controls.update();
-      if (sky.userData.cloudDrift) {
-        sky.children.forEach((cloud, index) => {
-          cloud.position.x = Math.sin(now * 0.00008 + index * 1.7) * 0.45;
-        });
-        keepAnimating = true;
+      if (userZoom && !tween && !intro && !characterShot) {
+        const motion = userZoom;
+        const remaining = Math.log(motion.zoom / camera.zoom);
+        const settled = Math.abs(remaining) < USER_ZOOM_EPSILON;
+        const nextZoom = settled ? motion.zoom : camera.zoom * Math.exp(remaining * (1 - Math.exp(-USER_ZOOM_RESPONSE * deltaSeconds)));
+        camera.updateMatrixWorld(true);
+        const before = motion.cursor.clone().unproject(camera);
+        camera.zoom = nextZoom;
+        camera.updateProjectionMatrix();
+        const shift = before.sub(motion.cursor.clone().unproject(camera));
+        camera.position.add(shift);
+        controls.target.add(shift);
+        if (settled) userZoom = null;
+        else keepAnimating = true;
       }
+      const changing = controls.update();
+      // After controls.update(), so the cloud layer tracks this frame's camera.
+      if (sky.update(now, camera, controls.target, calm)) keepAnimating = true;
       giftGroup.children.forEach((gift) => {
         gift.rotation.y = Math.atan2(camera.position.x - gift.position.x, camera.position.z - gift.position.z);
         if (gift.userData.sparkle && !calm) {
@@ -561,26 +712,23 @@ export default function IslandScene({
       if (changing || tween || keepAnimating) render();
     }
 
-    function moveCamera(preset: CameraPreset, forceHome = false) {
-      if (placementCamera && !forceHome && (preset === "left" || preset === "right" || preset === "top")) return;
-      if (placementCamera && !forceHome && preset === "home" && character) {
-        focusTarget(character.root.position);
-        return;
-      }
+    function moveCamera(preset: CameraPreset) {
+      if (characterShot) { finishCharacterShot(); return; }
       intro = null;
+      userZoom = null;
       controls.enabled = false;
       let next = camera.position.clone();
       let nextZoom = camera.zoom;
       if (preset === "home") { next = home.clone(); nextZoom = homeFit.homeZoom; }
-      if (preset === "top") next = new THREE.Vector3(0, viewDistance, 0.02).add(target);
+      if (preset === "top") next = new THREE.Vector3().setFromSphericalCoords(viewDistance, controls.minPolarAngle, 0).add(controls.target);
       if (preset === "left" || preset === "right") {
-        next.sub(target).applyAxisAngle(new THREE.Vector3(0, 1, 0), preset === "left" ? -Math.PI / 6 : Math.PI / 6).add(target);
+        next.sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), preset === "left" ? -Math.PI / 6 : Math.PI / 6).add(controls.target);
       }
       if (preset === "in" || preset === "out") {
         nextZoom = THREE.MathUtils.clamp(camera.zoom * (preset === "in" ? 1.2 : 1 / 1.2), homeFit.minZoom, homeFit.maxZoom);
       }
       const nextTarget = preset === "home" ? target.clone() : controls.target.clone();
-      tween = { from: camera.position.clone(), to: next, fromTarget: controls.target.clone(), target: nextTarget, start: performance.now(), duration: preset === "home" ? HOME_TWEEN_MS : HOME_TWEEN_MS, zoom: camera.zoom, nextZoom, home: preset === "home" };
+      tween = { from: camera.position.clone(), to: next, fromTarget: controls.target.clone(), target: nextTarget, start: performance.now(), duration: preset === "in" || preset === "out" ? ZOOM_BUTTON_MS : HOME_TWEEN_MS, zoom: camera.zoom, nextZoom, home: preset === "home" };
       if (preset === "home") { overview = false; setPlacementControls(placementCamera); }
       render();
     }
@@ -616,6 +764,7 @@ export default function IslandScene({
         -((event.clientY - rect.top) / rect.height) * 2 + 1,
       );
       scene.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
       raycaster.setFromCamera(pointer, camera);
       const hit = raycaster.intersectObject(island.surface)[0];
       // Water sits below the meadow; it still answers (and resolves to the shore).
@@ -629,6 +778,8 @@ export default function IslandScene({
     };
 
     const onMove = (event: PointerEvent) => {
+      hoverPointer = event;
+      if (pointerDown && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) >= DRAG_THRESHOLD) pointerDown.dragged = true;
       if (!canChooseLocation()) return;
       const hit = intersect(event);
       marker.visible = !!hit;
@@ -644,14 +795,18 @@ export default function IslandScene({
     };
 
     const onDown = (event: PointerEvent) => {
-      if (event.button === 0) pointerDown = { x: event.clientX, y: event.clientY };
+      activePointers.add(event.pointerId);
+      if (activePointers.size > 1) { pointerDown = null; return; }
+      if (characterShot) { finishCharacterShot(); pointerDown = null; return; }
+      if (event.button === 0) pointerDown = { x: event.clientX, y: event.clientY, id: event.pointerId, dragged: false };
     };
 
     const onUp = (event: PointerEvent) => {
+      activePointers.delete(event.pointerId);
       const down = pointerDown;
       pointerDown = null;
       const current = stateRef.current;
-      if (!down) return;
+      if (!down || down.id !== event.pointerId || down.dragged || activePointers.size) return;
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) >= DRAG_THRESHOLD) return;
       if (overview && current.phase === "choosing") { focusTarget(character?.root.position ?? initialCharacterPosition); return; }
       if (!canChooseLocation() || !current.selected) return;
@@ -682,8 +837,8 @@ export default function IslandScene({
       }
     };
 
-    const onLeave = () => { marker.visible = false; render(); };
-    const onCancel = () => { pointerDown = null; onLeave(); };
+    const onLeave = () => { hoverPointer = null; marker.visible = false; render(); };
+    const onCancel = (event: PointerEvent) => { activePointers.delete(event.pointerId); pointerDown = null; onLeave(); };
     const onKey = (event: KeyboardEvent) => {
       const map: Record<string, CameraPreset> = {
         ArrowLeft: "left",
@@ -731,15 +886,58 @@ export default function IslandScene({
     intersectionObserver.observe(host);
     const onControlStart = () => { tween = null; controls.enabled = true; if (performance.now() - introStartRef.current! >= INTRO_MS) intro = null; };
     const onControlChange = () => {
-      if (placementCamera && !overview) {
-        const bounded = clampPlacementTarget(controls.target);
-        controls.target.copy(bounded);
-      }
+      if (hoverPointer) onMove(hoverPointer);
       render();
+    };
+    const requestUserZoom = (zoom: number, clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      userZoom = {
+        zoom: THREE.MathUtils.clamp(zoom, controls.minZoom, controls.maxZoom),
+        cursor: new THREE.Vector3((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1, 0),
+      };
+      render();
+    };
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (characterShot) { finishCharacterShot(); return; }
+      if (intro) return;
+      tween = null;
+      controls.enabled = true;
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientHeight : 1);
+      requestUserZoom((userZoom?.zoom ?? camera.zoom) * Math.exp(-THREE.MathUtils.clamp(delta, -240, 240) * (event.ctrlKey ? 0.008 : 0.0025)), event.clientX, event.clientY);
+    };
+    const onTouchDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return;
+      touchPoints.set(event.pointerId, new THREE.Vector2(event.clientX, event.clientY));
+      if (touchPoints.size === 2) {
+        const [a, b] = [...touchPoints.values()];
+        pinchDistance = a.distanceTo(b);
+      }
+    };
+    const onTouchMove = (event: PointerEvent) => {
+      if (!touchPoints.has(event.pointerId)) return;
+      touchPoints.get(event.pointerId)!.set(event.clientX, event.clientY);
+      if (touchPoints.size !== 2 || intro || characterShot) return;
+      const [a, b] = [...touchPoints.values()];
+      const distance = a.distanceTo(b);
+      if (pinchDistance > 0 && distance > 0) {
+        requestUserZoom((userZoom?.zoom ?? camera.zoom) * distance / pinchDistance, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      }
+      pinchDistance = distance;
+    };
+    const onTouchEnd = (event: PointerEvent) => {
+      touchPoints.delete(event.pointerId);
+      pinchDistance = 0;
     };
     const onContextLost = (event: Event) => { event.preventDefault(); setError(true); };
     controls.addEventListener("change", onControlChange);
     controls.addEventListener("start", onControlStart);
+    canvas.addEventListener("pointerdown", onTouchDown, true);
+    canvas.addEventListener("pointermove", onTouchMove, true);
+    canvas.addEventListener("pointerup", onTouchEnd, true);
+    canvas.addEventListener("pointercancel", onTouchEnd, true);
+    canvas.addEventListener("wheel", onWheel, { capture: true, passive: false });
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
@@ -793,7 +991,7 @@ export default function IslandScene({
         else {
           overview = true;
           onOverviewChangeRef.current?.(true);
-          moveCamera("home", true);
+          moveCamera("home");
           controls.enablePan = false;
         }
       },
@@ -811,6 +1009,11 @@ export default function IslandScene({
       controls.removeEventListener("change", onControlChange);
       controls.removeEventListener("start", onControlStart);
       controls.dispose();
+      canvas.removeEventListener("pointerdown", onTouchDown, true);
+      canvas.removeEventListener("pointermove", onTouchMove, true);
+      canvas.removeEventListener("pointerup", onTouchEnd, true);
+      canvas.removeEventListener("pointercancel", onTouchEnd, true);
+      canvas.removeEventListener("wheel", onWheel, true);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);

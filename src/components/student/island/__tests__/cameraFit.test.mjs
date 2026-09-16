@@ -21,7 +21,7 @@ test("both island views fit all eight box corners into their UI-safe screen area
       const expectedAzimuth = mode === "island" ? 0 : Math.PI / 4;
       assert.ok(Math.abs(Math.atan2(diff.x, diff.z) - expectedAzimuth) < 1e-8);
       const elevation = mode === "island"
-        ? 46
+        ? 38
         : 35;
       assert.ok(Math.abs(Math.asin(diff.y / diff.length()) - MathUtils.degToRad(elevation)) < 1e-8);
       const projected = projectedBoxRect(bounds, fit.camera, width, height);
@@ -30,7 +30,7 @@ test("both island views fit all eight box corners into their UI-safe screen area
       assert.ok(projected.top >= fit.safe.top && projected.bottom <= fit.safe.bottom);
       if (mode === "island") assert.ok(fit.widthRatio >= 0.39 && fit.widthRatio <= 0.70, `${mode} width share ${fit.widthRatio}`);
       else assert.ok(fit.widthRatio >= 0.53 && fit.widthRatio <= 0.601, `${mode} width share ${fit.widthRatio}`);
-      assert.ok(fit.maxZoom >= 1 && fit.maxZoom <= 1.8);
+      assert.ok(fit.maxZoom >= fit.homeZoom * 3.5, "zoom range permits character close-up");
       assert.ok(fit.minZoom >= 0.7 && fit.minZoom < 1);
       const next = fitIslandCamera(bounds, height, width, mode);
       if (mode === "classroom" || width >= 500) assert.ok(next.home.distanceTo(fit.home) < 1e-8, "resize does not alter the home direction or centre");

@@ -4,6 +4,7 @@ import type { IslandLayout } from "./placement";
 import { chisel, stylizedGrassColor, createMeadowMaterial, STYLIZED_PALETTE } from "./islandTerrain";
 import { getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleRimVertices, getPuzzleTerrainMetrics, getPuzzleTerrainRing, puzzlePieceContains, type PuzzlePoint, type PuzzleTerrainMode } from "./puzzle";
 import { distanceToPuzzleRim } from "./puzzleDecorations";
+import { createWallProbe, pickRecessed, wallMatrix, WALL_PROBE, type WallBlocker, type WallHit } from "./wallProbe";
 
 // The meadow does not stop at the outline: its own cap edge rolls outward and
 // down into a rounded rim, and the rim spills a little way onto the rock in
@@ -101,8 +102,12 @@ export const GRASS_OVERHANG = {
   },
 
   // Tufts tucked into the rock so the grass/rock line is not a clean cut.
+  // Each is seated on the stone a ray from the outline actually meets
+  // (wallProbe.ts); `candidates` spots are probed per tuft and the most
+  // recessed win, so tufts gather in crevices between stones.
   moss: {
     perEdge: [3, 6] as const,
+    candidates: 4,
     // Height band on the rock wall, 0 at the top of the rock.
     band: [0.12, 0.62] as const,
     // Tuft size as a fraction of the rock height.
@@ -513,7 +518,9 @@ function lumpMatrix(position: THREE.Vector3, outward: THREE.Vector3, width: numb
   return matrix;
 }
 
-export function createGrassOverhang(layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode, meadow?: THREE.MeshStandardMaterial) {
+// `cliff` is the piece's rock group (rockCliff.ts). Without it the rock moss is
+// skipped, since there is no wall to seat it on.
+export function createGrassOverhang(layout: IslandLayout, pieceIndex: number, mode: PuzzleTerrainMode, meadow?: THREE.MeshStandardMaterial, cliff?: THREE.Object3D) {
   const piece = getPuzzleLayout(layout).pieces[pieceIndex];
   const polygon = getPuzzlePiecePolygon(piece);
   const metrics = getPuzzleTerrainMetrics(layout, pieceIndex, mode);
@@ -737,38 +744,58 @@ export function createGrassOverhang(layout: IslandLayout, pieceIndex: number, mo
   }
 
   // --- moss in the rock ----------------------------------------------------
-  if (mode === "personal") {
+  // Hanging lumps and the roll are no-go volumes for anything seated on the
+  // wall; the garden's cliff moss (islandModel.ts) reads the same list.
+  const blockers: WallBlocker[] = [];
+  for (const [variant, instances] of buckets) {
+    const box = shapes.get(variant)?.boundingBox;
+    if (!box) continue;
+    for (const { matrix } of instances) blockers.push({ matrix, inverse: matrix.clone().invert(), box });
+  }
+  const wallCeiling = top - LIP_BOTTOM * metrics.grass;
+  group.userData.wallBlockers = blockers;
+  group.userData.wallCeiling = wallCeiling;
+
+  if (mode === "personal" && cliff) {
+    const settings = GRASS_OVERHANG.moss;
     const random = layout.random(3300 + pieceIndex);
+    const probeWall = createWallProbe(cliff, metrics.rock, { ceiling: wallCeiling, blockers });
     const rockTop = top - metrics.grass;
     const tufts: Instance[] = [];
     const moss = buildTuftGeometry(0.9, 0.45);
+    type Spot = { hit: WallHit; size: number; noise: number; outward: THREE.Vector3; weight: number };
     for (const edge of piece.edges) {
-      const count = GRASS_OVERHANG.moss.perEdge[0] + Math.floor(random() * (GRASS_OVERHANG.moss.perEdge[1] - GRASS_OVERHANG.moss.perEdge[0] + 1));
-      for (let n = 0; n < count; n++) {
-        const path = edge.internal ? edge.tab : [edge.a, edge.b];
+      const count = settings.perEdge[0] + Math.floor(random() * (settings.perEdge[1] - settings.perEdge[0] + 1));
+      const path = edge.internal ? edge.tab : [edge.a, edge.b];
+      const spots: Spot[] = [];
+      for (let n = 0; n < count * settings.candidates; n++) {
         const along = random() * (path.length - 1);
         const a = path[Math.floor(along)], b = path[Math.min(path.length - 1, Math.floor(along) + 1)];
         const f = along - Math.floor(along);
         const point = { x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f };
         const sample = samples.reduce((best, candidate) =>
           Math.hypot(candidate.point.x - point.x, candidate.point.z - point.z) < Math.hypot(best.point.x - point.x, best.point.z - point.z) ? candidate : best);
+        const size = (settings.size[0] + random() * (settings.size[1] - settings.size[0])) * metrics.rock;
+        const drop = settings.band[0] + random() * (settings.band[1] - settings.band[0]);
+        const noise = random();
         if (sample.weight < SEAM_WEIGHT) continue;
-        const size = (GRASS_OVERHANG.moss.size[0] + random() * (GRASS_OVERHANG.moss.size[1] - GRASS_OVERHANG.moss.size[0])) * metrics.rock;
-        const drop = GRASS_OVERHANG.moss.band[0] + random() * (GRASS_OVERHANG.moss.band[1] - GRASS_OVERHANG.moss.band[0]);
-        // Sunk into the wall so the tuft grows out of a crevice rather than
-        // standing off the rock, and leaning up rather than straight out.
-        const anchor = new THREE.Vector3(point.x, rockTop - drop * metrics.rock, point.z);
-        const tangent = new THREE.Vector3().crossVectors(UP, sample.outward).normalize();
+        const at = new THREE.Vector3(point.x, rockTop - drop * metrics.rock, point.z);
+        const hit = probeWall.seat(at, sample.outward.clone().negate(), size);
+        if (hit) spots.push({ hit, size, noise, outward: sample.outward, weight: safeWeight(sample.index, size) });
+      }
+      for (const spot of pickRecessed(spots, count)) {
+        // Leaning up out of the face rather than straight out of it.
         const lean = Math.PI * 0.26 + (random() - 0.5) * 0.3;
         const roll = (random() - 0.5) * 0.5;
-        const matrix = fitToWall(moss, anchor, sample.outward, overhang * safeWeight(sample.index, size), (position, narrow) => {
-          const m = new THREE.Matrix4().makeBasis(tangent, UP, sample.outward)
-            .multiply(new THREE.Matrix4().makeRotationX(lean))
-            .multiply(new THREE.Matrix4().makeRotationY(roll))
-            .scale(new THREE.Vector3(size * narrow, size * narrow, size * narrow));
-          m.setPosition(position);
-          return m;
-        });
+        const embed = WALL_PROBE.embed[0] + random() * (WALL_PROBE.embed[1] - WALL_PROBE.embed[0]);
+        const spin = new THREE.Matrix4().makeRotationX(lean).multiply(new THREE.Matrix4().makeRotationY(roll));
+        const seated = wallMatrix(spot.hit, new THREE.Vector3(1, 1, 1).multiplyScalar(spot.size), embed, spin);
+        // The containment check may only push a tuft deeper into the rock,
+        // never lift it off; slide along the face normal's horizontal part.
+        const into = spot.hit.normal.clone().setY(0).normalize();
+        const anchor = new THREE.Vector3().setFromMatrixPosition(seated);
+        const matrix = fitToWall(moss, anchor, into.lengthSq() > 0 ? into : spot.outward, overhang * spot.weight, (position, narrow) =>
+          wallMatrix({ ...spot.hit, point: position }, new THREE.Vector3(1, 1, 1).multiplyScalar(spot.size * narrow), 0, spin));
         if (matrix) tufts.push({ matrix, shade: 0.85 + hash(seed + tufts.length * 4.7) * 0.25 });
       }
     }

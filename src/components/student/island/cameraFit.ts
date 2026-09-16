@@ -73,16 +73,9 @@ export function fitIslandCamera(box: Box3, width: number, height: number, mode: 
     && projected.top >= safe.top - 1e-6 && projected.bottom <= safe.bottom + 1e-6;
   // Keep a little more room for the enlarged footprint when zooming out.
   const minZoom = 0.72;
-  const centreX = (projected.left + projected.right) / 2;
-  const centreY = (projected.top + projected.bottom) / 2;
-  // User-initiated zoom may cross the overlay safe strip, but the complete
-  // box stays on the canvas with an 8px edge. Home always restores safe fit.
-  const maxZoom = Math.max(HOME_ZOOM, Math.min(3.2,
-    (centreX - 8) / ((centreX - projected.left) || 1),
-    (width - centreX - 8) / ((projected.right - centreX) || 1),
-    (centreY - 8) / ((centreY - projected.top) || 1),
-    (height - centreY - 8) / ((projected.bottom - centreY) || 1),
-  ) * 0.96);
+  // Orthographic zoom controls apparent size; allow close inspection of
+  // characters and gifts rather than keeping the whole island in frame.
+  const maxZoom = 8;
   return { camera, home, target, safe, projected, widthRatio, insideSafe, distance, minZoom, maxZoom, homeZoom: HOME_ZOOM };
 }
 

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createGiftModel, createPalette, Sculpt, type Palette } from "./islandModel";
 import type { GiftKind } from "./types";
 
-export type CharacterPose = "holding" | "waving";
+export type CharacterPose = "holding" | "waving" | "walking";
 
 export const CHARACTER_MODEL_HEIGHT = 1.78;
 
@@ -115,7 +115,7 @@ export function createChildCharacter(kind: GiftKind) {
     },
     // `seconds` drives breathing and waving; `stride` in [-1, 1] swings the
     // legs mid-walk and is 0 while standing.
-    animate(seconds: number, stride = 0) {
+    animate(seconds: number, stride = 0, greetingProgress?: number) {
       const breath = Math.sin(seconds * Math.PI * 2 / BREATH_SECONDS);
       upper.position.y = (breath + 1) * 0.008;
       head.rotation.set(breath * 0.025, 0, Math.sin(seconds * 0.8) * 0.035);
@@ -132,6 +132,17 @@ export function createChildCharacter(kind: GiftKind) {
           side * (base.shoulder[2] + breath * 0.03 * sway),
         );
         elbow.rotation.set(base.elbow + breath * 0.04 * sway, 0, 0);
+        if (greetingProgress !== undefined && pose === "holding" && side === 1) {
+          // One greeting: smoothly lift, wave twice, then return to holding.
+          const progress = THREE.MathUtils.clamp(greetingProgress, 0, 1);
+          const edge = Math.min(progress / 0.2, (1 - progress) / 0.2, 1);
+          const lift = edge * edge * (3 - 2 * edge);
+          shoulder.rotation.x = THREE.MathUtils.lerp(shoulder.rotation.x, 0, lift);
+          shoulder.rotation.y = THREE.MathUtils.lerp(shoulder.rotation.y, 0, lift);
+          shoulder.rotation.z = THREE.MathUtils.lerp(shoulder.rotation.z, 2.3, lift);
+          elbow.rotation.x = THREE.MathUtils.lerp(elbow.rotation.x, 0, lift);
+          elbow.rotation.z = lift * (0.42 + Math.sin(progress * Math.PI * 4) * 0.38);
+        }
         if (pose === "waving" && side === 1) {
           // Raised high and out, the forearm swinging between out-and-up and
           // straight up, never across the face.
