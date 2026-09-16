@@ -47,13 +47,13 @@
   width: 25cqh;
   height: 25cqh;
   border-radius: 999px;
-  background: linear-gradient(170deg, #eef0f6 0%, #dbdfea 100%);
-  /* 버저 받침 — 안쪽이 깊게 파여 보이도록 그림자를 두껍게 */
+  /* 목업 실측: 베젤은 거의 흰색(#f6f6f9)에 가깝다 */
+  background: linear-gradient(170deg, #fdfdff 0%, #edeef4 100%);
   box-shadow:
-    0 1cqh 1.7cqh rgba(60, 68, 110, 0.18) inset,
-    0 -0.4cqh 0.8cqh rgba(255, 255, 255, 0.9) inset,
-    0 0.3cqh 0 rgba(255, 255, 255, 0.95);
-  padding-bottom: 1.8cqh;
+    0 0.7cqh 1.2cqh rgba(60, 68, 110, 0.13) inset,
+    0 -0.3cqh 0.6cqh rgba(255, 255, 255, 0.95) inset,
+    0 0.25cqh 0 rgba(255, 255, 255, 0.95);
+  padding-bottom: 1.4cqh;
   align-items: start;
 }
 
@@ -62,28 +62,24 @@
   position: relative;
   width: 20cqh;
   height: 20cqh;
-  margin-top: 1.4cqh;
+  margin-top: 1.1cqh;
   border-radius: 999px;
-  /* 무광 플라스틱. 점 형태의 강한 스페큘러를 쓰면 젖은 유기물처럼 보여서,
-     윗면 전체에 걸친 넓고 옅은 빛만 준다. */
+  /* 목업 실측(초록): 위 rgb(98,238,145) → 아래 rgb(21,198,86).
+     광택은 왼쪽 위에 치우친 넓은 타원이라 점처럼 젖어 보이지 않는다. */
   background:
-    /* 윗부분에 넓게 퍼진 광택. 점이 아니라 띠 형태라 젖어 보이지 않는다. */
-    radial-gradient(ellipse 66% 34% at 50% 16%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.16) 52%, rgba(255, 255, 255, 0) 80%),
-    /* 가장자리만 아주 살짝 어둡게 — 납작한 원반으로 읽히게 한다 */
-    radial-gradient(circle at 50% 46%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.1) 100%),
-    linear-gradient(180deg, var(--dome-light) 0%, var(--dome) 34%, var(--dome) 100%);
-  /* 첫 그림자가 버저의 "측면 벽"이다. 누르면 이 높이가 줄어 실제로 내려앉는다. */
+    radial-gradient(ellipse 58% 36% at 38% 20%, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.18) 48%, rgba(255, 255, 255, 0) 76%),
+    linear-gradient(180deg, var(--dome-light) 0%, var(--dome) 58%, var(--dome) 100%);
   box-shadow:
-    0 0.25cqh 0 rgba(255, 255, 255, 0.34) inset,
-    0 1.4cqh 0 var(--dome-wall),
-    0 1.6cqh 0.3cqh rgba(0, 0, 0, 0.12),
-    0 2.4cqh 1.8cqh var(--dome-shadow);
+    0 0.2cqh 0 rgba(255, 255, 255, 0.4) inset,
+    0 1.2cqh 0 var(--dome-wall),
+    0 1.4cqh 0.3cqh rgba(0, 0, 0, 0.1),
+    0 2.2cqh 1.6cqh var(--dome-shadow);
   transition: transform 0.07s ease, box-shadow 0.07s ease;
 }
 
 /* 누르면 실제로 눌린다 */
 .mood-btn:active .mood-btn__dome {
-  transform: translateY(1.2cqh);
+  transform: translateY(1cqh);
   box-shadow:
     0 0.25cqh 0 rgba(255, 255, 255, 0.34) inset,
     0 0.3cqh 0 var(--dome-wall),
@@ -121,44 +117,44 @@
 
 /* ── 색별 값 ───────────────────────────────────────────── */
 .mood-btn--green {
-  --dome-mid: #1aa34c;
-  --dome-wall: #15803d;
-  --dome-light: #4ade80;
-  --dome: #22c55e;
-  --dome-dark: #15803d;
-  --dome-shadow: rgba(34, 197, 94, 0.36);
+  --dome-mid: #17bf57;
+  --dome-wall: #0f9c45;
+  --dome-light: #62ee91;
+  --dome: #15c656;
+  --dome-dark: #0f9c45;
+  --dome-shadow: rgba(21, 198, 86, 0.3);
   --label-bg: #e7f8ec;
   --label-fg: #1a7f42;
 }
 .mood-btn--yellow {
-  --dome-mid: #daa90f;
-  --dome-wall: #b8860b;
-  --dome-light: #fde047;
+  --dome-mid: #eab308;
+  --dome-wall: #c08c04;
+  --dome-light: #ffe066;
   --dome: #f5c518;
-  --dome-dark: #c99a06;
-  --dome-shadow: rgba(234, 179, 8, 0.36);
+  --dome-dark: #c08c04;
+  --dome-shadow: rgba(234, 179, 8, 0.3);
   --label-bg: #fdf5da;
   --label-fg: #97701a;
 }
 .mood-btn--red {
-  --dome-mid: #d83636;
-  --dome-wall: #a51f1f;
-  --dome-light: #f87171;
-  --dome: #ef4444;
-  --dome-dark: #b91c1c;
-  --dome-shadow: rgba(239, 68, 68, 0.34);
+  --dome-mid: #e63d3d;
+  --dome-wall: #b81f1f;
+  --dome-light: #ff8080;
+  --dome: #f0403f;
+  --dome-dark: #b81f1f;
+  --dome-shadow: rgba(240, 64, 63, 0.3);
   --label-bg: #fdeaea;
   --label-fg: #c0392f;
 }
 .mood-btn--navy {
-  --dome-mid: #2568c8;
-  --dome-wall: #1a44b8;
-  --dome-light: #60a5fa;
-  --dome: #2f7fe0;
-  --dome-dark: #1d4ed8;
-  --dome-shadow: rgba(47, 127, 224, 0.34);
-  --label-bg: #e8effc;
-  --label-fg: #2255b4;
+  --dome-mid: #22347e;
+  --dome-wall: #16245c;
+  --dome-light: #4560bd;
+  --dome: #26398c;
+  --dome-dark: #16245c;
+  --dome-shadow: rgba(38, 57, 140, 0.32);
+  --label-bg: #e6e9f6;
+  --label-fg: #22347e;
 }
 
 @media (prefers-reduced-motion: reduce) {
