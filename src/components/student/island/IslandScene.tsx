@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CHARACTER_MODEL_HEIGHT, createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
 import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject, GIFT_MODEL_HEIGHT, replaceLandscapeProps } from "./islandModel";
+import { createAssetModel } from "./proceduralAsset";
 import { loadIslandPropLibrary } from "./islandAssets";
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_SCALE, PLACEMENT_GRID_STEP, SURFACE_Y } from "./placement";
@@ -18,6 +19,7 @@ import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPha
 type Props = {
   mode: ViewMode;
   gifts: IslandGift[];
+  incomingAsset?: Pick<IslandGift, "assetFormat" | "geometrySpec">;
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
@@ -78,6 +80,7 @@ const CLASSROOM_SPACING = 33;
 export default function IslandScene({
   mode,
   gifts,
+  incomingAsset,
   selected,
   proposal,
   phase,
@@ -96,6 +99,8 @@ export default function IslandScene({
   const onIslandScreenRectRef = useRef(onIslandScreenRect);
   const onIntroCompleteRef = useRef(onIntroComplete);
   const onOverviewChangeRef = useRef(onOverviewChange);
+  const incomingAssetRef = useRef(incomingAsset);
+  useEffect(() => { incomingAssetRef.current = incomingAsset; }, [incomingAsset]);
   const noticeTimerRef = useRef<number | null>(null);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive });
   // When the intro began: it plays once per visit, and a rebuilt scene
@@ -328,7 +333,7 @@ export default function IslandScene({
 
     // `pop` plays the entrance; a rebuilt scene (view switch) shows the character as is.
     function summonCharacter(pop: boolean) {
-      const next = createChildCharacter("star");
+      const next = createChildCharacter("star", incomingAssetRef.current);
       next.root.position.copy(initialCharacterPosition);
       next.root.scale.setScalar(characterScale);
       characterBaseY = initialCharacterPosition.y;
@@ -1035,7 +1040,7 @@ export default function IslandScene({
     disposeObject(runtime.gifts);
     runtime.gifts.clear();
     gifts.forEach((gift) => {
-      const model = createGiftModel(gift.kind);
+      const model = createAssetModel(gift);
       model.position.copy(runtime.toDisplayedWorld(gift, runtime.heightAt(gift.x, gift.z) + 0.02));
       model.scale.setScalar(runtime.giftScale);
       model.name = gift.name;

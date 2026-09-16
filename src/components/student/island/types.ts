@@ -8,6 +8,8 @@ export type IslandGift = {
   name: string;
   x: number;
   z: number;
+  assetFormat?: "glb" | "procedural";
+  geometrySpec?: unknown;
 };
 
 export type PlacementProposal = Omit<IslandGift, "id">;

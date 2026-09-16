@@ -8,8 +8,9 @@ import { disposeExtrudedItem, STAR_SPEC } from "@/lib/items/extrudedItem";
 import { createLabItem, parseLabItem, HOUSE_SPEC, type LabItemSpec } from "@/lib/items/assembledItem";
 
 import { CAT_SPEC, FLAG_SPEC, SAMPLE_STORIES } from "@/lib/items/sampleItems";
+import { FALLBACK_ITEM_SPEC } from "@/lib/items/fallbackItem";
 
-const samples: LabItemSpec[] = [STAR_SPEC, HOUSE_SPEC, CAT_SPEC, FLAG_SPEC];
+const samples: LabItemSpec[] = [STAR_SPEC, HOUSE_SPEC, CAT_SPEC, FLAG_SPEC, FALLBACK_ITEM_SPEC];
 
 export default function ItemLab() {
   const host = useRef<HTMLDivElement>(null);

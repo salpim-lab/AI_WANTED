@@ -32,7 +32,7 @@ function Icon({ name, size = 20, className = "" }: { name: IconName; size?: numb
 type Props = {
   compact?: boolean;
   studentName?: string;
-  incomingItem?: { emoji: string; name: string; reason: string } | null;
+  incomingItem?: { emoji: string; name: string; reason: string; assetFormat?: "glb" | "procedural"; geometrySpec?: unknown } | null;
   baseItemCount?: number;
   onComplete?: () => void;
 };
@@ -43,6 +43,8 @@ export default function IslandExperience({ compact = false, studentName = "민�
     emoji: incomingItem?.emoji ?? "⭐",
     name: incomingItem?.name ?? "반짝이는 별",
     description: incomingItem?.reason ?? "오늘의 이야기가 담긴 선물",
+    assetFormat: incomingItem?.assetFormat,
+    geometrySpec: incomingItem?.geometrySpec,
   };
   const [mode, setMode] = useState<ViewMode>("island");
   const [gifts, setGifts] = useState<IslandGift[]>([]);
@@ -194,6 +196,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
         <IslandScene
           mode={mode}
           gifts={gifts}
+          incomingAsset={{ assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec }}
           selected={selected}
           proposal={proposal}
           phase={phase}

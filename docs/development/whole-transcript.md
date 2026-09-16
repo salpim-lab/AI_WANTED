@@ -29,7 +29,9 @@
 기존 `conversation_messages`는 기록과 외래키 호환을 위해 유지한다.
 마이그레이션이 기존 메시지를 세션별·순서별로 전문에 모은다.
 새 상담을 메시지별 조회하는 기존 소비자는 `readWholeTranscript`로 전환해야 한다.
-상담 화면/API는 아직 TODO이며 이 문서의 저장 함수 호출을 연결해야 한다.
+`src/app/api/checkins/transcript` POST가 로그인 학생의 세션 소유권을 확인한 뒤 저장 함수를 호출한다. 요청 형식은 `{ session_id, transcript, status: "completed" | "stopped", reason? }`이다. 상담 화면은 이 API를 상담이 끝났다고 판단한 한 지점에서 호출하면 된다.
+
+어떤 버튼 또는 자동 전환을 상담 종료로 볼지는 아직 결정하지 않았다. 현재 mock 화면에는 자동으로 다음 단계로 넘어가는 경로와 `배치 종료`가 섞여 있으므로, 상담 UI 작업이 끝난 뒤 실제 종료 이벤트를 확정한다. 그 전까지 이 API를 임의의 버튼에 연결하지 않는다.
 완료 전 브라우저 종료 시 대화 복구 기능은 이번 변경에 포함하지 않는다.
 
 DB migration: `20260916100000_1060_whole_transcript.sql`.

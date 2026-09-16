@@ -174,10 +174,12 @@ export type Database = {
       }
       asset_catalog: {
         Row: {
+          asset_format: string
           asset_type: string
           created_at: string
           dedup_key: string
           generation_metadata: Json | null
+          geometry_spec: Json | null
           id: string
           model_url: string
           name: string
@@ -187,10 +189,12 @@ export type Database = {
           thumbnail_url: string | null
         }
         Insert: {
+          asset_format?: string
           asset_type: string
           created_at?: string
           dedup_key: string
           generation_metadata?: Json | null
+          geometry_spec?: Json | null
           id?: string
           model_url: string
           name: string
@@ -200,10 +204,12 @@ export type Database = {
           thumbnail_url?: string | null
         }
         Update: {
+          asset_format?: string
           asset_type?: string
           created_at?: string
           dedup_key?: string
           generation_metadata?: Json | null
+          geometry_spec?: Json | null
           id?: string
           model_url?: string
           name?: string
@@ -679,6 +685,7 @@ export type Database = {
       }
       island_placements: {
         Row: {
+          current_asset_id: string | null
           id: string
           island_id: string
           position_x: number
@@ -694,6 +701,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          current_asset_id?: string | null
           id?: string
           island_id: string
           position_x?: number
@@ -709,6 +717,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          current_asset_id?: string | null
           id?: string
           island_id?: string
           position_x?: number
@@ -736,6 +745,13 @@ export type Database = {
             columns: ["student_item_id"]
             isOneToOne: true
             referencedRelation: "student_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "island_placements_current_asset_id_fkey"
+            columns: ["current_asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset_catalog"
             referencedColumns: ["id"]
           },
         ]
