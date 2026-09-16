@@ -17,14 +17,18 @@
 /* ── 버튼들이 얹히는 회색 패널 ─────────────────────────── */
 .mood-panel {
   display: flex;
-  gap: 3.2cqh;
-  padding: 4.2cqh 4.2cqh 3.2cqh;
-  border-radius: 5cqh;
-  background: linear-gradient(170deg, #fdfdff 0%, #eceef5 100%);
+  gap: 5.6cqh;
+  padding: 6cqh 6cqh 4.6cqh;
+  border-radius: 6cqh;
+  /* 밑판도 버튼처럼 살짝 솟아 있어야 한다.
+     아래쪽 두께(첫 그림자)가 판의 옆면 역할을 한다. */
+  background: linear-gradient(172deg, #ffffff 0%, #f7f8fc 44%, #e9ebf3 100%);
   box-shadow:
-    0 0.4cqh 0 #e3e6ef,
-    0 2.4cqh 5cqh rgba(60, 68, 110, 0.14),
-    0 0.5cqh 0.2cqh rgba(255, 255, 255, 0.9) inset;
+    0 1.1cqh 0 #dfe2ec,
+    0 1.4cqh 0.4cqh rgba(60, 68, 110, 0.12),
+    0 3.4cqh 6cqh rgba(60, 68, 110, 0.16),
+    0 0.6cqh 0.3cqh rgba(255, 255, 255, 1) inset,
+    0 -0.5cqh 0.8cqh rgba(60, 68, 110, 0.05) inset;
 }
 
 /* ── 버튼 한 개 ────────────────────────────────────────── */
