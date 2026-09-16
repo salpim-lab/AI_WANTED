@@ -17,9 +17,9 @@
 /* ── 버튼들이 얹히는 회색 패널 ─────────────────────────── */
 .mood-panel {
   display: flex;
-  gap: 2.6cqh;
-  padding: 3.4cqh 3.4cqh 2.6cqh;
-  border-radius: 4cqh;
+  gap: 3.2cqh;
+  padding: 4.2cqh 4.2cqh 3.2cqh;
+  border-radius: 5cqh;
   background: linear-gradient(170deg, #fdfdff 0%, #eceef5 100%);
   box-shadow:
     0 0.4cqh 0 #e3e6ef,
@@ -44,36 +44,44 @@
 .mood-btn__bezel {
   display: grid;
   place-items: center;
-  width: 19cqh;
-  height: 19cqh;
+  width: 25cqh;
+  height: 25cqh;
   border-radius: 999px;
-  background: linear-gradient(170deg, #eef0f6 0%, #dfe2ec 100%);
+  background: linear-gradient(170deg, #eef0f6 0%, #dbdfea 100%);
+  /* 버저 받침 — 안쪽이 깊게 파여 보이도록 그림자를 두껍게 */
   box-shadow:
-    0 0.8cqh 1.4cqh rgba(60, 68, 110, 0.16) inset,
-    0 0.2cqh 0 rgba(255, 255, 255, 0.95);
+    0 1.4cqh 2.2cqh rgba(60, 68, 110, 0.22) inset,
+    0 -0.4cqh 0.8cqh rgba(255, 255, 255, 0.9) inset,
+    0 0.3cqh 0 rgba(255, 255, 255, 0.95);
+  padding-bottom: 1.8cqh;
+  align-items: start;
 }
 
 /* 돔 — 볼록한 색 버튼. 위쪽 하이라이트가 입체감의 핵심이다. */
 .mood-btn__dome {
   position: relative;
-  width: 15cqh;
-  height: 15cqh;
+  width: 20cqh;
+  height: 20cqh;
+  margin-top: 1.4cqh;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0) 42%),
-    linear-gradient(170deg, var(--dome-light) 0%, var(--dome) 52%, var(--dome-dark) 100%);
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.35) 24%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(168deg, var(--dome-light) 0%, var(--dome) 58%, var(--dome-mid) 100%);
+  /* 첫 그림자가 버저의 "측면 벽"이다. 누르면 이 높이가 줄어 실제로 내려앉는다. */
   box-shadow:
-    0 1.1cqh 1.6cqh var(--dome-shadow),
-    0 0.3cqh 0.5cqh rgba(0, 0, 0, 0.12);
-  transition: transform 0.09s ease, box-shadow 0.09s ease;
+    0 2.2cqh 0 var(--dome-wall),
+    0 2.4cqh 0.3cqh rgba(0, 0, 0, 0.16),
+    0 3.4cqh 2.4cqh var(--dome-shadow);
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
 }
 
 /* 누르면 실제로 눌린다 */
 .mood-btn:active .mood-btn__dome {
-  transform: translateY(0.7cqh) scale(0.97);
+  transform: translateY(1.9cqh);
   box-shadow:
-    0 0.3cqh 0.6cqh var(--dome-shadow),
-    0 0.15cqh 0.3cqh rgba(0, 0, 0, 0.14);
+    0 0.3cqh 0 var(--dome-wall),
+    0 0.4cqh 0.2cqh rgba(0, 0, 0, 0.18),
+    0 0.8cqh 1cqh var(--dome-shadow);
 }
 .mood-btn:focus-visible .mood-btn__bezel {
   outline: 0.5cqh solid var(--dome);
@@ -86,19 +94,19 @@
   flex-direction: column;
   align-items: center;
   gap: 0.4cqh;
-  min-width: 17cqh;
+  min-width: 21cqh;
   padding: 1.3cqh 1.6cqh;
   border-radius: 1.8cqh;
   background: var(--label-bg);
 }
 .mood-btn__name {
   font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-size: 3cqh;
+  font-size: 3.2cqh;
   line-height: 1.1;
   color: var(--label-fg);
 }
 .mood-btn__desc {
-  font-size: 2.1cqh;
+  font-size: 2.2cqh;
   font-weight: 600;
   color: var(--label-fg);
   opacity: 0.82;
@@ -106,6 +114,8 @@
 
 /* ── 색별 값 ───────────────────────────────────────────── */
 .mood-btn--green {
+  --dome-mid: #1aa34c;
+  --dome-wall: #15803d;
   --dome-light: #4ade80;
   --dome: #22c55e;
   --dome-dark: #15803d;
@@ -114,6 +124,8 @@
   --label-fg: #1a7f42;
 }
 .mood-btn--yellow {
+  --dome-mid: #daa90f;
+  --dome-wall: #b8860b;
   --dome-light: #fde047;
   --dome: #f5c518;
   --dome-dark: #c99a06;
@@ -122,6 +134,8 @@
   --label-fg: #97701a;
 }
 .mood-btn--red {
+  --dome-mid: #d83636;
+  --dome-wall: #a51f1f;
   --dome-light: #f87171;
   --dome: #ef4444;
   --dome-dark: #b91c1c;
@@ -130,6 +144,8 @@
   --label-fg: #c0392f;
 }
 .mood-btn--navy {
+  --dome-mid: #2568c8;
+  --dome-wall: #1a44b8;
   --dome-light: #60a5fa;
   --dome: #2f7fe0;
   --dome-dark: #1d4ed8;

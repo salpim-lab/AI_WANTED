@@ -41,15 +41,15 @@ export default function MoodPicker({
         <SalpimHeader />
         <StudentProfile name={studentFullName} photoSrc={studentPhotoSrc} />
 
-        <div className="absolute left-1/2 top-[24cqh] z-[2] flex w-full -translate-x-1/2 flex-col items-center">
-          <h1 className="sh-cute text-[7.2cqh] leading-[1.25] tracking-tight text-[var(--sh-navy)]">
+        <div className="absolute left-1/2 top-[19cqh] z-[2] flex w-full -translate-x-1/2 flex-col items-center">
+          <h1 className="sh-cute text-[5.6cqh] leading-[1.25] tracking-tight text-[var(--sh-navy)]">
             지금, 너의 <span className="text-[var(--sh-violet)]">마음</span>은 어떤 색이야?
           </h1>
-          <p className="mt-[2cqh] text-[3.1cqh] font-bold text-[var(--sh-muted)]">
+          <p className="mt-[1.6cqh] text-[2.7cqh] font-bold text-[var(--sh-muted)]">
             지금 느끼는 마음과 가장 비슷한 색을 눌러줘!
           </p>
 
-          <div className="mood-panel mt-[5.5cqh]">
+          <div className="mood-panel mt-[5cqh]">
             {OPTIONS.map((o) => (
               <MoodButton key={o.color} option={o} onSelect={onSelect} />
             ))}
