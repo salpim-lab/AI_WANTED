@@ -1,0 +1,169 @@
+/* 담당: 이유민
+   마음 색 선택 화면. 홈과 같은 스테이지(16:10 + 컨테이너 쿼리) 위에 올라간다.
+   목업의 "누르는 물리 버튼"을 이미지 없이 CSS 그라데이션으로 만든다. */
+
+.mood-screen {
+  background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
+  /* 홈 화면은 absolute inset-0 이라 진행 점(progress-dots)을 덮는다.
+     마음 화면은 점을 보여줘야 하므로 흐름 배치로 되돌려 점 아래에 놓는다.
+     공용 .progress-dots 는 강윤지님 섬 화면도 쓰므로 건드리지 않는다. */
+  position: relative;
+  inset: auto;
+  flex: 1;
+  min-height: 0;
+}
+.mood-screen.active { display: block; }
+
+/* ── 버튼들이 얹히는 회색 패널 ─────────────────────────── */
+.mood-panel {
+  display: flex;
+  gap: 5.6cqh;
+  padding: 6cqh 6cqh 4.6cqh;
+  border-radius: 6cqh;
+  /* 밑판도 버튼처럼 살짝 솟아 있어야 한다.
+     아래쪽 두께(첫 그림자)가 판의 옆면 역할을 한다. */
+  background: linear-gradient(172deg, #ffffff 0%, #f7f8fc 44%, #e9ebf3 100%);
+  box-shadow:
+    0 1.1cqh 0 #dfe2ec,
+    0 1.4cqh 0.4cqh rgba(60, 68, 110, 0.12),
+    0 3.4cqh 6cqh rgba(60, 68, 110, 0.16),
+    0 0.6cqh 0.3cqh rgba(255, 255, 255, 1) inset,
+    0 -0.5cqh 0.8cqh rgba(60, 68, 110, 0.05) inset;
+}
+
+/* ── 버튼 한 개 ────────────────────────────────────────── */
+.mood-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.8cqh;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* 받침(베젤) — 돔이 앉는 오목한 자리 */
+.mood-btn__bezel {
+  display: grid;
+  place-items: center;
+  width: 19.5cqh;
+  height: 19.5cqh;
+  border-radius: 999px;
+  /* 목업처럼 "파인 소켓"으로 보이려면 위가 어둡고 아래에 반사광이 있어야 한다.
+     평평한 회색 원이면 버튼이 그냥 얹힌 것처럼 보인다. */
+  background: linear-gradient(180deg, #d9dbe4 0%, #eceef4 46%, #fbfbfe 100%);
+  box-shadow:
+    0 1.6cqh 2cqh rgba(48, 55, 92, 0.3) inset,
+    0 -0.9cqh 1.2cqh rgba(255, 255, 255, 1) inset,
+    0 0.3cqh 0.6cqh rgba(255, 255, 255, 0.95);
+  padding-bottom: 0.7cqh;
+  align-items: start;
+}
+
+/* 돔 — 볼록한 색 버튼. 위쪽 하이라이트가 입체감의 핵심이다. */
+.mood-btn__dome {
+  position: relative;
+  width: 17.2cqh;
+  height: 17.2cqh;
+  margin-top: 0.7cqh;
+  border-radius: 999px;
+  background:
+    /* 왼쪽 위 또렷한 쉼표 광택 — 목업의 특징. 작고 밝고 경계가 분명하다 */
+    radial-gradient(ellipse 13% 7% at 30% 15%, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(ellipse 32% 15% at 35% 19%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.45) 50%, rgba(255, 255, 255, 0) 78%),
+    /* 그 아래 넓게 퍼지는 부드러운 빛 */
+    radial-gradient(ellipse 56% 36% at 42% 28%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 74%),
+    /* 아래 가장자리 반사광 */
+    radial-gradient(ellipse 56% 22% at 50% 94%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 68%),
+    linear-gradient(178deg, var(--dome-light) 0%, var(--dome) 44%, var(--dome-mid) 82%, var(--dome-wall) 100%);
+  box-shadow:
+    0 1cqh 0 var(--dome-wall),
+    0 1.15cqh 0.4cqh rgba(28, 32, 60, 0.24),
+    0 1.9cqh 1.4cqh var(--dome-shadow);
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
+}
+
+/* 누르면 실제로 눌린다 */
+.mood-btn:active .mood-btn__dome {
+  transform: translateY(0.8cqh);
+  box-shadow:
+    0 0.2cqh 0 var(--dome-wall),
+    0 0.35cqh 0.3cqh rgba(28, 32, 60, 0.28),
+    0 0.7cqh 0.9cqh var(--dome-shadow);
+}
+.mood-btn:focus-visible .mood-btn__bezel {
+  outline: 0.5cqh solid var(--dome);
+  outline-offset: 0.4cqh;
+}
+
+/* ── 버튼 아래 라벨 알약 ───────────────────────────────── */
+.mood-btn__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4cqh;
+  min-width: 18cqh;
+  padding: 1.3cqh 1.6cqh;
+  border-radius: 1.8cqh;
+  background: var(--label-bg);
+}
+.mood-btn__name {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 3.2cqh;
+  line-height: 1.1;
+  color: var(--label-fg);
+}
+.mood-btn__desc {
+  font-size: 2.2cqh;
+  font-weight: 600;
+  color: var(--label-fg);
+  opacity: 0.82;
+}
+
+/* ── 색별 값 ───────────────────────────────────────────── */
+.mood-btn--green {
+  --dome-mid: #17bf57;
+  --dome-wall: #0f9c45;
+  --dome-light: #62ee91;
+  --dome: #15c656;
+  --dome-dark: #0f9c45;
+  --dome-shadow: rgba(21, 198, 86, 0.3);
+  --label-bg: #e7f8ec;
+  --label-fg: #1a7f42;
+}
+.mood-btn--yellow {
+  --dome-mid: #eab308;
+  --dome-wall: #c08c04;
+  --dome-light: #ffe066;
+  --dome: #f5c518;
+  --dome-dark: #c08c04;
+  --dome-shadow: rgba(234, 179, 8, 0.3);
+  --label-bg: #fdf5da;
+  --label-fg: #97701a;
+}
+.mood-btn--red {
+  --dome-mid: #e63d3d;
+  --dome-wall: #b81f1f;
+  --dome-light: #ff8080;
+  --dome: #f0403f;
+  --dome-dark: #b81f1f;
+  --dome-shadow: rgba(240, 64, 63, 0.3);
+  --label-bg: #fdeaea;
+  --label-fg: #c0392f;
+}
+.mood-btn--navy {
+  --dome-mid: #22347e;
+  --dome-wall: #16245c;
+  --dome-light: #4560bd;
+  --dome: #26398c;
+  --dome-dark: #16245c;
+  --dome-shadow: rgba(38, 57, 140, 0.32);
+  --label-bg: #e6e9f6;
+  --label-fg: #22347e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mood-btn__dome { transition: none; }
+}

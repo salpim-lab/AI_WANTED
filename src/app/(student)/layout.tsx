@@ -14,6 +14,7 @@
 // 홈 화면 스타일은 student-home.css 에 따로 둔다.
 import "@/styles/prototype-student-shared.css";
 import "@/styles/student-home.css";
+import "@/styles/student-mood.css";
 
 export default function StudentLayout({
   children,
