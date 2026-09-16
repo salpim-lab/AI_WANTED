@@ -11,7 +11,7 @@ import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import StudentHome from "@/components/student/home/StudentHome";
-import ColorPicker from "@/components/student/ColorPicker";
+import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatPanel from "@/components/student/ChatPanel";
 import ItemReveal from "@/components/student/ItemReveal";
 import IslandBoard from "@/components/student/IslandBoard";
@@ -37,7 +37,7 @@ export default function CheckinPage() {
         onNext={() => flow.goTo(2)}
         bgSrc="/brand/checkin_home2.webp"
       />
-      <ColorPicker active={flow.step === 2} onSelect={flow.selectColor} />
+      <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />
       <ChatPanel
         active={flow.step === 3}
         badgeLabel={scenario?.badgeLabel ?? ""}
