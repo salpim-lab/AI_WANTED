@@ -183,6 +183,18 @@
 
 /* ── 편지 ──────────────────────────────────────────────── */
 /* 편지지는 정확히 한 장. 휘거나 회전하지 않는다. */
+/* 편지지가 봉투 안에서 올라온다.
+   시작값 60cqh — 편지지 윗변(11.5cqh)이 봉투 ∨ 안쪽(약 72cqh)까지 내려간 위치다.
+   루트의 overflow:hidden 이 봉투 아래로 삐져나온 부분을 잘라준다. */
+@keyframes shLetterPullUp {
+  0% { transform: translateY(60cqh); }
+  85% { transform: translateY(-0.7cqh); }
+  100% { transform: translateY(0); }
+}
+.sh-letter-entering {
+  animation: shLetterPullUp 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .sh-letter-paper {
   background: var(--sh-paper);
   border-radius: 0.6cqh;
@@ -249,6 +261,7 @@
 .sh-letter-leaving { animation: shLetterOut 0.24s ease-in forwards; }
 
 @media (prefers-reduced-motion: reduce) {
+  .sh-letter-entering { animation: none; }
   .sh-letter-leaving { animation: none; opacity: 0; }
 }
 

@@ -49,9 +49,16 @@ export default function TeacherLetter({
   onClose: () => void;
 }) {
   return (
-    <div className={closing ? "sh-letter-leaving" : undefined}>
+    // 봉투 바닥에 딱 맞춰 잘라낸다 (top 56cqh + 78cqh×166/600 ≒ 77.6cqh — SVG path 의 실제 바닥).
+    // 조금이라도 아래로 잡으면 그 틈으로 편지지가 삐져나와,
+    // 봉투가 아니라 봉투 밖에서 올라오는 것처럼 보인다.
+    <div
+      className={`absolute inset-x-0 top-0 h-[77.6cqh] overflow-hidden ${
+        closing ? "sh-letter-leaving" : ""
+      }`}
+    >
       {/* 봉투 뒤판 — 편지지 "뒤"(z-1). 종이 좌우로 보라색이 비쳐 보인다. */}
-      <div className="absolute left-1/2 top-[58cqh] z-[1] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
+      <div className="absolute left-1/2 top-[56cqh] z-[1] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
         <svg viewBox="0 0 600 170" className="block w-full" aria-hidden="true">
           <path d="M18 8 H582 Q600 8 600 26 V146 Q600 166 578 166 H22 Q0 166 0 146 V26 Q0 8 18 8 Z" fill="var(--sh-envelope)" />
           <path d="M18 8 H582" stroke="#ded9fd" strokeWidth="2.5" strokeLinecap="round" />
@@ -59,7 +66,7 @@ export default function TeacherLetter({
       </div>
 
       {/* 편지지 — 정확히 한 장, 반듯하게. 목업 기준 세로 15~66%. */}
-      <div className="sh-letter-paper absolute left-1/2 top-[11.5cqh] z-[2] w-[70cqh] max-w-[56cqw] -translate-x-1/2 px-[3cqh] pb-[13cqh] pt-[2.4cqh]">
+      <div className="sh-letter-paper sh-letter-entering absolute left-1/2 top-[11.5cqh] z-[2] w-[70cqh] max-w-[56cqw] -translate-x-1/2 px-[3cqh] pb-[20cqh] pt-[2.4cqh]">
         <button
           type="button"
           onClick={onClose}
@@ -113,7 +120,7 @@ export default function TeacherLetter({
           ))}
         </div>
 
-        <p className="mt-[1.4cqh] pr-[1.2cqh] text-right text-[2cqh] text-[var(--sh-muted)]">
+        <p className="mt-[1.1cqh] pr-[1.2cqh] text-right text-[2cqh] text-[var(--sh-muted)]">
           – {data.teacherName} –
         </p>
       </div>
@@ -121,7 +128,7 @@ export default function TeacherLetter({
       {/* 봉투 앞판 — 편지지 "앞"(z-3).
           윗변이 ∨ 모양이라 그 위로 편지지가 봉투 안에 담긴 채 비쳐 보인다.
           실제 봉투에서 종이를 반쯤 꺼냈을 때의 모습. */}
-      <div className="pointer-events-none absolute left-1/2 top-[58cqh] z-[3] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
+      <div className="pointer-events-none absolute left-1/2 top-[56cqh] z-[3] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
         <svg viewBox="0 0 600 170" className="block w-full" aria-hidden="true">
           <defs>
             <linearGradient id="envFrontG" x1="0" y1="0" x2="0" y2="1">
