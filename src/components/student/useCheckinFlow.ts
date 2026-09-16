@@ -25,9 +25,16 @@ function wait(ms: number) {
 let bubbleId = 0;
 
 export function useCheckinFlow(flow: "checkin" | "checkout") {
-  // 하교는 교사 코멘트 단계(1단계)가 없어서 색 선택부터 시작 — 나머지 단계 번호(2~5)는
-  // runScenario/handleReply 안의 goTo(3)/goTo(4) 호출과 맞추기 위해 그대로 재사용한다.
-  const startStep = flow === "checkin" ? 1 : 2;
+  // ⚠️ checkin_sessions 행은 **색 선택(2단계)에서** 만들어야 한다. 1단계(홈)에서 만들면 안 된다.
+  //    등교 홈의 선생님 편지는 "마지막 등교 세션 이후에 보낸 편지"만 띄우는 방식으로
+  //    읽음 처리를 대신한다(읽음 컬럼 없이). 홈에서 세션을 만들면 자기 세션 때문에
+  //    편지가 뜨자마자 사라진다. 자세한 내용: docs/planning/TEACHER_LETTER_LOGIC.md
+  //
+  // 등교·하교 모두 첫 화면(1단계)부터 시작한다. 하교 첫 화면은 선생님 편지 없이
+  // 인사와 CTA만 보여준다. 2~5단계 번호는 runScenario/handleReply 안의
+  // goTo(3)/goTo(4) 호출과 맞추기 위해 그대로 쓴다.
+  // reset() 이 돌아갈 자리라서 상수로 남겨 둔다.
+  const startStep = 1;
   const [step, setStep] = useState(startStep);
   const [color, setColor] = useState<SignalColor | null>(null);
   const [item, setItem] = useState<Item | null>(null);
