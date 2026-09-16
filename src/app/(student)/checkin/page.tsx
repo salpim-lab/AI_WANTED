@@ -1,5 +1,5 @@
 // 담당: 이유민
-// 등교 흐름 (5단계): 교사 코멘트 확인 → 색 선택 → AI 꼬리질문(녹음) → 아이템 생성 → 섬 배치
+// 등교 흐름 (5단계): 홈(선생님 편지) → 색 선택 → AI 꼬리질문(녹음) → 아이템 생성 → 섬 배치
 // 참고: docs/planning/PLANNING.md "[학생 화면] — 등교 흐름"
 //
 // 이 page는 조립만 담당한다. 실제 단계별 UI/로직은 components/student/* 조각을 사용.
@@ -10,7 +10,7 @@
 import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
-import TeacherComment from "@/components/student/TeacherComment";
+import StudentHome from "@/components/student/home/StudentHome";
 import ColorPicker from "@/components/student/ColorPicker";
 import ChatPanel from "@/components/student/ChatPanel";
 import ItemReveal from "@/components/student/ItemReveal";
@@ -31,7 +31,12 @@ export default function CheckinPage() {
         ))}
       </div>
 
-      <TeacherComment active={flow.step === 1} onNext={() => flow.goTo(2)} />
+      <StudentHome
+        mode="morning"
+        active={flow.step === 1}
+        onNext={() => flow.goTo(2)}
+        bgSrc="/brand/checkin_home2.webp"
+      />
       <ColorPicker active={flow.step === 2} onSelect={flow.selectColor} />
       <ChatPanel
         active={flow.step === 3}

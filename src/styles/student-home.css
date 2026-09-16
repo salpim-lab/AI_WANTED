@@ -1,0 +1,289 @@
+/* 담당: 이유민 (Claude 세션)
+   학생 홈(등교/하교) 전용 스타일.
+   목업 2장이 디자인의 절대 기준이며, 비율을 지키기 위해 4:3 스테이지 안에서
+   컨테이너 쿼리 단위(cqw/cqh)로만 크기를 잡는다.
+   → 화면이 커지거나 작아져도 요소가 따로 움직이지 않고 구도가 통째로 스케일된다.
+
+   공용 prototype-student-shared.css 는 강윤지님 섬 화면과 공유하므로 건드리지 않는다. */
+
+:root {
+  --sh-navy: #102a56;
+  --sh-violet: #635bff;
+  --sh-violet-light: #8b83ff;
+  --sh-muted: #7d849b;
+  --sh-paper: #fdf9ef;
+  --sh-paper-edge: #ece0c9;
+  --sh-envelope: #b9b2f5;
+  --sh-envelope-front: #cfcafa;
+  --sh-highlight: #ded8ff;
+  /* 배경을 살짝 가라앉히는 흰 막의 세기. 0 = 원본, 0.4 = 많이 흐림 */
+  --sh-bg-veil: 0.34;
+}
+
+/* ── 4:3 태블릿 스테이지 ───────────────────────────────── */
+/* 디벗 기종 중 갤럭시탭 S7 FE(2560x1600 = 16:10)를 기준 화면으로 삼는다.
+   화면을 거의 꽉 채우되 얇은 태블릿 테두리를 그려 기기 안이라는 느낌을 준다. */
+.tablet-stage-fit {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #dfe2ea;
+  overflow: hidden;
+}
+
+.tablet-bezel {
+  aspect-ratio: 16 / 10;
+  width: min(98vw, 156.8vh);
+  padding: 0.7vmin;
+  border-radius: 2.4vmin;
+  background: linear-gradient(160deg, #3a3f4d 0%, #23262f 55%, #171a21 100%);
+  box-shadow:
+    0 0 0 0.25vmin rgba(255, 255, 255, 0.18) inset,
+    0 2vmin 5vmin rgba(20, 24, 40, 0.35);
+}
+
+.tablet-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  container-type: size;
+  overflow: hidden;
+  border-radius: 1.8vmin;
+  /* 2~5단계(색 선택·대화·아이템·섬)는 공용 .screen 클래스의 flex:1 로 높이를 채운다.
+     옛 프레임(.tablet)이 flex 컨테이너였기 때문인데, 여기가 flex 가 아니면
+     그 화면들이 내용 높이만큼만 차지하고 위로 쪼그라든다.
+     홈 화면은 절대 배치라 영향 없다. */
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-sans-kr), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color: var(--sh-navy);
+}
+
+/* 화면(등교/하교) — 스테이지를 꽉 채운다 */
+.home-screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.home-screen.active { display: block; }
+
+/* 배경 레이어 — 실제 일러스트 에셋이 들어올 자리 */
+.home-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.home-bg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 배경 위 흰 막 — 일러스트가 가라앉아 앞의 UI 가 또렷해진다.
+   세기는 --sh-bg-veil 하나로 조절한다. */
+.home-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: var(--sh-bg-veil);
+  pointer-events: none;
+}
+
+/* 에셋이 아직 없을 때의 임시 배경.
+   목업의 일러스트를 SVG 로 흉내내지 않고 색 방향만 맞춘 단색 그라데이션이다. */
+.home-bg--morning-placeholder {
+  background: linear-gradient(180deg, #cfe0f7 0%, #e8eefb 46%, #fbf6ec 100%);
+}
+.home-bg--afternoon-placeholder {
+  background: linear-gradient(180deg, #cfc8ee 0%, #eccfdf 34%, #f9d9be 66%, #fbe9b4 100%);
+}
+
+.home-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ── 상태바 ────────────────────────────────────────────── */
+.sh-statusbar-unused {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5cqh;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2.6cqw;
+  font-size: 1.9cqh;
+  font-weight: 700;
+  color: #1b2440;
+  z-index: 3;
+}
+.sh-statusbar .right { display: flex; align-items: center; gap: 1cqw; }
+
+/* ── 손글씨 ────────────────────────────────────────────── */
+/* 인사 블록 — 배경(특히 등교의 초록 칠판) 위에서도 글자가 읽히도록
+   뒤에 가장자리가 없는 부드러운 빛 무리를 깐다. 카드가 아니라 빛이라
+   배경 일러스트를 가리지 않는다. */
+.sh-intro {
+  isolation: isolate;
+}
+.sh-intro::before {
+  content: "";
+  position: absolute;
+  /* 좁고 진하면 밝은 얼룩처럼 보이고 경계가 드러난다.
+     넓게 깔고, 완만한 다단 그라데이션으로 100% 에서 완전히 투명해지게 한 뒤
+     블러까지 걸어 경계를 없앤다. */
+  inset: -20cqh -30cqh;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    closest-side ellipse at center,
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(255, 255, 255, 0.72) 26%,
+    rgba(255, 255, 255, 0.56) 44%,
+    rgba(255, 255, 255, 0.36) 60%,
+    rgba(255, 255, 255, 0.18) 74%,
+    rgba(255, 255, 255, 0.06) 87%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(2.4cqh);
+}
+
+/* 제목·버튼·로고처럼 크게 보이는 글자는 둥근 서체로 */
+.sh-cute {
+  font-family: var(--font-cute), var(--font-sans-kr), "Apple SD Gothic Neo", sans-serif;
+  font-weight: 400;
+}
+
+.sh-hand {
+  font-family: var(--font-hand), "Apple SD Gothic Neo", cursive;
+  color: var(--sh-muted);
+  line-height: 1.55;
+}
+
+/* 칠판 위에 얹히는 손글씨 — 분필처럼 흰색이어야 읽힌다 */
+.sh-hand--chalk {
+  color: #f2f7f4;
+  text-shadow: 0 0.2cqh 0.5cqh rgba(20, 40, 30, 0.35);
+}
+
+/* ── CTA ───────────────────────────────────────────────── */
+.sh-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.2cqh;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font-cute), var(--font-sans-kr), inherit;
+  font-weight: 400;
+  color: #fff;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #6a63ff 0%, #5a52f0 100%);
+  box-shadow: 0 1.1cqh 2.6cqh rgba(90, 82, 240, 0.3);
+  transition: filter 0.15s, transform 0.1s;
+}
+.sh-cta:hover { filter: brightness(1.06); }
+.sh-cta:active { transform: scale(0.985); }
+.sh-cta:focus-visible { outline: 0.45cqh solid #b9b3ff; outline-offset: 0.5cqh; }
+
+/* ── 편지 ──────────────────────────────────────────────── */
+/* 편지지는 정확히 한 장. 휘거나 회전하지 않는다. */
+/* 편지지가 봉투 안에서 올라온다.
+   시작값 60cqh — 편지지 윗변(11.5cqh)이 봉투 ∨ 안쪽(약 72cqh)까지 내려간 위치다.
+   루트의 overflow:hidden 이 봉투 아래로 삐져나온 부분을 잘라준다. */
+@keyframes shLetterPullUp {
+  0% { transform: translateY(60cqh); }
+  85% { transform: translateY(-0.7cqh); }
+  100% { transform: translateY(0); }
+}
+.sh-letter-entering {
+  animation: shLetterPullUp 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sh-letter-paper {
+  background: var(--sh-paper);
+  border-radius: 0.6cqh;
+  box-shadow: 0 1.4cqh 3.4cqh rgba(40, 48, 90, 0.16);
+  position: relative;
+  overflow: hidden;
+}
+/* 아주 약한 종이 결 */
+.sh-letter-paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(150, 128, 86, 0.018) 0px,
+    rgba(150, 128, 86, 0.018) 1px,
+    transparent 1px,
+    transparent 3.4cqh
+  );
+}
+/* 교사가 길게 쓰면 본문만 스크롤된다. 머리말과 서명은 고정.
+   글자 수 제한을 두지 않기로 해서(2026-09-16) 넘치는 경우를 여기서 흡수한다. */
+.sh-letter-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d7d2c2 transparent;
+  overscroll-behavior: contain;
+}
+.sh-letter-scroll::-webkit-scrollbar { width: 0.9cqh; }
+.sh-letter-scroll::-webkit-scrollbar-track { background: transparent; }
+.sh-letter-scroll::-webkit-scrollbar-thumb {
+  background: #ddd7c6;
+  border-radius: 999px;
+}
+
+.sh-letter-body {
+  font-family: var(--font-hand), "Apple SD Gothic Neo", sans-serif;
+  color: #33405f;
+}
+.sh-mark {
+  background: var(--sh-highlight);
+  border-radius: 0.4cqh;
+  padding: 0 0.6cqh 0.15cqh;
+  box-decoration-break: clone;
+}
+.sh-letter-close {
+  position: absolute;
+  border: none;
+  border-radius: 999px;
+  background: rgba(105, 112, 150, 0.12);
+  color: #626a8c;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+.sh-letter-close:hover { background: rgba(105, 112, 150, 0.22); }
+.sh-letter-close:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+
+/* 닫기: 200~300ms 의 얕은 fade/scale 만 */
+@keyframes shLetterOut {
+  to { opacity: 0; transform: scale(0.97); }
+}
+.sh-letter-leaving { animation: shLetterOut 0.24s ease-in forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-letter-entering { animation: none; }
+  .sh-letter-leaving { animation: none; opacity: 0; }
+}
+
+/* ── 프로필 pill ───────────────────────────────────────── */
+.sh-profile {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.14);
+}
+/* 학생 사진은 나중에 업로드한다. 지금은 빈 원형 자리만 둔다. */
+.sh-avatar {
+  border-radius: 999px;
+  background: #e6e9f4;
+  object-fit: cover;
+  flex: none;
+}
+

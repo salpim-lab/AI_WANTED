@@ -1,7 +1,8 @@
 // 담당: 이유민
-// 하교 흐름 (3단계): 색 선택 → AI 고정 질문(녹음) → 아이템 생성 + 섬 배치
+// 하교 흐름: 첫 화면 → 색 선택 → AI 고정 질문(녹음) → 아이템 생성 + 섬 배치
 // 참고: docs/planning/PLANNING.md "[학생 화면] — 하교 흐름"
-// ColorPicker/ChatPanel/ItemReveal은 checkin과 동일 컴포넌트 재사용 (교사 코멘트 단계만 없음)
+// StudentOpening/ColorPicker/ChatPanel/ItemReveal은 checkin과 동일 컴포넌트 재사용.
+// 첫 화면은 period="afternoon" 으로 문구가 바뀌고 선생님 편지는 나오지 않는다.
 
 "use client";
 
@@ -9,6 +10,7 @@ import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
+import StudentHome from "@/components/student/home/StudentHome";
 import ColorPicker from "@/components/student/ColorPicker";
 import ChatPanel from "@/components/student/ChatPanel";
 import ItemReveal from "@/components/student/ItemReveal";
@@ -21,7 +23,7 @@ export default function CheckoutPage() {
   return (
     <>
       <div className="progress-dots">
-        {[2, 3, 4, 5].map((s) => (
+        {[1, 2, 3, 4, 5].map((s) => (
           <span
             key={s}
             className={s === flow.step ? "active" : s < flow.step ? "done" : undefined}
@@ -29,6 +31,12 @@ export default function CheckoutPage() {
         ))}
       </div>
 
+      <StudentHome
+        mode="afternoon"
+        active={flow.step === 1}
+        onNext={() => flow.goTo(2)}
+        bgSrc="/brand/checkout_home-배경만.webp"
+      />
       <ColorPicker active={flow.step === 2} onSelect={flow.selectColor} />
       <ChatPanel
         active={flow.step === 3}

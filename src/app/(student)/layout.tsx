@@ -1,12 +1,19 @@
 // 담당: 이유민 (섬 제외 학생 화면 전체)
-// 역할: 등교/하교 공통 레이아웃 — 디벗(태블릿) 프레임 + 상태바.
-// 진행 단계 표시(progress-dots)는 등교(5단계)/하교(3단계) 단계 수가 달라서
-// 여기가 아니라 각 page.tsx(checkin/checkout)에서 그린다.
-// 참고: docs/prototype/prototype-student.html
-
-// 이 파일은 device-frame/tablet/status-bar만 그리는 공용 뼈대라 CSS도 "공용" 파일만 import한다.
-// 화면별 스타일(s1~s4, s5)은 각자 담당 페이지/컴포넌트에서 알아서 import — 여기 추가하지 말 것.
+// 학생 화면 공통 레이아웃 — 가로형 태블릿 스테이지 (16:10).
+//
+// 디벗은 단일 기종이 아니다 (아이패드 9세대 1.333 / 갤럭시탭 S7 FE 1.60 /
+// 노트북형 약 1.78). 어떤 비율로 고정해도 나머지 기기에서 띠가 생기므로,
+// 주력 기종인 갤럭시탭 기준 16:10 으로 잡고 얇은 태블릿 테두리를 그린다.
+// 스테이지 안에서는 컨테이너 쿼리 단위로만 크기를 잡아, 화면이 커지거나
+// 작아져도 구도가 통째로 스케일되고 요소가 따로 움직이지 않는다.
+//
+// ⚠️ 이 레이아웃은 강윤지님의 섬 화면(IslandBoard, checkin/checkout 5단계)도
+//    감싼다. 여기를 바꾸면 섬 화면의 크기·비율도 함께 바뀐다.
+//
+// 공용 prototype-student-shared.css 는 강윤지님 섬 화면과 공유하므로 유지하되,
+// 홈 화면 스타일은 student-home.css 에 따로 둔다.
 import "@/styles/prototype-student-shared.css";
+import "@/styles/student-home.css";
 
 export default function StudentLayout({
   children,
@@ -14,17 +21,9 @@ export default function StudentLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="device-frame">
-      <div className="tablet">
-        <div className="status-bar">
-          <span className="time">오전 8:32</span>
-          <span className="app-name">살핌</span>
-          <span className="icons">
-            <span>WiFi</span>
-            <span>🔋 87%</span>
-          </span>
-        </div>
-        {children}
+    <div className="tablet-stage-fit">
+      <div className="tablet-bezel">
+        <div className="tablet-stage">{children}</div>
       </div>
     </div>
   );
