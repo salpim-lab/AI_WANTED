@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "속이 빈 머그컵",
+  "parts": [
+    {
+      "id": "body",
+      "shape": "hollowContainer",
+      "radiusTop": 0.3,
+      "radiusBottom": 0.28,
+      "height": 0.6,
+      "wallThickness": 0.04,
+      "bottomThickness": 0.04,
+      "position": [0, 0, 0],
+      "rotation": [0, 0, 0],
+      "color": "#E8B466"
+    },
+    {
+      "id": "handle",
+      "shape": "torusArc",
+      "radius": 0.18,
+      "tubeRadius": 0.035,
+      "arc": 3.141592653589793,
+      "position": [0.26, 0, 0],
+      "rotation": [0, 0, -1.5707963267948966],
+      "color": "#E8B466"
+    }
+  ]
+}

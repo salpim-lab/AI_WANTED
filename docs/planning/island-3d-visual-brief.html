@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    name="description"
+    content="살핌 3D 퍼즐 섬을 참고 이미지의 저폴리 디오라마 분위기로 개선하기 위한 시각·구현 명세"
+  />
+  <title>살핌 3D 섬 · Visual Brief</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1e352b;
+      --muted: #66766d;
+      --line: #dbe2d8;
+      --paper: #f7f8f2;
+      --card: #ffffff;
+      --moss: #557a3c;
+      --grass: #89aa55;
+      --grass-light: #abc76a;
+      --soil: #9a6843;
+      --cliff: #45534c;
+      --cliff-light: #6d7769;
+      --water: #79c6c3;
+      --sky: #dceee5;
+      --warm: #f4d596;
+      --danger: #a45245;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 0%, #e5f1e8 0, transparent 30rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    a { color: inherit; }
+
+    code, pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    header,
+    main,
+    footer {
+      width: min(1180px, calc(100% - 40px));
+      margin-inline: auto;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1.35fr 0.65fr;
+      gap: 28px;
+      align-items: end;
+      padding: 70px 0 34px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--moss);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 18px;
+      font-size: clamp(2.2rem, 5vw, 4.7rem);
+      line-height: 1.02;
+      letter-spacing: -0.055em;
+    }
+
+    h2 {
+      margin-bottom: 18px;
+      font-size: clamp(1.55rem, 2.5vw, 2.35rem);
+      line-height: 1.18;
+      letter-spacing: -0.035em;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .status {
+      justify-self: end;
+      max-width: 320px;
+      padding: 18px 20px;
+      border: 1px solid #cfdbcf;
+      border-radius: 20px;
+      background: #edf5ec;
+      color: #3f5f4c;
+      font-size: 0.9rem;
+    }
+
+    .status strong { display: block; margin-bottom: 4px; }
+
+    main { padding: 34px 0 70px; }
+
+    section { margin-top: 30px; }
+
+    .card {
+      padding: clamp(22px, 4vw, 38px);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: color-mix(in srgb, var(--card) 95%, var(--sky));
+      box-shadow: 0 20px 60px rgb(49 75 61 / 7%);
+    }
+
+    .reference-grid,
+    .two-column,
+    .metric-grid,
+    .palette {
+      display: grid;
+      gap: 18px;
+    }
+
+    .reference-grid { grid-template-columns: 1fr 1fr; }
+    .two-column { grid-template-columns: 1fr 1fr; }
+    .metric-grid { grid-template-columns: repeat(4, 1fr); }
+    .palette { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+
+    figure {
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: #eef3ec;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      height: 410px;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    figure:nth-child(2) img {
+      object-fit: contain;
+      background: #d8e9e1;
+    }
+
+    figcaption {
+      min-height: 112px;
+      padding: 16px 18px 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    figcaption strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .callout {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--warm);
+      border-radius: 0 14px 14px 0;
+      background: #fff8e9;
+      color: #705b35;
+    }
+
+    .rule-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rule-list li {
+      position: relative;
+      padding: 13px 14px 13px 44px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfcf8;
+    }
+
+    .rule-list li::before {
+      position: absolute;
+      left: 14px;
+      top: 13px;
+      display: grid;
+      width: 20px;
+      height: 20px;
+      place-items: center;
+      border-radius: 50%;
+      background: #e2efde;
+      color: #46713c;
+      content: "✓";
+      font-size: 0.75rem;
+      font-weight: 900;
+    }
+
+    .rule-list.dont li::before {
+      background: #f4e2de;
+      color: var(--danger);
+      content: "×";
+    }
+
+    .metric {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfcf8;
+    }
+
+    .metric b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--moss);
+      font-size: 1.45rem;
+      line-height: 1.1;
+    }
+
+    .metric span { color: var(--muted); font-size: 0.83rem; }
+
+    .profile {
+      display: grid;
+      gap: 5px;
+      margin: 28px 0 8px;
+      padding: 24px;
+      border-radius: 20px;
+      background: var(--sky);
+    }
+
+    .layer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 42px;
+      padding: 8px 16px;
+      border-radius: 9px;
+      color: white;
+      font-size: 0.87rem;
+      font-weight: 750;
+    }
+
+    .layer small { opacity: 0.8; font-weight: 500; }
+    .layer.grass { background: var(--grass); color: #203520; }
+    .layer.soil { background: var(--soil); }
+    .layer.cliff { min-height: 110px; background: linear-gradient(105deg, var(--cliff-light), var(--cliff)); }
+    .layer.shadow { width: 72%; min-height: 16px; margin: 16px auto 0; background: rgb(54 84 69 / 20%); filter: blur(8px); }
+
+    .swatch {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: white;
+    }
+
+    .swatch span { display: block; height: 76px; }
+    .swatch code { display: block; padding: 8px; font-size: 0.72rem; text-align: center; }
+
+    .prompt {
+      overflow: auto;
+      max-height: 720px;
+      margin: 0;
+      padding: 24px;
+      border-radius: 20px;
+      background: #13241d;
+      color: #dce9df;
+      font-size: 0.86rem;
+      line-height: 1.72;
+      white-space: pre-wrap;
+    }
+
+    .files {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.91rem;
+    }
+
+    .files th,
+    .files td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .files th { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .files code { overflow-wrap: anywhere; color: #356147; }
+
+    footer {
+      padding: 26px 0 46px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.83rem;
+    }
+
+    @media (max-width: 820px) {
+      header,
+      .reference-grid,
+      .two-column { grid-template-columns: 1fr; }
+      .status { justify-self: start; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+      .palette { grid-template-columns: repeat(4, 1fr); }
+      figure img { height: 300px; }
+    }
+
+    @media (max-width: 500px) {
+      header, main, footer { width: min(100% - 24px, 1180px); }
+      header { padding-top: 42px; }
+      .metric-grid { grid-template-columns: 1fr; }
+      .palette { grid-template-columns: repeat(2, 1fr); }
+      .card { border-radius: 21px; }
+      .files th:nth-child(2), .files td:nth-child(2) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">Salpim · 3D Island Visual Contract · v1</p>
+      <h1>평평한 퍼즐을<br />작은 세계처럼.</h1>
+      <p class="lede">
+        이 문서는 참고 이미지의 분위기를 현재 <code>/island</code> 장면에 옮기기 위한 구현 명세다.
+        GPT CLI는 이미지를 그대로 복제하지 말고, 아래의 형태·재질·카메라 규칙을 우선한다.
+      </p>
+    </div>
+    <aside class="status">
+      <strong>핵심 목표</strong>
+      넓은 아이템 배치 면적과 퍼즐 결합 기능은 유지하면서, 바닥 두께·절벽·광원으로 저폴리 디오라마의 덩어리감을 만든다.
+    </aside>
+  </header>
+
+  <main>
+    <section class="card" id="references">
+      <p class="eyebrow">01 · References</p>
+      <h2>이미지에서 빌릴 것과 빌리지 않을 것</h2>
+      <div class="reference-grid">
+        <figure>
+          <img src="./island-reference/forest-diorama-reference.png" alt="집과 숲, 물길이 있는 세로형 저폴리 디오라마 섬 참고 이미지" />
+          <figcaption>
+            <strong>참고 A · 디오라마의 깊이</strong>
+            잔디 캡 아래로 흙과 암석이 충분히 보이고, 좌상단의 따뜻한 빛과 부드러운 그림자가 미니어처 같은 공간감을 만든다.
+          </figcaption>
+        </figure>
+        <figure>
+          <img src="./island-reference/floating-island-reference.png" alt="깊은 암벽과 폭포가 있는 가로형 저폴리 부유 섬 참고 이미지" />
+          <figcaption>
+            <strong>참고 B · 실루엣과 절벽</strong>
+            윗면은 넓고 읽기 쉬우며, 측면은 여러 크기의 암석 덩어리와 아래로 좁아지는 실루엣으로 무게감을 만든다.
+          </figcaption>
+        </figure>
+      </div>
+      <div class="callout">
+        <strong>중요:</strong> 참고 이미지 속 집, 강, 폭포, 산, 울창한 나무를 초기 섬에 그대로 추가하라는 뜻이 아니다.
+        현재 제품은 한 학기 동안 아이템이 쌓이는 빈 퍼즐 섬이므로, 차용 대상은 오직 볼륨·재질·조명·카메라의 분위기다.
+      </div>
+    </section>
+
+    <section class="two-column">
+      <article class="card">
+        <p class="eyebrow">02 · Must Keep</p>
+        <h2>반드시 유지</h2>
+        <ul class="rule-list">
+          <li>학생별 한 조각과 학급 3×3 퍼즐 결합 구조</li>
+          <li><code>TILE_SIZE = 22</code>의 넓은 장기 배치 면적</li>
+          <li>잔디 클릭, 캐릭터 이동, 배치 확인 흐름</li>
+          <li>정확한 레이캐스트 표면과 기존 충돌 검사</li>
+          <li>모바일 한 손가락 회전·핀치 확대와 데스크톱 조작</li>
+          <li>이미지 텍스처 없는 실제 Three.js 메시 모델</li>
+        </ul>
+      </article>
+      <article class="card">
+        <p class="eyebrow">03 · Must Avoid</p>
+        <h2>이번 단계에서 금지</h2>
+        <ul class="rule-list dont">
+          <li>초기 섬의 중앙을 차지하는 집·산·연못·강</li>
+          <li>아이템 배치를 막는 울창한 숲 또는 장식 과밀</li>
+          <li>반짝이는 플라스틱 재질과 채도가 과한 네온 컬러</li>
+          <li>정투시 원근이 강해 윗면이 좁아 보이는 카메라</li>
+          <li>퍼즐 외곽선과 클릭 판정이 서로 어긋나는 장식</li>
+          <li>프레임마다 무조건 렌더링하는 애니메이션 루프</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="card" id="geometry">
+      <p class="eyebrow">04 · Geometry</p>
+      <h2>섬은 얇은 판이 아니라 세 층의 덩어리</h2>
+      <div class="metric-grid">
+        <div class="metric"><b>18–24%</b><span>전체 폭 대비 시각적 총 두께</span></div>
+        <div class="metric"><b>2–4%</b><span>잔디 캡 두께</span></div>
+        <div class="metric"><b>4–6%</b><span>따뜻한 흙 띠 두께</span></div>
+        <div class="metric"><b>12–18%</b><span>어두운 암벽 본체 두께</span></div>
+      </div>
+      <div class="profile" role="img" aria-label="잔디 캡, 흙 띠, 깊은 암벽 본체 순서의 섬 측면 구조도">
+        <div class="layer grass"><span>잔디 캡</span><small>밝고 부드러운 상단 bevel</small></div>
+        <div class="layer soil"><span>흙 띠</span><small>측면 윤곽을 읽게 하는 따뜻한 중간층</small></div>
+        <div class="layer cliff"><span>암벽 본체</span><small>불규칙한 세로 분할 + 아래로 8–14% taper</small></div>
+        <div class="layer shadow" aria-hidden="true"></div>
+      </div>
+      <p>
+        암벽은 한 장의 매끈한 벽이 아니라 외곽선을 36–64개 구간으로 나누고, 각 구간의 하단 위치·밝기를 조금씩 바꾼다.
+        단, 상단 외곽과 클릭 표면은 기존 퍼즐 <code>Shape</code>를 공유해 결합 정확도를 보존한다.
+      </p>
+    </section>
+
+    <section class="card" id="art-direction">
+      <p class="eyebrow">05 · Art Direction</p>
+      <h2>동화 같지만 장난감처럼 번들거리지는 않게</h2>
+      <div class="palette" aria-label="권장 색상 팔레트">
+        <div class="swatch"><span style="background:#89aa55"></span><code>#89AA55</code></div>
+        <div class="swatch"><span style="background:#abc76a"></span><code>#ABC76A</code></div>
+        <div class="swatch"><span style="background:#9a6843"></span><code>#9A6843</code></div>
+        <div class="swatch"><span style="background:#6d7769"></span><code>#6D7769</code></div>
+        <div class="swatch"><span style="background:#45534c"></span><code>#45534C</code></div>
+        <div class="swatch"><span style="background:#79c6c3"></span><code>#79C6C3</code></div>
+        <div class="swatch"><span style="background:#dceee5"></span><code>#DCEEE5</code></div>
+        <div class="swatch"><span style="background:#f4d596"></span><code>#F4D596</code></div>
+      </div>
+      <div class="two-column" style="margin-top:24px">
+        <div>
+          <h3>재질</h3>
+          <p>모든 자연물은 <code>MeshStandardMaterial</code> 중심. 거칠기 <code>0.82–0.96</code>, 금속성 <code>0</code>. 암벽은 3–4개의 가까운 색을 구간별로 섞어 면 분할을 읽게 한다.</p>
+        </div>
+        <div>
+          <h3>조명</h3>
+          <p>화면 좌상단의 따뜻한 태양광 + 청록 계열의 약한 반구광. 접촉 그림자는 선명하고 멀어질수록 부드럽게. 배경은 안개 낀 민트색.</p>
+        </div>
+        <div>
+          <h3>카메라</h3>
+          <p>직교 카메라 유지. 기본 방위각 38–45°, 고도 34–40°. 윗면 65–72%, 측면 28–35%가 보이도록 프레이밍한다.</p>
+        </div>
+        <div>
+          <h3>장식 밀도</h3>
+          <p>중앙 배치 영역은 비워 두고 외곽 15%에만 풀, 꽃, 작은 돌을 드문드문 둔다. 장식은 섬보다 먼저 눈에 띄면 안 된다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="implementation">
+      <p class="eyebrow">06 · Implementation Map</p>
+      <h2>현재 코드에서 손댈 위치</h2>
+      <table class="files">
+        <thead>
+          <tr><th>파일</th><th>역할</th><th>변경 방향</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>src/components/student/island/islandModel.ts</code></td>
+            <td>절차적 메시 생성</td>
+            <td>깊은 암벽 본체, 얇은 흙 띠, 잔디 캡, 암석 면 분할 추가. 기존 <code>surface</code> 반환 계약 유지.</td>
+          </tr>
+          <tr>
+            <td><code>src/components/student/island/IslandScene.tsx</code></td>
+            <td>카메라·조명·렌더링</td>
+            <td>두꺼워진 하부가 프레임 안에 들어오도록 기본 카메라·target·shadow 범위만 조정.</td>
+          </tr>
+          <tr>
+            <td><code>src/components/student/island/puzzleGeometry.ts</code></td>
+            <td>퍼즐 외곽·배치 판정</td>
+            <td>가능하면 변경하지 않음. 시각 메시가 반드시 이 Shape를 원본으로 사용.</td>
+          </tr>
+          <tr>
+            <td><code>src/components/student/island/__tests__/puzzleGeometry.test.mjs</code></td>
+            <td>결합·충돌 회귀</td>
+            <td>기존 테스트를 통과해야 하며 시각 개선을 위해 판정 로직을 느슨하게 만들지 않음.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card" id="prompt">
+      <p class="eyebrow">07 · Copy-ready Prompt</p>
+      <h2>VS Code GPT CLI에 그대로 넣을 요청문</h2>
+      <pre class="prompt">이 저장소의 3D 섬을 개선해줘.
+
+먼저 다음 파일을 읽고 현재 구조와 미완성 변경을 보존해:
+- AGENTS.md
+- docs/planning/island-3d-visual-brief.html
+- src/components/student/island/README.md
+- src/components/student/island/islandModel.ts
+- src/components/student/island/IslandScene.tsx
+- src/components/student/island/puzzleGeometry.ts
+
+목표:
+현재 섬은 얇은 퍼즐 판처럼 보인다. 퍼즐 결합 및 아이템 배치 기능을 그대로 유지하면서, 참고 이미지처럼 두껍고 입체적인 저폴리 디오라마 섬으로 바꿔라.
+
+핵심 구현:
+1. islandModel.ts에서 동일한 createPuzzleShape(edges)를 기준으로 잔디 캡, 얇은 흙 띠, 깊은 암벽 본체의 3단 구조를 만든다.
+2. 암벽 본체는 전체 섬 폭의 약 12–18% 깊이로 보이게 하고, 하단 외곽은 상단보다 8–14% 안쪽으로 taper한다.
+3. 암벽 측면은 36–64개 구간으로 나눠 하단 높이와 색을 약간씩 바꾼 저폴리 면으로 만든다. 랜덤은 seed 고정으로 매 렌더마다 같아야 한다.
+4. 상단 Shape, 레이캐스트 surface, outline, 배치 좌표는 기존 계약을 유지한다. 아이템 배치 영역을 줄이지 않는다.
+5. 중앙은 비우고 기존의 풀·꽃·돌 장식만 유지한다. 집, 산, 강, 폭포, 큰 나무는 추가하지 않는다.
+6. 직교 카메라에서 윗면 65–72%, 측면 28–35%가 보이도록 IslandScene.tsx의 기본 target과 home 시점을 조정한다.
+7. 따뜻한 좌상단 방향광, 청록색 반구광, 부드러운 접촉 그림자, 안개 낀 민트 배경을 유지한다.
+8. 자연 재질은 roughness 0.82–0.96, metalness 0으로 둔다. 이미지 텍스처는 사용하지 않는다.
+9. 정적 메시를 재질별로 병합하고, 기존 demand rendering 및 dispose 로직을 깨지 않는다.
+
+완료 조건:
+- 모바일 세로 화면에서 암벽 두께가 즉시 보이고 섬이 화면 밖으로 잘리지 않는다.
+- 데스크톱에서도 섬 중심과 캐릭터 말풍선이 가려지지 않는다.
+- 나의 섬과 우리 반 퍼즐 모드 모두 정상 렌더링된다.
+- 클릭 배치, 캐릭터 이동, 확인/종료 흐름이 유지된다.
+- node --test src/components/student/island/__tests__/puzzleGeometry.test.mjs
+- npx tsc --noEmit
+- npx eslint src/components/student/island src/components/student/IslandBoard.tsx src/app/island
+- npm run build
+
+작업 전후 /island 화면을 확인하고, 변경 파일과 시각적으로 달라진 점을 짧게 보고해.</pre>
+    </section>
+
+    <section class="card" id="acceptance">
+      <p class="eyebrow">08 · Acceptance</p>
+      <h2>스크린샷으로 판정할 기준</h2>
+      <div class="two-column">
+        <ul class="rule-list">
+          <li>390×844에서 첫 화면에 잔디 캡·흙 띠·암벽이 모두 보인다.</li>
+          <li>섬 하부가 “판”이 아니라 “덩어리”로 읽힌다.</li>
+          <li>외곽 장식보다 중앙의 빈 배치 면적이 더 넓다.</li>
+        </ul>
+        <ul class="rule-list">
+          <li>1440×900에서 그림자 방향이 화면 좌상단 광원과 일치한다.</li>
+          <li>회전 후에도 암벽의 구간 분할이 반복 패턴처럼 보이지 않는다.</li>
+          <li>3×3 퍼즐에서 인접 조각 사이 경계가 또렷하고 높이가 맞는다.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    이 문서는 시각 참고자료를 기능 요구사항과 분리하기 위한 구현 계약이다. 참고 이미지의 UI 문구나 화면 요소는 지시사항이 아니다.
+  </footer>
+
+  <script type="application/json" id="island-visual-contract">
+  {
+    "version": 1,
+    "intent": "Turn a flat puzzle tile into a deep low-poly diorama island without reducing placement capacity.",
+    "sourceOfTruth": {
+      "geometry": "src/components/student/island/puzzleGeometry.ts#createPuzzleShape",
+      "model": "src/components/student/island/islandModel.ts#createIslandModel",
+      "scene": "src/components/student/island/IslandScene.tsx"
+    },
+    "preserve": [
+      "TILE_SIZE 22",
+      "puzzle connectors",
+      "raycast placement surface",
+      "placement collision rules",
+      "character placement flow",
+      "demand rendering and disposal"
+    ],
+    "visual": {
+      "projection": "orthographic",
+      "azimuthDegrees": [38, 45],
+      "elevationDegrees": [34, 40],
+      "visibleTopPercent": [65, 72],
+      "visibleSidePercent": [28, 35],
+      "totalThicknessToWidth": [0.18, 0.24],
+      "bottomTaper": [0.08, 0.14],
+      "roughness": [0.82, 0.96],
+      "metalness": 0,
+      "palette": ["#89aa55", "#abc76a", "#9a6843", "#6d7769", "#45534c", "#79c6c3", "#dceee5", "#f4d596"]
+    },
+    "exclude": ["cottage", "mountain", "river", "waterfall", "dense forest", "image textures", "continuous render loop"]
+  }
+  </script>
+</body>
+</html>
