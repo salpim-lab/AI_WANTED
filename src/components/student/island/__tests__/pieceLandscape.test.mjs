@@ -4,12 +4,12 @@ import { createJiti } from "jiti";
 import { Group, Matrix4, Mesh, MeshBasicMaterial, Raycaster, Vector3 } from "three";
 const jiti = createJiti(import.meta.url, { interopDefault: false, fsCache: false });
 const { createIslandLayout } = await jiti.import("../placement.ts");
-const { getPuzzleLayout, puzzlePieceContains, createPuzzlePieceLayerGeometry, PUZZLE_SEED, PUZZLE_STUDENT_PIECE_MAP } = await jiti.import("../puzzle.ts");
+const { getPuzzleLayout, getPuzzlePiecePolygon, puzzlePieceContains, createPuzzlePieceLayerGeometry, getPuzzleTerrainMetrics, PUZZLE_SEED, PUZZLE_STUDENT_PIECE_MAP } = await jiti.import("../puzzle.ts");
 const { distanceToPuzzleRim } = await jiti.import("../puzzleDecorations.ts");
 const L = await jiti.import("../pieceLandscape.ts");
 const { createPieceTerrainMeshes, landscapeCapHoles } = await jiti.import("../pieceTerrainMesh.ts");
 const { createLandscapeProps, createProceduralModel } = await jiti.import("../landscapeProps.ts");
-const { createGrassSkirt } = await jiti.import("../grassSkirt.ts");
+const { createGrassOverhang, GRASS_OVERHANG } = await jiti.import("../grassOverhang.ts");
 
 const layout = createIslandLayout(17);
 const pieces = getPuzzleLayout(layout).pieces;
@@ -100,12 +100,57 @@ test("no prop, terrace, water, path or curtain vertex leaves its puzzle outline"
       }
       object.geometry.dispose(); object.material.dispose();
     });
+    // The overhang is the one part allowed past the outline, and only by the
+    // lip's own reach. createGrassOverhang throws if anything exceeds it.
     for (const mode of ["personal", "classroom"]) {
-      const skirt = createGrassSkirt(layout, plan.pieceIndex, mode).children[0];
-      const position = skirt.geometry.getAttribute("position");
-      for (let i = 0; i < position.count; i++) assert.ok(contains({ x: position.getX(i), z: position.getZ(i) }), `skirt vertex on piece ${plan.pieceIndex}`);
-      skirt.geometry.dispose(); skirt.material.dispose();
+      const overhang = createGrassOverhang(layout, plan.pieceIndex, mode);
+      const budget = getPuzzleTerrainMetrics(layout, plan.pieceIndex, mode).total * GRASS_OVERHANG.lip.overhang * 1.02;
+      for (const child of overhang.children) {
+        const position = child.geometry.getAttribute("position");
+        const matrix = new Matrix4(), point = new Vector3();
+        const copies = child.isInstancedMesh ? child.count : 1;
+        for (let n = 0; n < copies; n++) {
+          if (child.isInstancedMesh) child.getMatrixAt(n, matrix); else matrix.identity();
+          for (let i = 0; i < position.count; i++) {
+            point.set(position.getX(i), position.getY(i), position.getZ(i)).applyMatrix4(matrix);
+            const out = contains(point) ? 0 : distanceToPuzzleRim(point, plan.polygon);
+            assert.ok(out <= budget, `${child.name} on piece ${plan.pieceIndex} (${mode}) reaches ${out.toFixed(4)} past the outline`);
+          }
+        }
+        child.geometry.dispose();
+      }
+      overhang.children[0].material.dispose();
     }
+  }
+});
+
+test("no piece's grass overhang reaches into a neighbour once the class assembles", () => {
+  // In the classroom view all 20 pieces interlock, so the lip and the hanging
+  // lumps may only bulge along the island's outer rim. Anything crossing a tab
+  // or socket would intersect the neighbouring piece.
+  const matrix = new Matrix4(), point = new Vector3();
+  const overhangs = pieces.map((piece) => createGrassOverhang(layout, piece.index, "classroom"));
+  for (const [index, overhang] of overhangs.entries()) {
+    for (const child of overhang.children) {
+      const position = child.geometry.getAttribute("position");
+      const copies = child.isInstancedMesh ? child.count : 1;
+      for (let n = 0; n < copies; n++) {
+        if (child.isInstancedMesh) child.getMatrixAt(n, matrix); else matrix.identity();
+        for (let i = 0; i < position.count; i++) {
+          point.set(position.getX(i), position.getY(i), position.getZ(i)).applyMatrix4(matrix);
+          for (const other of pieces) {
+            if (other.index === index) continue;
+            if (!puzzlePieceContains(other, point)) continue;
+            // Adjacent pieces share their outline, so a vertex sitting exactly
+            // on the seam reads as inside both. Only real depth is a fault.
+            const depth = distanceToPuzzleRim(point, getPuzzlePiecePolygon(other));
+            assert.ok(depth < 1e-3, `piece ${index} ${child.name} reaches ${depth.toFixed(5)} into piece ${other.index}`);
+          }
+        }
+      }
+      child.geometry.dispose();
+    }
+    overhang.children[0].material.dispose();
   }
 });
 

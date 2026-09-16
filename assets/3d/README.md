@@ -10,6 +10,12 @@ assets/3d/
   style-v1/     # 스타일 버전별 실험 결과
 ```
 
+## exports
+
+| 파일 | 내용 |
+| --- | --- |
+| `grass-overhang-kit.glb` | 섬 옆면 흘러내리는 잔디 조각 4종(`blob`/`curtain`/`strand`/`corner`). 조각당 55~66 삼각형, 버텍스 컬러로 위→아래 그라데이션. 검수용 원본이며, 런타임은 같은 프로파일 표를 `src/components/student/island/grassOverhang.ts`에서 다시 세워 씁니다(Node 테스트에서 외곽선 검증을 돌리고 인스턴스마다 폭·길이를 달리하기 위해). 모양을 바꾸려면 이 파일과 `DRIP_SHAPES`를 같이 고칩니다. |
+
 최종 서비스용 GLB와 썸네일은 이 저장소에 계속 쌓지 않고 Supabase Storage의 비공개 버킷에 업로드합니다.
 
 ```text

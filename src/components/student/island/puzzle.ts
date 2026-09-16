@@ -301,7 +301,7 @@ export function createPuzzlePieceGeometry(layout: IslandLayout, pieceIndex: numb
 export type PuzzleTerrainMode = "personal" | "classroom";
 export type PuzzleTerrainLayer = "grass" | "rock";
 
-type RimVertex = PuzzlePoint & { exteriorWeight: number };
+export type RimVertex = PuzzlePoint & { exteriorWeight: number };
 
 function pieceWidth(piece: PuzzlePiece) {
   const points = getPuzzlePiecePolygon(piece);
@@ -326,6 +326,13 @@ export function getPuzzleTerrainMetrics(layout: IslandLayout, pieceIndex: number
   const terrainW = W / ISLAND_SCALE;
   const grass = terrainW * 0.065, rock = terrainW * (0.19 + 0.48);
   return { W, personalWidth, grass, rock, total: grass + rock, bevel: terrainW * 0.018 };
+}
+
+// The rim walk in outline order. `exteriorWeight` is 0 along the internal
+// tab/socket edges a neighbouring piece clips to, and eases to 1 in the middle
+// of an outer edge, so overhangs can bulge outward only where nothing meets.
+export function getPuzzleRimVertices(piece: PuzzlePiece): RimVertex[] {
+  return rimVertices(piece);
 }
 
 function rimVertices(piece: PuzzlePiece): RimVertex[] {

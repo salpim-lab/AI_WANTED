@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, DodecahedronGeometry, Float32BufferAttribute, IcosahedronGeometry, Vector3 } from "three";
+import { BufferGeometry, Color, DodecahedronGeometry, Float32BufferAttribute, IcosahedronGeometry, MeshStandardMaterial, Vector3 } from "three";
 import type { IslandLayout } from "./placement";
 
 const ISLAND_SCALE = 2.75;
@@ -17,6 +17,23 @@ export const STYLIZED_PALETTE = {
   grass: ["#9ccc5a", "#7fb347", "#5f9a3a"],
   rock: ["#8a8f96", "#5f656d", "#3e434a", "#6b625a"],
 } as const;
+
+// The meadow's colour at a world point: three palette steps picked by the same
+// low-frequency field, plus a faint tint jitter. The puzzle cap (islandModel)
+// and the rim roll (grassOverhang) both read from this, so the roll carries the
+// meadow's own colour variation over the edge instead of a flat green band.
+export function stylizedGrassColor(x: number, z: number, y = 0, out = new Color()) {
+  const noise = stylizedNoise(x, z, 0);
+  const index = noise > 0.22 ? 0 : noise < -0.24 ? 2 : 1;
+  return out.set(STYLIZED_PALETTE.grass[index]).multiplyScalar(1 + noise * 0.035 + Math.sin(y * 0.75) * 0.012);
+}
+
+// One material for the whole meadow: the flat cap, the rim roll it turns into
+// and everything hanging off it. Passing a single instance around is what keeps
+// the cap/roll join from reading as two different surfaces.
+export function createMeadowMaterial() {
+  return new MeshStandardMaterial({ color: "#ffffff", roughness: 0.88, metalness: 0, flatShading: true, vertexColors: true });
+}
 
 // Nudges every distinct corner by its own random offset: faces stay joined,
 // but each stone, crown or blade gets a chipped, one-off silhouette.

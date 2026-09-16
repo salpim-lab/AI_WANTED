@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { createRockCliff } from "./rockCliff";
-import { createGrassSkirt, requireInsideOutline } from "./grassSkirt";
+import { createGrassOverhang, requireInsideOutline } from "./grassOverhang";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { chisel, createTerrainGeometry, STYLIZED_PALETTE, stylizedNoise } from "./islandTerrain";
+import { chisel, createMeadowMaterial, createTerrainGeometry, stylizedGrassColor } from "./islandTerrain";
 import { createIslandLayout, type Decoration, type IslandLayout, type Scatter } from "./placement";
 import { createPuzzlePieceLayerGeometry, getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainRing, islandCoordinates, puzzlePieceContains, PUZZLE_PIECE_COUNT, PUZZLE_SEED, type PuzzleTerrainMode } from "./puzzle";
 import { createLandscapeProps, type PropKey } from "./landscapeProps";
@@ -306,21 +306,20 @@ function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, mode:
   // The meadow cap keeps the exact puzzle outline; ponds and brooks are holes
   // in its top face only.
   const geometry = createPuzzlePieceLayerGeometry(layout, pieceIndex, "grass", mode, PUZZLE_SEED, landscapeCapHoles(landscape));
-  const palette = STYLIZED_PALETTE.grass;
   const positions = geometry.getAttribute("position");
   const colors = new Float32Array(positions.count * 3);
   const tint = new THREE.Color();
   for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i), z = positions.getZ(i), y = positions.getY(i);
-    // Use one world-space field across all puzzle pieces. A per-piece seed
-    // would make the cap triangles read as diagonal seams at assembly time.
-    const noise = stylizedNoise(x, z, 0);
-    const paletteIndex = noise > 0.22 ? 0 : noise < -0.24 ? Math.min(2, palette.length - 1) : 1;
-    tint.set(palette[paletteIndex]).multiplyScalar(1 + noise * 0.035 + Math.sin(y * 0.75) * 0.012);
+    // One world-space field across all puzzle pieces. A per-piece seed would
+    // make the cap triangles read as diagonal seams at assembly time. The rim
+    // roll reads from the same field, so the meadow's colour runs over the edge.
+    stylizedGrassColor(positions.getX(i), positions.getZ(i), positions.getY(i), tint);
     colors[i * 3] = tint.r; colors[i * 3 + 1] = tint.g; colors[i * 3 + 2] = tint.b;
   }
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  const material = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.88, metalness: 0, flatShading: true, vertexColors: true });
+  // The cap, its rim roll and everything hanging off it share one material, so
+  // the edge where they meet cannot read as a change of surface.
+  const material = createMeadowMaterial();
   const meadow = new THREE.Mesh(geometry, material);
   meadow.castShadow = true;
   meadow.receiveShadow = true;
@@ -334,7 +333,7 @@ function createPuzzlePieceLayers(layout: IslandLayout, pieceIndex: number, mode:
   [...terrain.children].forEach((child) => (child.userData.excludeFromRaycast ? group : surface).add(child));
   group.add(surface);
   group.add(createRockCliff(layout, pieceIndex, mode));
-  group.add(createGrassSkirt(layout, pieceIndex, mode, material));
+  group.add(createGrassOverhang(layout, pieceIndex, mode, material));
   return { group, surface, landscape };
 }
 

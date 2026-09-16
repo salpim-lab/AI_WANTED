@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import type { IslandLayout } from "./placement";
 import { chisel } from "./islandTerrain";
-import { SKIRT_MAX_LENGTH, SKIRT_STONE_CLEARANCE } from "./grassSkirt";
 import { getPuzzleLayout, getPuzzlePiecePolygon, getPuzzleTerrainMetrics, getPuzzleTerrainRing, puzzlePieceContains, type PuzzleTerrainMode, type PuzzlePoint } from "./puzzle";
 
 // Courses of angular slabs stacked like strata. Row heights overlap slightly
@@ -56,13 +55,12 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
     helper.position.copy(p).addScaledVector(inward, depth * (0.38 + random() * 0.14));
     helper.rotation.set((random() - 0.5) * 0.28, Math.atan2(inward.x, inward.z) + (random() - 0.5) * 0.45, (random() - 0.5) * 0.28);
     helper.scale.set(width, height, depth);
+    // Stones fill the wall right out to the outline. The grass hangs in front
+    // of them now (grassOverhang.ts), so no course has to be recessed.
     let fits = false;
-    // Stones in the curtain band stay far enough inside to sit behind the grass.
-    const clearance = p.y > top - SKIRT_MAX_LENGTH * H - height * 0.5 ? SKIRT_STONE_CLEARANCE : 0;
-    const clear = new THREE.Vector3(clearance, 0, clearance);
     for (let attempt = 0; attempt < 160; attempt++) {
       helper.updateMatrix(); box.copy(g.boundingBox!).applyMatrix4(helper.matrix);
-      if (rockBoxInside(box.clone().expandByVector(clear), polygon, contains)) { fits = true; break; }
+      if (rockBoxInside(box, polygon, contains)) { fits = true; break; }
       if (attempt < 3) helper.position.addScaledVector(inward, H * 0.015);
       else {
         // At a concave corner the local normal can meet the opposite wall;
@@ -81,7 +79,7 @@ export function createRockCliff(layout: IslandLayout, pieceIndex: number, mode: 
           helper.position.x = THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, ix / 16);
           helper.position.z = THREE.MathUtils.lerp(bounds.min.z, bounds.max.z, iz / 16);
           helper.updateMatrix(); box.copy(g.boundingBox!).applyMatrix4(helper.matrix);
-          fits = rockBoxInside(box.clone().expandByVector(clear), polygon, contains);
+          fits = rockBoxInside(box, polygon, contains);
         }
         if (!fits) { helper.scale.x *= 0.8; helper.scale.z *= 0.8; }
       }
