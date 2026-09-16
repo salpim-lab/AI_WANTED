@@ -50,6 +50,12 @@
   container-type: size;
   overflow: hidden;
   border-radius: 1.8vmin;
+  /* 2~5단계(색 선택·대화·아이템·섬)는 공용 .screen 클래스의 flex:1 로 높이를 채운다.
+     옛 프레임(.tablet)이 flex 컨테이너였기 때문인데, 여기가 flex 가 아니면
+     그 화면들이 내용 높이만큼만 차지하고 위로 쪼그라든다.
+     홈 화면은 절대 배치라 영향 없다. */
+  display: flex;
+  flex-direction: column;
   font-family: var(--font-sans-kr), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--sh-navy);
 }
