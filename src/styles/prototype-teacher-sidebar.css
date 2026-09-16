@@ -1,0 +1,110 @@
+/* 담당: 진승혜 (단독 소유) — 교사 화면 왼쪽 사이드바 네비게이션.
+   import는 components/teacher/TabNav.tsx 에서만 한다.
+
+   공용 파일(prototype-teacher-shared.css)은 건드리지 않는다는 원칙을 지키기 위해,
+   사이드바에 필요한 규칙은 전부 이 파일에만 둔다.
+   shared.css 의 .tab-bar / .tab-btn 규칙은 더 이상 쓰이지 않지만(dead rule),
+   공용 파일이라 여기서 지우지 않는다 — 팀 합의 후 일괄 정리할 것.
+
+   톤: 흰 카드가 크림 바탕 위에 놓이는 화면이라, 사이드바도 배경을 칠하지 않고
+   크림 바탕 위에 그대로 둔다. 선택된 메뉴만 흰 알약으로 떠오른다.
+
+   레이아웃 전제: (teacher)/layout.tsx 가
+     .app > .app-header + .app-body( .side-nav + .main ) 구조로 조립한다. */
+
+/* ── 헤더 아래 본문 영역을 가로 2단으로 ─────────────────────────── */
+.teacher-app .app-body {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* .main 은 공용 파일에서 flex:1 을 이미 갖고 있다.
+   grid/flex 자식이 내용 폭 때문에 넘치지 않도록 min-width 만 여기서 보강. */
+.teacher-app .app-body > .main {
+  min-width: 0;
+}
+
+/* ── 사이드바 ──────────────────────────────────────────────────── */
+.side-nav {
+  flex-shrink: 0;
+  width: 228px;
+  padding: 26px 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid #edeae3;
+  position: sticky;
+  top: 52px; /* .app-header 높이 */
+  height: calc(100vh - 52px);
+  align-self: flex-start;
+  overflow-y: auto;
+}
+
+.side-nav-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #a8a49b;
+  letter-spacing: 1px;
+  padding: 0 12px;
+  margin-bottom: 12px;
+}
+
+.side-nav-item {
+  display: block;
+  padding: 11px 13px;
+  border-radius: 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #6f6b62;
+  text-decoration: none;
+  letter-spacing: -0.2px;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.side-nav-item:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+}
+.side-nav-item.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(60, 50, 35, 0.05), 0 4px 12px rgba(60, 50, 35, 0.04);
+}
+
+.side-nav-foot {
+  margin-top: auto;
+  padding: 14px 13px 0;
+  border-top: 1px solid #edeae3;
+  font-size: 11px;
+  line-height: 1.75;
+  color: #a8a49b;
+}
+
+/* ── 좁은 화면: 가로 스크롤 되는 상단 바로 전환 ─────────────────── */
+@media (max-width: 900px) {
+  .teacher-app .app-body {
+    flex-direction: column;
+  }
+  .side-nav {
+    width: auto;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    align-self: stretch;
+    gap: 4px;
+    padding: 10px 14px;
+    border-right: none;
+    border-bottom: 1px solid #edeae3;
+    overflow-x: auto;
+  }
+  .side-nav-label,
+  .side-nav-foot {
+    display: none;
+  }
+  .side-nav-item {
+    white-space: nowrap;
+    padding: 8px 14px;
+  }
+}

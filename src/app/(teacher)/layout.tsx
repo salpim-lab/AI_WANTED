@@ -30,8 +30,13 @@ export default function TeacherLayout({
             <strong>3학년 2반</strong> · 2026년 9월 13일 (목) · 이선생님
           </div>
         </header>
-        <TabNav />
-        <main className="main">{children}</main>
+        {/* 네비(왼쪽 사이드바) + 본문을 가로로 묶는 래퍼.
+            .app-body 의 스타일은 TabNav 가 import 하는
+            styles/prototype-teacher-sidebar.css(진승혜)에 있다. */}
+        <div className="app-body">
+          <TabNav />
+          <main className="main">{children}</main>
+        </div>
       </div>
       <TeacherAgentWidget />
     </div>
