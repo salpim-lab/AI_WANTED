@@ -64,13 +64,18 @@
   height: 20cqh;
   margin-top: 1.4cqh;
   border-radius: 999px;
+  /* 무광 플라스틱. 점 형태의 강한 스페큘러를 쓰면 젖은 유기물처럼 보여서,
+     윗면 전체에 걸친 넓고 옅은 빛만 준다. */
   background:
-    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.35) 24%, rgba(255, 255, 255, 0) 46%),
-    linear-gradient(168deg, var(--dome-light) 0%, var(--dome) 58%, var(--dome-mid) 100%);
+    /* 가장자리만 아주 살짝 어둡게 — 납작한 원반으로 읽히게 한다 */
+    radial-gradient(circle at 50% 46%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.1) 100%),
+    /* 윗면에 걸친 넓고 옅은 빛 한 겹 */
+    linear-gradient(180deg, var(--dome-light) 0%, var(--dome) 34%, var(--dome) 100%);
   /* 첫 그림자가 버저의 "측면 벽"이다. 누르면 이 높이가 줄어 실제로 내려앉는다. */
   box-shadow:
+    0 0.25cqh 0 rgba(255, 255, 255, 0.34) inset,
     0 2.2cqh 0 var(--dome-wall),
-    0 2.4cqh 0.3cqh rgba(0, 0, 0, 0.16),
+    0 2.4cqh 0.3cqh rgba(0, 0, 0, 0.14),
     0 3.4cqh 2.4cqh var(--dome-shadow);
   transition: transform 0.07s ease, box-shadow 0.07s ease;
 }
@@ -79,8 +84,9 @@
 .mood-btn:active .mood-btn__dome {
   transform: translateY(1.9cqh);
   box-shadow:
+    0 0.25cqh 0 rgba(255, 255, 255, 0.34) inset,
     0 0.3cqh 0 var(--dome-wall),
-    0 0.4cqh 0.2cqh rgba(0, 0, 0, 0.18),
+    0 0.4cqh 0.2cqh rgba(0, 0, 0, 0.16),
     0 0.8cqh 1cqh var(--dome-shadow);
 }
 .mood-btn:focus-visible .mood-btn__bezel {
