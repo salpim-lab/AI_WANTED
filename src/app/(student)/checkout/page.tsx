@@ -1,7 +1,7 @@
 // 담당: 이유민
 // 하교 흐름: 첫 화면 → 색 선택 → AI 고정 질문(녹음) → 아이템 생성 + 섬 배치
 // 참고: docs/planning/PLANNING.md "[학생 화면] — 하교 흐름"
-// StudentHome/MoodPicker/ChatPanel/ItemReveal은 checkin과 동일 컴포넌트 재사용.
+// StudentHome/MoodPicker/ChatScreen/ItemReveal은 checkin과 동일 컴포넌트 재사용.
 // 첫 화면은 period="afternoon" 으로 문구가 바뀌고 선생님 편지는 나오지 않는다.
 
 "use client";
@@ -12,7 +12,7 @@ import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
 import MoodPicker from "@/components/student/mood/MoodPicker";
-import ChatPanel from "@/components/student/ChatPanel";
+import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemReveal from "@/components/student/ItemReveal";
 import IslandBoard from "@/components/student/IslandBoard";
 
@@ -38,7 +38,7 @@ export default function CheckoutPage() {
         bgSrc="/brand/checkout_home-배경만.webp"
       />
       <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />
-      <ChatPanel
+      <ChatScreen
         active={flow.step === 3}
         badgeLabel={colorMeta ? colorMeta.label : ""}
         badgeStyle={{ background: "#eef2ff", color: "#4338ca" }}

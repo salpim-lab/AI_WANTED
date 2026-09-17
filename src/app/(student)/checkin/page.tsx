@@ -12,7 +12,7 @@ import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import StudentHome from "@/components/student/home/StudentHome";
 import MoodPicker from "@/components/student/mood/MoodPicker";
-import ChatPanel from "@/components/student/ChatPanel";
+import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemReveal from "@/components/student/ItemReveal";
 import IslandBoard from "@/components/student/IslandBoard";
 
@@ -38,7 +38,7 @@ export default function CheckinPage() {
         bgSrc="/brand/checkin_home2.webp"
       />
       <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />
-      <ChatPanel
+      <ChatScreen
         active={flow.step === 3}
         badgeLabel={scenario?.badgeLabel ?? ""}
         badgeStyle={scenario?.badgeStyle ?? { background: "#eef2ff", color: "#4338ca" }}

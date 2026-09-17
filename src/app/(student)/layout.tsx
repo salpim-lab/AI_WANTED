@@ -15,6 +15,7 @@
 import "@/styles/prototype-student-shared.css";
 import "@/styles/student-home.css";
 import "@/styles/student-mood.css";
+import "@/styles/student-chat.css";
 
 export default function StudentLayout({
   children,
