@@ -86,12 +86,18 @@ export default function ChatScreen({
       )}
 
       <div className="chat-scroll" ref={scrollRef}>
-        {messages.map((m) => (
-          <ChatBubble key={m.id} bubble={m} />
+        {messages.map((m, i) => (
+          <ChatBubble
+            key={m.id}
+            bubble={m}
+            // 바로 앞이 아이 말풍선이거나 첫 줄일 때만 아바타를 보인다
+            showAvatar={m.type !== "user" && messages[i - 1]?.type !== m.type}
+          />
         ))}
 
         {typing && (
           <div className="chat-row chat-row--ai">
+            <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
             <div className="chat-typing" aria-label="살핌이 입력 중">
               <span />
               <span />
@@ -102,6 +108,7 @@ export default function ChatScreen({
 
         {consultState !== "hidden" && (
           <div className="chat-row chat-row--ai">
+            <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
             <button
               type="button"
               className="chat-consult"
