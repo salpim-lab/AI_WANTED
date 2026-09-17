@@ -50,15 +50,17 @@
    나머지 줄은 같은 크기의 빈 칸을 둬서 말풍선 시작 위치를 맞춘다. */
 .chat-avatar {
   flex: none;
-  width: 5.4cqh;
-  height: 5.4cqh;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  background: #e7e4fb;
+  width: 6cqh;
+  height: 6cqh;
 }
-.chat-avatar--empty { background: none; }
-.chat-avatar__face { width: 3.4cqh; height: 3.4cqh; }
+/* 얼굴 자체가 보라색 원이라 배경 원을 따로 두지 않는다.
+   원 안에 작은 얼굴을 넣으면 빈 테두리가 생겨 미완성처럼 보인다. */
+.chat-avatar__face {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0.3cqh 0.6cqh rgba(60, 68, 110, 0.18));
+}
 .chat-row--ai { justify-content: flex-start; }
 .chat-row--mine { justify-content: flex-end; }
 

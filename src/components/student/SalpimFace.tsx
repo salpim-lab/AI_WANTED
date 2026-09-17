@@ -8,8 +8,11 @@ export default function SalpimFace({
   className?: string;
   withSparkles?: boolean;
 }) {
+  // 반짝임을 빼면 위쪽이 텅 비므로 얼굴에 딱 맞는 viewBox 로 바꾼다.
+  // 안 그러면 얼굴이 아래로 몰리고 작아진다.
+  const viewBox = withSparkles ? "0 0 26 32" : "2 9.5 22 22";
   return (
-    <svg viewBox="0 0 26 32" className={className} aria-hidden="true">
+    <svg viewBox={viewBox} className={className} aria-hidden="true">
       {withSparkles && (
         <>
           <line x1="6" y1="8" x2="3.6" y2="2.4" stroke="var(--sh-violet)" strokeWidth="2.6" strokeLinecap="round" />
