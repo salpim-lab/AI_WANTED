@@ -1,6 +1,7 @@
 import * as THREE from "three";
-import { createGiftModel, createPalette, Sculpt, type Palette } from "./islandModel";
+import { createPalette, Sculpt, type Palette } from "./islandModel";
 import type { GiftKind } from "./types";
+import { createAssetModel } from "./proceduralAsset";
 
 export type CharacterPose = "holding" | "waving" | "walking";
 
@@ -38,7 +39,7 @@ function joint(parent: THREE.Object3D, x: number, y: number, z: number, ...parts
 
 // A 2.2-heads-tall child, facing +Z with feet at y = 0. Arms bend at the
 // elbow and legs at the knee so the pose, breathing and walk can animate.
-export function createChildCharacter(kind: GiftKind) {
+export function createChildCharacter(kind: GiftKind, asset?: { assetFormat?: "glb" | "procedural"; geometrySpec?: unknown }) {
   const palette = createPalette();
   const root = new THREE.Group();
   root.name = "child-character";
@@ -96,7 +97,7 @@ export function createChildCharacter(kind: GiftKind) {
     return { side, hip, knee };
   });
 
-  const gift = createGiftModel(kind);
+  const gift = createAssetModel({ kind, assetFormat: asset?.assetFormat, geometrySpec: asset?.geometrySpec });
   gift.scale.setScalar(0.78);
   gift.position.set(0, 0.56, 0.36);
   upper.add(gift);

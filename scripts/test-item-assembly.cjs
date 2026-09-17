@@ -72,10 +72,22 @@ async function main() {
   assert.deepEqual(await assembleItem(inference), valid);
   respond({ ...wire, name: 'changed' });
   await assert.rejects(assembleItem(inference), e => e.code === 'INVALID_ASSEMBLY_OUTPUT');
-  for (const data of [{ status: 'incomplete' }, { status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal' }] }] }]) {
+  for (const [data, code] of [[{ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } }, 'ASSEMBLY_INCOMPLETE'], [{ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }] }, 'ASSEMBLY_REFUSAL']]) {
     global.fetch = async () => new Response(JSON.stringify(data));
-    await assert.rejects(assembleItem(inference), e => e.code === 'INVALID_ASSEMBLY_OUTPUT');
+    await assert.rejects(assembleItem(inference), e => e.code === code && (e.detail.error === 'max_output_tokens' || e.detail.raw === 'no'));
   }
+  // Inference: evidence mismatch is its own code and the raw model text survives for the job log.
+  const { inferItem } = load('src/lib/openai/inferItem.ts');
+  const transcript = [{ speaker: 'student', content: '축구에서 골을 넣었어요' }];
+  const inferred = { coreExperience: '골', evidence: ['축구에서 골을 넣었어요'], itemName: '축구공', subject: '축구공', selectionReason: '이유', studentMessage: '설명', sizeClass: 'small', appearance: ['둥근 공', '오각형 패치'] };
+  respond(inferred);
+  assert.equal((await inferItem(transcript)).studentMessage, '설명');
+  respond({ ...inferred, evidence: ['농구를 했어요'] });
+  await assert.rejects(inferItem(transcript), e => e.code === 'EVIDENCE_MISMATCH' && e.detail.raw.includes('농구를 했어요'));
+  respond({ ...inferred, coreExperience: 'x'.repeat(301) });
+  await assert.rejects(inferItem(transcript), e => e.code === 'INVALID_AI_OUTPUT' && e.detail.error.length > 0);
+  global.fetch = async () => new Response('{"error":{"message":"model not found"}}', { status: 404 });
+  await assert.rejects(inferItem(transcript), e => e.code === 'AI_REQUEST_FAILED' && e.detail.error.includes('model not found'));
   global.fetch = async () => new Response('', { status: 429 });
   await assert.rejects(assembleItem(inference), e => e.code === 'ASSEMBLY_REQUEST_FAILED' && e.httpStatus === 429);
   global.fetch = async () => { throw new Error('offline timeout'); };

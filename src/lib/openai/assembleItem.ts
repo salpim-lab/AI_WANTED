@@ -2,7 +2,7 @@ import "server-only";
 import type { ItemInference } from "../items/itemInference";
 import { ITEM_ASSEMBLY_SCHEMA, parseItemAssembly } from "../items/itemAssembly";
 import { ITEM_ASSEMBLY_PROMPT } from "./prompts/item-assembly";
-import { ItemAIError } from "./inferItem";
+import { callModel, ItemAIError } from "./client";
 
 export function buildItemAssemblyRequest(inference: ItemInference) {
   // Only appearance data is needed; do not resend private counseling or evidence.
@@ -18,24 +18,11 @@ export function buildItemAssemblyRequest(inference: ItemInference) {
 
 /** Server function only. A later generation job should call this after inferItem. */
 export async function assembleItem(inference: ItemInference) {
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) throw new ItemAIError("AI_NOT_CONFIGURED", 503, "OPENAI_API_KEY 설정이 필요합니다.");
   const request = buildItemAssemblyRequest(inference);
   if (JSON.stringify(request.input).length > 4000) throw new ItemAIError("INVALID_ASSEMBLY_INPUT", 422, "조립 입력이 너무 깁니다.");
-  let response: Response;
-  try {
-    response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify(request), signal: AbortSignal.timeout(60000), cache: "no-store",
-    });
-  } catch { throw new ItemAIError("ASSEMBLY_UNAVAILABLE", 504, "조립 응답을 받지 못했습니다."); }
-  if (!response.ok) throw new ItemAIError("ASSEMBLY_REQUEST_FAILED", response.status === 429 ? 429 : 502, "조립 요청에 실패했습니다. 키와 모델 설정을 확인해 주세요.");
-  try {
-    const data = await response.json() as { status: string; output?: { type: string; content?: { type: string; text?: string }[] }[] };
-    if (data.status !== "completed") throw new Error("incomplete");
-    const content = (data.output ?? []).filter(o => o.type === "message").flatMap(o => o.content ?? []);
-    if (content.some(c => c.type === "refusal")) throw new Error("refusal");
-    const output = content.filter(c => c.type === "output_text").map(c => c.text ?? "").join("");
-    return parseItemAssembly(JSON.parse(output), inference.itemName);
-  } catch { throw new ItemAIError("INVALID_ASSEMBLY_OUTPUT", 502, "조립 결과를 검증하지 못했습니다."); }
+  return callModel("ASSEMBLY", request, 60000, {
+    unavailable: "조립 응답을 받지 못했습니다.",
+    failed: "조립 요청에 실패했습니다. 키와 모델 설정을 확인해 주세요.",
+    invalid: "조립 결과를 검증하지 못했습니다.",
+  }, value => parseItemAssembly(value, inference.itemName));
 }

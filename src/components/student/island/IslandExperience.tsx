@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 const IslandScene = dynamic(() => import("./IslandScene"), {
@@ -32,17 +32,23 @@ function Icon({ name, size = 20, className = "" }: { name: IconName; size?: numb
 type Props = {
   compact?: boolean;
   studentName?: string;
-  incomingItem?: { emoji: string; name: string; reason: string } | null;
+  incomingItem?: { emoji: string; name: string; reason: string; assetFormat?: "glb" | "procedural"; geometrySpec?: unknown } | null;
   baseItemCount?: number;
-  onComplete?: () => void;
+  /** Items already on the island (rendered and used for spacing checks). */
+  placedGifts?: IslandGift[];
+  onComplete?: (placed: IslandGift | null) => void;
 };
 
-export default function IslandExperience({ compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, onComplete }: Props) {
+const NO_GIFTS: IslandGift[] = [];
+
+export default function IslandExperience({ compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, placedGifts = NO_GIFTS, onComplete }: Props) {
   const acquired = {
     kind: "star" as GiftKind,
     emoji: incomingItem?.emoji ?? "⭐",
     name: incomingItem?.name ?? "반짝이는 별",
     description: incomingItem?.reason ?? "오늘의 이야기가 담긴 선물",
+    assetFormat: incomingItem?.assetFormat,
+    geometrySpec: incomingItem?.geometrySpec,
   };
   const [mode, setMode] = useState<ViewMode>("island");
   const [gifts, setGifts] = useState<IslandGift[]>([]);
@@ -89,9 +95,10 @@ export default function IslandExperience({ compact = false, studentName = "민�
 
   const propose = useCallback((kind: GiftKind, x: number, z: number) => {
     if (phase !== "choosing" && phase !== "confirming") return;
-    setProposal({ kind, name: acquired.name, x, z });
+    // The placed item must keep its procedural spec, or it falls back to the preset star.
+    setProposal({ kind, name: acquired.name, x, z, assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec });
     setPhase("moving");
-  }, [acquired.name, phase]);
+  }, [acquired.name, acquired.assetFormat, acquired.geometrySpec, phase]);
 
   const arrive = useCallback(() => {
     setPhase((current) => current === "moving" ? "confirming" : current);
@@ -140,7 +147,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
     if (phase !== "farewell") return;
     setPhase("complete");
     setOverview(false);
-    onComplete?.();
+    onComplete?.(gifts.at(-1) ?? null);
   }
 
   function camera(preset: CameraPreset) {
@@ -159,6 +166,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
   const button = "inline-flex items-center justify-center gap-2 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2d7255] disabled:cursor-not-allowed disabled:opacity-40";
   const placementActive = phase === "moving" || phase === "confirming" || phase === "farewell" || entryStage === "popping" || entryStage === "exiting";
   const hasPlacedItem = baseItemCount > 0 || gifts.length > 0;
+  const sceneGifts = useMemo(() => placedGifts.length ? [...placedGifts, ...gifts] : gifts, [placedGifts, gifts]);
   const showPlacementCta = mode === "island" && phase === "ready" && (entryStage === "cta" || entryStage === "exiting") && !hasPlacedItem;
   const showSceneControls = mode === "classroom" || entryStage !== "intro";
   const ctaHeight = 64;
@@ -193,7 +201,8 @@ export default function IslandExperience({ compact = false, studentName = "민�
       <section ref={panelRef} data-island-bottom={islandRect?.bottom} className={`relative isolate overflow-hidden rounded-[26px] border border-[#d6e3d7] bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "island-viewport-panel"}`} aria-label="3D 떠 있는 섬">
         <IslandScene
           mode={mode}
-          gifts={gifts}
+          gifts={sceneGifts}
+          incomingAsset={{ assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec }}
           selected={selected}
           proposal={proposal}
           phase={phase}
@@ -211,7 +220,7 @@ export default function IslandExperience({ compact = false, studentName = "민�
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 ${compact ? "p-4" : "p-6"}`}>
           <div><div className="mb-1.5 flex items-center gap-2 text-[10px] font-medium tracking-[0.06em] text-[#345f56]"><span className="h-1.5 w-1.5 rounded-full bg-[#7fa886]"/>{mode === "island" ? "구름 위에 떠 있는, 작은 숲과 꽃의 섬" : "20조각으로 보는 우리 반 섬"}</div><h2 className={`${compact ? "text-lg" : "text-[23px]"} font-bold tracking-[-0.7px] text-[#345845]`}>{mode === "island" ? `${studentName}이의 섬` : "함께 만드는 우리"}</h2></div>
           <div className="flex flex-col items-end gap-2">
-            <span className="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/60 px-3 py-1.5 text-[11px] text-[#6f8c78]"><Icon name={mode === "island" ? "leaf" : "puzzle"} size={14}/>{mode === "island" ? `${baseItemCount + gifts.length}개의 이야기` : "학기말 미리 보기"}</span>
+            <span className="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/60 px-3 py-1.5 text-[11px] text-[#6f8c78]"><Icon name={mode === "island" ? "leaf" : "puzzle"} size={14}/>{mode === "island" ? `${baseItemCount + sceneGifts.length}개의 이야기` : "학기말 미리 보기"}</span>
             {mode === "island" && phase !== "complete" && <span title={acquired.description} className="flex items-center gap-2 rounded-full border border-[#eadfbf] bg-[#fffaf0]/90 px-3 py-1.5 text-[11px] font-semibold text-[#75643d]"><span>{acquired.emoji}</span>{acquired.name}</span>}
           </div>
         </div>

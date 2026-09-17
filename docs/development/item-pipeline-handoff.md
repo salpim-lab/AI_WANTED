@@ -18,11 +18,18 @@
 - `src/app/api/ai/item-extract/route.ts`: POST `{session_id}`. 본인 상담, 저장 상태, 기존 동의 조건을 확인하고 소재 추론 JSON만 반환한다. 조립·저장·지급은 하지 않는다.
 - `src/lib/openai/inferItem.ts`: 소재 AI 호출. `src/lib/openai/prompts/item-inference.ts`와 `src/lib/items/itemInference.ts`에 프롬프트·스키마·실제 학생 인용 검증. 상세는 item-inference.md.
 - `src/lib/openai/assembleItem.ts`: 조립 서버 함수 assembleItem(inference), 요청 생성 buildItemAssemblyRequest. 실제 AI에는 itemName/subject/appearance만 보내고 전문·인용은 재전달하지 않는다.
+- `src/app/api/ai/item-generation/route.ts`: 완료된 상담의 생성 작업을 POST로 멱등 접수하고 GET으로 상태를 조회한다. 현재는 접수·조회만 하며 inferItem/assembleItem 워커는 아직 연결하지 않았다. 서버 secret key가 필요하다.
+- `src/app/api/checkins/transcript/route.ts`: 로그인 학생이 완료/중단된 전문 배열을 한 번에 저장하는 서버 API. 종료를 어떤 버튼·자동 전환으로 판단할지는 아직 미정이며, 상담 UI 이벤트가 정해진 뒤 연결한다.
+- `src/lib/items/runItemGenerationJob.ts`: 작업 ID 하나를 claim하고 최대 2회 AI를 시도한다. 성공 시 상담별 procedural asset을 저장해 `asset_ready`, 최종 실패 시 결정적 fallback asset을 저장해 `fallback`으로 바꾼다. 스케줄러 연결과 `student_items` 지급은 아직 없다.
+- `src/app/api/internal/item-generation/worker/route.ts`: `ITEM_WORKER_SECRET` Bearer 헤더를 확인하고 대기 작업 하나만 실행한다. 외부 cron을 등록하면 이 URL을 주기적으로 호출한다. 현재는 실행 입구만 있으며 cron 등록은 아직 없다.
+- `src/lib/items/issueStudentItem.ts`: 상담 세션별 기존 지급을 재사용하고, 오늘 비어 있는 slot 1/2 중 하나에 `student_items`를 한 번만 만든다. 두 슬롯이 모두 차면 `DAILY_ITEM_SLOTS_FULL`을 반환한다.
 - `src/lib/openai/prompts/item-assembly.ts`: 자유 소재를 정해진 도형으로 조립하는 프롬프트와 카탈로그.
 - `src/lib/items/itemAssembly.ts`: 도형별 Structured Outputs 스키마, 엄격한 필드 검사 및 parseLabItem 연결. 이름도 추론 결과와 같아야 한다.
 - `src/lib/items/assembledItem.ts`, `itemShapes.ts`, `extrudedItem.ts`: JSON 검증·Three.js 제작·정규화·해제. 속이 빈 용기는 내벽과 바닥을 가진 회전체다. 임의 도형 간 Boolean 차집합은 없다.
 - `/item-lab`: 수동 JSON 실험실. docs/development/examples/mug.json은 수동 테스트 설계이며 AI 출력이나 프롬프트 예시가 아니다.
 - `/item-lab/village`: 기존 마을의 크기·배치 용량 실험. 실제 소유·휴대·배치 파이프라인과 신규 JSON 제작기는 아직 연결되지 않았다.
+- `src/components/student/island/proceduralAsset.ts`: `assetFormat=procedural`이면 `geometrySpec`을 `createLabItem`으로 만들고, 오류나 기존 GLB/프리셋이면 기존 `createGiftModel`로 안전하게 대체한다. `IslandGift`에 선택적 `assetFormat`·`geometrySpec`을 실어 둘 수 있고, 실제 DB 아이템 조회 연결은 아직 필요하다.
+- `/item-lab/pipeline`: OpenAI·Supabase 없이 fallback procedural JSON을 `IslandExperience`의 incoming item처럼 전달하는 브라우저 fixture. 캐릭터가 가져와 배치하는 실제 섬 렌더링 경로를 확인할 수 있다. 운영 데이터나 DB를 쓰지 않는다.
 - `scripts/test-item-assembly.cjs`: `node scripts/test-item-assembly.cjs`로 오프라인 검사 재실행. 실제 환경 변수와 네트워크를 사용하지 않는다.
 
 ## API 연결 위치와 출력 규격
@@ -44,7 +51,11 @@ API strict JSON은 mirror/repeat가 모든 부품에 필수이며 미사용은 n
 
 1번 조립 호출 준비는 완료했다. 다시 구현하지 않는다.
 
-생성 실패 시에만 고정 대체 아이템을 지급하고, 제한된 백그라운드 재시도로 완성되면 같은 자리에서 교체한다는 정책을 `item-generation-jobs.md`에 정리했다. 작업당 AI 시도는 2회다. 무한 재시도나 무기한 선물 상자는 사용하지 않는다. `20260917110000_1070_item_generation_jobs.sql`로 작업 상태·시도 횟수·fallback/generated 참조와 RLS를 추가했지만, 아직 Supabase 적용과 작업 실행기 연결은 하지 않았다.
+생성 실패 시에만 고정 대체 아이템을 지급하고, 제한된 백그라운드 재시도로 완성되면 같은 자리에서 교체한다는 정책을 `item-generation-jobs.md`에 정리했다. 작업당 AI 시도는 2회다. 무한 재시도나 무기한 선물 상자는 사용하지 않는다. `1070`~`1073` 마이그레이션은 적용했고, `/api/ai/item-generation`은 작업을 접수·조회한다. `runItemGenerationJob`과 내부 worker 입구가 준비됐고 성공/fallback 모두 `student_items` 지급까지 수행한다. 최종 배치 표시 교체와 cron 등록은 아직 연결하지 않았다.
+
+회의 결정 보류: 워커를 자동 호출할 배포 서버와 cron 사용 여부. Vercel Cron, Supabase pg_cron/Edge Function, 별도 서버 cron을 비교하고, cron을 쓰지 않으면 다음 학생 접속 때 재시도하는 대안을 선택한다. 서버가 정해지면 `/api/internal/item-generation/worker` 호출 주기와 `ITEM_WORKER_SECRET` 배포 환경 변수를 등록한다. 이 결정 전에는 스케줄러 코드를 추가하지 않는다.
+
+전문 저장 API 자체는 `/api/checkins/transcript`로 준비했다. 다만 상담 종료를 어떤 버튼 또는 자동 전환으로 정의할지는 아직 미정이다. 이 결정이 끝나기 전에는 프런트엔드에 호출을 연결하지 않는다. 다음 세션 시작 시 이 미결 사항을 먼저 사용자에게 확인한다.
 
 2. 생성 작업 관리: 기존 상담 완료·아이템 지급 흐름과 DB 정책을 먼저 확인한다. 생성 중·완료·실패 상태 저장 위치, 한 상담당 지급 횟수, 중복 생성 방지와 재시도 규칙을 논의한다. 배포 환경에서 계속 실행 가능한 작업 방식을 결정한다. 큐/별도 워커 필요성은 배포 환경을 확인한 뒤 판단한다. 프로세스 재시작 시 중간 단계 재개가 필요한지도 정한다.
 3. 최종 저장·지급: 기존 student_items → asset_catalog 관계와 지급 규칙을 확인하고 JSON·이름·설명·크기 저장 구조를 논의한다. 현재 student_items에 조립 JSON 필드는 없다. 동일 지급의 DB 차원 중복 방지가 필요하다.

@@ -1,6 +1,6 @@
 # 아이템 생성 작업 설계
 
-2026-09-17 합의. 정상 생성은 상담 기반 아이템을 사용하고, 대체 아이템은 생성 실패 때만 지급한다. 작업 상태용 마이그레이션 `20260917110000_1070_item_generation_jobs.sql`을 추가했다. 아직 작업 실행기와 최종 아이템 API는 연결하지 않았다.
+2026-09-17 합의. 정상 생성은 상담 기반 아이템을 사용하고, 대체 아이템은 생성 실패 때만 지급한다. 작업 상태용 마이그레이션 `20260917110000_1070_item_generation_jobs.sql`을 추가했다. `item_candidates`는 2026-09-17에 이 테이블로 대체되어 마이그레이션(1025·9020)을 삭제했다. `candidate_id` 열과 조건부 외래키는 남아 있지만 사용하지 않는다. 아직 작업 실행기와 최종 아이템 API는 연결하지 않았다.
 
 ## 학생에게 보이는 흐름
 
@@ -27,11 +27,11 @@
 | `queued` | 생성 요청이 접수되어 작업을 기다림 | `generating` |
 | `generating` | 소재 추론 또는 조립 AI 호출 중 | `completed`, `retry_wait`, `fallback` |
 | `retry_wait` | 일시 오류 후 다음 시도를 기다림 | `generating`, `fallback` |
-| `fallback` | 고정 대체 아이템을 지급한 상태 | `generating`, `fallback_final`, `completed` |
+| `fallback` | 고정 대체 아이템을 먼저 지급하고 재시도를 남겨둔 상태 | `generating`, `fallback_final`, `completed` |
 | `completed` | 상담 기반 아이템이 저장·지급된 상태 | 종료 |
 | `fallback_final` | 백그라운드 재시도까지 실패해 대체품을 최종 확정 | 종료 |
 
-`completed`와 `fallback_final`은 종료 상태다. `fallback`은 백그라운드 재시도를 허용하는 동안만 사용한다. 브라우저가 닫혀도 작업 상태와 다음 시각은 DB에 남아야 한다.
+`completed`와 `fallback_final`은 종료 상태다. 첫 시도 실패 시 `fallback`으로 즉시 대체품을 지급하고, 두 번째 시도는 백그라운드에서 진행한다. 브라우저가 닫혀도 작업 상태와 다음 시각은 DB에 남아야 한다.
 
 ## 재시도·비용 정책
 
@@ -43,13 +43,15 @@
 
 ## 같은 자리 교체
 
-이번 마이그레이션은 `item_generation_jobs.fallback_asset_id`, `generated_asset_id`, `student_item_id`를 기록한다. 다만 기존 `student_items`는 불변이고 `island_placements`가 이를 참조하므로, fallback 지급 후 상담 기반 에셋으로 같은 배치를 교체하는 실제 컬럼·RPC는 아직 별도 설계가 필요하다. 이를 확정하기 전에는 기존 `student_items`의 `asset_id`를 업데이트하지 않는다.
+`20260917120000_1071_procedural_asset_storage.sql`은 `asset_catalog.asset_format`·`geometry_spec`과 `island_placements.current_asset_id`를 추가한다. 기존 GLB는 기본값 `glb`, 기존 배치는 NULL로 보존한다. 절차적 에셋은 검증된 조립 JSON을 `geometry_spec`에 저장하고, 렌더러는 `asset_format`으로 GLB/Three.js 경로를 선택한다.
 
-최종적으로 새 `student_items` 행을 추가할지, 배치에 현재 에셋 참조를 별도로 둘지는 다음 설계에서 결정한다. 현재 마이그레이션은 작업 상태 기록만 하며 배치 교체를 가장하지 않는다.
+fallback 지급 후 `student_items`의 불변 `asset_id`는 수정하지 않는다. 배치가 있으면 `island_placements.current_asset_id`만 generated asset으로 교체해 위치·student_item_id·획득 이력을 보존한다. NULL이면 기존처럼 `student_items.asset_id`를 표시한다. 실제 교체 RPC는 워커 단계에서 추가한다.
+
+새 `student_items` 행을 fallback과 generated 각각에 만들지 않는다. 현재 마이그레이션은 배치의 현재 에셋 참조만 준비하며, 지급·교체 RPC는 워커 단계에서 멱등적으로 구현한다.
 
 ## DB 설계 시 결정할 것
 
-현재 `item_candidates`에는 `pending`, `resolved`, `failed`와 `asset_id`가 있고 source session당 하나만 허용된다. 이 테이블을 확장할지, 별도 `item_generation_jobs`를 만들지는 기존 정책·RLS·불변 트리거를 확인한 뒤 결정한다. 어느 쪽이든 다음 값이 필요하다.
+`item_candidates`를 확장하지 않고 별도 `item_generation_jobs`를 만들기로 결정했다(`item_candidates`는 삭제). 이 테이블에는 다음 값이 있다.
 
 - source session과 enrollment의 유일한 연결
 - 현재 상태, 시도 횟수, `next_attempt_at`, 마지막 오류의 안전한 분류 코드
@@ -59,13 +61,20 @@
 
 상담 종료 요청과 작업 접수는 멱등적이어야 한다. 같은 `source_session_id`로 두 번 요청해도 작업과 지급이 하나만 생겨야 한다. 작업자가 `queued`/`retry_wait` 행을 가져갈 때도 원자적 claim이 필요하다.
 
+## 스케줄러 선택 보류
+
+워커 자동 호출 방식은 2026-09-17 회의 이후 결정한다. 배포 서버가 확정되기 전에는 Vercel Cron, Supabase pg_cron/Edge Function, 별도 서버 cron 중 하나를 코드에 고정하지 않는다. 현재 `/api/internal/item-generation/worker`는 공통 실행 입구로 준비되어 있고, 선택한 환경이 이 URL을 인증 헤더와 함께 주기적으로 호출하면 된다.
+
+cron을 사용하지 않는 대안은 학생의 다음 접속 때 워커를 호출하는 방식이다. 이 경우 학생이 다시 오기 전에는 fallback이 완성품으로 바뀌지 않는다. 회의에서 “학생 부재 중 자동 완성”을 유지할지와 배포 환경·호출 주기를 함께 결정한다.
+
 ## 다음 구현 순서
 
-1. 마이그레이션을 개발 Supabase에 적용하고 타입을 갱신한다.
-2. 기존 `item_candidates`, `asset_catalog`, `student_items`, `island_placements`의 실제 쓰기 정책과 불변 트리거를 다시 확인한다.
-3. `inferItem` → `assembleItem` → fallback JSON을 호출하는 작업 실행기를 만든다. 함수는 준비됐지만 이 오케스트레이션은 아직 없다.
-4. fallback 지급 후 같은 위치를 교체할 저장 방식을 사용자와 확정하고 별도 마이그레이션·RPC를 만든다.
-5. 브라우저 재접속 시 작업 상태와 완성 교체를 조회하도록 연결한다.
-6. 키 연결 후 20명 규모에서 호출 수·실패율·완료 시간과 문구를 확인한다.
+1. `20260917131000_1073_same_asset_replacement.sql`을 적용하고 타입을 갱신한다. (1070·1071·1072는 원격 적용 완료)
+2. 기존 `asset_catalog`, `student_items`, `island_placements`의 실제 쓰기 정책과 불변 트리거를 다시 확인한다.
+3. 현재 추가된 `/api/ai/item-generation`에 상담 완료 후 POST를 연결한다. 같은 세션 POST는 기존 작업을 반환하고 GET은 상태를 반환한다. 이 라우트는 접수·조회만 하며 AI를 오래 실행하지 않는다.
+4. `/api/internal/item-generation/worker`가 비밀 Bearer 헤더로 호출되면 대기 중 가장 오래된 작업 하나만 `runItemGenerationJob(jobId)`로 실행한다. 워커는 성공 또는 2회 실패 후 `student_items`를 멱등 지급한다. 실제 cron 등록과 학생 화면 연결은 아직 없다.
+5. fallback 지급 후 같은 위치를 교체할 저장 방식을 사용자와 확정하고 별도 마이그레이션·RPC를 만든다.
+6. 브라우저 재접속 시 작업 상태와 완성 교체를 조회하도록 연결한다.
+7. 키 연결 후 20명 규모에서 호출 수·실패율·완료 시간과 문구를 확인한다.
 
 현재는 1번 조립 호출 함수와 제작기만 준비된 상태다. 이 문서의 상태·횟수·테이블 선택은 초안이며, 확정 전에는 스키마를 변경하지 않는다.

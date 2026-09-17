@@ -174,10 +174,12 @@ export type Database = {
       }
       asset_catalog: {
         Row: {
+          asset_format: string
           asset_type: string
           created_at: string
           dedup_key: string
           generation_metadata: Json | null
+          geometry_spec: Json | null
           id: string
           model_url: string
           name: string
@@ -187,10 +189,12 @@ export type Database = {
           thumbnail_url: string | null
         }
         Insert: {
+          asset_format?: string
           asset_type: string
           created_at?: string
           dedup_key: string
           generation_metadata?: Json | null
+          geometry_spec?: Json | null
           id?: string
           model_url: string
           name: string
@@ -200,10 +204,12 @@ export type Database = {
           thumbnail_url?: string | null
         }
         Update: {
+          asset_format?: string
           asset_type?: string
           created_at?: string
           dedup_key?: string
           generation_metadata?: Json | null
+          geometry_spec?: Json | null
           id?: string
           model_url?: string
           name?: string
@@ -246,7 +252,6 @@ export type Database = {
       }
       checkin_sessions: {
         Row: {
-          transcript: Json | null
           attempt: number
           completed_at: string | null
           created_at: string
@@ -258,9 +263,9 @@ export type Database = {
           started_at: string
           status: string
           stop_reason: string | null
+          transcript: Json | null
         }
         Insert: {
-          transcript?: Json | null
           attempt?: number
           completed_at?: string | null
           created_at?: string
@@ -272,9 +277,9 @@ export type Database = {
           started_at?: string
           status?: string
           stop_reason?: string | null
+          transcript?: Json | null
         }
         Update: {
-          transcript?: Json | null
           attempt?: number
           completed_at?: string | null
           created_at?: string
@@ -286,6 +291,7 @@ export type Database = {
           started_at?: string
           status?: string
           stop_reason?: string | null
+          transcript?: Json | null
         }
         Relationships: [
           {
@@ -679,6 +685,7 @@ export type Database = {
       }
       island_placements: {
         Row: {
+          current_asset_id: string | null
           id: string
           island_id: string
           position_x: number
@@ -694,6 +701,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          current_asset_id?: string | null
           id?: string
           island_id: string
           position_x?: number
@@ -709,6 +717,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          current_asset_id?: string | null
           id?: string
           island_id?: string
           position_x?: number
@@ -724,6 +733,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "island_placements_current_asset_id_fkey"
+            columns: ["current_asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset_catalog"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "island_placements_island_id_fkey"
             columns: ["island_id"]
@@ -783,6 +799,131 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "v_students_current"
             referencedColumns: ["enrollment_id"]
+          },
+        ]
+      }
+      item_generation_jobs: {
+        Row: {
+          assembly_output: Json | null
+          attempt_count: number
+          candidate_id: string | null
+          completed_at: string | null
+          created_at: string
+          enrollment_id: string
+          fallback_asset_id: string | null
+          fallback_at: string | null
+          generated_asset_id: string | null
+          id: string
+          inference_output: Json | null
+          last_error_at: string | null
+          last_error_code: string | null
+          last_error_detail: Json | null
+          max_attempts: number
+          next_attempt_at: string | null
+          source_session_id: string
+          started_at: string | null
+          status: string
+          student_item_id: string | null
+          student_message: string | null
+          updated_at: string
+        }
+        Insert: {
+          assembly_output?: Json | null
+          attempt_count?: number
+          candidate_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          enrollment_id: string
+          fallback_asset_id?: string | null
+          fallback_at?: string | null
+          generated_asset_id?: string | null
+          id?: string
+          inference_output?: Json | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_detail?: Json | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          source_session_id: string
+          started_at?: string | null
+          status?: string
+          student_item_id?: string | null
+          student_message?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assembly_output?: Json | null
+          attempt_count?: number
+          candidate_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          enrollment_id?: string
+          fallback_asset_id?: string | null
+          fallback_at?: string | null
+          generated_asset_id?: string | null
+          id?: string
+          inference_output?: Json | null
+          last_error_at?: string | null
+          last_error_code?: string | null
+          last_error_detail?: Json | null
+          max_attempts?: number
+          next_attempt_at?: string | null
+          source_session_id?: string
+          started_at?: string | null
+          status?: string
+          student_item_id?: string | null
+          student_message?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_generation_jobs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "v_signal_flags"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "v_students_current"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_fallback_asset_id_fkey"
+            columns: ["fallback_asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_generated_asset_id_fkey"
+            columns: ["generated_asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_source_session_id_fkey"
+            columns: ["source_session_id"]
+            isOneToOne: true
+            referencedRelation: "checkin_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_generation_jobs_student_item_id_fkey"
+            columns: ["student_item_id"]
+            isOneToOne: false
+            referencedRelation: "student_items"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1283,6 +1424,7 @@ export type Database = {
         Args: { p_enrollment_id: string }
         Returns: boolean
       }
+      valid_checkin_transcript: { Args: { value: Json }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

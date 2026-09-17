@@ -15,7 +15,10 @@ export type ItemPart = CommonPart & (
   | { shape: "extrudedShape"; points: [number, number][]; depth: number; bevel: number }
   | ExtendedShape
 );
-export type AssembledItemSpec = { version: 1; name: string; parts: ItemPart[] };
+export type ItemSizeClass = "small" | "medium" | "large";
+/** Island scale per size class; medium keeps the original gift size. */
+export const ITEM_SIZE_SCALE: Record<ItemSizeClass, number> = { small: 0.55, medium: 1, large: 1.35 };
+export type AssembledItemSpec = { version: 1; name: string; sizeClass?: ItemSizeClass; parts: ItemPart[] };
 export type LabItemSpec = ExtrudedItemSpec | AssembledItemSpec;
 
 export const HOUSE_SPEC: AssembledItemSpec = {
@@ -83,7 +86,9 @@ export function parseLabItem(value: unknown): LabItemSpec {
     return { ...common, ...parseExtendedShape(p) };
   });
   if (parts.reduce((count, part) => count + (part.mirror ? 2 : 1) * (part.repeat?.count ?? 1), 0) > 60) throw new Error("복제 후 부품은 최대 60개예요.");
-  return { version: 1, name: v.name, parts };
+  if (v.sizeClass !== undefined && !(typeof v.sizeClass === "string" && v.sizeClass in ITEM_SIZE_SCALE)) throw new Error("sizeClass는 small, medium, large 중 하나예요.");
+  const sizeClass = v.sizeClass as ItemSizeClass | undefined;
+  return sizeClass ? { version: 1, name: v.name, sizeClass, parts } : { version: 1, name: v.name, parts };
 }
 
 /** Rectangular pyramid: base centered at local y=0, apex at y=height. */
@@ -138,6 +143,9 @@ export function createLabItem(value: unknown): THREE.Group {
     }
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: part.color, roughness: 0.65, metalness: 0 }));
     mesh.name = part.id;
+    // The island renders shadows; without them a ball or other point-contact item reads as floating.
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     mesh.position.set(...part.position);
     mesh.rotation.set(...part.rotation);
     for (let i = 0; i < (part.repeat?.count ?? 1); i++) {
@@ -155,7 +163,8 @@ export function createLabItem(value: unknown): THREE.Group {
       }
     }
   }
-  const bounds = new THREE.Box3().setFromObject(content);
+  // precise: rotated parts use their vertices, not their rotated bounding boxes, so the item rests on y=0.
+  const bounds = new THREE.Box3().setFromObject(content, true);
   const size = bounds.getSize(new THREE.Vector3());
   const center = bounds.getCenter(new THREE.Vector3());
   const scale = 1 / Math.max(size.x, size.y, size.z);
@@ -165,5 +174,6 @@ export function createLabItem(value: unknown): THREE.Group {
   model.name = spec.name;
   model.add(content);
   model.userData.baseDiameter = Math.hypot(size.x, size.z) * scale;
+  model.userData.sizeScale = ITEM_SIZE_SCALE[spec.sizeClass ?? "medium"];
   return model;
 }

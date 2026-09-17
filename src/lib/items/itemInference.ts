@@ -14,6 +14,7 @@ export const ITEM_INFERENCE_SCHEMA = {
   },
   required: ["coreExperience", "evidence", "itemName", "subject", "selectionReason", "studentMessage", "sizeClass", "appearance"],
 };
+export const EVIDENCE_MISMATCH = "근거가 실제 학생 발화와 일치하지 않습니다.";
 export function parseItemInference(value: unknown, studentUtterances: string[]): ItemInference {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("추론 결과는 JSON 객체여야 합니다.");
   const v = value as Record<string, unknown>;
@@ -27,7 +28,7 @@ export function parseItemInference(value: unknown, studentUtterances: string[]):
     return v.map(v => string(v, maxChars));
   };
   const evidence = array(v.evidence, 1, 1000);
-  if (evidence.some(q => !studentUtterances.some(u => u.includes(q)))) throw new Error("근거가 실제 학생 발화와 일치하지 않습니다.");
+  if (evidence.some(q => !studentUtterances.some(u => u.includes(q)))) throw new Error(EVIDENCE_MISMATCH);
   if (v.sizeClass !== "small" && v.sizeClass !== "medium" && v.sizeClass !== "large") throw new Error("크기 분류가 잘못되었습니다.");
   return {
     coreExperience: string(v.coreExperience, 300), evidence, itemName: string(v.itemName, 80),

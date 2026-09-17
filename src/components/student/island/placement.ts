@@ -152,6 +152,7 @@ export function canPlaceGift(x: number, z: number, layout: IslandLayout, itemRad
   );
 }
 
-export function canPlaceAmongGifts(x: number, z: number, layout: IslandLayout, gifts: IslandGift[], movingId: string | null = null, itemRadius = 0.55, itemGap = 0.75): boolean {
-  return canPlaceGift(x, z, layout, itemRadius) && !gifts.some((gift) => gift.id !== movingId && Math.hypot(gift.x - x, gift.z - z) < itemGap);
+/** With `radiusOf`, two items only need their own radii apart; otherwise every pair needs `itemGap`. */
+export function canPlaceAmongGifts(x: number, z: number, layout: IslandLayout, gifts: IslandGift[], movingId: string | null = null, itemRadius = 0.55, itemGap = 0.75, radiusOf?: (gift: IslandGift) => number): boolean {
+  return canPlaceGift(x, z, layout, itemRadius) && !gifts.some((gift) => gift.id !== movingId && Math.hypot(gift.x - x, gift.z - z) < (radiusOf ? itemRadius + radiusOf(gift) : itemGap));
 }

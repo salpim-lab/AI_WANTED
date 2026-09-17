@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CHARACTER_MODEL_HEIGHT, createChildCharacter, createPopBurst, type ChildCharacter } from "./character";
 import { createGiftModel, createPuzzleAssemblyModel, createPuzzlePieceModel, disposeObject, GIFT_MODEL_HEIGHT, replaceLandscapeProps } from "./islandModel";
+import { assetSizeScale, createAssetModel } from "./proceduralAsset";
 import { loadIslandPropLibrary } from "./islandAssets";
 import { createIslandSky } from "./islandSky";
 import { canPlaceAmongGifts, ISLAND_SCALE, PLACEMENT_GRID_STEP, SURFACE_Y } from "./placement";
@@ -18,6 +19,7 @@ import type { CameraPreset, GiftKind, IslandGift, IslandScreenRect, PlacementPha
 type Props = {
   mode: ViewMode;
   gifts: IslandGift[];
+  incomingAsset?: Pick<IslandGift, "assetFormat" | "geometrySpec">;
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
@@ -39,6 +41,7 @@ type Runtime = {
   giftScale: number;
   toDisplayedWorld: (point: { x: number; z: number }, y?: number) => THREE.Vector3;
   heightAt: (x: number, z: number) => number;
+  surfaceAt: (x: number, z: number) => number;
   render: () => void;
   setCharacterState: (phase: PlacementPhase, proposal: PlacementProposal | null) => void;
   toggleOverview: () => void;
@@ -78,6 +81,7 @@ const CLASSROOM_SPACING = 33;
 export default function IslandScene({
   mode,
   gifts,
+  incomingAsset,
   selected,
   proposal,
   phase,
@@ -96,6 +100,8 @@ export default function IslandScene({
   const onIslandScreenRectRef = useRef(onIslandScreenRect);
   const onIntroCompleteRef = useRef(onIntroComplete);
   const onOverviewChangeRef = useRef(onOverviewChange);
+  const incomingAssetRef = useRef(incomingAsset);
+  useEffect(() => { incomingAssetRef.current = incomingAsset; }, [incomingAsset]);
   const noticeTimerRef = useRef<number | null>(null);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive });
   // When the intro began: it plays once per visit, and a rebuilt scene
@@ -260,7 +266,10 @@ export default function IslandScene({
     disposeObject(markerSource);
     const giftScale = pieceMetrics ? (pieceMetrics.W / 2.75) * 0.07 / GIFT_MODEL_HEIGHT : 1;
     const markerDiameter = markerBaseDiameter * giftScale;
+    // Medium footprint; small and large items scale their placement circle with their size class.
     const itemRadius = markerDiameter / 2;
+    const giftRadius = (gift: Pick<IslandGift, "assetFormat" | "geometrySpec">) => itemRadius * assetSizeScale(gift);
+    const incomingRadius = () => giftRadius(incomingAssetRef.current ?? {});
     const marker = new THREE.Mesh(new THREE.RingGeometry(markerDiameter * 0.42, markerDiameter * 0.5, 48), markerMaterial);
     marker.visible = false;
     scene.add(marker);
@@ -328,7 +337,7 @@ export default function IslandScene({
 
     // `pop` plays the entrance; a rebuilt scene (view switch) shows the character as is.
     function summonCharacter(pop: boolean) {
-      const next = createChildCharacter("star");
+      const next = createChildCharacter("star", incomingAssetRef.current);
       next.root.position.copy(initialCharacterPosition);
       next.root.scale.setScalar(characterScale);
       characterBaseY = initialCharacterPosition.y;
@@ -462,7 +471,7 @@ export default function IslandScene({
     function farewellDestination(proposal: PlacementProposal) {
       const origin = characterDestination(proposal);
       const bodyRadius = characterScale * 0.45;
-      const clearance = itemRadius * 1.6 + bodyRadius;
+      const clearance = giftRadius(proposal) * 1.6 + bodyRadius;
       camera.updateMatrixWorld(true);
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
       const sideAngle = Math.atan2(right.z, right.x);
@@ -474,7 +483,7 @@ export default function IslandScene({
         // The first steps leave the item that was just deposited.
         if (departing && Math.hypot(gift.x - proposal.x, gift.z - proposal.z) < 1e-6) return true;
         const position = displayedCoordinates.toDisplayedWorld(gift);
-        return Math.hypot(position.x - point.x, position.z - point.z) >= clearance;
+        return Math.hypot(position.x - point.x, position.z - point.z) >= giftRadius(gift) * 1.6 + bodyRadius;
       });
       // Prefer either screen side, then try nearby angles further inside the island.
       for (let ring = 1; ring <= 6; ring++) {
@@ -695,7 +704,7 @@ export default function IslandScene({
       giftGroup.children.forEach((gift) => {
         gift.rotation.y = Math.atan2(camera.position.x - gift.position.x, camera.position.z - gift.position.z);
         if (gift.userData.sparkle && !calm) {
-          gift.scale.setScalar(giftScale * (1 + Math.sin(now * 0.006) * 0.035));
+          gift.scale.setScalar(giftScale * (gift.userData.sizeScale ?? 1) * (1 + Math.sin(now * 0.006) * 0.035));
         }
       });
       screenSunPosition(camera, controls.target, sunDistance / 16, sunlight.position);
@@ -735,9 +744,10 @@ export default function IslandScene({
 
     const validPoint = (x: number, z: number) => {
       const data = displayedCoordinates.fromDisplayedWorld(new THREE.Vector3(x, 0, z));
-      if (classroom) return canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, itemRadius, itemRadius * 2);
-      return pieceLandscape.canPlace(data.x, data.z, itemRadius)
-        && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, itemRadius, itemRadius * 2);
+      const radius = incomingRadius();
+      if (classroom) return canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, radius, radius * 2, giftRadius);
+      return pieceLandscape.canPlace(data.x, data.z, radius)
+        && canPlaceAmongGifts(data.x, data.z, island.layout, stateRef.current.gifts, null, radius, radius * 2, giftRadius);
     };
     const resolvePlacement = (data: { x: number; z: number }) => {
       if (classroom || !pieceMetrics) return validPoint(data.x, data.z) ? data : null;
@@ -783,6 +793,7 @@ export default function IslandScene({
       if (!canChooseLocation()) return;
       const hit = intersect(event);
       marker.visible = !!hit;
+      marker.scale.setScalar(assetSizeScale(incomingAssetRef.current ?? {}));
       if (hit?.face) {
         // Lay the ring on the facet under the pointer so slopes don't clip it.
         groundNormal.copy(hit.face.normal).transformDirection(island.surface.matrixWorld);
@@ -828,6 +839,7 @@ export default function IslandScene({
         setPlacementNotice(null);
         current.onPropose(current.selected, resolved.x, resolved.z);
         marker.position.copy(displayedCoordinates.toDisplayedWorld(resolved, heightAt(resolved.x, resolved.z) + 0.05));
+        marker.scale.setScalar(assetSizeScale(incomingAssetRef.current ?? {}));
         marker.visible = true;
         render();
       } else if (data) {
@@ -961,6 +973,7 @@ export default function IslandScene({
       giftScale,
       toDisplayedWorld: displayedCoordinates.toDisplayedWorld.bind(displayedCoordinates),
       heightAt,
+      surfaceAt: pieceLandscape.surfaceAt,
       render,
       setCharacterState,
       suggested: () => {
@@ -1035,9 +1048,11 @@ export default function IslandScene({
     disposeObject(runtime.gifts);
     runtime.gifts.clear();
     gifts.forEach((gift) => {
-      const model = createGiftModel(gift.kind);
-      model.position.copy(runtime.toDisplayedWorld(gift, runtime.heightAt(gift.x, gift.z) + 0.02));
-      model.scale.setScalar(runtime.giftScale);
+      const model = createAssetModel(gift);
+      const scale = runtime.giftScale * (model.userData.sizeScale ?? 1);
+      // Rest on the visible ground and sink 2% of the item so round bottoms read as touching it.
+      model.position.copy(runtime.toDisplayedWorld(gift, runtime.surfaceAt(gift.x, gift.z) - scale * 0.02));
+      model.scale.setScalar(scale);
       model.name = gift.name;
       model.userData.sparkle = gift.id === gifts[gifts.length - 1]?.id;
       runtime.gifts.add(model);
