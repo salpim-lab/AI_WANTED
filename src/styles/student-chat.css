@@ -34,7 +34,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 15cqh 7cqw 2cqh;
+  padding: 15cqh 3.4cqw 2cqh;
   display: flex;
   flex-direction: column;
   gap: 2.4cqh;
@@ -57,18 +57,38 @@
   font-weight: 500;
   /* 편지지처럼 부드럽게 — 메신저 말풍선보다 모서리를 크게 두고 그림자를 옅게 */
   box-shadow: 0 0.6cqh 1.6cqh rgba(60, 68, 110, 0.08);
+  position: relative;
 }
+
+/* 꼬리 — 사각형이 아니라 말풍선으로 보이게 한다.
+   말풍선과 같은 색을 물려받아(background: inherit) 색을 한 곳에서만 관리한다. */
+.chat-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: 1.4cqh;
+  width: 2.2cqh;
+  height: 2.2cqh;
+  background: inherit;
+}
+.chat-bubble--ai::after,
+.chat-bubble--navy-msg::after {
+  left: -0.8cqh;
+  clip-path: polygon(100% 0, 100% 100%, 0 78%);
+}
+.chat-bubble--user::after {
+  right: -0.8cqh;
+  clip-path: polygon(0 0, 0 100%, 100% 78%);
+}
+
 .chat-bubble--ai,
 .chat-bubble--navy-msg {
   background: #eceafd;
   color: #2f3560;
-  border-bottom-left-radius: 0.9cqh;
 }
 .chat-bubble--navy-msg { background: #e4e8fb; }
 .chat-bubble--user {
   background: #d6e6fb;
   color: #23365e;
-  border-bottom-right-radius: 0.9cqh;
 }
 
 /* 입력 중 점 세 개 */
@@ -110,7 +130,7 @@
 /* ── 하단 ──────────────────────────────────────────────── */
 .chat-bottom {
   flex: none;
-  padding: 0 7cqw 3.4cqh;
+  padding: 0 3.4cqw 3.4cqh;
   display: flex;
   flex-direction: column;
   gap: 1.6cqh;

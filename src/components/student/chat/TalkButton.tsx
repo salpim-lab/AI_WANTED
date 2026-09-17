@@ -14,16 +14,6 @@ export default function TalkButton({
   return (
     <button type="button" className="talk-btn" onClick={onClick} disabled={disabled}>
       <span className="talk-btn__row">
-        <svg viewBox="0 0 24 24" className="talk-btn__mic" aria-hidden="true">
-          <rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" />
-          <path
-            d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"
-            stroke="currentColor"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
         말하기 시작
       </span>
       <span className="talk-btn__sub">한 번만 눌러서 편하게 말해요!</span>
