@@ -8,10 +8,14 @@ export type { SignalColor };
 
 export const SIGNAL_COLORS: Record<
   SignalColor,
-  { label: string; hex: string }
+  { name: string; label: string; hex: string }
 > = {
-  green: { label: "기분 좋아요", hex: "#22c55e" },
-  yellow: { label: "그저 그래요", hex: "#eab308" },
-  red: { label: "오늘은 좀 기분이 안 좋아요", hex: "#ef4444" },
-  navy: { label: "오늘 나 조금 혼자 있을 시간이 필요해요", hex: "#1e3a8a" },
+  // name  — 색 이름 (마음 버튼에 표시)
+  // label — 마음 설명. 버튼과 대화 화면 뱃지가 **같은 문구**를 써야 한다.
+  //         아이가 버튼에서 본 말이 대화 중에도 그대로 보여야 "내가 왜 이 기분이지?"
+  //         를 떠올리며 말할 수 있다.
+  green: { name: "초록", label: "기분 좋아요", hex: "#22c55e" },
+  yellow: { name: "노랑", label: "그저 그래요", hex: "#eab308" },
+  red: { name: "빨강", label: "기분이 안 좋아요", hex: "#ef4444" },
+  navy: { name: "남색", label: "혼자 있고 싶어요", hex: "#1e3a8a" },
 };
