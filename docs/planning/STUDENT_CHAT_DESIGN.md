@@ -237,7 +237,7 @@ agent_messages.domain = learning | emotion | home
   ↓
 [발화 심리 전문가]   ← 수치 + 전사를 받아 관찰 기술 1문장 생성
   ↓
-analysis 테이블에 저장 (domain = 'emotion')
+analysis_runs 에 저장 (analysis_type = 'emotion')
   ↓
 교사 화면
   ├ 아침 브리핑 reason        "발화 속도가 줄고 말수가 적어졌어요"
@@ -259,64 +259,150 @@ analysis 테이블에 저장 (domain = 'emotion')
 
 ---
 
-## 5. 스키마 — 지금 없는 것
+## 5. 스키마 — 대부분 이미 있다
 
-기획안 §8.3 은 두 테이블을 전제한다.
+> **정정(2026-09-18):** 이 문서 초안에는 "analysis 테이블이 없다"고 적혀 있었다. **틀렸다.**
+> 조사해 보니 기획안 §8.3 이 요구한 구조가 이미 구현되어 있다.
 
-```
-utterance  (불변, append-only)
-  transcript, prosody{...}, sha256, recorded_at(서버시각)
-  ※ 음성 파일 경로 없음
+### 5.1 `analysis_runs` — 이미 있다
 
-analysis   (버전 누적)
-  model_name, prompt_version, rule_version, emotion_tags, evidence, reasoning
-```
-
-**현재 구현은 다르다.**
-
-| 기획안 | 현재 |
-|---|---|
-| `utterance` (발화별 행, prosody, sha256) | `checkin_sessions.transcript` JSONB 한 덩어리 |
-| `analysis` (버전 누적) | **없음** |
-| prosody 수치 | **저장 자리 없음** |
-
-### 5.1 이것이 왜 지금 문제인가
-
-- prosody 를 **넣을 자리가 없다** → 교사 화면의 "검증 가능한 근거"가 안 나온다
-- 감정 추론 결과를 **저장할 곳이 없다** → 매번 다시 추론해야 한다
-- 프롬프트를 고쳤을 때 **"당시엔 이렇게 해석했다"** 를 남길 수 없다
-- **나중에 만들면 그 전까지 쌓인 대화에는 근거가 없다. 복구 불가능하다**
-
-### 5.2 필요한 최소 형태
-
-```
-analysis
-  session_id            FK → checkin_sessions
-  domain                'emotion'  (교사 Agent 의 domain 과 같은 값)
-  summary_for_teacher   "발화 속도가 줄고 말수가 적어졌어요"   ← 브리핑 reason
-  evidence              "발화 2.1→1.4음절/초, 무음 3회"        ← 근거 표시
-  emotion_tags          내부 집계용 (교사 노출 여부는 별도 결정)
-  model_name, prompt_version, created_at
+```sql
+analysis_runs
+  analysis_type      'emotion' | 'relationship' | ...   ← 발화 심리 전문가는 여기
+  source_type        'session'                          ← 세션 단위 추론(§8.2)
+  source_id          checkin_sessions.id
+  provider, model, prompt_version, schema_version       ← "해석은 버전" 구현체
+  category_tags[]                                       ← emotion_tags 자리
+  moderation_flag                                       ← 위험 신호 하드 게이트
+  needs_followup                                        ← 교사 확인 필요
+  result jsonb                                          ← 해석 본문
+  status, error_message                                 ← 실패 처리
 ```
 
-prosody 는 `utterance` 테이블을 새로 만들거나,
-`checkin_sessions` 에 `prosody jsonb` 를 추가하는 두 가지 방법이 있다.
+기획안 §8.3 의 **"원본은 불변, 해석은 버전"** 이 `prompt_version` · `schema_version` 으로
+이미 구현되어 있다. 새로 만들 것이 없다.
 
-> **주의:** `checkin_sessions.transcript` 는 강윤지님이 아이템 파이프라인에서 쓰고 있다.
-> 스키마 변경은 협의가 필요하다.
+### 5.2 교사 화면 연결도 이미 있다
 
----
+```sql
+v_signal_flags   -- analysis_runs → checkin_sessions → enrollments
+  where status = 'completed'
+    and (moderation_flag or needs_followup or analysis_type = 'relationship')
+```
+
+`moderation_flag` 나 `needs_followup` 을 켜면 **자동으로 교사 뷰에 올라온다.**
+`get_student_context()` 도 이 뷰를 읽는다. 위험 신호 게이트(§1.3)의 출력 경로가 이미 뚫려 있다.
+
+### 5.3 없었던 것 — `prosody` 하나
+
+발화 파생 수치를 저장할 자리가 없었다. 기획안 §8.1 이 저장하라고 한 값이다.
+
+```
+전사 텍스트          → 저장
+파생 수치 (prosody)  → 저장   ← 자리가 없었다
+원본 음성            → 즉시 파기
+```
+
+이 수치가 없으면 교사 화면의 **"검증 가능한 근거"** 가 나오지 않는다.
+`analysis_runs.result` 에 해석을 남겨도, 그 해석의 근거가 되는 측정값은
+원본 쪽에 있어야 "원본은 불변, 해석은 버전"이 성립한다.
+
+**`20260918100000_1080_session_prosody.sql`** 로 추가했다.
+순수 추가·nullable 이라 기존 읽기(강윤지님 아이템 파이프라인 포함)에 영향이 없다.
+
+```
+checkin_sessions.prosody jsonb
+{
+  "utterances": [
+    { "index": 0,
+      "duration_sec": 12.4,
+      "response_delay_sec": 3.1,
+      "silence_count": 2,
+      "silence_total_sec": 3.1,
+      "syllables_per_sec": 2.1,
+      "loudness_rel": -0.30 }      -- 본인 평균 대비
+  ],
+  "baseline_days": 14              -- 부족하면 해석하지 않는다
+}
+```
+
+`baseline_days` 를 같이 저장하는 이유: 개인 기준선 방식에서는 **기준선이 없으면 비교가 성립하지 않는다**(§3.4).
+나중에 "이 해석이 며칠 치 기준선 위에서 나온 것인지" 를 되짚을 수 있어야 한다.
+
+### 5.4 `analysis_runs.result` 구조 (우리가 정하는 계약)
+
+스키마 변경이 아니라 jsonb 내부 규약이므로 코드에서 정한다.
+
+```json
+{
+  "summary_for_teacher": "발화 속도가 줄고 말수가 적어졌어요",
+  "evidence": "발화 2.1→1.4음절/초, 무음 3회, 본인 평균 대비 -30%",
+  "baseline_days": 14
+}
+```
+
+`summary_for_teacher` 가 아침 브리핑의 `reason` 으로 그대로 들어간다(§4).
+**감정 단정 문장을 여기 넣으면 안 된다**(§2.3).
 
 ## 6. 팀 확인이 필요한 것
 
+> 초안에 있던 "테이블 추가" 항목은 **이미 있는 것으로 확인되어 삭제**했다(§5).
+
 1. **남색 처리 변경** — 기획안 §5.2 를 바꾸는 결정 (§1.5)
-2. **`utterance` / `analysis` 테이블 추가** — 지금 안 만들면 그동안의 데이터에 근거가 없다 (§5)
-3. **`emotion_tags` 를 교사에게 노출할지** — 판정에 가까운 값이다 (§2.3)
-4. **벤더 통일** — 기획안은 대화에 Claude, 아이템 파이프라인은 OpenAI 를 쓴다
-5. **위험 신호 처리의 전문가 검토** — 상담 교사·법률 검토. 아동학대 신고 의무와 연결된다
+2. **AI 벤더** — 기획안은 대화에 Claude, 아이템 파이프라인은 OpenAI 를 쓴다
+3. **전문 저장과 아이템 작업 접수를 한 API 로 묶을지** — 아래 §7
+4. **`category_tags` 를 교사에게 노출할지** — 판정에 가까운 값이다 (§2.3)
+5. **위험 신호 처리의 전문가 검토** — 상담 교사·법률. 아동학대 신고 의무와 연결된다
 6. **STT 학습 사용 opt-out 확인** — 기획안 §8.1: *"이게 없으면 '저장하지 않습니다'가 반쪽"*
 
----
+## 7. 강윤지님 작업과의 경계
+
+```
+[이유민]  대화 → 전문 저장 → 작업 접수(queued)
+──────────────────── 경계 ────────────────────
+[강윤지]  작업 실행기 → 소재 추론 → 조립 → 지급 → 교체
+```
+
+넘기는 것은 **`session_id` 하나**다. 전문은 DB 에 있으므로 강윤지님이 직접 읽는다.
+
+### 7.1 지켜야 할 규약
+
+**전문 형식** — 이 형식만 통과한다(`parseTranscript`).
+
+```ts
+{ speaker: "student" | "assistant" | "system",
+  content: string,                      // 빈 문자열 불가
+  input_method: "voice" | "text" | "fixed" }
+```
+
+고정 첫 질문은 `"fixed"`, 음성 발화는 `"voice"`.
+
+**저장은 딱 한 번** — `saveWholeTranscript()` 는 `transcript IS NULL` 일 때만 쓴다.
+대화 중 부분 저장은 불가능하고, 끝에 통째로 한 번이다.
+동일 내용 재시도는 안전하지만 **다른 내용의 두 번째 저장은 거부**된다.
+
+### 7.2 결정이 필요한 지점 — 작업 접수
+
+> 상담 종료 요청과 작업 접수는 **멱등적이어야 한다.** 같은 `source_session_id` 로
+> 두 번 요청해도 작업과 지급이 하나만 생겨야 한다. — `item-generation-jobs.md`
+
+| 방식 | 장점 | 단점 |
+|---|---|---|
+| A. 이유민이 저장 후 접수를 따로 호출 | 경계가 명확 | 중간 실패 시 전문만 남고 작업이 없다 |
+| **B. 저장 API 가 저장+접수를 함께** | **원자적, 누락 없음** | 저장 함수가 아이템을 알게 된다 |
+| C. DB 트리거 | 코드 없음 | 디버깅 어려움 |
+
+**B 를 권한다.** `item_generation_jobs.source_session_id` 가 **UNIQUE** 라
+중복 접수가 DB 에서 막힌다. 저장과 접수가 한 번에 일어나면
+"전문은 있는데 아이템이 없는" 상태가 원천적으로 생기지 않는다.
+
+### 7.3 이유민 작업에 영향이 없는 부분
+
+`item_generation_jobs` 에 `queued` 행을 만드는 것까지가 이유민 몫이다.
+그 뒤(작업 실행기, 같은 자리 교체)는 강윤지님 영역이고, 늦어져도 이쪽 작업은 완결된다.
+
+다만 **타임아웃 주의**: 소재 45초 + 조립 60초라 **대화 종료 요청에 직렬로 붙이면 상한을 넘는다.**
+반드시 작업으로 분리한다.
 
 ## 참고
 
