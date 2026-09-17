@@ -34,7 +34,7 @@ npm run dev
 
 Supabase SDK(`@supabase/supabase-js`, `@supabase/ssr`)는 설치되어 있습니다. `openai`는 AI API 공급자를 결정한 뒤 설치합니다. Supabase 키는 Git에 올리지 않고 팀에 별도로 공유합니다.
 
-3D 에셋 작업 파일은 [`assets/3d/`](assets/3d/)에서 관리합니다. 최종 GLB와 썸네일은 Supabase Storage에 저장하고, DB의 `asset_catalog`에는 Storage 경로와 에셋 메타데이터를 저장합니다.
+3D 에셋 작업 파일은 [`assets/3d/`](assets/3d/)에서 관리합니다. AI 생성 아이템은 조립 JSON으로 `asset_catalog.geometry_spec`에 저장하고, 섬 배경 GLB는 앱 정적 파일로 제공합니다.
 
 ## 스타일
 

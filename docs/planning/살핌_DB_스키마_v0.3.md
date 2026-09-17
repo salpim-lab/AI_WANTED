@@ -298,6 +298,8 @@ where a.status = 'completed'
 
 ### 6.2 `item_candidates` *(v0.3 신규)*
 
+> **2026-09-17 대체됨.** `item_generation_jobs`(1070·1074)가 이 역할을 맡는다. 1025·9020 마이그레이션은 원격에 적용되지 않은 채 삭제했다.
+
 3단계 대화 AI가 추론한 대표 아이템을 3D 에셋 생성 전 저장한다. 후보와 완성된 에셋을 분리하므로, 에셋 생성 실패·재시도와 생성 근거 추적이 가능하다.
 
 | 컬럼 | 타입 | 설명 |
@@ -679,7 +681,7 @@ using (exists (
 - 학생 화면에서 다른 학생의 색·발화·관계 분석과 교사 기록은 어떤 경로로도 읽히지 않아야 한다.
 - **service_role은 RLS를 우회한다.** 따라서 RLS는 브라우저 직접 접근에 대한 2차 차단이고, 실제 검증은 서버 코드의 책임이다.
 - AI API 키는 브라우저에 두지 않는다.
-- Storage는 3D 에셋 버킷과 민감 데이터 버킷을 분리한다.
+- Storage는 3D 에셋 버킷과 민감 데이터 버킷을 분리한다. (2026-09-17: 3D 에셋 버킷 마이그레이션 9030은 사용하지 않아 삭제. 생성 아이템은 `geometry_spec` JSON으로 저장한다.)
 
 ---
 
@@ -713,8 +715,8 @@ audit_log(table_name, row_id, changed_at desc)
 
 | 담당자 | 기능 | 주 테이블 |
 |---|---|---|
-| 이유민 | 학생 대화(상담, 섬 제외)·아이템 후보 | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts`, `item_candidates` |
-| 강윤지 | 섬·아이템 배치 | `islands`, `asset_catalog`, `student_items`, `island_placements` |
+| 이유민 | 학생 대화(상담, 섬 제외) | `checkin_sessions`, `conversation_messages`, `meeting_requests`, `feedback_drafts` |
+| 강윤지 | 아이템 추론·생성, 섬·아이템 배치 | `item_generation_jobs`, `islands`, `asset_catalog`, `student_items`, `island_placements` |
 | 진승혜 | 선생님 대시보드 | 읽기 전용 — `v_students_current`, `v_signal_flags`, 집계 쿼리 |
 | 이지현 | 선생님 Agent | `analysis_runs`, `agent_threads`, `agent_messages`, `get_student_context` |
 | 김현우 | 학생 상세·업무기록·학부모 상담 | `work_records`, `work_record_students`, `conflict_statements`, `parent_consultations` |
@@ -734,7 +736,7 @@ audit_log(table_name, row_id, changed_at desc)
 1000_core          조직·사용자·학생·재학·동의   ← 공통 PR, 제일 먼저
 1010_checkin       체크인·대화·면담신청
 1020_island        섬·에셋·획득·배치
-1025_item_candidates 아이템 후보 저장          ← 이유민
+1025_item_candidates (삭제됨, item_generation_jobs로 대체)
 1030_work_records  업무기록·갈등·학부모상담·피드백
 1040_agent         분석결과·Agent
 1050_views         뷰·RPC

@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { parseTranscript } from "@/lib/supabase/raw/wholeTranscript";
-import { inferItem, ItemAIError } from "@/lib/openai/inferItem";
+import { inferItem } from "@/lib/openai/inferItem";
+import { ItemAIError } from "@/lib/openai/client";
 import { ITEM_INFERENCE_PROMPT_VERSION } from "@/lib/openai/prompts/item-inference";
 export const runtime = "nodejs";
 export const maxDuration = 60;

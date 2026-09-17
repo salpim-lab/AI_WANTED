@@ -1,6 +1,6 @@
 # 아이템 생성 작업 설계
 
-2026-09-17 합의. 정상 생성은 상담 기반 아이템을 사용하고, 대체 아이템은 생성 실패 때만 지급한다. 작업 상태용 마이그레이션 `20260917110000_1070_item_generation_jobs.sql`을 추가했다. `item_candidates`가 아직 없는 원격 환경에서도 적용되도록 후보 외래키는 조건부로 추가한다. 아직 작업 실행기와 최종 아이템 API는 연결하지 않았다.
+2026-09-17 합의. 정상 생성은 상담 기반 아이템을 사용하고, 대체 아이템은 생성 실패 때만 지급한다. 작업 상태용 마이그레이션 `20260917110000_1070_item_generation_jobs.sql`을 추가했다. `item_candidates`는 2026-09-17에 이 테이블로 대체되어 마이그레이션(1025·9020)을 삭제했다. `candidate_id` 열과 조건부 외래키는 남아 있지만 사용하지 않는다. 아직 작업 실행기와 최종 아이템 API는 연결하지 않았다.
 
 ## 학생에게 보이는 흐름
 
@@ -51,7 +51,7 @@ fallback 지급 후 `student_items`의 불변 `asset_id`는 수정하지 않는�
 
 ## DB 설계 시 결정할 것
 
-현재 `item_candidates`에는 `pending`, `resolved`, `failed`와 `asset_id`가 있고 source session당 하나만 허용된다. 이 테이블을 확장할지, 별도 `item_generation_jobs`를 만들지는 기존 정책·RLS·불변 트리거를 확인한 뒤 결정한다. 어느 쪽이든 다음 값이 필요하다.
+`item_candidates`를 확장하지 않고 별도 `item_generation_jobs`를 만들기로 결정했다(`item_candidates`는 삭제). 이 테이블에는 다음 값이 있다.
 
 - source session과 enrollment의 유일한 연결
 - 현재 상태, 시도 횟수, `next_attempt_at`, 마지막 오류의 안전한 분류 코드
@@ -70,7 +70,7 @@ cron을 사용하지 않는 대안은 학생의 다음 접속 때 워커를 호�
 ## 다음 구현 순서
 
 1. `20260917131000_1073_same_asset_replacement.sql`을 적용하고 타입을 갱신한다. (1070·1071·1072는 원격 적용 완료)
-2. 기존 `item_candidates`, `asset_catalog`, `student_items`, `island_placements`의 실제 쓰기 정책과 불변 트리거를 다시 확인한다.
+2. 기존 `asset_catalog`, `student_items`, `island_placements`의 실제 쓰기 정책과 불변 트리거를 다시 확인한다.
 3. 현재 추가된 `/api/ai/item-generation`에 상담 완료 후 POST를 연결한다. 같은 세션 POST는 기존 작업을 반환하고 GET은 상태를 반환한다. 이 라우트는 접수·조회만 하며 AI를 오래 실행하지 않는다.
 4. `/api/internal/item-generation/worker`가 비밀 Bearer 헤더로 호출되면 대기 중 가장 오래된 작업 하나만 `runItemGenerationJob(jobId)`로 실행한다. 워커는 성공 또는 2회 실패 후 `student_items`를 멱등 지급한다. 실제 cron 등록과 학생 화면 연결은 아직 없다.
 5. fallback 지급 후 같은 위치를 교체할 저장 방식을 사용자와 확정하고 별도 마이그레이션·RPC를 만든다.

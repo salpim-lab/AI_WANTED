@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     const session = await sessionForUser(sessionId);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin = createAdminClient() as any;
-    const { data: job, error } = await admin.from("item_generation_jobs").select("id, status, attempt_count, max_attempts, next_attempt_at, fallback_asset_id, generated_asset_id, student_item_id, completed_at").eq("source_session_id", session.id).maybeSingle();
+    const { data: job, error } = await admin.from("item_generation_jobs").select("id, status, attempt_count, max_attempts, next_attempt_at, fallback_asset_id, generated_asset_id, student_item_id, student_message, completed_at").eq("source_session_id", session.id).maybeSingle();
     if (error) return fail("DATABASE_ERROR", "생성 작업을 조회하지 못했습니다.", 500);
     if (!job) return fail("JOB_NOT_FOUND", "생성 작업이 아직 접수되지 않았습니다.", 404);
     return NextResponse.json({ job }, { headers: { "Cache-Control": "no-store" } });

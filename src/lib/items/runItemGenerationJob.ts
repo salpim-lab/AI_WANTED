@@ -1,8 +1,10 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseTranscript } from "@/lib/supabase/raw/wholeTranscript";
-import { inferItem, ItemAIError } from "@/lib/openai/inferItem";
+import { inferItem } from "@/lib/openai/inferItem";
+import { ItemAIError } from "@/lib/openai/client";
 import { assembleItem } from "@/lib/openai/assembleItem";
+import type { ItemInference } from "./itemInference";
 import { parseLabItem, type AssembledItemSpec } from "./assembledItem";
 import { FALLBACK_ITEM_SPEC } from "./fallbackItem";
 import { findCatalogItem, type CatalogItem } from "./itemCatalog";
@@ -85,39 +87,49 @@ export async function runItemGenerationJob(jobId: string) {
   const { data: claimed, error: claimError } = await client.from("item_generation_jobs").update({ status: "generating", attempt_count: nextAttempt, started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", job.id).in("status", ["queued", "retry_wait", "fallback"]).eq("attempt_count", job.attempt_count).select("id").maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { skipped: true, status: "claimed_by_other_worker" };
+  let stage: "transcript" | "inference" | "assembly" | "save" = "transcript";
+  let inference: ItemInference | undefined;
+  let assembly: AssembledItemSpec | undefined;
   try {
     const { data: session, error: sessionError } = await client.from("checkin_sessions").select("transcript, status").eq("id", job.source_session_id).single();
     if (sessionError || !session || session.transcript === null || session.status === "started") throw new Error("TRANSCRIPT_NOT_READY");
-    const inference = await inferItem(parseTranscript(session.transcript));
+    stage = "inference";
+    inference = await inferItem(parseTranscript(session.transcript));
     const catalogItem = findCatalogItem(inference.subject);
     const dedupKey = canonicalAssetKey(inference.subject, catalogItem);
+    stage = "save";
     let assetId = await findReadyAsset(dedupKey);
     if (!assetId) {
       if (catalogItem) assetId = await saveProceduralAsset(catalogItem.spec, job, "catalog", dedupKey);
       else {
-        const spec = parseLabItem(await assembleItem(inference));
+        stage = "assembly";
+        assembly = await assembleItem(inference);
+        stage = "save";
+        const spec = parseLabItem(assembly);
         if ("shape" in spec) throw new Error("ASSEMBLY_NOT_COMPOSITE");
-        assetId = await saveProceduralAsset(applyDefaultPalette(spec), job, "generated", dedupKey);
+        assetId = await saveProceduralAsset({ ...applyDefaultPalette(spec), sizeClass: inference.sizeClass }, job, "generated", dedupKey);
       }
     }
     const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId });
     await replacePlacedAsset(studentItem.id, assetId);
-    await updateJob(job.id, { status: "completed", generated_asset_id: assetId, student_item_id: studentItem.id, last_error_code: null, completed_at: new Date().toISOString() });
+    // last_error_* stay: a success after a failed attempt still counts toward failure rates.
+    await updateJob(job.id, { status: "completed", generated_asset_id: assetId, student_item_id: studentItem.id, inference_output: inference, assembly_output: assembly ?? null, student_message: inference.studentMessage, completed_at: new Date().toISOString() });
     return { status: "completed", assetId, studentItemId: studentItem.id };
   } catch (error) {
     const code = error instanceof ItemAIError ? error.code : error instanceof Error ? error.message : "GENERATION_FAILED";
+    const failure = { inference_output: inference ?? null, assembly_output: assembly ?? null, last_error_detail: { stage, ...(error instanceof ItemAIError ? error.detail : {}) } };
     if (code === "TRANSCRIPT_NOT_READY") {
       const fallbackId = await saveProceduralAsset(FALLBACK_ITEM_SPEC, job, "fallback");
       const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId: fallbackId });
       await replacePlacedAsset(studentItem.id, fallbackId);
-      await updateJob(job.id, { status: "fallback_final", fallback_asset_id: fallbackId, student_item_id: studentItem.id, last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
+      await updateJob(job.id, { status: "fallback_final", fallback_asset_id: fallbackId, student_item_id: studentItem.id, ...failure, last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
       return { status: "fallback_final", assetId: fallbackId, studentItemId: studentItem.id, reason: code };
     }
     const fallbackId = await saveProceduralAsset(FALLBACK_ITEM_SPEC, job, "fallback");
     const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId: fallbackId });
     await replacePlacedAsset(studentItem.id, fallbackId);
     const terminal = nextAttempt >= job.max_attempts;
-    await updateJob(job.id, { status: terminal ? "fallback_final" : "fallback", fallback_asset_id: fallbackId, student_item_id: studentItem.id, next_attempt_at: terminal ? null : new Date(Date.now() + 30_000).toISOString(), last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
+    await updateJob(job.id, { status: terminal ? "fallback_final" : "fallback", fallback_asset_id: fallbackId, student_item_id: studentItem.id, next_attempt_at: terminal ? null : new Date(Date.now() + 30_000).toISOString(), ...failure, last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
     return { status: terminal ? "fallback_final" : "fallback", assetId: fallbackId, studentItemId: studentItem.id, reason: code };
   }
 }
