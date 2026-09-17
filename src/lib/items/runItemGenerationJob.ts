@@ -5,6 +5,8 @@ import { inferItem, ItemAIError } from "@/lib/openai/inferItem";
 import { assembleItem } from "@/lib/openai/assembleItem";
 import { parseLabItem, type AssembledItemSpec } from "./assembledItem";
 import { FALLBACK_ITEM_SPEC } from "./fallbackItem";
+import { findCatalogItem, type CatalogItem } from "./itemCatalog";
+import { catalogAssetKey, ensurePresetAssetsSynced, FALLBACK_KEY, STYLE_VERSION } from "./presetAssets";
 import { issueStudentItem } from "./issueStudentItem";
 
 type Job = { id: string; enrollment_id: string; source_session_id: string; status: string; attempt_count: number; max_attempts: number; fallback_asset_id: string | null };
@@ -12,29 +14,22 @@ type Job = { id: string; enrollment_id: string; source_session_id: string; statu
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = () => createAdminClient() as any;
 
-const STYLE_VERSION = "procedural-v2";
-const FALLBACK_KEY = `fallback:gift-box:${STYLE_VERSION}`;
-
-function canonicalAssetKey(subject: string) {
+function canonicalAssetKey(subject: string, catalogItem: CatalogItem | null) {
   // The subject, rather than the student-specific name or appearance text, is
-  // the reuse boundary. This keeps every soccer ball a soccer ball and makes
-  // colour/wording changes unable to create duplicate assets.
+  // the reuse boundary, so colour/wording changes cannot create duplicate assets.
+  // Only the subject is read: the experience text mentions activities that the
+  // chosen object may have nothing to do with.
+  if (catalogItem) return catalogAssetKey(catalogItem);
   const normalized = subject.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[^가-힣a-z0-9]+/g, "").trim();
   if (!normalized) throw new Error("INVALID_ITEM_SUBJECT");
   return `item:${normalized}:${STYLE_VERSION}`;
 }
 
-function canonicalPalette(subject: string) {
-  const normalized = subject.normalize("NFKC").toLocaleLowerCase("ko-KR");
-  if (/축구공|soccer/.test(normalized)) return ["#F7F7F2", "#20252B"];
-  if (/사과|apple/.test(normalized)) return ["#D95C59", "#5E8A3A", "#6B4938"];
-  if (/별|star/.test(normalized)) return ["#F2C54E", "#FFF1A8"];
-  return ["#D9E7DF", "#6E9A7C", "#E6B86A"];
-}
+// Catalog items keep their curated colours; only free-form assemblies get the shared palette.
+const DEFAULT_PALETTE = ["#D9E7DF", "#6E9A7C", "#E6B86A"];
 
-function applyCanonicalPalette(spec: AssembledItemSpec, subject: string): AssembledItemSpec {
-  const palette = canonicalPalette(subject);
-  return { ...spec, parts: spec.parts.map((part, index) => ({ ...part, color: palette[index % palette.length] })) };
+function applyDefaultPalette(spec: AssembledItemSpec): AssembledItemSpec {
+  return { ...spec, parts: spec.parts.map((part, index) => ({ ...part, color: DEFAULT_PALETTE[index % DEFAULT_PALETTE.length] })) };
 }
 
 async function findReadyAsset(dedupKey: string) {
@@ -50,13 +45,13 @@ async function findReadyAsset(dedupKey: string) {
   return data?.id as string | undefined;
 }
 
-async function saveProceduralAsset(spec: AssembledItemSpec, job: Job, kind: "fallback" | "generated", dedupKey?: string) {
+async function saveProceduralAsset(spec: AssembledItemSpec, job: Job, kind: "fallback" | "catalog" | "generated", dedupKey?: string) {
   const client = db();
   const metadata = { kind, geometrySpecVersion: spec.version, jobId: job.id };
   const key = kind === "fallback" ? FALLBACK_KEY : dedupKey ?? `item-job:${job.id}:${STYLE_VERSION}`;
   const existingId = await findReadyAsset(key);
   if (existingId) return existingId;
-  const { data, error } = await client.from("asset_catalog").insert({ dedup_key: key, style_version: STYLE_VERSION, asset_type: "item", name: spec.name, model_url: `procedural://${key}`, source: kind === "fallback" ? "preset" : "generated", generation_metadata: metadata, asset_format: "procedural", geometry_spec: spec, status: "ready" }).select("id").single();
+  const { data, error } = await client.from("asset_catalog").insert({ dedup_key: key, style_version: STYLE_VERSION, asset_type: "item", name: spec.name, model_url: `procedural://${key}`, source: kind === "generated" ? "generated" : "preset", generation_metadata: metadata, asset_format: "procedural", geometry_spec: spec, status: "ready" }).select("id").single();
   if (error) {
     // Another worker may have inserted the same canonical asset concurrently.
     const racedId = await findReadyAsset(key);
@@ -79,6 +74,8 @@ async function updateJob(id: string, values: Record<string, unknown>) {
 
 /** One bounded worker invocation. Scheduler/queue calls this with a job id. */
 export async function runItemGenerationJob(jobId: string) {
+  // Reused preset rows must match the current catalog before they are handed out.
+  await ensurePresetAssetsSynced();
   const client = db();
   const { data: job, error } = await client.from("item_generation_jobs").select("id, enrollment_id, source_session_id, status, attempt_count, max_attempts, fallback_asset_id").eq("id", jobId).maybeSingle() as { data: Job | null; error: Error | null };
   if (error) throw error;
@@ -92,12 +89,16 @@ export async function runItemGenerationJob(jobId: string) {
     const { data: session, error: sessionError } = await client.from("checkin_sessions").select("transcript, status").eq("id", job.source_session_id).single();
     if (sessionError || !session || session.transcript === null || session.status === "started") throw new Error("TRANSCRIPT_NOT_READY");
     const inference = await inferItem(parseTranscript(session.transcript));
-    const dedupKey = canonicalAssetKey(inference.subject);
+    const catalogItem = findCatalogItem(inference.subject);
+    const dedupKey = canonicalAssetKey(inference.subject, catalogItem);
     let assetId = await findReadyAsset(dedupKey);
     if (!assetId) {
-      const spec = parseLabItem(await assembleItem(inference));
-      if ("shape" in spec) throw new Error("ASSEMBLY_NOT_COMPOSITE");
-      assetId = await saveProceduralAsset(applyCanonicalPalette(spec, inference.subject), job, "generated", dedupKey);
+      if (catalogItem) assetId = await saveProceduralAsset(catalogItem.spec, job, "catalog", dedupKey);
+      else {
+        const spec = parseLabItem(await assembleItem(inference));
+        if ("shape" in spec) throw new Error("ASSEMBLY_NOT_COMPOSITE");
+        assetId = await saveProceduralAsset(applyDefaultPalette(spec), job, "generated", dedupKey);
+      }
     }
     const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId });
     await replacePlacedAsset(studentItem.id, assetId);

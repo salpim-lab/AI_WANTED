@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runItemGenerationJob } from "@/lib/items/runItemGenerationJob";
+import { ensurePresetAssetsSynced } from "@/lib/items/presetAssets";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (!provided || provided !== expected) return NextResponse.json({ code: "UNAUTHORIZED" }, { status: 401 });
   try {
+    // Runs even when no job is pending, so a deploy updates already-placed catalog items.
+    await ensurePresetAssetsSynced();
     // database.types.ts is regenerated after the job migrations.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin = createAdminClient() as any;

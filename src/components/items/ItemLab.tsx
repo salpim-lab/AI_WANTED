@@ -7,15 +7,14 @@ import { disposeExtrudedItem, STAR_SPEC } from "@/lib/items/extrudedItem";
 
 import { createLabItem, parseLabItem, HOUSE_SPEC, type LabItemSpec } from "@/lib/items/assembledItem";
 
-import { CAT_SPEC, FLAG_SPEC, SAMPLE_STORIES } from "@/lib/items/sampleItems";
-import { FALLBACK_ITEM_SPEC } from "@/lib/items/fallbackItem";
+import { ITEM_CATALOG, ITEM_CATALOG_SPECS } from "@/lib/items/itemCatalog";
 
-const samples: LabItemSpec[] = [STAR_SPEC, HOUSE_SPEC, CAT_SPEC, FLAG_SPEC, FALLBACK_ITEM_SPEC];
+const samples: LabItemSpec[] = [STAR_SPEC, HOUSE_SPEC, ...ITEM_CATALOG_SPECS];
 
 export default function ItemLab() {
   const host = useRef<HTMLDivElement>(null);
-  const [spec, setSpec] = useState<LabItemSpec>(CAT_SPEC);
-  const [draft, setDraft] = useState(JSON.stringify(CAT_SPEC, null, 2));
+  const [spec, setSpec] = useState<LabItemSpec>(ITEM_CATALOG_SPECS[0]);
+  const [draft, setDraft] = useState(JSON.stringify(ITEM_CATALOG_SPECS[0], null, 2));
   const [error, setError] = useState("");
   const [small, setSmall] = useState(false);
   const resetCamera = useRef<(() => void) | null>(null);
@@ -85,14 +84,14 @@ export default function ItemLab() {
       <h1 className="mt-2 text-3xl font-bold">입체 조립 테스트: {spec.name}</h1>
       <p className="mt-3 text-sm">드래그해서 옆과 뒤를 보고, 휠이나 두 손가락으로 확대해 보세요.</p>
       <a href="/item-lab/village" className="mt-3 inline-block text-sm underline">실제 마을에서 집·별 크기 비교하기 →</a>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {samples.map(sample => <button key={sample.name} aria-pressed={spec.name === sample.name} className="rounded-xl border px-4 py-2 text-sm" onClick={() => { setSpec(sample); setDraft(JSON.stringify(sample, null, 2)); setError(""); }}>{sample.name}</button>)}
+      <div className="mt-4 rounded-2xl border border-[#dce3d6] bg-white p-4">
+        <p className="mb-3 text-sm font-semibold">카탈로그 · {ITEM_CATALOG.length}개</p>
+        {[...new Set(ITEM_CATALOG.map(item => item.category))].map(category => <div key={category} className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="w-24 shrink-0 text-xs text-[#71816a]">{category}</span>
+          {ITEM_CATALOG.filter(item => item.category === category).map(item => <button key={item.id} aria-pressed={spec.name === item.spec.name} className={`rounded-xl border px-3 py-2 text-sm ${spec.name === item.spec.name ? "border-[#47694b] bg-[#edf5eb]" : ""}`} onClick={() => { setSpec(item.spec); setDraft(JSON.stringify(item.spec, null, 2)); setError(""); }}>{item.displayName}</button>)}
+        </div>)}
       </div>
-      {SAMPLE_STORIES[spec.name] && <div className="mt-4 rounded-2xl bg-white p-4 text-sm">
-        <p>학생 이야기: “{SAMPLE_STORIES[spec.name].story}”</p>
-        <p className="mt-2">{SAMPLE_STORIES[spec.name].reason}</p>
-        <p className="mt-2 text-xs text-[#71816a]">직접 작성한 테스트 예시예요. 실제 AI 추론 결과는 아니에요.</p>
-      </div>}
+      <div className="mt-4 rounded-2xl bg-white p-4 text-sm">{(() => { const match = ITEM_CATALOG.find(item => item.spec.name === spec.name)?.match; return match ? <><p>이름으로 매칭: {match.names.join(", ")}</p><p className="mt-1">정확히 같을 때만: {match.concepts.join(", ") || "없음"}</p></> : <p>기존 샘플</p>; })()}<p className="mt-2 text-xs text-[#71816a]">카탈로그 설계서는 직접 검수·수정하는 기본 asset이에요. 실제 AI 생성 결과가 아니에요.</p></div>
       <div className="mt-6 grid gap-6 md:grid-cols-[1.3fr_1fr]">
         <section>
           <div className="flex h-[480px] items-center justify-center overflow-hidden rounded-3xl border border-[#dce3d6] bg-[#EDF2EB]">
@@ -113,7 +112,7 @@ export default function ItemLab() {
               try { const next = parseLabItem(JSON.parse(draft)); setError(""); setSpec(next); }
               catch (e) { setError(e instanceof Error ? e.message : "설계서를 확인해 주세요."); }
             }}>설계서 적용</button>
-            <button className="rounded-xl border px-4 py-2 text-sm" onClick={() => { const sample = samples.find(sample => sample.name === spec.name) ?? CAT_SPEC; setDraft(JSON.stringify(sample, null, 2)); setSpec(sample); setError(""); }}>기본 설계서 복원</button>
+            <button className="rounded-xl border px-4 py-2 text-sm" onClick={() => { const sample = samples.find(sample => sample.name === spec.name) ?? ITEM_CATALOG_SPECS[0]; setDraft(JSON.stringify(sample, null, 2)); setSpec(sample); setError(""); }}>기본 설계서 복원</button>
           </div>
           {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         </section>
