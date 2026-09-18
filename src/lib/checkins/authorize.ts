@@ -47,12 +47,8 @@ export async function requireStudent() {
   return { client, studentId: student.id, authUserId: user.id };
 }
 
-/**
- * 세션이 로그인한 학생 본인의 것인지 확인한다.
- * `started` 만 허용하는 이유: 종료된 세션에 전사·파생 수치를 덧붙이면
- * 전문 저장의 쓰기 1회 보장(saveWholeTranscript)이 무의미해진다.
- */
-export async function requireOwnStartedSession(sessionId: unknown): Promise<Session> {
+/** 소유만 확인한다. 상태는 보지 않는다 — 면담 신청처럼 종료 뒤에 하는 동작용. */
+export async function requireOwnSession(sessionId: unknown): Promise<Session> {
   if (typeof sessionId !== "string" || !UUID.test(sessionId)) {
     throw new CheckinAuthError("INVALID_REQUEST", 400, "session_id가 필요합니다.");
   }
@@ -81,6 +77,16 @@ export async function requireOwnStartedSession(sessionId: unknown): Promise<Sess
   if (enrollment.student_id !== studentId) {
     throw new CheckinAuthError("FORBIDDEN", 403, "본인의 상담만 사용할 수 있습니다.");
   }
+  return session;
+}
+
+/**
+ * 소유 + 아직 진행 중임을 확인한다.
+ * `started` 만 허용하는 이유: 종료된 세션에 전사·파생 수치를 덧붙이면
+ * 전문 저장의 쓰기 1회 보장(saveWholeTranscript)이 무의미해진다.
+ */
+export async function requireOwnStartedSession(sessionId: unknown): Promise<Session> {
+  const session = await requireOwnSession(sessionId);
   if (session.status !== "started") {
     throw new CheckinAuthError("SESSION_ALREADY_FINISHED", 409, "이미 종료된 상담입니다.");
   }

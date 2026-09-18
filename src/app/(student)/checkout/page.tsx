@@ -49,9 +49,12 @@ export default function CheckoutPage() {
         onReply={(r) => flow.handleReply(r, CHECKOUT_SCENARIO.followups)}
         onReply2={(r) => flow.handleReply2(r, CHECKOUT_SCENARIO.followups)}
         onRequestConsult={flow.requestConsult}
+        onEndConversation={flow.endConversation}
         onSpoken={flow.handleSpoken}
         thinking={flow.thinking}
         voiceError={flow.voiceError}
+        sessionNote={flow.sessionNote}
+        live={flow.live}
       />
       <ItemReveal active={flow.step === 4} item={flow.item} onNext={() => flow.goTo(5)} />
       <IslandBoard active={flow.step === 5} item={flow.item} onComplete={() => {}} />

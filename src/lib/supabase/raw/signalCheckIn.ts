@@ -109,7 +109,7 @@ export async function startSignalCheckIn(
 
   const { data: previous, error: previousError } = await supabase
     .from("checkin_sessions")
-    .select("attempt,status")
+    .select("*")
     .eq("enrollment_id", enrollmentId)
     .eq("session_date", sessionDate)
     .eq("period", input.period)
@@ -118,9 +118,16 @@ export async function startSignalCheckIn(
     .maybeSingle();
 
   if (previousError) dbError("기존 체크인을 조회하지 못했습니다", previousError);
+
+  // 진행 중이던 세션은 이어서 쓴다. 새 행을 만들면 안 된다.
+  // 아이가 대화 도중 새로고침하거나 탭을 닫았다 오는 일은 흔한데,
+  // 그때마다 잠가 버리면 그 시간대 체크인을 영영 못 한다.
+  if (previous?.status === "started") return previous;
+
+  // 이미 끝낸 시간대는 다시 열지 않는다. 하루 두 번이 설계다.
   if (previous && previous.status !== "stopped") {
     throw new SignalCheckInRepositoryError(
-      "같은 시간대의 체크인이 이미 시작됐거나 완료됐습니다.",
+      "오늘 이 시간대의 마음은 이미 들었습니다.",
       "CHECKIN_ALREADY_EXISTS",
     );
   }

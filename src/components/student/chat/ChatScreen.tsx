@@ -33,9 +33,12 @@ export default function ChatScreen({
   onReply,
   onReply2,
   onRequestConsult,
+  onEndConversation,
   onSpoken,
   thinking = false,
   voiceError = null,
+  sessionNote = null,
+  live = false,
   studentFullName = "김민준",
 }: {
   active: boolean;
@@ -44,16 +47,22 @@ export default function ChatScreen({
   typing: boolean;
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
-  consultState: "hidden" | "shown" | "sent";
+  consultState: "hidden" | "choice" | "sending" | "sent";
   onReply: (reply: Reply) => void;
   onReply2: (r: { text: string; next2: string }) => void;
   onRequestConsult: () => void;
+  /** "오늘 대화 끝내기" — 면담 없이 아이템 화면으로 */
+  onEndConversation?: () => void;
   /** 녹음이 끝났다. true 를 돌려주면 실제 대화로 처리된 것이고, false 면 칩으로 되돌린다 */
   onSpoken?: (audio: Blob, prosody: RecordingResult["prosody"]) => Promise<boolean>;
   /** 전사·응답을 기다리는 중 */
   thinking?: boolean;
   /** 전사에 실패했을 때 아이에게 보여줄 한 줄 */
   voiceError?: string | null;
+  /** 대화가 기록되지 않는 이유 (예: 오늘 이 시간대는 이미 완료) */
+  sessionNote?: string | null;
+  /** 실제 대화(로그인 + API)가 가능한 상태인가 */
+  live?: boolean;
   studentFullName?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -126,7 +135,7 @@ export default function ChatScreen({
           />
         ))}
 
-        {(typing || thinking) && (
+        {typing && !messages.some((m) => m.pending) && (
           <div className="chat-row chat-row--ai">
             <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
             <div className="chat-typing" aria-label="살핌이 입력 중">
@@ -137,27 +146,47 @@ export default function ChatScreen({
           </div>
         )}
 
+        {/* 대화가 끝나면 아이가 직접 고른다. 자동으로 넘어가지 않는다 —
+            "선생님과 이야기하고 싶다"는 선택지가 지나가 버리면 안 된다. */}
         {consultState !== "hidden" && (
           <div className="chat-row chat-row--ai">
             <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
-            <button
-              type="button"
-              className="chat-consult"
-              onClick={onRequestConsult}
-              disabled={consultState === "sent"}
-            >
-              {consultState === "sent" ? "선생님께 전했어 ✓" : "선생님이랑 이야기하고 싶어"}
-            </button>
+            {consultState === "sent" ? (
+              <span className="chat-consult chat-consult--done">선생님께 전했어 ✓</span>
+            ) : (
+              <div className="chat-ending">
+                <button
+                  type="button"
+                  className="chat-consult"
+                  onClick={onRequestConsult}
+                  disabled={consultState === "sending"}
+                >
+                  {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
+                </button>
+                <button
+                  type="button"
+                  className="chat-end"
+                  onClick={onEndConversation}
+                  disabled={consultState === "sending"}
+                >
+                  오늘 대화 끝내기
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
+        {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
         {showGuide && hasOptions && (
           <GuideChips
             replies={replies}
             replies2={replies2}
+            // 음성이 실제로 동작하는 상황에서는 고를 수 없다. 아이가 직접 말해야
+            // 그 발화에서 감정을 읽을 수 있다.
+            selectable={!live || recorder.status === "denied"}
             onReply={onReply}
             onReply2={onReply2}
           />

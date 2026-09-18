@@ -13,7 +13,15 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-/** 시드의 첫 학생(민준). ?student=<uuid> 로 바꿀 수 있다 */
+/**
+ * 시드의 첫 학생(민준). 바꾸는 법 두 가지.
+ *   ?student=<uuid>  특정 학생
+ *   ?n=2             시드의 n 번째 학생
+ *
+ * 왜 필요한가: 완료된 상담은 DB 트리거가 삭제를 막는다(원본 불변).
+ * 그래서 같은 학생으로 같은 시간대를 하루에 두 번 테스트할 수 없다.
+ * 흐름을 반복해서 보려면 학생을 바꾼다.
+ */
 const DEFAULT_STUDENT = "30000000-0000-4000-8000-000000000001";
 const PASSWORD = "dev-salpim-local";
 
@@ -22,7 +30,13 @@ export async function GET(request: Request) {
     return new NextResponse("Not Found", { status: 404 });
   }
 
-  const studentId = new URL(request.url).searchParams.get("student") ?? DEFAULT_STUDENT;
+  const params = new URL(request.url).searchParams;
+  const n = Number(params.get("n"));
+  const studentId =
+    params.get("student") ??
+    (Number.isInteger(n) && n >= 1 && n <= 99
+      ? `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+      : DEFAULT_STUDENT);
   const admin = createAdminClient();
 
   const { data: student, error } = await admin

@@ -12,6 +12,8 @@ export type GateAction = "ask_followup" | "close" | "handoff_to_teacher";
 
 export type ChatTurnResult = {
   reply: string;
+  /** 종료 인사는 여러 줄이다. 기다리는 동안 나눠서 띄운다 */
+  lines: string[];
   action: GateAction;
   reason: "sufficient" | "max_turns" | "avoidance" | null;
   risk: "none" | "flag";
@@ -39,16 +41,33 @@ export class LiveChatError extends Error {
   }
 }
 
-/** 색을 고른 직후. 실패하면 null 을 돌려주고 화면은 목업으로 계속 간다. */
-export async function startSession(flow: Flow, color: SignalColor): Promise<string | null> {
+export type SessionStart =
+  | { sessionId: string }
+  /** 세션을 못 만들었다. 화면은 목업 칩으로 계속 가되 이유를 알 수 있어야 한다 */
+  | { sessionId: null; reason: string; code: string };
+
+/**
+ * 색을 고른 직후.
+ *
+ * 실패를 조용히 삼키지 않는다. 예전에는 catch 에서 null 만 돌려줬는데,
+ * 그러면 "이미 오늘 체크인함(409)" 과 "로그인 안 함(401)" 과 "서버 죽음" 이
+ * 화면에서 똑같이 보인다. 실제로 그것 때문에 디버깅에 시간을 버렸다.
+ */
+export async function startSession(flow: Flow, color: SignalColor): Promise<SessionStart> {
   try {
     const data = await post("/api/checkins/session", {
       period: flow === "checkin" ? "morning" : "afternoon",
       mood_color: color,
     });
-    return typeof data.session_id === "string" ? data.session_id : null;
-  } catch {
-    return null;
+    if (typeof data.session_id === "string") return { sessionId: data.session_id };
+    return { sessionId: null, code: "NO_SESSION_ID", reason: "세션 id 가 오지 않았습니다." };
+  } catch (error) {
+    const e = error instanceof LiveChatError ? error : null;
+    return {
+      sessionId: null,
+      code: e?.code ?? "REQUEST_FAILED",
+      reason: e?.message ?? "세션을 만들지 못했습니다.",
+    };
   }
 }
 
@@ -75,6 +94,10 @@ export async function chatTurn(args: {
     color: args.color,
     transcript: args.transcript,
   }) as Promise<ChatTurnResult>;
+}
+
+export async function requestMeeting(sessionId: string, priority: "normal" | "high" = "normal") {
+  return post("/api/checkins/meeting-request", { session_id: sessionId, priority });
 }
 
 /**

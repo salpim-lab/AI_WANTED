@@ -29,13 +29,22 @@ export default function ChatBubble({
           <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
         ))}
 
-      <p className={`chat-bubble chat-bubble--${bubble.type}`}>
-        {bubble.text.split("\n").map((line, i) => (
-          <span key={i} className="block">
-            {line}
-          </span>
-        ))}
-      </p>
+      {/* 전사를 기다리는 자리. 아이 쪽에 먼저 나타나 "내 말이 들어갔다"를 보여준다 */}
+      {bubble.pending ? (
+        <p className="chat-bubble chat-bubble--user chat-bubble--pending" aria-label="옮기는 중">
+          <span />
+          <span />
+          <span />
+        </p>
+      ) : (
+        <p className={`chat-bubble chat-bubble--${bubble.type}`}>
+          {bubble.text.split("\n").map((line, i) => (
+            <span key={i} className="block">
+              {line}
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

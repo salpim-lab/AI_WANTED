@@ -128,16 +128,20 @@ export async function POST(request: Request) {
     });
 
     // 아이에게 보여줄 문장은 게이트가 정한다. LLM 문장은 후속 질문일 때만 쓴다.
-    const reply =
+    // 종료 인사는 여러 줄이라 배열로 내려보낸다.
+    const lines =
       decision.action === "handoff_to_teacher"
-        ? HANDOFF_MESSAGE
+        ? [HANDOFF_MESSAGE]
         : decision.action === "close"
           ? CLOSING_MESSAGES[decision.reason]
-          : turn.reply;
+          : turn.reply
+            ? [turn.reply]
+            : [];
 
     return NextResponse.json(
       {
-        reply,
+        reply: lines[0] ?? "",
+        lines,
         action: decision.action,
         reason: decision.action === "close" ? decision.reason : null,
         risk: turn.risk,
