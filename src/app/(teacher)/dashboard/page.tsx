@@ -21,6 +21,8 @@
 // 이 화면은 읽기 전용이다 (살핌_DB_스키마_v0.3.md §13): 어떤 원본 테이블에도 쓰지 않는다.
 
 import "@/styles/prototype-teacher-dashboard.css";
+// 색·모서리·그림자는 여기가 덮어쓴다. 배치·크기는 위 파일이 그대로 정한다.
+import "@/styles/dashboard-tone.css";
 import MorningBriefing from "@/components/teacher/dashboard/MorningBriefing";
 import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
 import RelationBoard from "@/components/teacher/dashboard/RelationBoard";

@@ -11,6 +11,8 @@
 // 이 파일은 헤더/탭바만 그리는 공용 뼈대라 CSS도 "공용 디자인 토큰" 파일만 import한다.
 // 화면별 스타일(대시보드/아이상세/게시판)은 각자 담당 페이지에서 알아서 import — 여기 추가하지 말 것.
 import "@/styles/prototype-teacher-shared.css";
+// 헤더·왼쪽 메뉴의 색만 덮는다 (학생 화면 톤). 껍데기는 탭 넷이 공유하므로 여기서 한 번만 건다.
+import "@/styles/teacher-shell-tone.css";
 import TabNav from "@/components/teacher/TabNav";
 import CurrentDate from "@/components/teacher/CurrentDate";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";

@@ -1,0 +1,39 @@
+/* 담당: 진승혜 — 교사 화면 껍데기(상단 헤더·왼쪽 메뉴) 톤.
+   학생 화면(대화 화면)의 색을 그대로 가져와, 아이 화면과 교사 화면이 같은 제품으로 읽히게 한다.
+   교사 탭 넷이 함께 쓰는 껍데기라 (teacher)/layout.tsx 에서 import 한다.
+   구조(폭·여백·sticky)는 prototype-teacher-sidebar.css 가 그대로 정하고, 여기는 색만 덮는다. */
+
+/* ── 왼쪽 메뉴 · 상단 헤더 ───────────────────────────────────────────
+   교사 화면 넷이 함께 쓰는 껍데기다. 여기만 크림으로 남으면 탭을 옮길 때마다
+   같은 제품이 아닌 것처럼 보인다. */
+.teacher-app .app-header {
+  background: #ffffff;
+  border-bottom-color: #eaedf5;
+}
+.teacher-app .app-header .logo { color: #2f3560; }
+.teacher-app .app-header .logo span { color: #6366f1; }
+.teacher-app .app-header .meta { color: #8b92ad; }
+.teacher-app .app-header .meta strong { color: #2f3560; }
+
+.teacher-app .side-nav {
+  background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
+  border-right-color: #eaedf5;
+}
+.teacher-app .side-nav-label { color: #a3a9c4; }
+.teacher-app .side-nav-item {
+  border-radius: 999px;
+  color: #5b6478;
+}
+.teacher-app .side-nav-item:hover {
+  background: #eef1fa;
+  color: #2f3560;
+}
+.teacher-app .side-nav-item.active {
+  background: #ffffff;
+  color: #4338ca;
+  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.06), 0 4px 12px rgba(60, 68, 110, 0.08);
+}
+.teacher-app .side-nav-foot {
+  border-top-color: #eaedf5;
+  color: #a3a9c4;
+}
