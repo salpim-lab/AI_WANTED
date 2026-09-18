@@ -13,9 +13,8 @@
 
 /* ══ 날짜 선택 ═══════════════════════════════════════════════════════
    날짜 상태는 URL 쿼리(?date=)가 단일 출처다. 여기는 표시와 입력만 담당. */
-.date-control { display: flex; align-items: center; gap: 8px; }
+.date-control { position: relative; display: flex; align-items: center; gap: 8px; }
 .date-field {
-  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -24,14 +23,14 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 1px 2px rgba(60, 50, 35, 0.04);
+  font-family: inherit;
+  color: inherit;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .date-field:hover { border-color: var(--navy-ring); background: #fdfcfa; }
-/* 마우스 클릭으로 포커스가 들어왔을 때는 테두리만, 키보드 포커스일 때만 링을 그린다 */
-.date-field:focus-within { border-color: var(--navy); }
-.date-field:has(.date-input:focus-visible) { box-shadow: 0 0 0 3px var(--navy-bg); }
-.date-field * { cursor: pointer; }
+.date-field[aria-expanded="true"] { border-color: var(--navy); }
+.date-field:focus-visible { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px var(--navy-bg); }
 .date-icon {
   width: 15px;
   height: 15px;
@@ -52,31 +51,130 @@
   font-size: 10.5px;
   font-weight: 700;
 }
-/* 브라우저 기본 date 입력을 투명하게 덮어 위 문구만 보이게 한다 (외부 패키지 없이) */
-.date-input {
+/* ── 달력 팝업 ───────────────────────────────────────────────────
+   직접 그린다. 브라우저 기본 달력은 팝업이 DOM 밖이라 "지우기" 버튼을 없앨 수도,
+   "오늘" 버튼을 옮길 수도 없다. 여기서는 지우기가 없고 오늘은 월 표시 옆에 둔다. */
+.cal {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+  width: max-content;
+  padding: 13px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 2px 6px rgba(60, 50, 35, 0.06), 0 14px 32px rgba(60, 50, 35, 0.12);
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.cal-month {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  min-width: 82px;
+  text-align: center;
+}
+.cal-nav {
+  width: 24px;
+  height: 24px;
   border: none;
-  opacity: 0;
-  cursor: pointer;
+  border-radius: 8px;
+  background: none;
   font-family: inherit;
-}
-/* input[type=date] 는 "달력 아이콘"을 눌러야만 네이티브 피커가 열린다.
-   그 아이콘을 입력 전체 크기로 늘려서, 박스 어디를 눌러도 피커가 열리게 한다.
-   (showPicker() 같은 JS API 에 기대지 않고 네이티브 클릭 영역 자체를 넓히는 방식) */
-.date-input::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--muted);
   cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
 }
+.cal-nav:hover:not(:disabled) { background: var(--soft, #faf9f6); color: var(--text); }
+.cal-nav:disabled { opacity: 0.25; cursor: default; }
+.cal-nav:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+/* 월 표시 바로 옆 — 달력 안에서 가장 자주 누를 버튼이라 손이 닿는 자리에 둔다. */
+.cal-today {
+  margin-left: 8px;
+  padding: 4px 11px;
+  border: 1px solid var(--navy-ring);
+  border-radius: 99px;
+  background: var(--navy-bg);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5f679a;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.cal-today:hover:not(:disabled) { filter: brightness(0.96); }
+.cal-today:disabled { opacity: 0.4; cursor: default; }
+.cal-today:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  gap: 2px;
+}
+.cal-wd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cal-wd.sun { color: #c08272; }
+.cal-wd.sat { color: #7b83ad; }
+.cal-pad { height: 32px; }
+
+.cal-day {
+  height: 32px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background-color 0.12s;
+}
+.cal-day.sun { color: #c08272; }
+.cal-day.sat { color: #7b83ad; }
+.cal-day:hover:not(:disabled) { background: var(--soft, #faf9f6); }
+.cal-day:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+.cal-day:disabled { opacity: 0.22; cursor: default; }
+
+/* 오늘은 밑줄 점 하나로만 — 선택된 날과 헷갈리지 않게 */
+.cal-day.is-today { position: relative; }
+.cal-day.is-today::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: var(--navy);
+}
+.cal-day.on,
+.cal-day.on.sun,
+.cal-day.on.sat {
+  background: var(--navy);
+  color: #fff;
+  font-weight: 800;
+}
+.cal-day.on:hover { background: var(--navy); }
+.cal-day.on.is-today::after { background: #fff; }
 
 /* ══ 시간표 버튼 ═════════════════════════════════════════════════════
    날짜 버튼과 같은 높이·모서리로 맞춰 한 덩어리로 읽히게 한다.

@@ -12,13 +12,16 @@ import { SIGNAL_DISPLAY, type DashboardData } from "./mockData";
 
 export default function ClassroomToday({
   classroom,
+  participation,
   isToday,
 }: {
   classroom: DashboardData["classroom"];
+  participation: DashboardData["participation"];
   isToday: boolean;
 }) {
   const { weather, delta, mood, recentDays } = classroom;
   const total = mood.reduce((sum, m) => sum + m.count, 0);
+  const { completedCount, totalCount, absentStudents } = participation;
 
   return (
     <section className="card classroom-card">
@@ -85,6 +88,40 @@ export default function ClassroomToday({
           );
         })}
       </ul>
+
+      {/* 참여 인원 — 단독 카드였던 걸 한 줄로 줄였다. 같은 날의 같은 체크인 집계라
+          여기 두는 편이 맞고, 평소엔 숫자만 있으면 된다.
+          미참여 아이 이름은 눌러야 할 일이 있을 때만 위에 올려서 본다. */}
+      <div className="classroom-attend">
+        <span className="ca-label">{isToday ? "오늘 참여" : "이 날 참여"}</span>
+        <span className="ca-count">
+          <strong>{completedCount}</strong> / {totalCount}명
+        </span>
+        {absentStudents.length > 0 ? (
+          <div className="mood-item ca-absent">
+            <button type="button" className="ca-absent-trigger">
+              미참여 {absentStudents.length}명
+            </button>
+            <div className="mood-tooltip" role="tooltip">
+              <div className="mood-tooltip-head">
+                미참여 학생
+                <span className="mood-tooltip-total">{absentStudents.length}명</span>
+              </div>
+              <ul className="mood-name-list">
+                {absentStudents.map((s) => (
+                  <li key={s.studentId}>
+                    <Link href={`/students/${s.studentId}`} className="mood-name">
+                      {s.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <span className="ca-all">모두 참여했어요</span>
+        )}
+      </div>
 
       <p className="classroom-delta">{delta}</p>
 
