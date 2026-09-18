@@ -9,6 +9,7 @@
 // 이미 끝났고 "색 3초" 예산에도 탭이 유리해 탭 방식으로 간다 (2026-09-17 결정).
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { SignalColor } from "@/lib/types/signal";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import SalpimHeader from "../home/SalpimHeader";
@@ -51,12 +52,39 @@ export default function MoodPicker({
           </p>
 
           <div className="mood-panel mt-[5cqh]">
-            {OPTIONS.map((o) => (
-              <MoodButton key={o.color} option={o} onSelect={onSelect} />
-            ))}
+            {active && <MoodButtons onSelect={onSelect} />}
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+// 화면이 비활성화되면 내려가므로 미완료 선택 타이머와 선택 상태도 함께 정리된다.
+function MoodButtons({ onSelect }: { onSelect: (color: SignalColor) => void }) {
+  const [selected, setSelected] = useState<SignalColor | null>(null);
+  const locked = useRef(false);
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+
+  useEffect(() => {
+    if (selected === null) return;
+    const timer = window.setTimeout(() => onSelectRef.current(selected), 300);
+    return () => window.clearTimeout(timer);
+  }, [selected]);
+
+  function select(color: SignalColor) {
+    if (locked.current) return;
+    locked.current = true;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onSelectRef.current(color);
+      return;
+    }
+    setSelected(color);
+  }
+
+  return OPTIONS.map((option) => (
+    <MoodButton key={option.color} option={option} onSelect={select}
+      selected={selected === option.color} locked={selected !== null} />
+  ));
 }

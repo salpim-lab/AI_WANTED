@@ -72,7 +72,7 @@ export default function StudentHome({
         <StudentProfile name={studentFullName} photoSrc={studentPhotoSrc} />
 
         {isMorning ? (
-          <MorningHome letter={letter} studentName={studentName} onNext={onNext} />
+          active && <MorningHome letter={letter} studentName={studentName} onNext={onNext} />
         ) : (
           <AfternoonHome studentName={studentName} onNext={onNext} />
         )}

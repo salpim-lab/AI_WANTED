@@ -12,7 +12,7 @@
 import type { SignalColor } from "@/lib/types/signal";
 import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
 import type { RiskLevel } from "./gates";
-import { CHAT_TURN_PROMPT } from "./prompt";
+import { CHAT_TURN_PROMPT, RISK_CHECK_PROMPT } from "./prompt";
 
 export type ChatTurnOutput = {
   /** 아이에게 보여줄 다음 질문. 종료면 빈 문자열 */
@@ -77,6 +77,57 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
     // 벤더 대시보드에 응답을 남기지 않는다. 학습 사용 차단과는 별개 설정이다.
     store: false,
   };
+}
+
+/**
+ * 위험 판단만 하는 요청. 후속 질문 호출과 **따로** 나간다.
+ *
+ * 왜 나눴나: 후속 질문 호출에는 최근 며칠 맥락이 들어간다. 며칠치를 합쳐 보면
+ * 평범한 친구 다툼도 계속되는 괴롭힘처럼 읽혀서, "옆자리 친구가 뭐라 했는데
+ * 그래도 괜찮았어요" 가 flag 로 넘어갔다. 같은 문장을 맥락 없이 넣으면 flag 가
+ * 나오지 않았다. 그래서 위험은 **오늘 발화만** 보고 정한다.
+ *
+ * 두 호출은 동시에 보낸다. 지연은 늘지 않고 비용은 세션당 1센트 아래다.
+ */
+export function buildRiskCheckRequest(input: Pick<ChatTurnInput, "transcript">) {
+  return {
+    model: process.env.CHAT_MODEL || "gpt-4o-mini",
+    instructions: RISK_CHECK_PROMPT,
+    input: [
+      {
+        role: "user" as const,
+        // 오늘 대화만. recent_context 를 넣지 않는다.
+        content: JSON.stringify({ transcript: input.transcript }),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema" as const,
+        name: "risk_check",
+        strict: true,
+        schema: RISK_CHECK_SCHEMA,
+      },
+    },
+    max_output_tokens: 50,
+    store: false,
+  };
+}
+
+export const RISK_CHECK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["risk"],
+  properties: { risk: { type: "string", enum: ["none", "flag"] } },
+} as const;
+
+/** 위험 판단 응답. 읽지 못하면 안전한 쪽(flag)이 아니라 none 으로 둔다 —
+ *  파싱 실패로 아이 대화를 끊는 것이 더 자주 일어날 일이라서다. */
+export function parseRiskCheck(raw: unknown): RiskLevel {
+  if (raw && typeof raw === "object") {
+    const v = (raw as Record<string, unknown>).risk;
+    if (v === "flag") return "flag";
+  }
+  return "none";
 }
 
 export class ChatTurnError extends Error {

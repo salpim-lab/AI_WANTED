@@ -94,9 +94,28 @@ t('2턴이면 무조건 종료', () => {
   assert.deepEqual(d, { action: 'close', reason: 'max_turns' });
 });
 
-t('충분하면 더 묻지 않는다', () => {
+t('첫 턴에는 충분해 보여도 한 번 더 묻는다', () => {
+  // 모델이 한마디에도 sufficient 를 자주 붙인다. 그대로 두면 한 턴 만에 끝나고
+  // 그날 남는 재료가 거의 없다. 뒤따르는 모든 화면이 이 대화를 원재료로 쓴다.
   const d = gates.decideNext({ ...base, turnCount: 1, sufficient: true });
-  assert.deepEqual(d, { action: 'close', reason: 'sufficient' });
+  assert.deepEqual(d, { action: 'ask_followup' });
+});
+
+t('둘째 턴부터는 충분하면 종료', () => {
+  const d = gates.decideNext({ ...base, turnCount: 2, sufficient: true });
+  // 2턴 상한이 먼저 걸리므로 max_turns 로 닫힌다. 어느 쪽이든 종료다.
+  assert.equal(d.action, 'close');
+});
+
+t('첫 턴이라도 회피·위험은 먼저 막는다', () => {
+  assert.deepEqual(
+    gates.decideNext({ ...base, turnCount: 1, sufficient: true, avoidanceCount: 2 }),
+    { action: 'close', reason: 'avoidance' },
+  );
+  assert.deepEqual(
+    gates.decideNext({ ...base, turnCount: 1, sufficient: true, risk: 'flag' }),
+    { action: 'handoff_to_teacher' },
+  );
 });
 
 t('부족하면 한 번 더 묻는다', () => {
