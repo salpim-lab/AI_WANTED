@@ -162,23 +162,38 @@ t('요청은 네트워크 없이 만들어지고 store:false 다', () => {
   assert.ok(req.instructions.includes('캐묻지 않는다'));
 });
 
-t('정상 응답을 파싱한다', () => {
-  const out = turn.parseChatTurn({ reply: '그랬구나.', sufficient: false, risk: 'none' });
-  assert.deepEqual(out, { reply: '그랬구나.', sufficient: false, risk: 'none' });
+t('받아주는 말과 질문을 한 줄로 잇는다', () => {
+  const out = turn.parseChatTurn({ ack: '그랬구나.', question: '그때 어떤 기분이었어?', sufficient: false, risk: 'none' });
+  assert.deepEqual(out, { reply: '그랬구나. 그때 어떤 기분이었어?', sufficient: false, risk: 'none' });
+});
+
+t('sufficient 여도 질문은 남는다 — 첫 턴에 공감만 하고 끝나지 않게', () => {
+  // 예전에는 sufficient=true 면 마무리 인사만 와서, 게이트가 대화를 이어갈 때
+  // "이겼던 거 정말 기분 좋았겠네" 가 질문 자리에 그대로 나갔다
+  const out = turn.parseChatTurn({ ack: '우와, 이겼구나!', question: '그때 기분은 어땠어?', sufficient: true, risk: 'none' });
+  assert.ok(out.reply.endsWith('?'));
+});
+
+t('질문이 빠지거나 물음표가 없으면 기본 질문으로 바꾼다', () => {
+  for (const q of ['', '정말 기분 좋았겠네.', '   ']) {
+    const out = turn.parseChatTurn({ ack: '그랬구나.', question: q, sufficient: true, risk: 'none' });
+    assert.equal(out.reply, `그랬구나. ${turn.FALLBACK_QUESTION}`);
+  }
 });
 
 t('위험 표시가 붙으면 AI 문장을 버린다', () => {
   // 캐묻거나 위로하는 말이 섞이면 진술이 오염된다
-  const out = turn.parseChatTurn({ reply: '누가 그랬어? 괜찮아질 거야', sufficient: false, risk: 'flag' });
+  const out = turn.parseChatTurn({ ack: '괜찮아질 거야.', question: '누가 그랬어?', sufficient: false, risk: 'flag' });
   assert.equal(out.reply, '');
   assert.equal(out.risk, 'flag');
   assert.equal(out.sufficient, true);
 });
 
 t('잘못된 응답은 거부한다', () => {
-  for (const bad of [null, {}, { reply: 1, sufficient: true, risk: 'none' },
-                     { reply: 'x', sufficient: 'yes', risk: 'none' },
-                     { reply: 'x', sufficient: true, risk: 'danger' }]) {
+  for (const bad of [null, {}, { ack: 1, question: 'x?', sufficient: true, risk: 'none' },
+                     { ack: 'x', question: 'x?', sufficient: 'yes', risk: 'none' },
+                     { ack: 'x', question: 'x?', sufficient: true, risk: 'danger' },
+                     { reply: 'x', sufficient: true, risk: 'none' }]) {
     // 메시지 문구가 아니라 에러 코드로 확인한다 — 문구는 바뀔 수 있다
     assert.throws(() => turn.parseChatTurn(bad), (e) => e.code === 'INVALID_AI_OUTPUT');
   }
