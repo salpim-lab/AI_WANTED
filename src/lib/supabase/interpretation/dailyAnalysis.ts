@@ -44,12 +44,20 @@ export type DailyAnalysis = {
 
 // ── analysis_runs 조회·저장 (mock) ──────────────────────────
 
-async function findDailyAnalysis(sourceSessionId: string): Promise<AnalysisRunRow | null> {
+/**
+ * 분석 범위 — "등교만"과 "등교·하교"는 마지막 세션이 같아도 다른 분석이다
+ * (예: 하교 뒤에 등교를 다시 한 날은 두 분석의 마지막 세션이 같은 등교 세션이 된다).
+ */
+type AnalysisScope = "morning" | "full";
+const scopeOf = (input: DailyAnalysisInput): AnalysisScope => (hasAfternoon(input) ? "full" : "morning");
+
+async function findDailyAnalysis(sourceSessionId: string, scope: AnalysisScope): Promise<AnalysisRunRow | null> {
   return (
     mockAnalysisRuns()
       .filter(
         (r) =>
           r.source_id === sourceSessionId &&
+          r.result.scope === scope &&
           r.analysis_type === "session_summary" &&
           r.prompt_version === DAILY_ANALYSIS_PROMPT_VERSION &&
           r.status === "completed",
@@ -351,10 +359,12 @@ async function getOrCreateDailyAnalysis(input: DailyAnalysisInput): Promise<Dail
 
   // 입력의 "버전" = 그날 마지막 세션. 하교 세션이 생기면 새 분석을 만든다.
   const source = input.sessions[input.sessions.length - 1];
-  const existing = await findDailyAnalysis(source.sessionId);
+  const scope = scopeOf(input);
+  const cacheKey = `${source.sessionId}|${scope}`;
+  const existing = await findDailyAnalysis(source.sessionId, scope);
   if (existing) return { summary: String(existing.result.summary), analysisId: existing.id, periods: analysisPeriods(input) };
 
-  const pending = inflight.get(source.sessionId);
+  const pending = inflight.get(cacheKey);
   if (pending) return pending;
 
   const task = (async () => {
@@ -379,6 +389,7 @@ async function getOrCreateDailyAnalysis(input: DailyAnalysisInput): Promise<Dail
         summary,
         stateEstimate: mask.unmask(output.state_estimate),
         periods: analysisPeriods(input),
+        scope,
         keywords: output.keywords.map(mask.unmask),
         evidenceMessageIds: output.evidence_message_ids
           .map((id) => lineIdToMessageId.get(id))
@@ -395,10 +406,10 @@ async function getOrCreateDailyAnalysis(input: DailyAnalysisInput): Promise<Dail
     return { summary, analysisId: saved.id, periods: analysisPeriods(input) };
   })();
 
-  inflight.set(source.sessionId, task);
+  inflight.set(cacheKey, task);
   try {
     return await task;
   } finally {
-    inflight.delete(source.sessionId);
+    inflight.delete(cacheKey);
   }
 }

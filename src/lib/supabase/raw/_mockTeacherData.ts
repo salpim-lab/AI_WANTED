@@ -51,6 +51,14 @@ const mockUuid = (prefix: string, n: number) =>`${prefix}-0000-4000-8000-${Strin
  */
 export const mockStudentIdFromNumber = (n: number) => mockUuid("00000000", n);
 
+/**
+ * 교사 화면 mock 학급과 짝지을 Supabase 시드 학급 (supabase/seed.sql "3학년 2반").
+ * 학생 화면은 이미 실제 DB(checkin_sessions)에 쓰므로, 교사 화면은 이 학급의 실제 세션을 읽어
+ * mock 명단의 같은 이름(성 뺀 이름: 김민준 ↔ 민준) 아이에게 붙인다 — queries/teacherStudents.ts.
+ * 교사 화면 명단까지 DB로 옮기면(v_students_current) 이 연결표는 삭제한다.
+ */
+export const MOCK_DB_CLASS_ID = "20000000-0000-4000-8000-000000000001";
+
 const kstToIso = (localDateTime: string) => new Date(`${localDateTime}+09:00`).toISOString();
 
 // ── v_students_current ───────────────────────────────────
