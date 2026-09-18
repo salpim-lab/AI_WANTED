@@ -57,6 +57,9 @@ export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
 
 const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
 
+/** 내용 없이 끄덕이기만 하는 맞장구 */
+const isFiller = (line: string) => /^(그랬구나|그렇구나|그랬어|알겠어|응|그래)[.!~]*$/.test(line.trim());
+
 /** "재미있었어, 아니면 다른 기분이었어?" 처럼 답을 골라 주는 질문. 아이 말이 아니라 우리 말이 된다 */
 const isChoiceQuestion = (text: string) => /아니면|[어야],\s*\S+[어야][?？]\s*$/.test(text);
 
@@ -67,6 +70,8 @@ export type ChatTurnInput = {
   turnCount: number;
   /** 최근 며칠 맥락 요약. 유도 질문에만 쓴다 — 여기는 어차피 LLM 을 부르므로 추가 비용이 없다 */
   recentContext?: string;
+  /** 아이 이름(성 없이, 예: "민준"). 받아주는 말에서 이름을 불러 줄 때 쓴다 */
+  studentName?: string;
 };
 
 /**
@@ -85,6 +90,7 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
           color: input.color,
           turn_count: input.turnCount,
           recent_context: input.recentContext ?? null,
+          student_name: input.studentName ?? null,
           transcript: input.transcript,
         }),
       },
@@ -197,7 +203,11 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
   const question = asked.find((q) => !isChoiceQuestion(q)) ?? FALLBACK_QUESTION;
   // 받아주는 말은 ack 칸의 서술문만. question 칸에 섞여 온 서술문("정말 기분 좋았겠네.")은 버린다 —
   // 그건 대개 마무리 인사처럼 쓴 공감이라 질문 앞에 붙이면 말이 길어지고 끝맺는 느낌이 난다.
-  const ack = sentences(o.ack).filter((line) => !isQuestion(line)).join(" ");
+  // 맞장구("그랬구나.")로 먼저 끄덕이고 아이 말을 또 "~구나" 로 받으면 두 번 끄덕이는 말투가 된다.
+  // 뒤에 내용 있는 문장이 이어질 때만 떼어낸다(맞장구 하나뿐이면 그대로 둔다).
+  const ackLines = sentences(o.ack).filter((line) => !isQuestion(line));
+  const trimmedAck = ackLines.length > 1 && isFiller(ackLines[0]) ? ackLines.slice(1) : ackLines;
+  const ack = trimmedAck.join(" ");
   return {
     reply: ack ? `${ack} ${question}` : question,
     sufficient: o.sufficient,

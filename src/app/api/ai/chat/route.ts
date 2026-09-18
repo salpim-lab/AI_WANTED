@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 import { buildRecentContext } from "@/lib/checkins/recentContext";
+import { studentGivenName } from "@/lib/checkins/studentName";
 import {
   buildChatTurnRequest,
   buildRiskCheckRequest,
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
           // 서버에서 직접 읽는다. 클라이언트가 보낸 값은 쓰지 않는다 —
           // 지난 세션 내용을 브라우저가 정할 수 있으면 안 된다.
           recentContext: await buildRecentContext(session.enrollment_id, session.id),
+          studentName: await studentGivenName(session.enrollment_id),
         }),
       ),
       call(buildRiskCheckRequest({ transcript })),

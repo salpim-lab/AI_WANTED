@@ -191,6 +191,15 @@ t('받아주는 말에 질문이 섞이거나 선택지로 물으면 선택지 �
   assert.equal(c.reply, `피구 했구나! ${turn.FALLBACK_QUESTION}`);
 });
 
+t('맞장구 뒤에 내용 있는 받아주기가 오면 맞장구를 뗀다', () => {
+  // "그랬구나. 몸이 조금 안 좋구나." 는 두 번 끄덕이는 말투라 어색했다
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '그랬구나. 몸이 조금 안 좋구나.', question: '몸이 안 좋게 된 일이 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '몸이 조금 안 좋구나. 몸이 안 좋게 된 일이 있었어?');
+  // 맞장구 하나뿐이면 그대로 둔다
+  const b = turn.parseChatTurn({ missing: 'situation', ack: '그랬구나.', question: '어떤 일이 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '그랬구나. 어떤 일이 있었어?');
+});
+
 t('질문을 두 번 하면 첫 질문만 남긴다', () => {
   const out = turn.parseChatTurn({ missing: 'feeling', ack: '공기놀이 했구나!', question: '그때 마음이 어땠어? 공기놀이 할 때 기분이 어땠어?', sufficient: false, risk: 'none' });
   assert.equal(out.reply, '공기놀이 했구나! 그때 마음이 어땠어?');
