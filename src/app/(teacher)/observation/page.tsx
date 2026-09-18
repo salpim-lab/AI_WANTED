@@ -12,6 +12,7 @@ import { dateParam, firstParam } from "@/components/shared/params";
 import { listClassStudents } from "@/lib/supabase/queries/teacherStudents";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listObservationLogs } from "@/lib/supabase/raw/observationLog";
+import SalpimBackdrop from "@/components/shared/SalpimBackdrop";
 import type { RecordTypeFilter } from "@/lib/types/teacherRecord";
 
 function parseType(value: string | undefined): RecordTypeFilter {
@@ -42,14 +43,16 @@ export default async function ObservationPage({ searchParams }: PageProps<"/obse
   const feedObservations = keyword ? await listObservationLogs(teacher.classId, { keyword }) : dayObservations;
 
   return (
-    <ObservationBoard
-      students={students}
-      date={date}
-      today={today}
-      type={type}
-      keyword={keyword}
-      recordedStudentIds={recordedStudentIds}
-      observations={feedObservations}
-    />
+    <SalpimBackdrop>
+      <ObservationBoard
+        students={students}
+        date={date}
+        today={today}
+        type={type}
+        keyword={keyword}
+        recordedStudentIds={recordedStudentIds}
+        observations={feedObservations}
+      />
+    </SalpimBackdrop>
   );
 }

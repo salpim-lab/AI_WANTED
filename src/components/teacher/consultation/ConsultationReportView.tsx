@@ -45,7 +45,7 @@ export default function ConsultationReportView({ report }: { report: Consultatio
           className="ml-auto flex flex-wrap items-center gap-1.5"
         >
           <input type="date" name="from" defaultValue={report.from} aria-label="시작 날짜" className={textInput} />
-          <span className="text-xs text-gray-400">~</span>
+          <span className="text-xs text-[#aab0c4]">~</span>
           <input type="date" name="to" defaultValue={report.to} aria-label="끝 날짜" className={textInput} />
           <button type="submit" className="btn btn-primary btn-sm">
             적용
@@ -55,9 +55,9 @@ export default function ConsultationReportView({ report }: { report: Consultatio
       </div>
 
       <article className={`${card} p-6 print:rounded-none print:shadow-none`}>
-        <header className="mb-6 border-b border-gray-200 pb-4">
-          <h1 className="text-xl font-extrabold">{report.student.name} 상담 자료</h1>
-          <p className="mt-1 text-[13px] text-gray-700">
+        <header className="mb-6 border-b border-[#e6e2fb] pb-4">
+          <h1 className="font-[family-name:var(--font-cute)] text-[26px] font-normal text-[#102a56]">{report.student.name} 상담 자료</h1>
+          <p className="mt-1 text-[13px] text-[#33405f]">
             기간 {formatKstDate(report.from)} ~ {formatKstDate(report.to)} ({dayCount}일)
           </p>
           <p className={`${timestampText} mt-1`}>생성 {formatKstDateTime(generatedAt)} (서버 시각 기준)</p>
@@ -68,7 +68,7 @@ export default function ConsultationReportView({ report }: { report: Consultatio
             <VocabInsightPanel studentName={report.student.name} insight={report.vocabInsight} />
             <RelationInsightPanel studentName={report.student.name} insight={report.relationInsight} />
           </div>
-          <p className="mt-2 text-[11px] text-gray-500">
+          <p className="mt-2 text-[11px] text-[#7d849b]">
             대시보드의 오늘 기준 스냅샷이에요. 기간별 이력이 아니라 지금 시점의 위치를 참고용으로 보여줘요.
           </p>
         </ReportSection>
@@ -100,7 +100,7 @@ export default function ConsultationReportView({ report }: { report: Consultatio
               to={report.to}
             />
           )}
-          {report.analyses.length > 0 && <div className="mb-1.5 text-[11px] font-bold text-gray-500">날짜별 분석</div>}
+          {report.analyses.length > 0 && <div className="mb-1.5 text-[11px] font-bold text-[#7d849b]">날짜별 분석</div>}
           {report.analyses.length === 0 ? (
             <Empty>이 기간에 AI 분석이 없어요.</Empty>
           ) : (
@@ -113,10 +113,10 @@ export default function ConsultationReportView({ report }: { report: Consultatio
               ))}
             </ul>
           )}
-          <p className="mt-2 text-[11px] text-gray-500">AI 분석은 대화를 요약한 참고 자료이며 진단이나 판정이 아닙니다.</p>
+          <p className="mt-2 text-[11px] text-[#7d849b]">AI 분석은 대화를 요약한 참고 자료이며 진단이나 판정이 아닙니다.</p>
         </ReportSection>
 
-        <footer className="mt-6 border-t border-gray-200 pt-3 text-[11px] leading-[1.6] text-gray-500">
+        <footer className="mt-6 border-t border-[#e6e2fb] pt-3 text-[11px] leading-[1.6] text-[#7d849b]">
           이 자료는 생성 시각 기준으로 원본 기록을 모은 것입니다. 원본 기록은 저장 이후 수정되지 않습니다.
         </footer>
       </article>
@@ -127,14 +127,14 @@ export default function ConsultationReportView({ report }: { report: Consultatio
 function ReportSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-6">
-      <h3 className="mb-2.5 text-sm font-extrabold">{title}</h3>
+      <h3 className="mb-2.5 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">{title}</h3>
       {children}
     </section>
   );
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-[13px] text-gray-400">{children}</p>;
+  return <p className="text-[13px] text-[#aab0c4]">{children}</p>;
 }
 
 function VocabInsightPanel({ studentName, insight }: { studentName: string; insight: VocabInsight }) {
@@ -146,23 +146,23 @@ function VocabInsightPanel({ studentName, insight }: { studentName: string; insi
   ];
 
   return (
-    <div className="flex h-full flex-col rounded-[10px] bg-[#f8f7f4] px-3.5 py-3 break-inside-avoid">
-      <div className="mb-3 text-xs font-bold text-gray-500">감정 어휘 성장 · 누적</div>
+    <div className="flex h-full flex-col rounded-[10px] bg-[#f5f3ff] px-3.5 py-3 break-inside-avoid">
+      <div className="mb-3 text-xs font-bold text-[#7d849b]">감정 어휘 성장 · 누적</div>
 
       <div className="flex flex-1 items-center justify-center">
         <div className="flex h-28 items-end justify-center gap-10">
           {bars.map((b) => (
             <div key={b.label} className="flex flex-col items-center gap-1.5">
-              <span className={`text-sm font-extrabold ${b.highlight ? "text-indigo-600" : "text-gray-500"}`}>
+              <span className={`text-sm font-extrabold ${b.highlight ? "text-[#635bff]" : "text-[#7d849b]"}`}>
                 {b.value}
               </span>
               <div className="flex h-20 w-10 items-end rounded-md bg-black/5">
                 <div
-                  className={`w-full rounded-md ${b.highlight ? "bg-indigo-400" : "bg-gray-300"}`}
+                  className={`w-full rounded-md ${b.highlight ? "bg-[#8b83ff]" : "bg-[#cfcafa]"}`}
                   style={{ height: `${Math.max(8, Math.round((b.value / maxValue) * 100))}%` }}
                 />
               </div>
-              <span className="text-[11px] font-medium text-gray-600">{b.label}</span>
+              <span className="text-[11px] font-medium text-[#5d6580]">{b.label}</span>
             </div>
           ))}
         </div>
@@ -175,8 +175,8 @@ function RelationInsightPanel({ studentName, insight }: { studentName: string; i
   const { connections } = insight;
   if (connections.length === 0) {
     return (
-      <div className="rounded-[10px] bg-[#f8f7f4] px-3.5 py-3 break-inside-avoid">
-        <div className="mb-2 text-xs font-bold text-gray-500">관계 지도</div>
+      <div className="rounded-[10px] bg-[#f5f3ff] px-3.5 py-3 break-inside-avoid">
+        <div className="mb-2 text-xs font-bold text-[#7d849b]">관계 지도</div>
         <Empty>최근 4주간 언급을 주고받은 관계가 없어요.</Empty>
       </div>
     );
@@ -191,8 +191,8 @@ function RelationInsightPanel({ studentName, insight }: { studentName: string; i
   });
 
   return (
-    <div className="rounded-[10px] bg-[#f8f7f4] px-3.5 py-3 break-inside-avoid">
-      <div className="mb-2 text-xs font-bold text-gray-500">관계 지도 · {studentName} 중심</div>
+    <div className="rounded-[10px] bg-[#f5f3ff] px-3.5 py-3 break-inside-avoid">
+      <div className="mb-2 text-xs font-bold text-[#7d849b]">관계 지도 · {studentName} 중심</div>
       <svg viewBox="0 0 280 190" role="img" aria-label={`${studentName} 관계 지도`} className="w-full">
         {points.map((p) => (
           <line
@@ -219,7 +219,7 @@ function RelationInsightPanel({ studentName, insight }: { studentName: string; i
           </g>
         ))}
       </svg>
-      <p className="mt-1 text-[11px] text-gray-500">점선 · 붉은 선은 갈등으로 기록된 관계예요.</p>
+      <p className="mt-1 text-[11px] text-[#7d849b]">점선 · 붉은 선은 갈등으로 기록된 관계예요.</p>
     </div>
   );
 }

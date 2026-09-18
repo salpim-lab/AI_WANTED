@@ -1,20 +1,26 @@
 // 담당: 김현우
 // 아이 상세 하단 "내일 전달할 코멘트".
-//   초안: POST /api/ai/comment-draft { studentId, date } → 200 { draft: string | null }
+//   초안: POST /api/ai/comment-draft { studentId, date } → 200 { draft: string | null, sent: string | null }
 //         501(키 미설정·테스트 대상 아님)이면 서버가 넘겨준 mock 예시(fallbackDraft)를 "예시"로 쓴다.
 //   초안은 입력창 안에 회색 글씨(고스트 텍스트)로 깔린다. 교사가 Tab을 누르면 남은 초안이 그대로 입력되고,
 //   초안과 같은 글자로 쓰기 시작하면 이어지는 부분만 회색으로 남는다. 다른 말을 쓰기 시작하면 사라진다.
-//   저장: 교사 최종본(feedback_drafts.final_text)을 저장하는 라우트가 아직 없다.
-//         TODO(라우트 준비 후): 저장 버튼에서 그 라우트를 fetch. 지금은 화면에만 "저장됨"으로 표시한다.
+//   보내기: Server Action(sendTeacherCommentAction) → feedback_drafts.final_text, status='sent'.
+//         아이는 다음 날 등교 홈 "선생님 편지"로 본다. 그날 이미 보낸 게 있으면(sent) 그 글과 "전달 예정" 상태로 연다.
 // 가드레일(기획안 10장 AI 대필 금지): 초안은 제안일 뿐 자동으로 입력·저장·발송하지 않는다.
 //   교사가 Tab으로 받아들이거나 직접 쓰고, 저장을 눌러야만 전달된다.
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { card, textArea } from "@/components/shared/ui";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { sendTeacherCommentAction } from "@/app/(teacher)/students/actions";
+import { salpimMuted, salpimPaperCard, salpimTitle } from "@/components/shared/ui";
 
 const MAX_COMMENT_LENGTH = 500;
+
+// 입력창과 회색 초안(고스트)이 정확히 겹쳐야 해서 글꼴·여백·테두리 두께를 한 곳에서 같이 쓴다.
+// 글꼴은 아이가 받는 편지 본문과 같은 손글씨(Gaegu, 학생 화면 .sh-letter-body) — 쓰는 동안 받을 모습을 미리 본다.
+const letterField =
+  "w-full resize-none rounded-2xl border-[1.5px] px-4 py-3 font-[family-name:var(--font-hand)] text-[18px] leading-[1.7] outline-none";
 
 type DraftState =
   | { status: "loading" }
@@ -35,6 +41,8 @@ export default function CommentComposer({
   const [draftState, setDraftState] = useState<DraftState>({ status: "loading" });
   const [text, setText] = useState("");
   const [saved, setSaved] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sending, startSending] = useTransition();
   const ghostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,12 +55,17 @@ export default function CommentComposer({
       signal: controller.signal,
     })
       .then(async (response) => {
+        const data: { draft?: string | null; sent?: string | null } = await response.json().catch(() => ({}));
+        // 그날 이미 보낸 글이 있으면 그 글을 입력창에 두고 "전달 예정" 상태로 연다
+        if (data.sent) {
+          setText(data.sent);
+          setSaved(true);
+        }
         if (response.status === 501) {
           setDraftState(fallbackDraft ? { status: "ready", draft: fallbackDraft, isExample: true } : { status: "unavailable" });
           return;
         }
         if (!response.ok) throw new Error(`comment-draft HTTP ${response.status}`);
-        const data: { draft?: string | null } = await response.json();
         setDraftState(data.draft ? { status: "ready", draft: data.draft, isExample: false } : { status: "unavailable" });
       })
       .catch((error: unknown) => {
@@ -73,10 +86,22 @@ export default function CommentComposer({
     setSaved(false);
   }
 
+  function send() {
+    setSendError(null);
+    startSending(async () => {
+      const result = await sendTeacherCommentAction({ studentId, date, text });
+      if (result.status === "success") setSaved(true);
+      else setSendError(result.message);
+    });
+  }
+
   return (
-    <section className={`${card} px-6 py-5`}>
-      <h3 className="mb-1 text-base font-extrabold">선생님의 한마디</h3>
-      <p className="mb-3.5 text-xs text-gray-500">
+    <section className={`${salpimPaperCard} px-6 py-5`}>
+      <h3 className={`${salpimTitle} mb-1 flex items-center gap-1.5 text-xl`}>
+        <span aria-hidden>✉️</span>
+        선생님의 한마디
+      </h3>
+      <p className={`mb-3.5 text-xs ${salpimMuted}`}>
         선생님의 말로 다듬어 저장하면, 내일 등교 때 {studentName}에게 전달돼요.
       </p>
 
@@ -88,10 +113,10 @@ export default function CommentComposer({
         <div
           ref={ghostRef}
           aria-hidden
-          className={`${textArea} pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words border-transparent`}
+          className={`${letterField} pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words border-transparent`}
         >
           <span className="text-transparent">{text}</span>
-          <span className="text-gray-400">{ghost}</span>
+          <span className="text-[#b8b1a0]">{ghost}</span>
         </div>
         <textarea
           id="teacher-comment"
@@ -114,18 +139,18 @@ export default function CommentComposer({
           onScroll={(e) => {
             if (ghostRef.current) ghostRef.current.scrollTop = e.currentTarget.scrollTop;
           }}
-          className={`${textArea} relative bg-transparent`}
+          className={`${letterField} relative border-[#ece0c9] bg-transparent text-[#33405f] transition-colors focus:border-[#8b83ff]`}
         />
       </div>
 
-      <p id="teacher-comment-hint" className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-500">
+      <p id="teacher-comment-hint" className={`mt-1.5 flex items-center gap-1.5 text-[11px] ${salpimMuted}`}>
         {draftState.status === "loading" && "AI 초안을 불러오는 중…"}
         {draftState.status === "unavailable" && "AI 초안이 없어요. 직접 작성할 수 있어요."}
         {draftState.status === "ready" &&
           (ghost ? (
             <>
               회색 글씨는 AI 초안이에요.
-              <kbd className="rounded border border-gray-300 bg-gray-50 px-1 font-mono text-[10px]">Tab</kbd>
+              <kbd className="rounded border border-[#ece0c9] bg-white px-1 font-mono text-[10px] text-[#102a56]">Tab</kbd>
               을 누르면 그대로 쓸 수 있어요.
             </>
           ) : (
@@ -140,6 +165,7 @@ export default function CommentComposer({
         <button
           type="button"
           className="btn btn-ghost btn-sm"
+          style={{ borderRadius: 999 }}
           disabled={draftState.status !== "ready" || text === ""}
           onClick={() => {
             // 입력을 비우면 회색 초안이 다시 보인다
@@ -152,17 +178,23 @@ export default function CommentComposer({
         <button
           type="button"
           className="btn btn-primary btn-sm"
-          disabled={saved || !text.trim()}
-          style={saved ? { background: "#22c55e" } : undefined}
-          onClick={() => setSaved(true)}
+          disabled={saved || sending || !text.trim()}
+          // 공용 .btn은 Tailwind로 덮어쓸 수 없어 학생 화면 보라색 둥근 버튼은 inline style로 준다
+          style={{ borderRadius: 999, background: saved ? "#22c55e" : "#635bff", borderColor: "transparent" }}
+          onClick={send}
         >
-          {saved ? `✓ ${studentName}에게 전달 예정` : "저장 · 내일 전달"}
+          {saved ? `✓ ${studentName}에게 전달 예정` : sending ? "보내는 중…" : "저장 · 내일 전달"}
         </button>
-        <span className="ml-auto text-[11px] text-gray-500">자동 발송 없음 — 저장해야 전달됩니다</span>
+        <span className={`ml-auto text-[11px] ${salpimMuted}`}>자동 발송 없음 — 저장해야 전달됩니다</span>
       </div>
       {saved && (
-        <p role="status" className="mt-2 text-[11px] text-amber-700">
-          최종본 저장 API 연결 전이라 아직 화면에만 반영돼요.
+        <p role="status" className={`mt-2 text-[11px] ${salpimMuted}`}>
+          내일 등교 때 {studentName}의 등교 화면에 선생님 편지로 보여요. 고쳐서 다시 저장하면 마지막 글이 전달돼요.
+        </p>
+      )}
+      {sendError && (
+        <p role="alert" className="mt-2 text-[11px] text-red-600">
+          {sendError}
         </p>
       )}
     </section>

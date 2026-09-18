@@ -7,6 +7,7 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import "@/styles/prototype-student-chat.css";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
@@ -24,6 +25,20 @@ export default function CheckinPage() {
   // 떠올리며 말하도록 돕는 장치다. 하교 화면과 같은 출처(SIGNAL_COLORS)를 쓴다.
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
 
+  // 선생님 편지 — 교사가 아이 상세에서 보낸 최종본 (2026-09-18 김현우 연결, 이유민 님과 PR 협의).
+  // 불러오는 동안·실패·편지 없음은 모두 null → 편지 없이 인사 화면으로 시작한다 (데모 문장을 띄우지 않는다).
+  const [letter, setLetter] = useState<{ text: string; teacherName: string } | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/student/letter", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : { letter: null }))
+      .then((data: { letter?: { text: string; teacherName: string } | null }) => setLetter(data.letter ?? null))
+      .catch(() => {
+        // 편지는 없어도 등교 흐름은 이어진다
+      });
+    return () => controller.abort();
+  }, []);
+
   return (
     <>
       <div className="progress-dots">
@@ -40,6 +55,8 @@ export default function CheckinPage() {
         active={flow.step === 1}
         onNext={() => flow.goTo(2)}
         bgSrc="/brand/checkin_home2.webp"
+        letterText={letter?.text ?? null}
+        {...(letter ? { teacherName: letter.teacherName } : {})}
       />
       <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />
       <ChatScreen

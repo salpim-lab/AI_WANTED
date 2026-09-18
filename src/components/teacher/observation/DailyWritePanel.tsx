@@ -66,21 +66,21 @@ export default function DailyWritePanel({
   return (
     <div>
       <div className={`${card} mb-3 px-4 py-3`}>
-        <div className="mb-1.5 text-xs font-bold tracking-[0.5px] text-gray-500">오늘 {student.name}</div>
+        <div className="mb-1.5 text-xs font-bold tracking-[0.5px] text-[#7d849b]">오늘 {student.name}</div>
         {contextLoading ? (
-          <p className="text-[13px] text-gray-400">불러오는 중…</p>
+          <p className="text-[13px] text-[#aab0c4]">불러오는 중…</p>
         ) : (
           <>
-            <p className="text-[13px] text-gray-700">
+            <p className="text-[13px] text-[#33405f]">
               등교 {context?.morning ? SIGNAL_LABEL[context.morning] : "기록 없음"} · 하교{" "}
               {context?.afternoon ? SIGNAL_LABEL[context.afternoon] : "기록 없음"}
             </p>
             {context?.aiSummary ? (
-              <p className="mt-1.5 text-[13px] leading-[1.6] text-gray-600">{context.aiSummary}</p>
+              <p className="mt-1.5 text-[13px] leading-[1.6] text-[#5d6580]">{context.aiSummary}</p>
             ) : (
-              <p className="mt-1.5 text-[13px] text-gray-400">이 날은 등하교 체크인 기록이 없어요.</p>
+              <p className="mt-1.5 text-[13px] text-[#aab0c4]">이 날은 등하교 체크인 기록이 없어요.</p>
             )}
-            <p className="mt-1.5 text-[11px] text-gray-400">AI 요약은 참고용이며 진단이나 판정이 아니에요.</p>
+            <p className="mt-1.5 text-[11px] text-[#aab0c4]">AI 요약은 참고용이며 진단이나 판정이 아니에요.</p>
           </>
         )}
       </div>
@@ -89,8 +89,8 @@ export default function DailyWritePanel({
         <input type="hidden" name="studentIds" value={student.studentId} />
 
         <div className="mb-2 flex items-center gap-1.5">
-          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">{student.name}</span>
-          <span className="text-xs text-gray-500">에 대한 관찰 기록</span>
+          <span className="rounded-full bg-[#ede9ff] px-2.5 py-1 text-xs font-bold text-[#3f37c9]">{student.name}</span>
+          <span className="text-xs text-[#7d849b]">에 대한 관찰 기록</span>
         </div>
 
         <textarea
@@ -104,7 +104,7 @@ export default function DailyWritePanel({
           onChange={(e) => setBody(e.target.value)}
           className={textArea}
         />
-        <div className="mt-1 text-right text-[11px] text-gray-400">
+        <div className="mt-1 text-right text-[11px] text-[#aab0c4]">
           {body.length} / {MAX_BODY_LENGTH}
         </div>
 

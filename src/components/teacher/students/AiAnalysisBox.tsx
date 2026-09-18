@@ -66,21 +66,22 @@ export default function AiAnalysisBox({
   return (
     <section
       aria-live="polite"
-      className="rounded-[10px] border-[1.5px] border-green-200 bg-green-50 px-3.5 py-3 text-xs leading-[1.6] text-green-700"
+      className="rounded-2xl border border-[#ded8ff] bg-[#f5f3ff] px-4 py-3.5 text-[13px] leading-[1.7] text-[#102a56]"
     >
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-extrabold tracking-[0.5px] text-green-600">
+      <div className="mb-1.5 flex items-center gap-1.5 font-[family-name:var(--font-cute)] text-[15px] text-[#635bff]">
+        <span aria-hidden>✨</span>
         AI 분석
         {state.status === "ready" && state.isExample && (
-          <span className="rounded bg-white/70 px-1.5 py-px font-semibold text-amber-700">API 연결 전 · 예시</span>
+          <span className="rounded-full bg-white/80 px-2 py-px font-[family-name:var(--font-sans-kr)] text-[10px] font-semibold text-amber-700">API 연결 전 · 예시</span>
         )}
       </div>
       {state.status === "loading" && <p>분석을 불러오는 중…</p>}
       {state.status === "ready" && (
-        <div className="divide-y divide-green-200">
+        <div className="divide-y divide-[#ded8ff]">
           {state.sections.map((section) => (
             <div key={section.label ?? "example"} className="py-2 first:pt-0 last:pb-0">
               {section.label && (
-                <div className="mb-0.5 text-[10px] font-bold text-green-600">{section.label}</div>
+                <div className="mb-0.5 text-[11px] font-bold text-[#8b83ff]">{section.label}</div>
               )}
               <p>{section.text}</p>
             </div>
@@ -89,7 +90,7 @@ export default function AiAnalysisBox({
       )}
       {state.status === "empty" && <p>이 날은 AI 분석이 없어요.</p>}
       {state.status === "error" && <p>AI 분석을 불러오지 못했어요.</p>}
-      <p className="mt-1.5 text-[10px] text-green-600/80">AI 요약은 참고용이에요. 판단 전에 위 대화 원문을 확인하세요.</p>
+      <p className="mt-2 text-[10px] text-[#7d849b]">AI 요약은 참고용이에요. 판단 전에 위 대화 원문을 확인하세요.</p>
     </section>
   );
 }

@@ -104,7 +104,7 @@ export default function StudentConsultationComposer({ students }: { students: Cl
             onChange={(e) => setBody(e.target.value)}
             className={textArea}
           />
-          <div className="mt-1 text-right text-[11px] text-gray-400">
+          <div className="mt-1 text-right text-[11px] text-[#aab0c4]">
             {body.length} / {MAX_BODY_LENGTH}
           </div>
 

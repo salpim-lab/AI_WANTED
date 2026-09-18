@@ -5,7 +5,7 @@ export default function ClassroomFront({ compact = false }: { compact?: boolean 
   return (
     <div className={`flex justify-center ${compact ? "mt-2" : "mt-4"}`}>
       <span
-        className={`rounded-md bg-gray-200/70 font-semibold text-gray-500 ${
+        className={`rounded-md bg-[#f1dcb4] font-semibold text-[#8a5a1c] shadow-[inset_0_-2px_0_rgba(138,90,28,.15)] ${
           compact ? "px-4 py-0.5 text-[10px]" : "px-8 py-1 text-[11px]"
         }`}
       >

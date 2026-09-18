@@ -18,7 +18,14 @@ import {
   buildUserMessage,
   callOpenAIJson,
 } from "@/lib/supabase/interpretation/dailyAnalysis";
-import { MOCK_STUDENTS, mockFeedback, type FeedbackDraftRow } from "@/lib/supabase/raw/_mockTeacherData";
+import { addDays, todayKst } from "@/components/shared/datetime";
+import {
+  MOCK_STUDENTS,
+  MOCK_TEACHER,
+  mockCheckinsFor,
+  mockFeedback,
+  type FeedbackDraftRow,
+} from "@/lib/supabase/raw/_mockTeacherData";
 import type { DailyAnalysisInput } from "@/lib/types/teacherRecord";
 
 export const COMMENT_DRAFT_PROMPT_VERSION = "comment-draft-v4";
@@ -175,4 +182,97 @@ export async function getOrCreateCommentDraft(input: DailyAnalysisInput): Promis
   } finally {
     inflight.delete(source.sessionId);
   }
+}
+
+// ── 교사 최종본 발송 · 학생 편지 조회 ─────────────────────────
+// 스키마 §8.1: draft_text(AI 초안)는 그대로 두고 final_text에 교사 최종본을 넣은 뒤 status='sent', sent_at=서버 시각.
+// status='sent'면 final_text·sent_at이 반드시 있어야 한다(check 제약). 보낸 행은 더 고치지 않는다 —
+// 교사가 다시 저장하면 새 행을 추가하고, 학생 화면은 가장 최근에 보낸 것을 보여준다.
+
+const enrollmentIdOf = (studentId: string) => MOCK_STUDENTS.find((s) => s.student_id === studentId)?.enrollment_id;
+
+/** 그날 세션에서 나온 feedback_drafts 행들 (최신순) */
+function draftsForSessions(enrollmentId: string, sessionIds: string[]): FeedbackDraftRow[] {
+  const { drafts, sources } = mockFeedback();
+  const ids = new Set(sources.filter((s) => sessionIds.includes(s.session_id)).map((s) => s.feedback_id));
+  return drafts
+    .filter((d) => d.enrollment_id === enrollmentId && ids.has(d.id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+/** 그날 이미 보낸 교사 최종본 (없으면 null) — 아이 상세에서 "전달 예정" 상태를 되살리는 데 쓴다 */
+export async function getSentComment(studentId: string, sessionIds: string[]): Promise<string | null> {
+  const enrollmentId = enrollmentIdOf(studentId);
+  if (!enrollmentId) return null;
+  const sent = draftsForSessions(enrollmentId, sessionIds)
+    .filter((d) => d.status === "sent")
+    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))[0];
+  return sent?.final_text ?? null;
+}
+
+/**
+ * 교사가 저장한 최종본을 보낸다. 그날 아직 보내지 않은 AI 초안이 있으면 그 행에 final_text를 채워 보내고
+ * (AI가 무엇을 제안했고 교사가 무엇으로 고쳤는지가 한 행에 남는다), 없으면 교사가 쓴 행을 새로 추가한다.
+ * 호출 전에 교사-학급 권한과 글 길이를 확인해야 한다 (students/actions.ts).
+ */
+export async function sendFinalComment(input: { studentId: string; sessionIds: string[]; text: string }): Promise<void> {
+  const enrollmentId = enrollmentIdOf(input.studentId);
+  if (!enrollmentId) throw new Error("학생을 찾을 수 없습니다.");
+  const now = new Date().toISOString(); // 서버 시각 (Supabase에서는 now())
+
+  const pending = draftsForSessions(enrollmentId, input.sessionIds).find(
+    (d) => d.created_by === "ai" && d.status === "pending",
+  );
+  if (pending) {
+    pending.final_text = input.text;
+    pending.status = "sent";
+    pending.sent_at = now;
+    return;
+  }
+
+  const row: FeedbackDraftRow = {
+    id: crypto.randomUUID(),
+    enrollment_id: enrollmentId,
+    draft_text: input.text,
+    final_text: input.text,
+    status: "sent",
+    created_by: "teacher",
+    created_at: now,
+    sent_at: now,
+    prompt_version: "teacher",
+  };
+  const store = mockFeedback();
+  store.drafts.push(row);
+  store.sources.push(...input.sessionIds.map((sessionId) => ({ feedback_id: row.id, session_id: sessionId })));
+}
+
+/** 마지막 등교 세션 시작 시각 — 편지 "읽음" 판정 기준 (docs/planning/TEACHER_LETTER_LOGIC.md C안) */
+function lastMorningCheckinAt(enrollmentId: string): string | null {
+  // mock은 오늘 등교 세션을 미리 만들어 두므로, 오늘 것은 "아직 등교 전"으로 보고 어제까지만 본다.
+  // Supabase에서는: select max(started_at) from checkin_sessions where enrollment_id=$1 and period='morning'
+  //   (세션은 색 선택 단계에서 만들어져야 한다 — 홈 화면에서 만들면 편지가 뜨자마자 사라진다)
+  const today = todayKst();
+  for (let back = 1; back <= 30; back++) {
+    const morning = mockCheckinsFor(enrollmentId, addDays(today, -back)).sessions.find((s) => s.period === "morning");
+    if (morning) return morning.started_at;
+  }
+  return null;
+}
+
+/**
+ * 학생 등교 홈의 "선생님 편지" — 마지막 등교 이후에 보낸 최종본 1건. 없으면 null(편지 없이 인사 화면).
+ * final_text만 돌려준다 — draft_text(AI 초안)는 학생에게 절대 노출하지 않는다.
+ * studentId는 서버가 정한 현재 학생(getActingStudent)만 넘긴다.
+ */
+export async function getLetterForStudent(studentId: string): Promise<{ text: string; teacherName: string } | null> {
+  const enrollmentId = enrollmentIdOf(studentId);
+  if (!enrollmentId) return null;
+  const since = lastMorningCheckinAt(enrollmentId) ?? "";
+  const letter = mockFeedback()
+    .drafts.filter(
+      (d) => d.enrollment_id === enrollmentId && d.status === "sent" && d.final_text && (d.sent_at ?? "") > since,
+    )
+    .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))[0];
+  // 보낸 교사 기록이 스키마에 없어 담임 이름을 쓴다 (TEACHER_LETTER_LOGIC.md "교사 이름")
+  return letter?.final_text ? { text: letter.final_text, teacherName: MOCK_TEACHER.displayName } : null;
 }

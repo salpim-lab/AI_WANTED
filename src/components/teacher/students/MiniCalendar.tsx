@@ -10,7 +10,7 @@ import { SIGNAL_DOT, SIGNAL_LABEL } from "@/components/shared/signalStyles";
 import type { ColorHistoryDay } from "@/lib/types/teacherRecord";
 import type { SignalColor } from "@/lib/types/signal";
 
-const NO_RECORD = "bg-gray-200";
+const NO_RECORD = "bg-[#e6e2fb]";
 
 const labelOf = (color: SignalColor | null) => (color ? SIGNAL_LABEL[color] : "기록 없음");
 
@@ -37,11 +37,11 @@ export default function MiniCalendar({
             aria-current={selected ? "date" : undefined}
             aria-label={`${day.date} — 등교 ${labelOf(day.morning)}, 하교 ${labelOf(day.afternoon)}`}
             title={`등교 ${labelOf(day.morning)} · 하교 ${labelOf(day.afternoon)}`}
-            className={`min-w-10 flex-1 rounded-lg border-[1.5px] px-1 py-1.5 text-center transition-colors hover:border-indigo-500 ${
-              selected ? "border-indigo-500 bg-indigo-50 text-indigo-500" : "border-gray-200"
+            className={`min-w-10 flex-1 rounded-xl border-[1.5px] px-1 py-1.5 text-center transition-colors hover:border-[#8b83ff] ${
+              selected ? "border-[#635bff] bg-[#ede9ff] text-[#635bff]" : "border-[#e6e2fb] bg-white/70"
             }`}
           >
-            <div className="text-[10px] text-gray-400">{weekdayKst(day.date)}</div>
+            <div className="text-[10px] text-[#aab0c4]">{weekdayKst(day.date)}</div>
             <div className="text-sm font-bold">{Number(day.date.slice(8))}</div>
             <div aria-hidden className="mx-auto mt-1 flex h-1 w-5 gap-px overflow-hidden rounded-full">
               <span className={`flex-1 ${day.morning ? SIGNAL_DOT[day.morning] : NO_RECORD}`} />
