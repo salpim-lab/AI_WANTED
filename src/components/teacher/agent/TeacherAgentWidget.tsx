@@ -90,10 +90,13 @@ export default function TeacherAgentWidget() {
   }, [messages, sending]);
 
   return (
-    <div className="fixed right-5 bottom-5 z-[1500] flex flex-col items-end gap-2.5">
+    // 바깥 틀은 클릭을 받지 않는다(pointer-events-none) — 닫힌 창도 자리(360×600)는 차지해서,
+    // 틀이 클릭을 받으면 오른쪽 아래의 보이지 않는 상자가 그 밑 화면의 버튼을 막는다.
+    // 클릭은 열린 창과 🦉 버튼만 받는다(pointer-events-auto). (2026-09-19 김현우 수정 — 이지현 님과 PR 공유)
+    <div className="pointer-events-none fixed right-5 bottom-5 z-[1500] flex flex-col items-end gap-2.5">
       <div
         className={`flex h-[600px] w-[360px] max-h-[80vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-black/20 ring-1 ring-black/5 transition-all duration-150 ease-out origin-bottom-right ${
-          open ? "scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-95 opacity-0"
+          open ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-95 opacity-0"
         }`}
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
@@ -174,7 +177,7 @@ export default function TeacherAgentWidget() {
       <button
         onClick={() => setOpen(!open)}
         aria-label={open ? "살핌 도우미 닫기" : "살핌 도우미 열기"}
-        className="grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-transform hover:scale-105 active:scale-95"
+        className="pointer-events-auto grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-transform hover:scale-105 active:scale-95"
       >
         {open ? (
           <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white">
