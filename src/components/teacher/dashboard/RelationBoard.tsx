@@ -9,7 +9,13 @@
 import { useState } from "react";
 import RelationshipMap, { type MapFocus } from "./RelationshipMap";
 import RelationDetailPane from "./RelationDetailPane";
-import type { ConflictRow, DashboardData } from "./mockData";
+import {
+  DEFAULT_RELATION_PERIOD,
+  RELATION_PERIODS,
+  type ConflictRow,
+  type DashboardData,
+  type RelationPeriod,
+} from "./mockData";
 
 const sameFocus = (a: MapFocus, b: MapFocus) =>
   a?.kind === "student" && b?.kind === "student"
@@ -26,24 +32,47 @@ export default function RelationBoard({
   conflicts: ConflictRow[];
 }) {
   const [selected, setSelected] = useState<MapFocus>(null);
+  const [period, setPeriod] = useState<RelationPeriod>(DEFAULT_RELATION_PERIOD);
+
+  const graph = relation[period];
+  const label = RELATION_PERIODS.find((p) => p.id === period)!.label;
 
   return (
     <section className="card col-12 relation-conflict">
       <div className="card-title">
         우리 반 관계
         <span className="card-sub">발화·기록에서 본 아이들 사이</span>
+
+        {/* 기간을 바꿔도 고른 아이·선은 그대로 둔다 — 같은 관계가 기간에 따라
+            어떻게 달라지는지 보는 게 이 토글을 쓰는 이유다. */}
+        <div className="rel-period" role="group" aria-label="관계 기간">
+          {RELATION_PERIODS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={"rel-period-btn" + (p.id === period ? " on" : "")}
+              aria-pressed={p.id === period}
+              onClick={() => setPeriod(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
+
       <div className="relation-conflict-body">
         <RelationshipMap
-          nodes={relation.nodes}
-          edges={relation.edges}
+          nodes={graph.nodes}
+          edges={graph.edges}
+          periodLabel={label}
           selected={selected}
           // 같은 걸 다시 누르면 닫힌다
           onSelect={(focus) => setSelected((current) => (sameFocus(current, focus) ? null : focus))}
         />
         <RelationDetailPane
-          detail={selected?.kind === "student" ? (relation.details[selected.id] ?? null) : null}
-          pair={selected?.kind === "pair" ? (relation.pairs[selected.key] ?? null) : null}
+          detail={selected?.kind === "student" ? (graph.details[selected.id] ?? null) : null}
+          pair={selected?.kind === "pair" ? (graph.pairs[selected.key] ?? null) : null}
+          periodLabel={label}
           fallbackConflicts={conflicts}
           onClear={() => setSelected(null)}
         />

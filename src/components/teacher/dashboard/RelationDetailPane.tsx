@@ -103,11 +103,13 @@ function Pane({
 export default function RelationDetailPane({
   detail,
   pair,
+  periodLabel,
   fallbackConflicts,
   onClear,
 }: {
   detail: RelationDetail | null;
   pair: RelationPairDetail | null;
+  periodLabel: string;
   /** 아무것도 선택하지 않았을 때 보여줄 최근 갈등 */
   fallbackConflicts: ConflictRow[];
   onClear: () => void;
@@ -128,8 +130,8 @@ export default function RelationDetailPane({
           </strong>
           <span className="rd-sub">
             {pair.mentionCount > 0
-              ? `최근 2주 · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
-              : "최근 2주 · 서로 언급한 기록은 없어요"}
+              ? `${periodLabel} · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
+              : `${periodLabel} · 서로 언급한 기록은 없어요`}
           </span>
         </div>
 
@@ -174,7 +176,7 @@ export default function RelationDetailPane({
     <Pane action={closeButton}>
       <div className="rd-head">
         <strong className="rd-name">{detail.name}</strong>
-        <span className="rd-sub">최근 2주 · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
+        <span className="rd-sub">{periodLabel} · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
       </div>
 
       {detail.quotes.length > 0 && (
@@ -189,7 +191,7 @@ export default function RelationDetailPane({
         <span className="cnt">{detail.conflicts.length}</span>
       </div>
       {detail.conflicts.length === 0 ? (
-        <p className="conflict-empty">최근 2주 갈등 기록이 없어요.</p>
+        <p className="conflict-empty">{periodLabel} 갈등 기록이 없어요.</p>
       ) : (
         <ConflictList rows={detail.conflicts} />
       )}

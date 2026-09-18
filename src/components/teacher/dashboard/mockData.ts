@@ -203,8 +203,26 @@ const SOCIAL_WEIGHT: Record<number, number> = {
   11: 5, 12: 3, 13: 8, 14: 3, 15: 2, 16: 2, 17: 0, 18: 3, 19: 4, 20: 2,
 };
 
-/** 관계 지도가 보는 기간 — 최근 2주(수업일 10일) */
-const RELATION_WINDOW_DAYS = 10;
+/** 관계 지도가 보는 기간. days 는 수업일 수다 (주말은 애초에 기록이 없다).
+    "누적"은 한 학기 남짓을 잡는다 — 무제한으로 두면 3월 기록이 9월 관계를 흔든다. */
+export const RELATION_PERIODS = [
+  { id: "1w", label: "최근 1주", days: 5 },
+  { id: "2w", label: "최근 2주", days: 10 },
+  { id: "4w", label: "최근 4주", days: 20 },
+  { id: "all", label: "누적", days: 90 },
+] as const;
+
+export type RelationPeriod = (typeof RELATION_PERIODS)[number]["id"];
+
+/** 기본은 2주 — 한 주는 우연이 너무 크고, 4주는 이미 정리된 관계까지 끌고 온다. */
+export const DEFAULT_RELATION_PERIOD: RelationPeriod = "2w";
+
+export type RelationGraph = {
+  nodes: RelationNode[];
+  edges: RelationEdge[];
+  details: Record<number, RelationDetail>;
+  pairs: Record<string, RelationPairDetail>;
+};
 
 /** 그날 대화에서 누가 누구를 말했는지. 실제로는 전사에 나온 또래 이름을 매칭한 결과다.
     아이마다 하루 0~2명을 언급하고, 언급 대상은 SOCIAL_WEIGHT 로 기운다. */
@@ -683,12 +701,8 @@ export type DashboardData = {
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
-  relation: {
-    nodes: RelationNode[];
-    edges: RelationEdge[];
-    details: Record<number, RelationDetail>;
-    pairs: Record<string, RelationPairDetail>;
-  };
+  /** 기간별 관계 그래프 — 화면의 토글이 골라 쓴다 */
+  relation: Record<RelationPeriod, RelationGraph>;
   conflicts: ConflictRow[];
   vocab: { students: VocabStudent[]; trend: VocabMonth[] };
 };
@@ -717,14 +731,16 @@ function buildMood(snapshot: DaySnapshot): MoodShare[] {
 
 /** 업무기록 한 건은 언급 몇 번만큼 무겁게 볼 것인가 */
 const RECORD_WEIGHT = 3;
-/** 선을 그릴 최소 언급 횟수 — 한 번 스친 이름까지 이으면 그물이 된다 */
-const EDGE_MIN_MENTIONS = 2;
+/** 선을 그릴 최소 언급 횟수. 기간이 길수록 같이 올라간다 —
+    2주에 두 번은 관계지만 한 학기에 두 번은 스친 것이고, 문턱을 고정하면
+    누적에서 스무 명이 서로 다 이어져 실뭉치가 된다. */
+const edgeMinMentions = (windowDays: number) => Math.max(2, Math.round(windowDays / 8));
 
 /** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
 const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
 
-function buildRelation(dateKey: string): DashboardData["relation"] {
-  const window = recentSchoolDays(dateKey, RELATION_WINDOW_DAYS);
+function buildRelation(dateKey: string, windowDays: number): RelationGraph {
+  const window = recentSchoolDays(dateKey, windowDays);
   const ids = Object.keys(STUDENT_NAMES).map(Number);
 
   // 서로 언급한 횟수 (방향은 합친다 — 지도는 "이야기가 오갔다"만 보여준다)
@@ -783,12 +799,13 @@ function buildRelation(dateKey: string): DashboardData["relation"] {
           ? undefined
           : (mentioning.get(studentId) ?? 0) > 0
             ? "먼저 이야기하지만 이름이 안 나와요"
-            : "2주간 오간 이야기 없음",
+            : "오간 이야기 없음",
     };
   });
 
+  const minMentions = edgeMinMentions(windowDays);
   const edges: RelationEdge[] = [...pairCount]
-    .filter(([, count]) => count >= EDGE_MIN_MENTIONS)
+    .filter(([, count]) => count >= minMentions)
     .map(([key]) => {
       const [from, to] = key.split("-").map(Number);
       return { from, to, kind: isConflictPair(from, to) ? "conflict" : "normal" };
@@ -923,7 +940,10 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
         name: STUDENT_NAMES[studentId],
       })),
     },
-    relation: buildRelation(key),
+    // 기간 토글이 바로 반응하도록 네 기간을 미리 만들어 둔다 (스무 명짜리라 가볍다)
+    relation: Object.fromEntries(
+      RELATION_PERIODS.map((p) => [p.id, buildRelation(key, p.days)]),
+    ) as Record<RelationPeriod, RelationGraph>,
     conflicts: conflictLedger().filter((c) => c.date <= key).slice(0, 2),
     vocab: buildVocab(snapshot),
   };

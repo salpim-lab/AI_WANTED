@@ -13,7 +13,11 @@ import { addDays } from "@/components/shared/datetime";
 // 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
 // mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
 // 바뀌면 buildInsights()도 그쪽을 부르도록 바꾸고, 이 import는 없앤다.
-import { dashboardToday, getDashboardSnapshot } from "@/components/teacher/dashboard/mockData";
+import {
+  DEFAULT_RELATION_PERIOD,
+  dashboardToday,
+  getDashboardSnapshot,
+} from "@/components/teacher/dashboard/mockData";
 import { listObservationLogsForStudent } from "@/lib/supabase/raw/observationLog";
 import {
   MOCK_STUDENTS,
@@ -163,11 +167,14 @@ function buildInsights(studentId: string): { vocab: VocabInsight; relation: Rela
       (snapshot.vocab.students.reduce((sum, s) => sum + s.count, 0) / snapshot.vocab.students.length) * 10,
     ) / 10;
 
-  const connections = snapshot.relation.edges
+  // 대시보드는 기간 토글(1주/2주/4주/누적)로 관계를 보여주지만, 상담 리포트에는 고를 데가
+  // 없으니 대시보드 기본값과 같은 기간을 쓴다.
+  const relation = snapshot.relation[DEFAULT_RELATION_PERIOD];
+  const connections = relation.edges
     .filter((e) => e.from === dashboardId || e.to === dashboardId)
     .map((e) => {
       const otherId = e.from === dashboardId ? e.to : e.from;
-      const other = snapshot.relation.nodes.find((n) => n.studentId === otherId);
+      const other = relation.nodes.find((n) => n.studentId === otherId);
       return other ? { studentId: mockStudentIdFromNumber(otherId), name: other.name, kind: e.kind } : null;
     })
     .filter((c): c is { studentId: string; name: string; kind: "normal" | "conflict" } => c !== null);

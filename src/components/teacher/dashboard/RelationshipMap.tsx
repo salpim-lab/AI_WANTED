@@ -15,7 +15,7 @@
 // 이름은 성까지 다 쓴다: 같은 이름이 흔해서(민준/지훈) 성이 빠지면 누군지 헷갈린다.
 
 import { useState } from "react";
-import type { DashboardData, RelationNode } from "./mockData";
+import type { RelationGraph, RelationNode } from "./mockData";
 
 const NODE_STYLE: Record<RelationNode["tone"], { ring: string; text: string }> = {
   normal: { ring: "var(--rel-ring)", text: "var(--rel-text)" },
@@ -31,9 +31,11 @@ const keyOf = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 export default function RelationshipMap({
   nodes,
   edges,
+  periodLabel,
   selected,
   onSelect,
-}: Pick<DashboardData["relation"], "nodes" | "edges"> & {
+}: Pick<RelationGraph, "nodes" | "edges"> & {
+  periodLabel: string;
   selected: MapFocus;
   onSelect: (focus: NonNullable<MapFocus>) => void;
 }) {
@@ -64,7 +66,7 @@ export default function RelationshipMap({
     <div className="relation-pane">
       <div className="pane-title">
         관계 지도
-        <span className="pane-sub">발화·업무기록에서 추출 · 최근 2주</span>
+        <span className="pane-sub">발화·업무기록에서 추출 · {periodLabel}</span>
       </div>
 
       <div className="relation-map-wrap">
