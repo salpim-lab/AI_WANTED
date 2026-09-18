@@ -34,7 +34,8 @@ export default function MorningHome({
       setHidden(true);
     }
     function onMotionChange() { if (motion.matches) finish(); }
-    timer.current = setTimeout(finish, motion.matches ? 0 : 1100);
+    // 봉투가 작아지며 사라지는 시각(0.4s 시작 + 0.8s). student-home.css 의 "편지 닫기" 타임라인과 맞물린다.
+    timer.current = setTimeout(finish, motion.matches ? 0 : 1200);
     motion.addEventListener("change", onMotionChange);
     return () => {
       if (timer.current !== null) clearTimeout(timer.current);

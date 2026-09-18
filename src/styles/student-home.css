@@ -287,8 +287,13 @@
 .sh-letter-close:hover { background: rgba(105, 112, 150, 0.22); }
 .sh-letter-close:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
-/* 450ms 종이 → 250ms 덮개(몸통 깊이 동시 변경) → 100ms 닫힌 봉투 → 300ms 퇴장 → 300ms 인사.
-   전체 1.4초. 뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
+/* ── 편지 닫기 ──────────────────────────────────────────
+   0.00 편지지가 봉투로 들어간다 (0.45s)
+   0.40 봉투가 왼쪽 아래 모서리 쪽으로 작아지며 흐려지기 시작한다 (0.8s)
+   0.45 그 사이 덮개가 닫힌다 (0.25s) — 닫히"면서" 작아진다
+   1.20 인사가 제목 → 부제 → 버튼 순으로 떠오른다
+        (MorningHome 타이머 1200ms — 한쪽을 바꾸면 같이 바꿀 것)
+   뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
 @keyframes shLetterTuck {
   from { transform: translateY(0); }
   to { transform: translateY(66.2cqh); }
@@ -314,12 +319,18 @@
   from { transform: scaleY(0); opacity: 0; }
   to { transform: scaleY(1); opacity: 1; }
 }
-@keyframes shLetterOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(48cqh); opacity: 0; }
+/* 왼쪽 아래 모서리 쪽으로 작아지며 사라진다. 흐려지는 건 뒤쪽에서 — 처음부터 흐리면 녹는 것처럼 보인다. */
+@keyframes shEnvelopeShrinkAway {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  45% { opacity: 1; }
+  100% { transform: translate(-6cqh, 3cqh) scale(0.3); opacity: 0; }
 }
 @keyframes shMorningIntroIn {
-  from { transform: translateY(2cqh); opacity: 0; }
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shMorningIntroRise {
+  from { transform: translateY(2.5cqh); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 .sh-letter-leaving .sh-letter-paper {
@@ -338,13 +349,23 @@
 .sh-letter-leaving .sh-envelope-closed-flap {
   animation: shEnvelopeClose 0.15s 0.55s ease-out forwards;
 }
+/* 기준점은 봉투의 왼쪽 아래 모서리. 조립체는 화면 전체 폭이고 봉투(78cqh)는 가운데라
+   모서리는 가로 50% − 39cqh, 세로 맨 아래(봉투 바닥 = 조립체 바닥)다. */
 .sh-letter-leaving .sh-letter-assembly {
-  animation: shLetterOut 0.30s 0.8s ease-in forwards;
+  transform-origin: calc(50% - 39cqh) 100%;
+  animation: shEnvelopeShrinkAway 0.8s 0.4s cubic-bezier(0.45, 0, 0.25, 1) forwards;
   pointer-events: none;
 }
+/* 인사: 제목 → 부제 → 버튼 순으로 떠오른다 */
 .sh-morning-intro-entering > .sh-intro {
-  animation: shMorningIntroIn 0.3s ease-out both;
+  animation: shMorningIntroIn 0.6s ease-out both;
 }
+.sh-morning-intro-entering > .sh-intro > * {
+  animation: shMorningIntroRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: 0.05s; }
+.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: 0.25s; }
+.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: 0.45s; }
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,
@@ -353,7 +374,8 @@
   .sh-letter-leaving .sh-envelope-closed,
   .sh-letter-leaving .sh-envelope-closed-flap,
   .sh-letter-leaving .sh-letter-paper,
-  .sh-morning-intro-entering > .sh-intro { animation: none; }
+  .sh-morning-intro-entering > .sh-intro,
+  .sh-morning-intro-entering > .sh-intro > * { animation: none; }
 }
 
 
