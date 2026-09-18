@@ -11,6 +11,7 @@
 import { revalidatePath } from "next/cache";
 import {
   addDays,
+  isDateString,
   parseKstLocalDateTime,
   parsePastKstLocalDateTime,
   toKstDate,
@@ -18,8 +19,10 @@ import {
 import {
   findClassStudent,
   getConsultationReport,
+  listClassStudents,
   REPORT_DEFAULT_DAYS,
 } from "@/lib/supabase/queries/teacherStudents";
+import { getOrCreatePeriodSummary, PeriodSummaryUnavailableError } from "./_lib/periodSummary";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import {
   completeScheduledConsultation,
@@ -178,4 +181,50 @@ export async function completeConsultationAction(formData: FormData): Promise<Ac
 
   revalidatePath("/consultation");
   return { status: "success", message: "상담을 완료 처리했어요." };
+}
+
+export type ReportAiSummaryResult =
+  | { status: "ready"; summary: string }
+  /** 기간 안에 날짜별 AI 분석이 없어서 요약할 게 없음 */
+  | { status: "empty" }
+  /** OPENAI_API_KEY 미설정 또는 테스트 대상 학생이 아님 */
+  | { status: "unavailable" }
+  | { status: "error" };
+
+/**
+ * 상담 리포트 "AI 분석 요약"의 기간 요약 — 날짜별 AI 분석을 모아 한 번 더 요약한다.
+ * 리포트를 서버에서 다시 만들어 입력으로 쓴다 (클라이언트가 보낸 분석 문장은 받지 않는다).
+ * 같은 기간·같은 입력이면 저장된 결과를 재사용하므로 여러 번 불러도 AI는 한 번만 부른다.
+ */
+export async function getReportAiSummaryAction(
+  studentId: string,
+  from: string,
+  to: string,
+): Promise<ReportAiSummaryResult> {
+  const teacher = await getActingTeacher();
+  if (typeof studentId !== "string" || !isDateString(from) || !isDateString(to) || from > to) return { status: "error" };
+
+  const report = await getConsultationReport(teacher.classId, studentId, from, to);
+  if (!report) return { status: "error" };
+  if (report.analyses.length === 0) return { status: "empty" };
+
+  // 테스트 중 토큰 절약 — /api/ai/daily-analysis와 같은 설정을 따른다
+  const onlyIds = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean);
+  if (onlyIds?.length && !onlyIds.includes(report.student.studentId)) return { status: "unavailable" };
+
+  try {
+    const result = await getOrCreatePeriodSummary({
+      student: report.student,
+      classmates: await listClassStudents(teacher.classId),
+      from: report.from,
+      to: report.to,
+      analyses: report.analyses,
+      sessions: report.sessions,
+    });
+    return result ? { status: "ready", summary: result.summary } : { status: "empty" };
+  } catch (error) {
+    if (error instanceof PeriodSummaryUnavailableError) return { status: "unavailable" };
+    console.error("[getReportAiSummaryAction]", error);
+    return { status: "error" };
+  }
 }

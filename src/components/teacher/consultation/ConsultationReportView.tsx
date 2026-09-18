@@ -15,6 +15,7 @@ import { daysBetween, formatKstDate, formatKstDateTime, toKstDate } from "@/comp
 import { backButton, card, pageContainer, textInput, timestampText } from "@/components/shared/ui";
 import type { ConsultationReport, RelationInsight, VocabInsight } from "@/lib/types/teacherRecord";
 import PrintButton from "./PrintButton";
+import ReportAiSummary from "./ReportAiSummary";
 
 const PRINT_STYLES = `
 @media print {
@@ -91,10 +92,19 @@ export default function ConsultationReportView({ report }: { report: Consultatio
         </ReportSection>
 
         <ReportSection title="3. AI 분석 요약">
+          {report.analyses.length > 0 && (
+            <ReportAiSummary
+              key={`${report.from}|${report.to}`}
+              studentId={report.student.studentId}
+              from={report.from}
+              to={report.to}
+            />
+          )}
+          {report.analyses.length > 0 && <div className="mb-1.5 text-[11px] font-bold text-gray-500">날짜별 분석</div>}
           {report.analyses.length === 0 ? (
             <Empty>이 기간에 AI 분석이 없어요.</Empty>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2" aria-label="날짜별 분석">
               {report.analyses.map((analysis) => (
                 <li key={analysis.analysisId} className="break-inside-avoid text-[13px] leading-[1.6]">
                   <span className="mr-2 font-semibold">{formatKstDate(analysis.date)}</span>

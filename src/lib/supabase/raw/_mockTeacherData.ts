@@ -94,6 +94,24 @@ export const MOCK_STUDENTS: MockStudentRow[] = ROSTER.map(([name], i) => ({
   status: "active",
 }));
 
+// ── 자리 배치 (enrollments.seat_row/seat_col + 격자 크기) ──────
+// 교사가 자리 바꾸기로 저장한 값. 격자 크기(행·열 수)는 아직 스키마에 저장할 곳이 없어 mock에만 있다.
+
+export type MockSeatLayoutRow = {
+  rows: number;
+  cols: number;
+  /** enrollment_id → 자리 */
+  seats: Record<string, { seat_row: number; seat_col: number }>;
+};
+
+const globalForSeats = globalThis as typeof globalThis & { __salpimSeatLayouts?: Record<string, MockSeatLayoutRow> };
+
+/** classId → 저장된 자리 배치. 아직 저장한 적 없는 학급은 MOCK_STUDENTS의 초기 자리를 쓴다 */
+export function mockSeatLayouts(): Record<string, MockSeatLayoutRow> {
+  globalForSeats.__salpimSeatLayouts ??= {};
+  return globalForSeats.__salpimSeatLayouts;
+}
+
 function rosterIndexOf(enrollmentId: string): number {
   return MOCK_STUDENTS.findIndex((s) => s.enrollment_id === enrollmentId);
 }

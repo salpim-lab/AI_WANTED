@@ -23,6 +23,14 @@ export type SeatingStudent = ClassStudent & {
   badge: "watch" | "unicorn" | null;
 };
 
+/** 자리 배치도 격자 크기 (행 = 교탁에서 먼 쪽으로 1, 2, …) */
+export type SeatGrid = { rows: number; cols: number };
+
+export type SeatPlacement = { studentId: string; row: number; col: number };
+
+/** 교사가 편집·저장하는 자리 배치 한 벌 — 학급 학생 전원이 격자 안에 한 번씩 앉는다 */
+export type SeatLayout = SeatGrid & { seats: SeatPlacement[] };
+
 export type TaggedStudent = { studentId: string; name: string };
 
 // ── 등하교 기록 (이유민 소유 테이블 — 읽기만) ─────────────

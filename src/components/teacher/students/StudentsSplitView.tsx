@@ -8,15 +8,17 @@
 "use client";
 
 import { useSelectedLayoutSegment } from "next/navigation";
-import type { SeatingStudent } from "@/lib/types/teacherRecord";
+import type { SeatGrid, SeatingStudent } from "@/lib/types/teacherRecord";
 import SeatingChart from "./SeatingChart";
 
 export default function StudentsSplitView({
   seats,
+  grid,
   date,
   children,
 }: {
   seats: SeatingStudent[];
+  grid: SeatGrid;
   date: string;
   children: React.ReactNode;
 }) {
@@ -31,7 +33,7 @@ export default function StudentsSplitView({
           isOpen ? "hidden lg:block lg:w-[340px]" : "w-full"
         }`}
       >
-        <SeatingChart seats={seats} date={date} selectedStudentId={selectedStudentId} compact={isOpen} />
+        <SeatingChart seats={seats} grid={grid} date={date} selectedStudentId={selectedStudentId} compact={isOpen} />
       </aside>
 
       {isOpen ? (
