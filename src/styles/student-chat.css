@@ -40,7 +40,9 @@
   padding: 13cqh 3.4cqw 2cqh;
   display: flex;
   flex-direction: column;
-  gap: 2.8cqh;
+  gap: 3.2cqh;
+  /* 스크롤이 생기면 부드럽게 따라 내려간다 (JS 의 smooth 와 같은 결) */
+  scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: #d8dbe6 transparent;
 }
@@ -53,8 +55,8 @@
    나머지 줄은 같은 크기의 빈 칸을 둬서 말풍선 시작 위치를 맞춘다. */
 .chat-avatar {
   flex: none;
-  width: 7cqh;
-  height: 7cqh;
+  width: 8.6cqh;
+  height: 8.6cqh;
 }
 /* 살핌 얼굴도 아이 사진과 같은 원·같은 테두리 안에 둔다.
    한쪽만 테두리가 있으면 두 사람이 다른 UI 를 쓰는 것처럼 보인다. */
@@ -101,11 +103,13 @@
 }
 
 .chat-bubble {
-  max-width: 72%;
-  padding: 3cqh 3.6cqh;
-  border-radius: 3.6cqh;
-  /* 초3~4 가 태블릿을 팔 길이만큼 두고 읽는다. 어른 화면 기준으로 잡으면 작다 */
-  font-size: 3.5cqh;
+  max-width: 78%;
+  padding: 3.8cqh 4.4cqh;
+  border-radius: 4cqh;
+  /* 초3~4 가 태블릿을 팔 길이만큼 두고 읽는다. 어른 화면 기준으로 잡으면 작다.
+     16:10 스테이지 기준 약 45px — 가이드 칩(2.4cqh)의 두 배 가까이 둔다.
+     읽어야 하는 것과 참고만 하는 것의 크기가 같으면 안 된다. */
+  font-size: 4.5cqh;
   line-height: 1.6;
   font-weight: 500;
   position: relative;
@@ -150,8 +154,8 @@
 .chat-typing {
   display: flex;
   gap: 0.8cqh;
-  padding: 2.4cqh 2.8cqh;
-  border-radius: 3.4cqh;
+  padding: 3cqh 3.4cqh;
+  border-radius: 4cqh;
   border-bottom-left-radius: 0.9cqh;
   background: #fff;
   box-shadow: 0 0.8cqh 2cqh rgba(60, 68, 110, 0.13);

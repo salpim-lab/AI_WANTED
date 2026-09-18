@@ -135,11 +135,22 @@ export default function ChatScreen({
     };
   }, [hasOptions, ended, replies, replies2]);
 
-  // 새 말풍선이 생기면 아래로 따라간다
+  // 새 말풍선이 생기면 아래로 따라간다.
+  // 순간이동하면 아이가 화면이 바뀐 걸 못 알아채므로 미끄러지듯 내린다.
+  // 말풍선이 붙는 것과 같은 프레임에 재면 높이가 아직 안 잡혀서 한 칸 모자라게 내려간다.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, typing, showGuide]);
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages.length, typing, thinking, showGuide, ended]);
 
 
   return (
@@ -229,7 +240,7 @@ export default function ChatScreen({
                     onClick={onRequestConsult}
                     disabled={consultState === "sending"}
                   >
-                    {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
+                    {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어요"}
                   </button>
                   <button
                     type="button"
