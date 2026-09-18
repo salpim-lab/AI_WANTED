@@ -11,7 +11,7 @@
 
 import type { SignalColor } from "@/lib/types/signal";
 import type { EvidenceRef, WorkRecordType } from "@/lib/types/teacherRecord";
-import { addDays, todayKst } from "@/components/shared/datetime";
+import { addDays, todayKst, weekdayKst } from "@/components/shared/datetime";
 
 // ── 교사 (인증 연동 전 고정값) ──────────────────────────────
 
@@ -425,6 +425,22 @@ const SEED_SCHEDULED_CONSULTATIONS: {
   { at: "2026-09-22T18:00:00", student: "한지훈", counterpart: "아버지", method: "phone" },
 ];
 
+/** 가장 가까운 지난 평일(오늘이 평일이면 오늘) — 대시보드 기본 날짜와 맞춘다 */
+function latestWeekdayKst(): string {
+  let date = todayKst();
+  while (weekdayKst(date) === "토" || weekdayKst(date) === "일") date = addDays(date, -1);
+  return date;
+}
+
+// 대시보드 아침 브리핑 확인용 — "오늘"에 얹는 예정 상담. 학생 상담은 상담 대상을 "학생 본인"으로 둔다
+function todayScheduledSeeds(): typeof SEED_SCHEDULED_CONSULTATIONS {
+  const day = latestWeekdayKst();
+  return [
+    { at: `${day}T12:40:00`, student: "이서연", counterpart: "학생 본인", method: "visit" },
+    { at: `${day}T15:30:00`, student: "김민준", counterpart: "어머니", method: "phone" },
+  ];
+}
+
 function seedStore(): MockStore {
   const store: MockStore = { workRecords: [], workRecordStudents: [], parentConsultations: [], viewLog: [] };
 
@@ -484,7 +500,7 @@ function seedStore(): MockStore {
   });
 
   // 예정된(아직 안 한) 상담 예시 — 화면 확인용
-  SEED_SCHEDULED_CONSULTATIONS.forEach((seed, i) => {
+  [...SEED_SCHEDULED_CONSULTATIONS, ...todayScheduledSeeds()].forEach((seed, i) => {
     const at = kstToIso(seed.at);
     store.parentConsultations.push({
       id: mockUuid("60000000", 900 + i + 1),

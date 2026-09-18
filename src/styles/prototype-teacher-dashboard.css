@@ -123,18 +123,37 @@
 }
 .briefing-col-hint { font-size: 11px; font-weight: 600; color: var(--faint); }
 
-/* 한 열짜리 목록이지만 카드가 넓어(col-8) 2단으로 흘려 담는다 — 세로로 길어지지 않게. */
+/* 카드가 가로 목록 전체 폭만큼 늘어나 옆 카드(오늘의 교실)를 덮지 않게 — flex 항목 기본 min-width:auto 를 끈다 */
+.briefing-card { min-width: 0; }
+
+/* 아래로 길어지지 않게 가로로 쌓는다 — 카드 폭을 넘으면 옆으로 스크롤. */
 .briefing-list {
-  flex: 1;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
-  align-content: start;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
 }
-.briefing-list > li { display: flex; }
+.briefing-list > li { display: flex; flex: 0 0 250px; scroll-snap-align: start; }
+/* 두 번째 묶음(예정된 상담) 제목 — 위 목록과 간격 */
+.briefing-col-title-next { margin-top: 20px; }
+.briefing-empty { margin: 0; font-size: 12px; color: var(--faint); }
+/* 상담 행: 색 동그라미 대신 예정 시각 */
+.briefing-time {
+  flex-shrink: 0;
+  min-width: 58px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #6f6b62;
+  text-align: center;
+}
+.briefing-consult .bstatus { color: var(--muted); }
+/* 상담 행 오른쪽의 ✎(일정 변경) 버튼 — 링크 밖 형제 요소라 행 위에 겹쳐 둔다 */
+.briefing-consult-item { position: relative; }
+.briefing-consult { padding-right: 44px; }
+.briefing-edit { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); }
 .briefing-row {
   flex: 1;
   display: flex;
@@ -755,7 +774,7 @@
   .dashboard-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .date-control { justify-content: flex-start; flex-wrap: wrap; }
   .page-dashboard .card { padding: 20px 18px; border-radius: 18px; }
-  .briefing-list { grid-template-columns: 1fr; }
+  .briefing-list > li { flex-basis: 220px; }
   .classroom-legend { grid-template-columns: repeat(2, 1fr); }
   .vocab-chart { gap: 4px; }
   .vocab-track { height: 96px; }

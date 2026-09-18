@@ -7,7 +7,7 @@
 // "다른 시간대에는 이 색이었다"를 보여준다 — 예: 하교 기준으로 보는데 등교가 빨강이었으면 동그라미가 빨강.
 // 어느 쪽이 더 낫다는 판정은 하지 않고 "달라졌다"는 사실만 표시한다.
 //   compact=false: 탭 진입 화면 — 전체 폭, 이름 전체, 기록 있으면 색으로 꽉 채운 카드
-//   compact=true : 아이를 고른 뒤 왼쪽 좁은 열 — 이름(성 제외)만, 선택한 자리 강조
+//   compact=true : 아이를 고른 뒤 왼쪽 좁은 열 — 이름 전체(작은 글씨), 선택한 자리 강조
 // 자리를 누르면 /students/[studentId] 로 이동한다 (scroll={false} — 화면이 위로 튀지 않게).
 // 참고: 교실 배치도 인포그래픽류 레퍼런스 — 회색 "바닥" 위에 파스텔 톤 카드, 가운데 아이 이름만.
 
@@ -16,7 +16,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatKstDate } from "@/components/shared/datetime";
-import { givenName } from "@/components/shared/names";
 import { SIGNAL_DOT, SIGNAL_LABEL, SIGNAL_SEAT_FILL } from "@/components/shared/signalStyles";
 import { card, emptyState } from "@/components/shared/ui";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
@@ -61,7 +60,7 @@ export default function SeatingChart({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className={compact ? "text-base font-extrabold" : "text-lg font-extrabold tracking-[-0.3px]"}>
-            우리 반 자리 배치도
+            우리 반
           </h2>
           <p className="mt-1 text-xs text-gray-500">
             {seats.length}명 · {formatKstDate(date)} {PERIOD_LABEL[period]} 색
@@ -83,10 +82,6 @@ export default function SeatingChart({
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="mx-auto mb-4 w-3/4 rounded-xl bg-indigo-50 py-1.5 text-center text-xs font-semibold text-indigo-400">
-        칠판 / 교탁
       </div>
 
       {seats.length === 0 ? (
@@ -130,7 +125,7 @@ export default function SeatingChart({
                     />
                   )}
                   {compact ? (
-                    <div className="truncate text-xs font-semibold">{givenName(seat.name)}</div>
+                    <div className="truncate text-xs font-semibold">{seat.name}</div>
                   ) : (
                     <div className="truncate text-[13px] font-bold">{seat.name}</div>
                   )}

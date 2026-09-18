@@ -11,7 +11,7 @@
 import Form from "next/form";
 import Link from "next/link";
 import { formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
-import { card, emptyState, immutableBadge, pageContainer, pageTitle, textInput, timestampText } from "@/components/shared/ui";
+import { card, emptyState, immutableBadge, boardPageContainer, boardPageTitle, textInput, timestampText } from "@/components/shared/ui";
 import type { ClassStudent, ObservationLog, RecordTypeFilter } from "@/lib/types/teacherRecord";
 import DailyObservationButton from "./DailyObservationButton";
 import DateControl from "@/components/teacher/shared/DateControl";
@@ -64,9 +64,9 @@ export default function ObservationBoard({
   const multiItems = items.filter((entry) => entry.taggedStudents.length > 1);
 
   return (
-    <div className={pageContainer}>
-      <div className="mb-4 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
-        <h2 className={`${pageTitle} shrink-0`}>학생관찰일지</h2>
+    <div className={boardPageContainer}>
+      <div className="mb-5 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+        <h2 className={`${boardPageTitle} shrink-0`}>학생관찰일지</h2>
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1.5">
           <DateControl dateKey={date} today={today} basePath="/observation" maxDate={today} />
           <Form action="/observation" role="search" className="flex shrink-0 flex-nowrap items-center gap-1.5">

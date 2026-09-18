@@ -71,6 +71,11 @@ export function weekdayKst(date: string): string {
 
 /** 지금(한국 시각)을 <input type="datetime-local"> 기본값 형식으로 — "2026-09-12T14:03" */
 export function nowKstLocalInput(): string {
+  return toKstLocalInput(new Date());
+}
+
+/** ISO 시각 → 한국 시각 <input type="datetime-local"> 값 — "2026-09-12T14:03" */
+export function toKstLocalInput(instant: Date | string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIME_ZONE,
     year: "numeric",
@@ -79,7 +84,7 @@ export function nowKstLocalInput(): string {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(new Date());
+  }).formatToParts(new Date(instant));
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
