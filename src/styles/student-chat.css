@@ -40,7 +40,7 @@
   padding: 13cqh 3.4cqw 2cqh;
   display: flex;
   flex-direction: column;
-  gap: 3.2cqh;
+  gap: 2.6cqh;
   /* 스크롤이 생기면 부드럽게 따라 내려간다 (JS 의 smooth 와 같은 결) */
   scroll-behavior: smooth;
   scrollbar-width: thin;
@@ -55,8 +55,8 @@
    나머지 줄은 같은 크기의 빈 칸을 둬서 말풍선 시작 위치를 맞춘다. */
 .chat-avatar {
   flex: none;
-  width: 6.8cqh;
-  height: 6.8cqh;
+  width: 6cqh;
+  height: 6cqh;
 }
 /* 살핌 얼굴도 아이 사진과 같은 원·같은 테두리 안에 둔다.
    한쪽만 테두리가 있으면 두 사람이 다른 UI 를 쓰는 것처럼 보인다. */
@@ -103,15 +103,15 @@
 }
 
 .chat-bubble {
-  max-width: 74%;
-  padding: 2.8cqh 3.4cqh;
-  border-radius: 3.4cqh;
-  /* 16:10 스테이지(높이 1000px 기준) 에서 약 32px.
-     가이드 칩 2.2cqh(약 22px) 의 1.45 배 — 읽어야 하는 것과 참고만 하는 것의
-     크기가 같으면 안 된다.
+  max-width: 70%;
+  padding: 2.3cqh 2.9cqh;
+  border-radius: 3cqh;
+  /* 16:10 스테이지(높이 1000px 기준) 에서 약 27px.
+     가이드 칩 2.2cqh 보다 한 단계 위 — 읽어야 하는 것과 참고만 하는 것의
+     크기가 같으면 안 되지만, 너무 벌리면 말풍선이 화면을 잡아먹는다.
      ⚠️ 이 값을 올려도 화면이 안 바뀌면 prototype-student-chat.css 를 먼저 볼 것.
         거기 있던 .chat-bubble{font-size:14px} 가 나중에 로드되며 덮고 있었다. */
-  font-size: 3.2cqh;
+  font-size: 2.7cqh;
   line-height: 1.6;
   font-weight: 500;
   position: relative;
@@ -156,8 +156,8 @@
 .chat-typing {
   display: flex;
   gap: 0.8cqh;
-  padding: 2.6cqh 3cqh;
-  border-radius: 3.4cqh;
+  padding: 2.2cqh 2.6cqh;
+  border-radius: 3cqh;
   border-bottom-left-radius: 0.9cqh;
   background: #fff;
   box-shadow: 0 0.8cqh 2cqh rgba(60, 68, 110, 0.13);
