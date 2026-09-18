@@ -409,18 +409,16 @@
 }
 .guide-chip--hint::before { width: 1.3cqh; height: 1.3cqh; left: 2.2cqh; bottom: -1.1cqh; }
 .guide-chip--hint::after { width: 0.7cqh; height: 0.7cqh; left: 1.3cqh; bottom: -2cqh; }
-/* 줄 맞춰 서 있지 않게 풍선마다 높낮이·기울기를 아주 조금씩만 다르게 둔다(많이 흩으면 어수선하다).
+/* 줄 맞춰 서 있지 않게 풍선마다 높낮이만 아주 조금씩 다르게 둔다. 기울이지 않는다(기울이면 어수선하다).
    떠다니는 움직임은 transform 이 쓰므로, 제자리 어긋남은 translate·rotate 속성으로 따로 준다(겹쳐 적용된다). */
-.guide-chip--hint:nth-child(1) { translate: 0 -0.5cqh; rotate: -0.8deg; }
+.guide-chip--hint:nth-child(1) { translate: 0 -0.5cqh; }
 .guide-chip--hint:nth-child(2) {
   translate: 0 0.5cqh;
-  rotate: 0.6deg;
   animation-delay: -1.1s;
   animation-duration: 3.6s;
 }
 .guide-chip--hint:nth-child(3) {
   translate: 0 -0.2cqh;
-  rotate: -0.4deg;
   animation-delay: -2.2s;
   animation-duration: 3s;
 }
