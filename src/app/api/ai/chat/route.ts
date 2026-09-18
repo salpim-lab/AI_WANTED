@@ -13,7 +13,13 @@ import { NextResponse } from "next/server";
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 import { buildRecentContext } from "@/lib/checkins/recentContext";
-import { buildChatTurnRequest, ChatTurnError, parseChatTurn } from "@/lib/chat/chatTurn";
+import {
+  buildChatTurnRequest,
+  buildRiskCheckRequest,
+  ChatTurnError,
+  parseChatTurn,
+  parseRiskCheck,
+} from "@/lib/chat/chatTurn";
 import { CLOSING_MESSAGES, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
@@ -79,10 +85,22 @@ export async function POST(request: Request) {
     const turnCount = studentTurns.length;
     const avoidanceCount = studentTurns.filter((m) => looksAvoidant(m.content)).length;
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify(
+    const call = (body: object) =>
+      fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        cache: "no-store",
+      });
+
+    // 두 호출을 동시에 보낸다.
+    //   ① 후속 질문 — 최근 며칠 맥락을 본다
+    //   ② 위험 판단 — 오늘 발화만 본다
+    // 나눈 이유는 chatTurn.buildRiskCheckRequest 주석에 있다. 요약하면,
+    // 며칠치를 합쳐 보면 평범한 친구 다툼이 괴롭힘으로 읽혀 flag 가 남발됐다.
+    const [response, riskResponse] = await Promise.all([
+      call(
         buildChatTurnRequest({
           flow,
           color: color as SignalColor,
@@ -93,9 +111,8 @@ export async function POST(request: Request) {
           recentContext: await buildRecentContext(session.enrollment_id, session.id),
         }),
       ),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      cache: "no-store",
-    });
+      call(buildRiskCheckRequest({ transcript })),
+    ]);
 
     if (!response.ok) {
       const detail = (await response.text().catch(() => "")).slice(0, 500);
@@ -123,10 +140,30 @@ export async function POST(request: Request) {
       .join("");
     const turn = parseChatTurn(JSON.parse(raw));
 
+    // 위험은 오직 ② 호출이 정한다. ① 이 낸 risk 는 쓰지 않는다 —
+    // 거기엔 며칠치 맥락이 들어가 있어서 판단이 부풀려진다.
+    let risk = turn.risk;
+    try {
+      const riskData = (await riskResponse.json()) as {
+        status?: string;
+        output?: { type: string; content?: { type: string; text?: string }[] }[];
+      };
+      const riskRaw = (riskData.output ?? [])
+        .filter((o) => o.type === "message")
+        .flatMap((o) => o.content ?? [])
+        .filter((c) => c.type === "output_text")
+        .map((c) => c.text ?? "")
+        .join("");
+      risk = riskResponse.ok && riskRaw ? parseRiskCheck(JSON.parse(riskRaw)) : turn.risk;
+    } catch (error) {
+      // 위험 판단만 실패하면 ① 의 값을 쓴다. 대화를 끊지는 않는다.
+      console.warn("[chat] 위험 판단 호출 실패, 후속 질문 호출의 값을 사용합니다", error);
+    }
+
     const decision = decideNext({
       turnCount,
       avoidanceCount,
-      risk: turn.risk,
+      risk,
       sufficient: turn.sufficient,
     });
 
@@ -147,7 +184,7 @@ export async function POST(request: Request) {
         lines,
         action: decision.action,
         reason: decision.action === "close" ? decision.reason : null,
-        risk: turn.risk,
+        risk,
         turn_count: turnCount,
         avoidance_count: avoidanceCount,
       },

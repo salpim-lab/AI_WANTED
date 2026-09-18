@@ -47,7 +47,10 @@ let bubbleId = 0;
  * 인사와 동시에 팝업이 뜨면 아이가 인사를 읽기도 전에 화면이 덮인다.
  * 아이가 두 줄을 읽을 시간을 준다.
  */
-const CLOSING_PAUSE_MS = 2200;
+const CLOSING_PAUSE_MS = 4500;
+
+/** 마무리 인사 두 줄 사이 간격. 한 줄씩 읽을 틈을 준다 */
+const CLOSING_LINE_GAP_MS = 1400;
 
 export function useCheckinFlow(flow: "checkin" | "checkout") {
   // ⚠️ checkin_sessions 행은 **색 선택(2단계)에서** 만들어야 한다. 1단계(홈)에서 만들면 안 된다.
@@ -347,7 +350,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         for (const [i, line] of lines.entries()) {
           if (i > 0) {
             setTyping(true);
-            await wait(900);
+            await wait(CLOSING_LINE_GAP_MS);
             if (!isCurrent()) return true;
           }
           addBubble("ai", line);
