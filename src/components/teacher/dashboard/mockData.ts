@@ -155,6 +155,8 @@ export type RelationEdge = {
   from: number;
   to: number;
   kind: "normal" | "conflict";
+  /** 그 기간에서 가장 자주 오간 짝을 1 로 둔 상대값 — 선 굵기에 쓴다 */
+  strength: number;
 };
 
 /** 관계 지도에서 아이를 눌렀을 때 옆에 펼칠 내용. 아이 상세로 넘어가지 않고 여기서 끝난다. */
@@ -224,19 +226,40 @@ export type RelationGraph = {
   pairs: Record<string, RelationPairDetail>;
 };
 
+/** 아이마다 자주 어울리는 무리. 교실은 스무 명이 골고루 섞이는 곳이 아니라 몇 덩어리로 나뉘고,
+    지도가 찾아야 하는 것도 그 덩어리와 거기서 빠진 아이다.
+    무리 없이 아무나 언급하게 두면 기간을 넓힐수록 모두가 모두와 이어져 지도가 뜻을 잃는다. */
+const CLIQUE: Record<number, number> = {
+  1: 0, 2: 0, 3: 0, 13: 0, 8: 0,
+  4: 1, 5: 1, 7: 1, 11: 1, 19: 1,
+  6: 2, 9: 2, 10: 2, 15: 2, 18: 2,
+  12: 3, 14: 3, 16: 3, 20: 3, 17: 3,
+};
+
+/** 같은 무리를 말할 확률 */
+const SAME_CLIQUE_CHANCE = 0.75;
+
 /** 그날 대화에서 누가 누구를 말했는지. 실제로는 전사에 나온 또래 이름을 매칭한 결과다.
-    아이마다 하루 0~2명을 언급하고, 언급 대상은 SOCIAL_WEIGHT 로 기운다. */
+    아이마다 하루 0~2명을 언급하고, 대상은 무리 안에서 고르되 가끔 밖으로 나간다.
+    누가 자주 불리는지는 SOCIAL_WEIGHT 로 기운다. */
 function mentionsOn(date: string): { from: number; to: number }[] {
   const ids = Object.keys(STUDENT_NAMES).map(Number);
-  const pool = ids.flatMap((id) => Array<number>(SOCIAL_WEIGHT[id] ?? 1).fill(id));
+  const weighted = (candidates: number[]) =>
+    candidates.flatMap((id) => Array<number>(SOCIAL_WEIGHT[id] ?? 1).fill(id));
+
   const out: { from: number; to: number }[] = [];
   for (const from of ids) {
     // 체크인을 안 한 날은 대화가 없으니 언급도 없다
     if (isAbsentOn(date, from)) continue;
     const howMany = hash01(date, from, 41) < 0.35 ? 0 : hash01(date, from, 43) < 0.75 ? 1 : 2;
     for (let i = 0; i < howMany; i++) {
+      const inside = hash01(date, from, 71 + i) < SAME_CLIQUE_CHANCE;
+      const pool = weighted(
+        ids.filter((id) => id !== from && (inside ? CLIQUE[id] === CLIQUE[from] : CLIQUE[id] !== CLIQUE[from])),
+      );
+      if (!pool.length) continue;
       const to = pool[Math.floor(hash01(date, from, 51 + i) * pool.length)];
-      if (to !== from && !out.some((m) => m.from === from && m.to === to)) out.push({ from, to });
+      if (!out.some((m) => m.from === from && m.to === to)) out.push({ from, to });
     }
   }
   return out;
@@ -731,10 +754,9 @@ function buildMood(snapshot: DaySnapshot): MoodShare[] {
 
 /** 업무기록 한 건은 언급 몇 번만큼 무겁게 볼 것인가 */
 const RECORD_WEIGHT = 3;
-/** 선을 그릴 최소 언급 횟수. 기간이 길수록 같이 올라간다 —
-    2주에 두 번은 관계지만 한 학기에 두 번은 스친 것이고, 문턱을 고정하면
-    누적에서 스무 명이 서로 다 이어져 실뭉치가 된다. */
-const edgeMinMentions = (windowDays: number) => Math.max(2, Math.round(windowDays / 8));
+/** 선을 그릴 최소 언급 횟수. 기간과 무관하게 고정이다 —
+    기간을 늘렸는데 선이 줄면 지도를 믿을 수 없게 된다. 넓게 볼수록 선은 늘어야 한다. */
+const EDGE_MIN_MENTIONS = 2;
 
 /** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
 const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
@@ -803,19 +825,26 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
     };
   });
 
-  const minMentions = edgeMinMentions(windowDays);
+  // 선 굵기는 언급 횟수에 따른다. 기간이 길면 선이 많아지는데, 굵기가 다 같으면
+  // 자주 오가는 사이와 어쩌다 한 번이 구분되지 않아 그냥 빽빽해 보이기만 한다.
+  const strongest = Math.max(...pairCount.values(), 1);
   const edges: RelationEdge[] = [...pairCount]
-    .filter(([, count]) => count >= minMentions)
-    .map(([key]) => {
+    .filter(([, count]) => count >= EDGE_MIN_MENTIONS)
+    .map(([key, count]) => {
       const [from, to] = key.split("-").map(Number);
-      return { from, to, kind: isConflictPair(from, to) ? "conflict" : "normal" };
+      return {
+        from,
+        to,
+        kind: isConflictPair(from, to) ? ("conflict" as const) : ("normal" as const),
+        strength: count / strongest,
+      };
     });
 
   // 갈등은 언급이 적어도 반드시 보여야 한다
   for (const c of records) {
     const [from, to] = c.pairIds;
     if (!edges.some((e) => (e.from === from && e.to === to) || (e.from === to && e.to === from))) {
-      edges.push({ from, to, kind: "conflict" });
+      edges.push({ from, to, kind: "conflict", strength: 0.5 });
     }
   }
 
