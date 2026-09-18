@@ -21,9 +21,8 @@
 // 이 화면은 읽기 전용이다 (살핌_DB_스키마_v0.3.md §13): 어떤 원본 테이블에도 쓰지 않는다.
 
 import "@/styles/prototype-teacher-dashboard.css";
-// 시안용 테마 둘 — 각자 .theme-* 안에서만 덮어쓰므로 켜지 않으면 아무 영향이 없다
-import "@/styles/dashboard-theme-paper.css";
-import "@/styles/dashboard-theme-clean.css";
+// 색·모서리·그림자는 여기가 덮어쓴다. 배치·크기는 위 파일이 그대로 정한다.
+import "@/styles/dashboard-tone.css";
 import MorningBriefing from "@/components/teacher/dashboard/MorningBriefing";
 import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
 import RelationBoard from "@/components/teacher/dashboard/RelationBoard";
@@ -41,20 +40,15 @@ import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listScheduledConsultationsOn } from "@/lib/supabase/raw/consultationLog";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const { date, theme } = await searchParams;
+  const { date } = await searchParams;
   const dateKey = resolveDateKey(date);
   const data = getDashboardSnapshot(dateKey);
   const { isToday } = data;
   const teacher = await getActingTeacher();
   const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
-  // 시안용 — ?theme=paper (크림·보라) 또는 ?theme=clean (학생 화면 톤).
-  // 그 밖의 값이면 원래 화면 그대로다. 뺄 때는 이 줄과 위의 import 둘, 테마 파일 둘을 지운다.
-  const themeClass =
-    theme === "paper" || theme === "clean" ? ` theme-${theme}` : "";
-
   return (
-    <div className={`page-dashboard${themeClass}`}>
+    <div className="page-dashboard">
       <header className="dashboard-head">
         <div>
           <h1 className="dashboard-title">대시보드</h1>
