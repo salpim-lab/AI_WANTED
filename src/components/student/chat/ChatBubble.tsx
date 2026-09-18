@@ -32,7 +32,15 @@ export default function ChatBubble({
         {showAvatar ? (
           <span className="chat-avatar chat-avatar--me" aria-hidden="true">
             {studentPhotoSrc ? (
-              <img src={studentPhotoSrc} alt="" className="chat-avatar__photo" />
+              // 사진이 없는 아이가 있을 수 있다. 깨진 이미지 대신 이름 글자를 남긴다.
+              <img
+                src={studentPhotoSrc}
+                alt=""
+                className="chat-avatar__photo"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             ) : (
               <span className="chat-avatar__initial">{initial}</span>
             )}

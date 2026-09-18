@@ -124,8 +124,12 @@ export async function startSignalCheckIn(
   // 그때마다 잠가 버리면 그 시간대 체크인을 영영 못 한다.
   if (previous?.status === "started") return previous;
 
-  // 이미 끝낸 시간대는 다시 열지 않는다. 하루 두 번이 설계다.
-  if (previous && previous.status !== "stopped") {
+  // 이미 끝낸 시간대는 다시 열지 않는다. 하루 두 번이 설계다(기획안 5장).
+  //
+  // 단 개발 중에는 막지 않는다. 같은 흐름을 몇 번이고 다시 보려면 열려 있어야 하고,
+  // 스키마의 unique 는 (enrollment, date, period, attempt) 라 attempt 만 올리면 된다.
+  // 실제로 이 제약 때문에 흐름을 한 번 보고 나면 DB 를 손봐야 다시 볼 수 있었다.
+  if (previous && previous.status !== "stopped" && process.env.NODE_ENV === "production") {
     throw new SignalCheckInRepositoryError(
       "오늘 이 시간대의 마음은 이미 들었습니다.",
       "CHECKIN_ALREADY_EXISTS",

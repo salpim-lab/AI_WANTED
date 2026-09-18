@@ -17,6 +17,7 @@ import type { Reply } from "../mockScenarios";
 import ChatBubble from "./ChatBubble";
 import GuideChips from "./GuideChips";
 import TalkButton from "./TalkButton";
+import { studentPhotoPath } from "@/lib/students/photo";
 import { useVoiceRecorder, type RecordingResult } from "./useVoiceRecorder";
 
 /** AI 가 물어본 뒤 이만큼 조용하면 가이드 칩을 올린다 */
@@ -68,6 +69,9 @@ export default function ChatScreen({
   /** 아이 말풍선 옆 프로필. 없으면 이름 첫 글자를 쓴다 */
   studentPhotoSrc?: string;
 }) {
+  // 사진을 명시하지 않으면 이름으로 찾는다. 없으면 화면이 이름 글자로 대신한다.
+  const photo = studentPhotoSrc ?? studentPhotoPath(studentFullName);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState(false);
   /** 질문이 화면에 뜬 시각. 녹음 훅이 응답 지연을 재는 기준이 된다 */
@@ -131,7 +135,7 @@ export default function ChatScreen({
   return (
     <section className={`chat-screen${active ? " active" : ""}`} aria-label="AI 와 이야기하기">
       <SalpimHeader />
-      <StudentProfile name={studentFullName} />
+      <StudentProfile name={studentFullName} photoSrc={photo} />
 
       {/* 색이 아니라 마음의 '말'을 남긴다. 뱃지 색은 고르는 색과 무관하게 한 가지로 통일 —
           색까지 따라 바뀌면 이미 고른 색을 한 번 더 평가받는 느낌이 든다. */}
@@ -145,7 +149,7 @@ export default function ChatScreen({
             // 연속된 같은 화자 중 첫 줄에만 아바타를 보인다. 양쪽 모두.
             showAvatar={messages[i - 1]?.type !== m.type}
             studentName={studentFullName}
-            studentPhotoSrc={studentPhotoSrc}
+            studentPhotoSrc={photo}
           />
         ))}
 
