@@ -2,7 +2,7 @@
 // 참고: docs/planning/PLANNING.md "[교사 화면] 탭 1. 대시보드"
 //
 // 4개 영역 배치:
-//   상단  아침 브리핑(8/12)       · 오늘의 교실(4/12)   ← 높이 동일
+//   상단  오늘의 교실(4/12)       · 아침 브리핑(8/12)   ← 높이 동일
 //   중단  관계 지도 + 갈등 기록(전폭)
 //   하단  감정 어휘 성장(전폭)
 //
@@ -73,15 +73,16 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </header>
 
         <div className="dashboard-grid">
-          <div className="col-8">
-            <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
-          </div>
+          {/* 교실(환경)을 먼저 보고 아이(개별)로 넘어가는 순서. 폭은 그대로 4 · 8 이다. */}
           <div className="col-4">
             <ClassroomToday
               classroom={data.classroom}
               participation={data.participation}
               isToday={isToday}
             />
+          </div>
+          <div className="col-8">
+            <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
           </div>
 
           <RelationBoard relation={data.relation} conflicts={data.conflicts} />
