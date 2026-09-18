@@ -7,9 +7,16 @@
 //  지도를 훑는 동안 주소가 계속 바뀌면 뒤로가기가 쓸모없어진다.)
 
 import { useState } from "react";
-import RelationshipMap from "./RelationshipMap";
+import RelationshipMap, { type MapFocus } from "./RelationshipMap";
 import RelationDetailPane from "./RelationDetailPane";
 import type { ConflictRow, DashboardData } from "./mockData";
+
+const sameFocus = (a: MapFocus, b: MapFocus) =>
+  a?.kind === "student" && b?.kind === "student"
+    ? a.id === b.id
+    : a?.kind === "pair" && b?.kind === "pair"
+      ? a.key === b.key
+      : false;
 
 export default function RelationBoard({
   relation,
@@ -18,7 +25,7 @@ export default function RelationBoard({
   relation: DashboardData["relation"];
   conflicts: ConflictRow[];
 }) {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<MapFocus>(null);
 
   return (
     <section className="card col-12 relation-conflict">
@@ -30,13 +37,15 @@ export default function RelationBoard({
         <RelationshipMap
           nodes={relation.nodes}
           edges={relation.edges}
-          selectedId={selectedId}
-          onSelect={(id) => setSelectedId((current) => (current === id ? null : id))}
+          selected={selected}
+          // 같은 걸 다시 누르면 닫힌다
+          onSelect={(focus) => setSelected((current) => (sameFocus(current, focus) ? null : focus))}
         />
         <RelationDetailPane
-          detail={selectedId === null ? null : (relation.details[selectedId] ?? null)}
+          detail={selected?.kind === "student" ? (relation.details[selected.id] ?? null) : null}
+          pair={selected?.kind === "pair" ? (relation.pairs[selected.key] ?? null) : null}
           fallbackConflicts={conflicts}
-          onClear={() => setSelectedId(null)}
+          onClear={() => setSelected(null)}
         />
       </div>
     </section>

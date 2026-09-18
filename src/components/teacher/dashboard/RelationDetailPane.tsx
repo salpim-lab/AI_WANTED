@@ -8,7 +8,12 @@
 // 아무도 안 눌렀을 때는 최근 갈등 기록을 보여준다 — 빈 패널을 두느니 그게 낫다.
 // 읽기 전용이다. work_records / conflict_statements 쓰기는 김현우 담당.
 
-import type { ConflictRow, ConflictStatement, RelationDetail } from "./mockData";
+import type {
+  ConflictRow,
+  ConflictStatement,
+  RelationDetail,
+  RelationPairDetail,
+} from "./mockData";
 
 // mockData 의 SIGNAL_DISPLAY 를 쓰면 클라이언트 번들에 mock 전체가 딸려온다. 네 줄이라 여기 둔다.
 const STATEMENT_COLOR: Record<ConflictStatement["tone"], string> = {
@@ -48,16 +53,77 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
   );
 }
 
+function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
+  return (
+    <ul className="rd-quotes">
+      {quotes.map((q, i) => (
+        <li key={i}>
+          <p>&ldquo;{q.text}&rdquo;</p>
+          <span className="rd-quote-by">
+            {q.from} · {q.date.slice(5).replace("-", "/")}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function RelationDetailPane({
   detail,
+  pair,
   fallbackConflicts,
   onClear,
 }: {
   detail: RelationDetail | null;
-  /** 아무도 선택하지 않았을 때 보여줄 최근 갈등 */
+  pair: RelationPairDetail | null;
+  /** 아무것도 선택하지 않았을 때 보여줄 최근 갈등 */
   fallbackConflicts: ConflictRow[];
   onClear: () => void;
 }) {
+  // 선을 눌렀을 때 — "이 선이 왜 생겼나"에만 답한다.
+  if (pair) {
+    return (
+      <div className="conflict-pane">
+        <div className="pane-title">
+          관계 상세
+          <button type="button" className="rd-clear" onClick={onClear}>
+            닫기
+          </button>
+        </div>
+
+        <div className="rd-head">
+          <strong className="rd-name">
+            {pair.a.name} ↔ {pair.b.name}
+          </strong>
+          <span className="rd-sub">
+            {pair.mentionCount > 0
+              ? `최근 2주 · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
+              : "최근 2주 · 서로 언급한 기록은 없어요"}
+          </span>
+        </div>
+
+        <div className="rd-section-title">이 선이 생긴 이유</div>
+        {pair.quotes.length > 0 ? (
+          <QuoteList quotes={pair.quotes} />
+        ) : (
+          <p className="conflict-empty">
+            대화에서 서로를 말한 기록은 없고, 아래 갈등 기록 때문에 이어져 있어요.
+          </p>
+        )}
+
+        <div className="rd-section-title">
+          갈등 기록
+          <span className="cnt">{pair.conflicts.length}</span>
+        </div>
+        {pair.conflicts.length === 0 ? (
+          <p className="conflict-empty">두 아이 사이의 갈등 기록은 없어요.</p>
+        ) : (
+          pair.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
+        )}
+      </div>
+    );
+  }
+
   if (!detail) {
     return (
       <div className="conflict-pane">
@@ -96,16 +162,7 @@ export default function RelationDetailPane({
       {detail.quotes.length > 0 && (
         <>
           <div className="rd-section-title">대화에서</div>
-          <ul className="rd-quotes">
-            {detail.quotes.map((q, i) => (
-              <li key={i}>
-                <p>&ldquo;{q.text}&rdquo;</p>
-                <span className="rd-quote-by">
-                  {q.from} · {q.date.slice(5).replace("-", "/")}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <QuoteList quotes={detail.quotes} />
         </>
       )}
 

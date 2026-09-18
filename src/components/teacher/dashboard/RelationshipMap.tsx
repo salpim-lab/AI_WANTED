@@ -10,8 +10,8 @@
 // 나머지를 흐리게 내린다. 선이 서른 개가 넘으면 누가 누구와 이어졌는지 눈으로 못 따라간다.
 // 이 강조는 CSS 만으로는 못 한다 — 어떤 선이 "지금 올린 노드"에 닿는지는 데이터를 봐야 알 수 있다.
 //
-// 누르면 옆 패널이 그 아이 관계로 바뀐다. 페이지를 넘기지 않는다 — RelationBoard 참고.
-// 그래서 노드는 <Link> 가 아니라 <g role="button"> 이다.
+// 아이를 누르면 그 아이의 관계가, 선을 누르면 "이 선이 왜 생겼는지"가 옆 패널에 뜬다.
+// 페이지를 넘기지 않으므로(RelationBoard 참고) 노드도 선도 <Link> 가 아니라 <g role="button"> 이다.
 // 이름은 성까지 다 쓴다: 같은 이름이 흔해서(민준/지훈) 성이 빠지면 누군지 헷갈린다.
 
 import { useState } from "react";
@@ -23,27 +23,41 @@ const NODE_STYLE: Record<RelationNode["tone"], { ring: string; text: string }> =
   isolated: { ring: "var(--rel-ring-isolated)", text: "var(--rel-text-muted)" },
 };
 
+/** 지금 강조 중인 대상 — 아이 하나이거나 선 하나다 */
+export type MapFocus = { kind: "student"; id: number } | { kind: "pair"; key: string } | null;
+
+const keyOf = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
 export default function RelationshipMap({
   nodes,
   edges,
-  selectedId,
+  selected,
   onSelect,
 }: Pick<DashboardData["relation"], "nodes" | "edges"> & {
-  selectedId: number | null;
-  onSelect: (studentId: number) => void;
+  selected: MapFocus;
+  onSelect: (focus: NonNullable<MapFocus>) => void;
 }) {
   const byId = new Map(nodes.map((n) => [n.studentId, n]));
-  const [hoverId, setHoverId] = useState<number | null>(null);
+  const [hover, setHover] = useState<MapFocus>(null);
 
-  // 누른 아이가 있으면 그 아이를 계속 강조한다. 마우스를 올린 쪽이 우선.
-  const activeId = hoverId ?? selectedId;
+  // 누른 대상이 있으면 계속 강조한다. 마우스를 올린 쪽이 우선.
+  const active = hover ?? selected;
 
-  const peerIds = new Set<number>();
-  if (activeId !== null) {
+  // 강조할 아이들 — 아이를 짚으면 그 아이와 이어진 아이들, 선을 짚으면 그 선의 양쪽만.
+  const litNodes = new Set<number>();
+  const isEdgeLit = (from: number, to: number) => {
+    if (!active) return false;
+    if (active.kind === "pair") return keyOf(from, to) === active.key;
+    return from === active.id || to === active.id;
+  };
+  if (active?.kind === "student") {
+    litNodes.add(active.id);
     for (const e of edges) {
-      if (e.from === activeId) peerIds.add(e.to);
-      if (e.to === activeId) peerIds.add(e.from);
+      if (e.from === active.id) litNodes.add(e.to);
+      if (e.to === active.id) litNodes.add(e.from);
     }
+  } else if (active?.kind === "pair") {
+    for (const id of active.key.split("-").map(Number)) litNodes.add(id);
   }
 
   return (
@@ -55,59 +69,85 @@ export default function RelationshipMap({
 
       <div className="relation-map-wrap">
         <svg
-          className={"relation-map" + (activeId !== null ? " has-active" : "")}
+          className={"relation-map" + (active ? " has-active" : "")}
           viewBox="0 0 660 380"
           role="group"
           aria-label="학급 관계 지도"
           preserveAspectRatio="xMidYMid meet"
-          onMouseLeave={() => setHoverId(null)}
+          onMouseLeave={() => setHover(null)}
         >
           {edges.map((e) => {
             const a = byId.get(e.from);
             const b = byId.get(e.to);
             if (!a || !b) return null;
             const conflict = e.kind === "conflict";
-            const on = activeId === e.from || activeId === e.to;
+            const key = keyOf(e.from, e.to);
+            const focus = { kind: "pair", key } as const;
             return (
-              <line
-                key={`${e.from}-${e.to}`}
-                className={"relation-edge" + (on ? " on" : "")}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                stroke={conflict ? "var(--rel-edge-conflict)" : "var(--rel-edge)"}
-                strokeWidth={conflict ? 2.4 : 2}
-                strokeLinecap="round"
-                strokeDasharray={conflict ? "7 6" : undefined}
-              />
+              <g
+                key={key}
+                className={
+                  "relation-edge-hit" +
+                  (isEdgeLit(e.from, e.to) ? " on" : "") +
+                  (selected?.kind === "pair" && selected.key === key ? " picked" : "")
+                }
+                role="button"
+                tabIndex={0}
+                aria-label={`${a.name}과 ${b.name}의 관계 보기`}
+                onMouseEnter={() => setHover(focus)}
+                onFocus={() => setHover(focus)}
+                onBlur={() => setHover(null)}
+                onClick={() => onSelect(focus)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(focus);
+                  }
+                }}
+              >
+                {/* 선이 2px 라 그대로는 못 누른다. 투명한 굵은 선을 겹쳐 누를 자리를 넓힌다. */}
+                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={16} />
+                <line
+                  className="relation-edge"
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={conflict ? "var(--rel-edge-conflict)" : "var(--rel-edge)"}
+                  strokeWidth={conflict ? 2.4 : 2}
+                  strokeLinecap="round"
+                  strokeDasharray={conflict ? "7 6" : undefined}
+                />
+              </g>
             );
           })}
 
           {nodes.map((n) => {
             const style = NODE_STYLE[n.tone];
-            const active = activeId === n.studentId;
-            const peer = peerIds.has(n.studentId);
+            const isActive = active?.kind === "student" && active.id === n.studentId;
+            const lit = litNodes.has(n.studentId);
+            const picked = selected?.kind === "student" && selected.id === n.studentId;
+            const focus = { kind: "student", id: n.studentId } as const;
             return (
               <g
                 key={n.studentId}
                 className={
                   "relation-node" +
-                  (active ? " active" : peer ? " peer" : "") +
-                  (selectedId === n.studentId ? " picked" : "")
+                  (isActive ? " active" : lit ? " peer" : "") +
+                  (picked ? " picked" : "")
                 }
                 role="button"
                 tabIndex={0}
-                aria-pressed={selectedId === n.studentId}
+                aria-pressed={picked}
                 aria-label={`${n.name} 관계 상세 보기`}
-                onMouseEnter={() => setHoverId(n.studentId)}
-                onFocus={() => setHoverId(n.studentId)}
-                onBlur={() => setHoverId(null)}
-                onClick={() => onSelect(n.studentId)}
+                onMouseEnter={() => setHover(focus)}
+                onFocus={() => setHover(focus)}
+                onBlur={() => setHover(null)}
+                onClick={() => onSelect(focus)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onSelect(n.studentId);
+                    onSelect(focus);
                   }
                 }}
               >
@@ -117,10 +157,10 @@ export default function RelationshipMap({
                   className="relation-node-ring"
                   cx={n.x}
                   cy={n.y}
-                  r={active ? n.r + 4 : peer ? n.r + 2 : n.r}
+                  r={isActive ? n.r + 4 : lit ? n.r + 2 : n.r}
                   fill="var(--rel-node-fill)"
                   stroke={style.ring}
-                  strokeWidth={active || peer ? 3 : 2}
+                  strokeWidth={isActive || lit ? 3 : 2}
                   strokeDasharray={n.tone === "isolated" ? "5 4" : undefined}
                 />
                 {/* 성까지 다 쓴다. 원이 작으면 글자를 줄이지 이름을 줄이지 않는다. */}
@@ -161,7 +201,7 @@ export default function RelationshipMap({
         <span>
           <i className="legend-ring" /> 다른 아이 대화에 이름이 안 나온 아이
         </span>
-        <span className="relation-hint">아이를 누르면 옆에 관계가 펼쳐져요</span>
+        <span className="relation-hint">아이나 선을 누르면 옆에 펼쳐져요</span>
       </div>
     </div>
   );

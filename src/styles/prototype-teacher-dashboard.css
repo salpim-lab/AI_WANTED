@@ -594,8 +594,14 @@
 .relation-map .relation-edge,
 .relation-map .relation-node { transition: opacity 0.15s; }
 
-.relation-map.has-active .relation-edge { opacity: 0.1; }
-.relation-map.has-active .relation-edge.on { opacity: 1; stroke-width: 3.4; }
+.relation-map.has-active .relation-edge-hit .relation-edge { opacity: 0.1; }
+.relation-map.has-active .relation-edge-hit.on .relation-edge { opacity: 1; stroke-width: 3.4; }
+
+/* 선도 누를 수 있다 — 투명한 굵은 선이 판정을 맡고, 보이는 선은 그대로 얇게 둔다 */
+.relation-edge-hit { cursor: pointer; }
+.relation-edge-hit:focus { outline: none; }
+.relation-edge-hit:focus-visible .relation-edge { stroke: var(--navy); stroke-width: 3.4; opacity: 1; }
+.relation-edge-hit.picked .relation-edge { stroke: var(--navy); stroke-width: 3.4; opacity: 1; }
 
 .relation-map.has-active .relation-node { opacity: 0.28; }
 .relation-map.has-active .relation-node.active,

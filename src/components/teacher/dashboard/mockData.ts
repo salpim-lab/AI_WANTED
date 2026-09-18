@@ -169,6 +169,16 @@ export type RelationDetail = {
   conflicts: ConflictRow[];
 };
 
+/** 선 하나를 눌렀을 때 — "이 선이 왜 생겼나"에 답하는 데 필요한 것만. */
+export type RelationPairDetail = {
+  a: { studentId: number; name: string };
+  b: { studentId: number; name: string };
+  /** 두 아이가 서로를 말한 총 횟수 */
+  mentionCount: number;
+  quotes: { from: string; date: string; text: string }[];
+  conflicts: ConflictRow[];
+};
+
 /** 아이 이름을 문장에 넣는 꼴. 받침이 있으면 "이"가 붙는다 — 민준이가 / 지우가. */
 function callName(given: string): string {
   const last = given.charCodeAt(given.length - 1) - 0xac00;
@@ -673,7 +683,12 @@ export type DashboardData = {
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
-  relation: { nodes: RelationNode[]; edges: RelationEdge[]; details: Record<number, RelationDetail> };
+  relation: {
+    nodes: RelationNode[];
+    edges: RelationEdge[];
+    details: Record<number, RelationDetail>;
+    pairs: Record<string, RelationPairDetail>;
+  };
   conflicts: ConflictRow[];
   vocab: { students: VocabStudent[]; trend: VocabMonth[] };
 };
@@ -787,42 +802,71 @@ function buildRelation(dateKey: string): DashboardData["relation"] {
     }
   }
 
-  return { nodes, edges, details: buildRelationDetails(ids, window, records) };
+  return { nodes, edges, ...buildRelationDetails(ids, window, records) };
 }
 
-/** 아이별 관계 상세. 지도 옆 패널이 쓴다 — 횟수와 원문, 그리고 갈등. */
+/** 짝 키는 늘 작은 번호가 앞이다 — 방향이 달라도 같은 선을 가리키게 */
+export const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+/** 아이별·짝별 관계 상세. 언급을 한 번만 모아서 두 갈래로 나눠 담는다. */
 function buildRelationDetails(
   ids: number[],
   window: string[],
   records: ConflictRow[],
-): Record<number, RelationDetail> {
-  const quotes = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
+): { details: Record<number, RelationDetail>; pairs: Record<string, RelationPairDetail> } {
+  const byStudent = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
+  const byPair = new Map<string, RelationPairDetail["quotes"]>();
 
   for (const date of window) {
     for (const { from, to } of mentionsOn(date)) {
       const template = MENTION_QUOTE[Math.floor(hash01(date, from * 100 + to, 61) * MENTION_QUOTE.length)];
       // 인용은 "말한 아이"의 발화다 — 그 안에 상대 이름이 들어간다
-      quotes.get(to)!.push({
+      const quote = {
         from: STUDENT_NAMES[from],
         date,
         text: template.replace("{to}", callName(STUDENT_NAMES[to].slice(1))),
-      });
+      };
+      byStudent.get(to)!.push(quote);
+      const key = pairKey(from, to);
+      if (!byPair.has(key)) byPair.set(key, []);
+      byPair.get(key)!.push(quote);
     }
   }
 
-  return Object.fromEntries(
+  const details = Object.fromEntries(
     ids.map((studentId) => [
       studentId,
       {
         studentId,
         name: STUDENT_NAMES[studentId],
-        mentionCount: quotes.get(studentId)!.length,
+        mentionCount: byStudent.get(studentId)!.length,
         // 최근 것부터 3개까지 — 더 보여줘도 패널에서 읽히지 않는다
-        quotes: quotes.get(studentId)!.slice().reverse().slice(0, 3),
+        quotes: byStudent.get(studentId)!.slice().reverse().slice(0, 3),
         conflicts: records.filter((c) => c.pairIds.includes(studentId)),
       },
     ]),
   );
+
+  // 갈등만 있고 언급은 없는 짝도 선이 그려지므로, 그 짝의 상세도 있어야 한다
+  const keys = new Set([...byPair.keys(), ...records.map((c) => pairKey(...c.pairIds))]);
+  const pairs = Object.fromEntries(
+    [...keys].map((key) => {
+      const [a, b] = key.split("-").map(Number);
+      const quotes = byPair.get(key) ?? [];
+      return [
+        key,
+        {
+          a: { studentId: a, name: STUDENT_NAMES[a] },
+          b: { studentId: b, name: STUDENT_NAMES[b] },
+          mentionCount: quotes.length,
+          quotes: quotes.slice().reverse().slice(0, 4),
+          conflicts: records.filter((c) => pairKey(...c.pairIds) === key),
+        },
+      ];
+    }),
+  );
+
+  return { details, pairs };
 }
 
 function buildVocab(snapshot: DaySnapshot): DashboardData["vocab"] {
