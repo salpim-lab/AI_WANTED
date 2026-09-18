@@ -15,32 +15,37 @@ export type ExtendedShape =
   | { shape: "hollowContainer"; radiusTop: number; radiusBottom: number; height: number; wallThickness: number; bottomThickness: number };
 
 export function parseExtendedShape(p: Record<string, unknown>): ExtendedShape {
-  const n = (key: string, min = 0.01, max = 2): number => {
+  const n = (key: string, min = 0, max = Infinity): number => {
     const v = p[key];
     if (typeof v !== "number" || !Number.isFinite(v) || v < min || v > max) throw new Error(`${key}는 ${min}~${max} 숫자여야 해요.`);
     return v;
   };
+  const d = (key: string): number => {
+    const value = n(key);
+    if (value === 0) throw new Error(`${key}는 0보다 커야 해요.`);
+    return value;
+  };
   switch (p.shape) {
-    case "sphere": case "hemisphere": return { shape: p.shape, radius: n("radius", 0.01, 1) };
-    case "ellipticCylinder": return { shape: p.shape, radiusX: n("radiusX", 0.01, 1), radiusZ: n("radiusZ", 0.01, 1), height: n("height", 0.02) };
+    case "sphere": case "hemisphere": return { shape: p.shape, radius: d("radius") };
+    case "ellipticCylinder": return { shape: p.shape, radiusX: d("radiusX"), radiusZ: d("radiusZ"), height: d("height") };
     case "prism": {
       const sides = n("sides", 3, 12);
       if (!Number.isInteger(sides)) throw new Error("sides는 정수여야 해요.");
-      return { shape: p.shape, radius: n("radius", 0.01, 1), height: n("height", 0.02), sides };
+      return { shape: p.shape, radius: d("radius"), height: d("height"), sides };
     }
-    case "cone": return { shape: p.shape, radius: n("radius", 0.01, 1), height: n("height", 0.02) };
-    case "frustum": return { shape: p.shape, radiusTop: n("radiusTop", 0, 1), radiusBottom: n("radiusBottom", 0.01, 1), height: n("height", 0.02) };
-    case "capsule": return { shape: p.shape, radius: n("radius", 0.01, 0.5), length: n("length", 0, 1) };
+    case "cone": return { shape: p.shape, radius: d("radius"), height: d("height") };
+    case "frustum": return { shape: p.shape, radiusTop: n("radiusTop"), radiusBottom: d("radiusBottom"), height: d("height") };
+    case "capsule": return { shape: p.shape, radius: d("radius"), length: n("length") };
     case "torus": case "torusArc": {
-      const radius = n("radius", 0.02, 1), tubeRadius = n("tubeRadius", 0.01, radius * 0.8);
+      const radius = d("radius"), tubeRadius = d("tubeRadius");
       return p.shape === "torus" ? { shape: p.shape, radius, tubeRadius } : { shape: p.shape, radius, tubeRadius, arc: n("arc", 0.1, Math.PI * 2) };
     }
-    case "curvedPlate": return { shape: p.shape, width: n("width", 0.02), height: n("height", 0.02), depth: n("depth", 0.01, 0.2), bend: n("bend", -Math.PI, Math.PI) };
+    case "curvedPlate": return { shape: p.shape, width: d("width"), height: d("height"), depth: d("depth"), bend: n("bend", -Math.PI, Math.PI) };
     case "hollowContainer": {
-      const radiusTop = n("radiusTop", 0.02, 1), radiusBottom = n("radiusBottom", 0.02, 1), height = n("height", 0.02);
-      const wallThickness = n("wallThickness", 0.01, Math.min(radiusTop, radiusBottom) * 0.8);
-      const bottomThickness = n("bottomThickness", 0, height * 0.8);
-      if (bottomThickness > 0 && bottomThickness < 0.01) throw new Error("바닥 두께는 0 또는 0.01 이상이어야 해요.");
+      const radiusTop = d("radiusTop"), radiusBottom = d("radiusBottom"), height = d("height");
+      // Preserve a hollow interior without rejecting the whole generated item.
+      const wallThickness = Math.min(d("wallThickness"), Math.min(radiusTop, radiusBottom) * 0.99);
+      const bottomThickness = Math.min(n("bottomThickness"), height * 0.99);
       return { shape: p.shape, radiusTop, radiusBottom, height, wallThickness, bottomThickness };
     }
     default: throw new Error("지원하지 않는 도형이에요. 도형 목록을 확인해 주세요.");

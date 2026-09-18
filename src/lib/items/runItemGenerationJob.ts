@@ -10,6 +10,7 @@ import { FALLBACK_ITEM_SPEC } from "./fallbackItem";
 import { findCatalogItem, type CatalogItem } from "./itemCatalog";
 import { catalogAssetKey, ensurePresetAssetsSynced, FALLBACK_KEY, STYLE_VERSION } from "./presetAssets";
 import { issueStudentItem } from "./issueStudentItem";
+import { createGenerationTimer } from "./generationTiming";
 
 type Job = { id: string; enrollment_id: string; source_session_id: string; status: string; attempt_count: number; max_attempts: number; fallback_asset_id: string | null };
 // database.types.ts is regenerated after the procedural-asset migration.
@@ -84,33 +85,35 @@ export async function runItemGenerationJob(jobId: string) {
   const { data: claimed, error: claimError } = await client.from("item_generation_jobs").update({ status: "generating", attempt_count: nextAttempt, started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", job.id).in("status", ["queued", "retry_wait", "fallback"]).eq("attempt_count", job.attempt_count).select("id").maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { skipped: true, status: "claimed_by_other_worker" };
+  const measure = createGenerationTimer(job.id, nextAttempt);
+  return measure("worker_total", async () => {
   let stage: "transcript" | "inference" | "assembly" | "save" = "transcript";
   let inference: ItemInference | undefined;
   let assembly: AssembledItemSpec | undefined;
   try {
     stage = "inference";
-    inference = await inferItem(parseTranscript(session.transcript));
+    inference = await measure("item_inference", () => inferItem(parseTranscript(session.transcript)));
     // Publish the reveal data before the potentially slow assembly call.
-    await updateJob(job.id, { inference_output: inference, student_message: inference.studentMessage });
-    const catalogItem = findCatalogItem(inference.subject);
+    await measure("inference_result_save", () => updateJob(job.id, { inference_output: inference, student_message: inference!.studentMessage }));
+    const catalogItem = await measure("catalog_lookup", () => findCatalogItem(inference!.subject));
     const dedupKey = canonicalAssetKey(inference.subject, catalogItem);
     stage = "save";
-    let assetId = await findReadyAsset(dedupKey);
+    let assetId = await measure("existing_asset_lookup", () => findReadyAsset(dedupKey));
     if (!assetId) {
-      if (catalogItem) assetId = await saveProceduralAsset(catalogItem.spec, job, "catalog", dedupKey);
+      if (catalogItem) assetId = await measure("asset_save", () => saveProceduralAsset(catalogItem.spec, job, "catalog", dedupKey));
       else {
         stage = "assembly";
-        assembly = await assembleItem(inference);
+        assembly = await assembleItem(inference, measure);
         stage = "save";
         const spec = parseLabItem(assembly);
         if ("shape" in spec) throw new Error("ASSEMBLY_NOT_COMPOSITE");
-        assetId = await saveProceduralAsset({ ...spec, sizeClass: inference.sizeClass }, job, "generated", dedupKey);
+        assetId = await measure("asset_save", () => saveProceduralAsset({ ...spec, sizeClass: inference!.sizeClass }, job, "generated", dedupKey));
       }
     }
-    const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId });
-    await replacePlacedAsset(studentItem.id, assetId);
+    const studentItem = await measure("item_issuance", () => issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId: assetId! }));
+    await measure("placement_update", () => replacePlacedAsset(studentItem.id, assetId!));
     // last_error_* stay: a success after a failed attempt still counts toward failure rates.
-    await updateJob(job.id, { status: "completed", generated_asset_id: assetId, student_item_id: studentItem.id, inference_output: inference, assembly_output: assembly ?? null, student_message: inference.studentMessage, completed_at: new Date().toISOString() });
+    await measure("job_completion_save", () => updateJob(job.id, { status: "completed", generated_asset_id: assetId, student_item_id: studentItem.id, inference_output: inference, assembly_output: assembly ?? null, student_message: inference!.studentMessage, completed_at: new Date().toISOString() }));
     return { status: "completed", assetId, studentItemId: studentItem.id };
   } catch (error) {
     const code = error instanceof ItemAIError ? error.code : error instanceof Error ? error.message : "GENERATION_FAILED";
@@ -122,4 +125,5 @@ export async function runItemGenerationJob(jobId: string) {
     await updateJob(job.id, { status: terminal ? "fallback_final" : "fallback", fallback_asset_id: fallbackId, student_item_id: studentItem.id, next_attempt_at: terminal ? null : new Date(Date.now() + 30_000).toISOString(), ...failure, last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
     return { status: terminal ? "fallback_final" : "fallback", assetId: fallbackId, studentItemId: studentItem.id, reason: code };
   }
+  });
 }

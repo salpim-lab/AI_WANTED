@@ -139,8 +139,8 @@ export function createChildCharacter(kind: GiftKind, asset?: { assetFormat?: "gl
           side * (base.shoulder[2] + breath * 0.03 * sway),
         );
         elbow.rotation.set(base.elbow + breath * 0.04 * sway, 0, 0);
-        if (greetingProgress !== undefined && pose === "holding" && side === 1) {
-          // One greeting: smoothly lift, wave twice, then return to holding.
+        if (greetingProgress !== undefined && pose !== "waving" && side === 1) {
+          // One greeting: smoothly lift, wave twice, then return to the pose.
           const progress = THREE.MathUtils.clamp(greetingProgress, 0, 1);
           const edge = Math.min(progress / 0.2, (1 - progress) / 0.2, 1);
           const lift = edge * edge * (3 - 2 * edge);

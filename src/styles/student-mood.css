@@ -4,9 +4,6 @@
 
 .mood-screen {
   background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
-  /* 홈 화면은 absolute inset-0 이라 진행 점(progress-dots)을 덮는다.
-     마음 화면은 점을 보여줘야 하므로 흐름 배치로 되돌려 점 아래에 놓는다.
-     공용 .progress-dots 는 강윤지님 섬 화면도 쓰므로 건드리지 않는다. */
   position: relative;
   inset: auto;
   flex: 1;

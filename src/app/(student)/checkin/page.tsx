@@ -8,17 +8,20 @@
 "use client";
 
 import "@/styles/prototype-student-chat.css";
+import { useCallback } from "react";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
-import ItemReveal from "@/components/student/ItemReveal";
-import IslandBoard from "@/components/student/IslandBoard";
+import ItemPreparation from "@/components/student/ItemPreparation";
+import type { Item } from "@/components/student/mockScenarios";
 
 export default function CheckinPage() {
   const flow = useCheckinFlow("checkin");
+  const { setItem, goTo } = flow;
+  const enterIsland = useCallback((item: Item) => { setItem(item); goTo(5); }, [setItem, goTo]);
   const scenario = flow.color ? getCheckinScenario(flow.color) : null;
   // 뱃지는 색 이름이 아니라 마음 설명을 보여준다. 아이가 "내가 왜 이 기분이지?" 를
   // 떠올리며 말하도록 돕는 장치다. 하교 화면과 같은 출처(SIGNAL_COLORS)를 쓴다.
@@ -26,15 +29,6 @@ export default function CheckinPage() {
 
   return (
     <>
-      <div className="progress-dots">
-        {[1, 2, 3, 4, 5].map((s) => (
-          <span
-            key={s}
-            className={s === flow.step ? "active" : s < flow.step ? "done" : undefined}
-          />
-        ))}
-      </div>
-
       <StudentHome
         mode="morning"
         active={flow.step === 1}
@@ -62,8 +56,7 @@ export default function CheckinPage() {
         flow="checkin"
         color={flow.color}
       />
-      <ItemReveal active={flow.step === 4} item={flow.item} onNext={() => flow.goTo(5)} />
-      <IslandBoard active={flow.step === 5} item={flow.item} onComplete={() => {}} />
+      {(flow.step === 4 || flow.step === 5) && <ItemPreparation sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
     </>
   );
 }
