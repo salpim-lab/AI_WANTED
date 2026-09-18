@@ -1,7 +1,14 @@
 // 담당: 이지현
 // TeacherAgentWidget의 대화 상태/전송 로직. layout에서 한 번만 마운트되므로
 // 탭을 넘나들어도 상태가 유지된다 (App Router layout 리마운트 없음 특성 활용).
-// /students/[id] 페이지에 있을 때는 그 학생으로 질문 범위를 자동으로 좁힌다(usePathname으로 감지).
+//
+// 학생 범위 좁히기는 두 단계:
+//   1) 지금 보고 있는 페이지가 특정 학생 화면이면(아래 STUDENT_ID_PATTERNS) 그걸 우선 사용.
+//      "누적자료보기"(consultation/report/[id])는 새 탭으로 열리므로, 그 탭 안에서 물어볼 때만 잡힌다 —
+//      새 탭은 확인용이고 원래 탭에서 계속 물어보는 경우가 많아서, 이것만으론 부족하다.
+//   2) 그래서 페이지로 못 잡으면 서버(context.ts)가 질문 문장 안의 학생 이름으로 다시 찾는다.
+//      "한지훈 학생 자료 요약해줘"처럼 페이지와 무관하게 이름만 말해도 그 학생으로 좁혀진다 —
+//      이게 실제로 더 자주 맞는 경로라 studentId를 못 찾아도 항상 question은 그대로 보낸다.
 
 "use client";
 
@@ -12,9 +19,15 @@ type AgentMessage = { id: number; role: "user" | "agent"; text: string };
 
 let msgId = 0;
 
+const STUDENT_ID_PATTERNS = [/^\/students\/([^/]+)$/, /^\/consultation\/report\/([^/]+)$/];
+
 function studentIdFromPathname(pathname: string | null): string | null {
-  const match = pathname?.match(/^\/students\/([^/]+)$/);
-  return match ? decodeURIComponent(match[1]) : null;
+  if (!pathname) return null;
+  for (const pattern of STUDENT_ID_PATTERNS) {
+    const match = pathname.match(pattern);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  return null;
 }
 
 export function useAgentChat() {

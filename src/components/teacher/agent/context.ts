@@ -5,10 +5,16 @@
 // 그대로 내부만 교체"라고 그쪽 파일에 적혀 있어서, 여기는 고칠 일이 없다. 남의 파일은 절대 이 안에서
 // 수정하지 않는다.
 //
-// (2026-09-18 수정) getConsultationReport는 이름과 달리 학부모상담기록(parent_consultations)을
+// (2026-09-18 수정 1) getConsultationReport는 이름과 달리 학부모상담기록(parent_consultations)을
 // 담지 않는다 — 이름은 "상담 자료 리포트"이고 실제로는 신호등/대화/관찰일지/어휘/관계만 모은다.
 // 학부모상담기록은 별도 함수(listConsultationLogs)라서 빠뜨렸었다. Supabase 연동 문제가 아니라
 // 이 파일에서 그 함수를 안 부르고 있었던 것 — 아래에서 직접 추가해서 가져온다.
+//
+// (2026-09-18 수정 2) 학생 범위 좁히기를 페이지 URL에만 의존하면 안 됐다. "누적자료보기"
+// (/consultation/report/[id])는 새 탭으로 열려서, 원래 탭(/consultation)에서 계속 물어보면
+// 챗봇은 "학급 전체" 질문으로 오해해 그 학생 기록을 아예 조회하지 않는다 — 데이터가 없는 게
+// 아니라 조회하러 가지도 않은 것. useAgentChat이 studentId를 못 찾아 보내도, 질문 문장에 학생
+// 이름이 있으면 여기서 다시 찾는다(resolveStudentIdByName) — 페이지가 어디든 이름만 말하면 된다.
 // 참고: docs/planning/살핌_DB_스키마_v0.3.md §9.3 get_student_context — 지금은 그 SQL 함수 대신
 // 이미 동작하는 mock 조회 함수 조합으로 같은 역할을 한다. Supabase 연결 후 get_student_context RPC로
 // 교체할 수 있지만, 급하지 않다 — 아래 3곳(신호등/관찰기록/어휘·관계)을 이미 한 번에 주는
@@ -20,7 +26,12 @@ import { addDays, todayKst } from "@/components/shared/datetime";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listObservationLogs } from "@/lib/supabase/raw/observationLog";
 import { listConsultationLogs } from "@/lib/supabase/raw/consultationLog";
-import { getConsultationReport, getSeatingChart, REPORT_DEFAULT_DAYS } from "@/lib/supabase/queries/teacherStudents";
+import {
+  getConsultationReport,
+  getSeatingChart,
+  listClassStudents,
+  REPORT_DEFAULT_DAYS,
+} from "@/lib/supabase/queries/teacherStudents";
 import type { SignalColor } from "@/lib/types/signal";
 
 const COLOR_LABEL: Record<SignalColor, string> = { green: "초록", yellow: "노랑", red: "빨강", navy: "남색" };
@@ -33,13 +44,25 @@ export type AgentContext = {
   contextText: string;
 };
 
-/** studentId가 있으면 그 학생 한 명, 없으면 학급 전체 기준으로 컨텍스트를 만든다. */
-export async function buildAgentContext(studentId: string | null): Promise<AgentContext> {
+/**
+ * studentId가 있으면 그 학생 한 명, 없으면 질문 문장에서 학생 이름을 찾아본다(페이지로 못 좁혔을 때의
+ * 보조 경로 — 새 탭에서 연 리포트를 보며 원래 탭에서 물어보는 경우가 실제로 흔하다). 그래도 못 찾으면
+ * 학급 전체 기준으로 컨텍스트를 만든다.
+ */
+export async function buildAgentContext(studentId: string | null, question: string): Promise<AgentContext> {
   const teacher = await getActingTeacher();
   const today = todayKst();
 
-  if (studentId) return buildStudentContext(teacher.classId, studentId, today);
+  const resolvedId = studentId ?? (await resolveStudentIdByName(teacher.classId, question));
+  if (resolvedId) return buildStudentContext(teacher.classId, resolvedId, today);
   return buildClassContext(teacher.classId, today);
+}
+
+/** 질문에 학급 학생 이름이 정확히 한 명만 등장하면 그 학생으로 본다 — 여러 명이 겹치면 함부로 안 좁힌다. */
+async function resolveStudentIdByName(classId: string, question: string): Promise<string | null> {
+  const students = await listClassStudents(classId);
+  const matches = students.filter((s) => question.includes(s.name));
+  return matches.length === 1 ? matches[0].studentId : null;
 }
 
 async function buildStudentContext(classId: string, studentId: string, today: string): Promise<AgentContext> {

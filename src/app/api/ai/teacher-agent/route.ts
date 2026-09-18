@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const studentId = typeof body.studentId === "string" && body.studentId.trim() ? body.studentId.trim() : null;
 
   try {
-    const { studentName, contextText } = await buildAgentContext(studentId);
+    const { studentName, contextText } = await buildAgentContext(studentId, question);
     const safeContext = contextText || "참고할 기록이 없습니다.";
 
     if (!hasOpenAIKey()) {
