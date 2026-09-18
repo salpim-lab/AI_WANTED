@@ -1,6 +1,6 @@
 // 담당: 김현우
 // 아이 상세 헤더 아래 최근 N일 날짜 칸 — Server Component. 선택은 URL(?date=)로 하므로 상태가 없다.
-// 칸의 점은 그날 등교 색(없으면 하교 색). 그 이전 날짜는 헤더의 날짜 입력(StudentDatePicker)으로 고른다.
+// 칸의 점은 그날 등교 색(없으면 하교 색). 그 이전 날짜는 헤더의 날짜 컨트롤(DateControl)로 고른다.
 // 참고: docs/prototype/prototype-teacher.html #mini-calendar
 
 import Link from "next/link";

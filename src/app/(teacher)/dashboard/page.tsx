@@ -25,13 +25,13 @@ import ParticipationOverview from "@/components/teacher/dashboard/ParticipationO
 import RelationshipMap from "@/components/teacher/dashboard/RelationshipMap";
 import ConflictLog from "@/components/teacher/dashboard/ConflictLog";
 import VocabGrowthChart from "@/components/teacher/dashboard/VocabGrowthChart";
-import DashboardDatePicker from "@/components/teacher/dashboard/DashboardDatePicker";
+import DateControl from "@/components/teacher/shared/DateControl";
+import TimetableButton from "@/components/teacher/shared/TimetableButton";
 import {
-  DASHBOARD_MIN_DATE,
-  DASHBOARD_TODAY,
+  dashboardMinDate,
+  dashboardToday,
   getDashboardSnapshot,
   resolveDateKey,
-  weekdayOf,
 } from "@/components/teacher/dashboard/mockData";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
@@ -46,22 +46,25 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         <div>
           <h1 className="dashboard-title">대시보드</h1>
           <p className="dashboard-caption">
-            {isToday
-              ? `오늘 우리 반은 어떤가요? · ${weekdayOf(dateKey)}요일`
-              : `지난 기록을 보고 있어요 · ${weekdayOf(dateKey)}요일`}
+            {isToday ? "오늘 우리 반은 어떤가요?" : "지난 기록을 보고 있어요"}
           </p>
         </div>
-        <DashboardDatePicker
-          dateKey={dateKey}
-          isToday={isToday}
-          minDate={DASHBOARD_MIN_DATE}
-          maxDate={DASHBOARD_TODAY}
-        />
+        <div className="dashboard-head-controls">
+          <DateControl
+            dateKey={dateKey}
+            today={dashboardToday()}
+            basePath="/dashboard"
+            minDate={dashboardMinDate()}
+            maxDate={dashboardToday()}
+            label="대시보드 날짜 선택"
+          />
+          <TimetableButton dateKey={dateKey} />
+        </div>
       </header>
 
       <div className="dashboard-grid">
         <div className="col-8">
-          <MorningBriefing watch={data.briefing.watch} praise={data.briefing.praise} isToday={isToday} />
+          <MorningBriefing watch={data.briefing.watch} isToday={isToday} />
         </div>
         <div className="col-4">
           <ClassroomToday classroom={data.classroom} isToday={isToday} />

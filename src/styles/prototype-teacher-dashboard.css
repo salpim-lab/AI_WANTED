@@ -112,13 +112,6 @@
 }
 
 /* ── 1. 아침 브리핑 (가장 먼저 읽히는 카드) ─────────────────────── */
-.briefing-cols {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 26px;
-}
-.briefing-col { display: flex; flex-direction: column; }
 .briefing-col-title {
   display: flex;
   align-items: baseline;
@@ -130,16 +123,18 @@
 }
 .briefing-col-hint { font-size: 11px; font-weight: 600; color: var(--faint); }
 
+/* 한 열짜리 목록이지만 카드가 넓어(col-8) 2단으로 흘려 담는다 — 세로로 길어지지 않게. */
 .briefing-list {
   flex: 1;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  align-content: start;
 }
-.briefing-list > li { flex: 1; display: flex; }
+.briefing-list > li { display: flex; }
 .briefing-row {
   flex: 1;
   display: flex;
@@ -153,16 +148,13 @@
   transition: background-color 0.15s;
 }
 .briefing-row:hover { background: #f4f2ec; }
+/* 이름 첫 글자 대신 그날 고른 색 그대로의 동그라미. 옅은 같은 색 후광으로 자리를 잡는다. */
 .briefing-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
   flex-shrink: 0;
+  margin: 0 5px;
 }
 .briefing-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .briefing-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -172,16 +164,14 @@
 .briefing-go { font-size: 14px; color: #cbc5b9; flex-shrink: 0; }
 .briefing-row:hover .briefing-go { color: var(--muted); }
 
-.tone-green .briefing-avatar { background: var(--green-bg); color: #5f8f73; }
+.tone-green .briefing-avatar { background: var(--green); box-shadow: 0 0 0 5px var(--green-bg); }
 .tone-green .bstatus { color: #5f8f73; }
-.tone-yellow .briefing-avatar { background: var(--yellow-bg); color: #9a7b34; }
+.tone-yellow .briefing-avatar { background: var(--yellow); box-shadow: 0 0 0 5px var(--yellow-bg); }
 .tone-yellow .bstatus { color: #9a7b34; }
-.tone-red .briefing-avatar { background: var(--red-bg); color: #b9674a; }
+.tone-red .briefing-avatar { background: var(--red); box-shadow: 0 0 0 5px var(--red-bg); }
 .tone-red .bstatus { color: #b9674a; }
-.tone-navy .briefing-avatar { background: var(--navy-bg); color: #5f679a; }
+.tone-navy .briefing-avatar { background: var(--navy); box-shadow: 0 0 0 5px var(--navy-bg); }
 .tone-navy .bstatus { color: #5f679a; }
-.tone-star .briefing-avatar { background: #fbf3e2; color: #b08b43; }
-.tone-star .bstatus { color: #b08b43; }
 
 /* ── 2. 관계 지도 + 갈등 기록 ─────────────────────────────────── */
 /* 지도 쪽이 짧아서 아래가 비지 않도록, 두 패널을 같은 높이로 두고
@@ -412,15 +402,30 @@
 }
 .vocab-trend-note em.down { color: #9a7b34; background: var(--yellow-bg); }
 
-.vocab-chart { display: flex; align-items: flex-end; gap: 10px; }
+.vocab-chart { display: flex; align-items: flex-end; gap: 10px; list-style: none; margin: 0; padding: 0; }
 .vocab-bar-group {
+  position: relative;
   flex: 1;
   min-width: 0;
+}
+/* 막대 전체가 hover·포커스 대상이다 — 얇은 막대만 노리게 하면 쓰기 어렵다. */
+.vocab-trigger {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 7px;
+  width: 100%;
+  padding: 4px 2px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+  transition: background-color 0.15s;
 }
+.vocab-bar-group:hover .vocab-trigger { background: var(--soft); }
+.vocab-trigger:focus-visible { outline: 2px solid var(--navy-ring); outline-offset: 1px; }
 .vocab-val { font-size: 11px; font-weight: 700; color: #a5aae0; }
 .vocab-val.above { color: #5a5fd6; }
 .vocab-track { position: relative; width: 100%; height: 132px; }
@@ -455,6 +460,72 @@
 .vocab-key.above { background: #6b71e0; }
 .vocab-foot-right { margin-left: auto; }
 .vocab-foot-right strong { color: var(--text); font-weight: 800; }
+
+/* ── 감정 어휘 tooltip — 그 아이가 실제로 쓴 말 ───────────────────
+   막대 아래에 펼친다. 위로 띄우면 막대와 숫자를 가려서 비교하던 걸 놓친다.
+   막대가 20개라 좌우 끝에서 잘리지 않게 가운데 정렬로 둔다. */
+.vocab-tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-3px);
+  z-index: 30;
+  width: max-content;
+  max-width: 230px;
+  padding: 11px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(60, 50, 35, 0.06), 0 12px 28px rgba(60, 50, 35, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+.vocab-bar-group:hover .vocab-tooltip,
+.vocab-bar-group:focus-within .vocab-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%);
+}
+.vocab-tooltip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.vocab-tooltip-total { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted); }
+.vocab-word-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.vocab-word-list li {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--soft);
+  border-radius: 99px;
+  padding: 3px 8px;
+}
+.vocab-word-list li.fresh { color: #4a50c8; background: #ecedfb; }
+.vocab-tooltip-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.vocab-fresh-key { width: 9px; height: 9px; border-radius: 50%; background: #ecedfb; border: 1px solid #b9bdef; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vocab-tooltip { transition: none; }
+}
 
 /* ── 6. 전체 참여도 (숫자 카드가 아니라 흐름) ───────────────────── */
 .participation-today { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -558,93 +629,40 @@
 .dashboard-title { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -0.5px; }
 .dashboard-caption { margin: 5px 0 0; font-size: 12px; color: var(--muted); }
 
-.date-control { display: flex; align-items: center; gap: 8px; }
-.date-field {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(60, 50, 35, 0.04);
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.date-field:hover { border-color: var(--navy-ring); background: #fdfcfa; }
-/* 마우스 클릭으로 포커스가 들어왔을 때는 테두리만, 키보드 포커스일 때만 링을 그린다 */
-.date-field:focus-within { border-color: var(--navy); }
-.date-field:has(.date-input:focus-visible) { box-shadow: 0 0 0 3px var(--navy-bg); }
-.date-field * { cursor: pointer; }
-.date-icon {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
-.date-text { font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
-.date-text em {
-  font-style: normal;
-  margin-right: 7px;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: var(--navy-bg);
-  color: #5f679a;
-  font-size: 10.5px;
-  font-weight: 700;
-}
-/* 브라우저 기본 date 입력을 투명하게 덮어 위 문구만 보이게 한다 (외부 패키지 없이) */
-.date-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: none;
-  opacity: 0;
-  cursor: pointer;
-  font-family: inherit;
-}
-/* input[type=date] 는 "달력 아이콘"을 눌러야만 네이티브 피커가 열린다.
-   그 아이콘을 입력 전체 크기로 늘려서, 박스 어디를 눌러도 피커가 열리게 한다.
-   (showPicker() 같은 JS API 에 기대지 않고 네이티브 클릭 영역 자체를 넓히는 방식) */
-.date-input::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-.date-today-btn {
-  padding: 9px 13px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--muted);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.date-today-btn:hover { color: var(--text); border-color: var(--navy-ring); }
+/* 날짜 컨트롤(.date-control)과 시간표 버튼은 세 화면이 공유하므로 styles/teacher-date-control.css 에 있다. */
+.dashboard-head-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ══ 관계 지도 노드 링크 ══════════════════════════════════════════════
    원+이름만 링크다. 관계선은 클릭 대상이 아니다. */
 .relation-node { cursor: pointer; }
-.relation-node .relation-node-ring { transition: stroke-width 0.15s; }
-.relation-node:hover .relation-node-ring,
-.relation-node:focus-visible .relation-node-ring { stroke-width: 3.5; }
+.relation-node .relation-node-ring { transition: stroke-width 0.15s, r 0.15s; }
 .relation-node:focus { outline: none; }
 .relation-node:focus-visible .relation-node-ring { stroke-dasharray: none; }
+
+/* ── 올린 아이와 이어진 것만 남기기 ──────────────────────────────────
+   has-active 는 아이 하나에 마우스를 올렸거나 키보드 포커스가 갔을 때만 붙는다.
+   기본값을 흐리게 두지 않는다 — 아무것도 안 올린 평소 상태가 이 지도의 정상 모습이다. */
+.relation-map .relation-edge,
+.relation-map .relation-node { transition: opacity 0.15s; }
+
+.relation-map.has-active .relation-edge { opacity: 0.1; }
+.relation-map.has-active .relation-edge.on { opacity: 1; stroke-width: 3.4; }
+
+.relation-map.has-active .relation-node { opacity: 0.28; }
+.relation-map.has-active .relation-node.active,
+.relation-map.has-active .relation-node.peer { opacity: 1; }
+
+/* 이어진 선을 굵게 하는 것만으로는 어느 쪽을 올렸는지 안 보여서, 올린 아이만 링 색을 바꾼다. */
+.relation-map.has-active .relation-node.active .relation-node-ring {
+  stroke: var(--navy-ring);
+  stroke-dasharray: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relation-map .relation-edge,
+  .relation-map .relation-node,
+  .relation-node .relation-node-ring { transition: none; }
+}
 
 /* ══ 오늘의 교실 — 감정별 학생 명단 tooltip ═══════════════════════════
    JS 없이 :hover / :focus-within 으로만 뜬다. 툴팁은 li 안에 있어서
@@ -737,7 +755,7 @@
   .dashboard-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .date-control { justify-content: flex-start; flex-wrap: wrap; }
   .page-dashboard .card { padding: 20px 18px; border-radius: 18px; }
-  .briefing-cols { grid-template-columns: 1fr; gap: 20px; }
+  .briefing-list { grid-template-columns: 1fr; }
   .classroom-legend { grid-template-columns: repeat(2, 1fr); }
   .vocab-chart { gap: 4px; }
   .vocab-track { height: 96px; }

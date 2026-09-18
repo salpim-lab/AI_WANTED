@@ -17,21 +17,21 @@
 // — /students/[id] 링크가 실제로 열리게 하기 위함. (해당 파일은 import 하지 않는다: 소유자 분리)
 
 import type { SignalColor } from "@/lib/types/signal";
+// 헤더의 "오늘 날짜"(components/teacher/CurrentDate.tsx)와 같은 기준을 써야
+// 상단 날짜와 대시보드의 "오늘"이 어긋나지 않는다. 둘 다 Asia/Seoul 기준이다.
+import { todayKst } from "@/components/shared/datetime";
+// 패턴 경고의 "체육 있는 날" 같은 교차는 실제 시간표를 봐야 근거가 참이 된다.
+import { periodOf } from "@/lib/timetable/classTimetable";
 
 /* ══ 날짜 유틸 ═══════════════════════════════════════════════════════
-   서버에서만 실행되지만, 로컬 타임존에 따라 결과가 흔들리지 않도록 전부 UTC 기준으로 계산한다. */
+   날짜 문자열 산술은 전부 UTC 기준으로 계산한다 (로컬 타임존에 흔들리지 않게).
+   "지금이 며칠인가"만 todayKst() 로 한국 시각에서 가져온다. */
 
 const KO_WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 
 /** "2026-09-16" → "수" */
 export function weekdayOf(dateKey: string): string {
   return KO_WEEKDAY[new Date(`${dateKey}T00:00:00Z`).getUTCDay()];
-}
-
-/** "2026-09-16" → "2026. 09. 16." */
-export function formatDotDate(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-");
-  return `${y}. ${m}. ${d}.`;
 }
 
 /** "2026-09-16" → "9/16" */
@@ -52,22 +52,46 @@ function recentSchoolDays(dateKey: string, count: number): string[] {
   return out.reverse();
 }
 
-/* ══ 선택 가능한 날짜 ════════════════════════════════════════════════ */
+/** 오늘부터 거슬러 k 번째 수업일. schoolDayAgo(0) = 오늘(주말이면 가장 가까운 지난 수업일) */
+function schoolDayAgo(k: number): string {
+  return recentSchoolDays(todayKst(), k + 1)[0];
+}
 
-/** 대시보드가 보여줄 수 있는 날짜 (mock 스냅샷이 있는 날) */
-export const DASHBOARD_DATES = ["2026-09-14", "2026-09-15", "2026-09-16"] as const;
-export const DASHBOARD_TODAY = DASHBOARD_DATES[DASHBOARD_DATES.length - 1];
-export const DASHBOARD_MIN_DATE = DASHBOARD_DATES[0];
+/** "2026-09-18" → "9월 18일" — 갈등 기록 제목처럼 문장 안에 들어가는 표기 */
+function monthDayLabel(dateKey: string): string {
+  const [, m, d] = dateKey.split("-");
+  return `${Number(m)}월 ${Number(d)}일`;
+}
+
+/* ══ 선택 가능한 날짜 ════════════════════════════════════════════════
+   mock 스냅샷은 특정 날짜에 묶여 있지 않다. "가장 최근 수업일 3개"에 얹는다.
+   상단 헤더가 실제 오늘을 그리므로 여기가 멈춰 있으면 두 날짜가 어긋난다.
+   자정을 넘겨도 맞아야 해서 상수가 아니라 함수다 — 서버 프로세스가 오래 떠 있어도 안전하다. */
+
+/** 대시보드가 보여줄 수 있는 날짜 (오래된 날 → 오늘) */
+export function dashboardDates(): string[] {
+  return recentSchoolDays(todayKst(), 3);
+}
+
+export function dashboardToday(): string {
+  return schoolDayAgo(0);
+}
+
+export function dashboardMinDate(): string {
+  return schoolDayAgo(2);
+}
 
 /** ?date= 쿼리를 안전한 dateKey 로 정규화. 모르는 값·미래 날짜는 전부 오늘로 되돌린다. */
 export function resolveDateKey(raw?: string | string[]): string {
+  const dates = dashboardDates();
+  const today = dates[dates.length - 1];
+  const min = dates[0];
   const value = Array.isArray(raw) ? raw[0] : raw;
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return DASHBOARD_TODAY;
-  if (value > DASHBOARD_TODAY) return DASHBOARD_TODAY;
-  if (value < DASHBOARD_MIN_DATE) return DASHBOARD_MIN_DATE;
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return today;
+  if (value > today) return today;
+  if (value < min) return min;
   // 스냅샷이 없는 날(주말 등)은 가장 가까운 과거 스냅샷으로
-  const known = [...DASHBOARD_DATES].reverse().find((d) => d <= value);
-  return known ?? DASHBOARD_TODAY;
+  return [...dates].reverse().find((d) => d <= value) ?? today;
 }
 
 /* ══ 공통 데이터 ═════════════════════════════════════════════════════ */
@@ -158,10 +182,13 @@ export type ConflictRow = {
   warn?: string;
 };
 
-const CONFLICT_LEDGER: ConflictRow[] = [
+/** 갈등은 "오늘 / 그저께 / 2주 전쯤"에 있었던 일로 둔다 — 날짜가 today 를 따라 움직인다. */
+function conflictLedger(): ConflictRow[] {
+  const [today, twoDaysAgo, older] = [schoolDayAgo(0), schoolDayAgo(2), schoolDayAgo(5)];
+  return [
   {
-    date: "2026-09-16",
-    label: "9월 16일",
+    date: today,
+    label: monthDayLabel(today),
     context: "점심시간",
     pair: "김민준 ↔ 이서연",
     pairIds: [1, 2],
@@ -174,8 +201,8 @@ const CONFLICT_LEDGER: ConflictRow[] = [
     warn: "두 진술이 서로 다릅니다. 판단 전 양측 원본을 확인하세요.",
   },
   {
-    date: "2026-09-14",
-    label: "9월 14일",
+    date: twoDaysAgo,
+    label: monthDayLabel(twoDaysAgo),
     context: "체육 시간",
     pair: "김민준 ↔ 한지훈",
     pairIds: [1, 13],
@@ -187,8 +214,8 @@ const CONFLICT_LEDGER: ConflictRow[] = [
     ],
   },
   {
-    date: "2026-09-09",
-    label: "9월 9일",
+    date: older,
+    label: monthDayLabel(older),
     context: "모둠 활동",
     pair: "박예린 ↔ 김준혁",
     pairIds: [3, 7],
@@ -199,11 +226,19 @@ const CONFLICT_LEDGER: ConflictRow[] = [
       { who: "김준혁 (하교)", tone: "muted", text: "예린이가 제 몫까지 먼저 해버려서 할 게 없었어요." },
     ],
   },
-];
+  ];
+}
 
 /* ── 감정 어휘 (누적값. 날짜별로는 스냅샷의 growthStep 만큼 낮춰 쓴다) ──
    → app/api/ai/vocab-growth/route.ts */
-export type VocabStudent = { studentId: number; name: string; count: number; delta: number };
+export type VocabStudent = {
+  studentId: number;
+  name: string;
+  count: number;
+  delta: number;
+  /** 그 아이가 쓴 표제어 (먼저 쓴 순). 길이는 항상 count 와 같다 — 숫자와 명단이 어긋날 수 없다. */
+  words: string[];
+};
 export type VocabMonth = { month: string; average: number };
 
 const VOCAB_BASE: { studentId: number; count: number; delta: number }[] = [
@@ -229,14 +264,32 @@ const VOCAB_BASE: { studentId: number; count: number; delta: number }[] = [
   { studentId: 20, count: 10, delta: 1 },
 ];
 
-/** 지난 달들의 학급 평균 — 이미 지나간 값이라 선택 날짜와 무관하게 고정이다.
-    9월 누적(선택 날짜에 따라 8.3~10.3)보다 항상 낮아야 앞뒤가 맞는다. */
-const VOCAB_TREND_BASE: VocabMonth[] = [
-  { month: "5월", average: 4.8 },
-  { month: "6월", average: 5.9 },
-  { month: "7월", average: 6.7 },
-  { month: "8월", average: 7.6 },
+/** 아이들이 대체로 익히는 순서 (기본형 → 확장형). 값은 lib/vocab/lexicon.ts 의 표제어 그대로다
+    — mock 과 실제 추출 결과가 같은 말을 써야 나중에 갈아끼울 때 화면이 안 바뀐다. */
+const VOCAB_ORDER = [
+  "좋다", "싫다", "재미있다", "화나다", "슬프다", "무섭다", "심심하다",
+  "힘들다", "기쁘다", "속상하다", "짜증나다", "신나다", "걱정되다",
+  "부끄럽다", "억울하다", "뿌듯하다", "고맙다", "답답하다", "외롭다", "긴장되다",
 ];
+
+/** 아이마다 빠진 자리를 다르게 둬서 같은 개수라도 쓴 말이 겹치지 않게 한다. */
+function vocabWordsFor(studentId: number, count: number): string[] {
+  const skip = (studentId * 5) % 9;
+  return VOCAB_ORDER.filter((_, i) => i % 9 !== skip).slice(0, count);
+}
+
+/** 지난 4달의 학급 평균 — 이미 지나간 값이라 선택 날짜와 무관하다.
+    이번 달 누적보다 항상 낮아야 앞뒤가 맞는다. 달 이름은 오늘 기준으로 거슬러 붙인다. */
+const VOCAB_TREND_AVERAGES = [4.8, 5.9, 6.7, 7.6];
+
+function vocabTrendBase(): VocabMonth[] {
+  const month = Number(todayKst().slice(5, 7));
+  return VOCAB_TREND_AVERAGES.map((average, i) => ({
+    // 4달 전부터 지난달까지. 1월이면 지난달이 12월이 되도록 12로 감싼다.
+    month: `${((month - VOCAB_TREND_AVERAGES.length + i - 1 + 12) % 12) + 1}월`,
+    average,
+  }));
+}
 
 /* ══ 화면 타입 ═══════════════════════════════════════════════════════ */
 
@@ -260,6 +313,52 @@ export type ClassroomWeather = {
   support: string;
 };
 
+/* ── 교실 날씨 판정 ──────────────────────────────────────────────────
+   그날 등교 체크인 색 분포 하나로 정한다. 손으로 적지 않는다 —
+   mood 를 고치면 날씨도 따라 움직여야 "교실의 상태"를 보여준다고 말할 수 있다.
+
+   남색은 계산에서 뺀다. "혼자 있을래요"는 나쁜 하루가 아니라 필요한 거리라서,
+   부정으로 세면 조용한 아이가 많은 반은 늘 비가 온다.
+   (살핌_기획안.md 8.5 "색 앵커: 초록/노랑/빨강 3단계 · 남색은 제외")
+
+   점수 = (초록 + 노랑×0.5) / (초록+노랑+빨강),  0(전원 빨강) ~ 1(전원 초록)
+     0.80 이상  맑음        0.70 이상  대체로 맑음
+     0.55 이상  구름 조금   0.35 이상  흐림        그 미만  비
+
+   빨강 비중 단서 조항: 초록이 많아도 속상한 아이가 몰려 있으면 맑다고 하지 않는다.
+     빨강 30% 이상 → 최소 흐림,  45% 이상 → 비 */
+
+export const WEATHER_QUESTION = "우리 반 마음에는 어떤 날씨가 찾아왔을까요?";
+
+export function deriveWeather(mood: Record<SignalColor, number[]>): {
+  kind: WeatherKind;
+  headline: string;
+} {
+  const green = mood.green.length;
+  const yellow = mood.yellow.length;
+  const red = mood.red.length;
+  const anchored = green + yellow + red;
+
+  // 남색만 있거나 아무도 체크인하지 않은 날은 판정하지 않는다.
+  if (anchored === 0) return { kind: "cloudy", headline: "아직 알 수 없음" };
+
+  const score = (green + yellow * 0.5) / anchored;
+  const redShare = red / anchored;
+
+  let kind: WeatherKind =
+    score >= 0.7 ? "sunny" : score >= 0.55 ? "partly" : score >= 0.35 ? "cloudy" : "rainy";
+  if (redShare >= 0.45) kind = "rainy";
+  else if (redShare >= 0.3 && (kind === "sunny" || kind === "partly")) kind = "cloudy";
+
+  const headline =
+    kind === "sunny" ? (score >= 0.8 ? "맑음" : "대체로 맑음")
+    : kind === "partly" ? "구름 조금"
+    : kind === "cloudy" ? "흐림"
+    : "비";
+
+  return { kind, headline };
+}
+
 export type ClassroomDay = {
   weekday: string;
   date: string;
@@ -267,17 +366,20 @@ export type ClassroomDay = {
   isToday?: boolean;
 };
 
+/** 아침 브리핑 행 — 감정 신호(색) 축만 다룬다. tone 은 그날 고른 색 그대로다.
+    이름 첫 글자 대신 색 동그라미만 쓴다: 교사가 훑을 때 읽어야 할 건 글자가 아니라 색이다. */
 export type BriefingStudent = {
   studentId: number;
   name: string;
-  initial: string;
-  tone: SignalColor | "star";
+  tone: SignalColor;
   status: string;
   reason: string;
 };
 
 export type PatternTone = "check" | "repeat" | "watch";
 
+/** 패턴 경고 행 — 감정 색 연속/변화는 여기 넣지 않는다(아침 브리핑 담당).
+    여기는 요일·시간표·활동 같은 다른 축과 교차했을 때만 나오는 반복이다. */
 export type PatternRow = {
   student: string;
   /** 반복 패턴을 한 덩어리로 빠르게 읽히게 — 카드에 보여주는 건 여기까지 */
@@ -313,15 +415,18 @@ export type ParticipationSummary = {
    날짜마다 "다른 것"만 적는다. 나머지는 위 공통 데이터에서 파생시킨다. */
 
 type DaySnapshot = {
-  weather: ClassroomWeather;
+  /** 날씨 아래 한 줄. kind/headline 은 mood 에서 유도하므로 여기 적지 않는다. */
+  weatherSupport: string;
   classroomDelta: string;
-  /** 최근 5수업일 날씨 (오래된 날 → 선택 날짜 순) */
+  /** 스냅샷이 없는 과거 수업일의 날씨 (오래된 날 → 선택 날짜 순).
+      SNAPSHOTS 에 있는 날은 이 값 대신 그날 mood 에서 유도한다. */
   recentWeather: WeatherKind[];
   /** 감정 색별 학생 id — 체크인을 완료한 아이만 들어간다.
       합 + absentIds.length 가 반드시 CLASS_SIZE 여야 한다. */
   mood: Record<SignalColor, number[]>;
+  /** 아침 브리핑에 올릴 아이 — 그날 mood 에서 걸린 색만 온다 */
   watch: BriefingStudent[];
-  praise: BriefingStudent[];
+  /** 감정 색 축과 겹치지 않는 교차 패턴만 */
   patterns: PatternRow[];
   participation: { absentIds: number[]; weeklyAverageRate: number; recentRates: number[] };
   /** 그날 기준 관계 지도에서 갈등으로 표시할 짝 */
@@ -330,14 +435,34 @@ type DaySnapshot = {
   vocabStep: number;
 };
 
-const SNAPSHOTS: Record<string, DaySnapshot> = {
-  "2026-09-16": {
-    weather: {
-      kind: "sunny",
-      headline: "대체로 맑음",
-      question: "우리 반 마음에는 어떤 날씨가 찾아왔을까요?",
-      support: "아이들 각자의 마음도 함께 살펴주세요.",
-    },
+/* 스냅샷은 특정 날짜에 묶여 있지 않다. 각자 "자기 날짜(ref)"를 받아서
+   본문에 들어가는 날짜 문구까지 그 기준으로 만든다 — 오늘이 바뀌면 문구도 따라 움직인다. */
+
+/** ref 에서 거슬러 k 번째 수업일 */
+function schoolDayBefore(ref: string, k: number): string {
+  return recentSchoolDays(ref, k + 1)[0];
+}
+
+/** ref 와 같은 요일로 weeksAgo 주 전 */
+function sameWeekdayBefore(ref: string, weeksAgo: number): string {
+  const d = new Date(`${ref}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - weeksAgo * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+/** 그날 그 과목이 실제로 있으면 " · 오늘 N교시 과목", 없으면 빈 문자열.
+    시간표에 없는 날까지 "오늘 체육"이라고 적으면 근거가 거짓이 된다. */
+function todaySubjectNote(ref: string, subject: string): string {
+  const period = periodOf(ref, subject);
+  return period ? ` · 오늘 ${period}교시 ${subject}` : "";
+}
+
+function todaySnapshot(ref: string): DaySnapshot {
+  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
+  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
+  const weekday = weekdayOf(ref);
+  return {
+    weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
     recentWeather: ["partly", "cloudy", "sunny", "partly", "sunny"],
     mood: {
@@ -347,21 +472,17 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       navy: [2],
     },
     watch: [
-      { studentId: 1, name: "김민준", initial: "민", tone: "red", status: "빨강 3일 연속", reason: "발화 속도가 줄고 말수가 적어졌어요" },
-      { studentId: 2, name: "이서연", initial: "서", tone: "navy", status: "혼자 있을 시간이 필요해요", reason: "오늘은 먼저 말을 걸지 않는 편이 좋아요" },
-      { studentId: 3, name: "박예린", initial: "예", tone: "red", status: "노랑 → 빨강 급변", reason: "어제 하교 이후 색이 크게 바뀌었어요" },
-    ],
-    praise: [
-      { studentId: 4, name: "최하준", initial: "하", tone: "star", status: "13일 연속 초록", reason: "친구 이야기를 꺼내는 날이 늘었어요" },
-      { studentId: 11, name: "김다은", initial: "다", tone: "star", status: "감정 어휘 16개", reason: "이번 달 우리 반에서 가장 많이 늘었어요" },
-      { studentId: 17, name: "오지안", initial: "지", tone: "star", status: "남색 → 초록", reason: "오랜만에 먼저 말을 꺼냈어요" },
+      { studentId: 1, name: "김민준", tone: "red", status: "빨강 3일 연속", reason: `${sb(2)}부터 같은 색이에요 · 말수도 함께 줄었어요` },
+      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "최근 5일 중 4일이 속상해요·그저 그래요였어요" },
+      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 4회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
+      { studentId: 13, name: "한지훈", tone: "yellow", status: "빨강 → 노랑", reason: "어제보다 나아졌지만 아직 초록은 아니에요" },
     ],
     patterns: [
-      { student: "김민준", pattern: "빨강 3일 연속", detail: "9/14, 9/15, 9/16 등교", tone: "check" },
-      { student: "박예린", pattern: "최근 5일 중 4일 부정 신호", detail: "노랑 2회 · 빨강 2회", tone: "check" },
-      { student: "이서연", pattern: "남색 응답 반복", detail: "최근 2주 4회 · 혼자 있을 시간을 요청", tone: "watch" },
-      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: "9/9, 9/11, 9/15 대화에서 기록", tone: "repeat" },
-      { student: "김민준", pattern: "체육 있는 날 관계 신호 반복", detail: "9/9, 9/14, 9/16 · 오늘 3교시 체육", tone: "repeat" },
+      { student: "김민준", pattern: "체육 있는 날 갈등 반복", detail: `${sb(5)}, ${sb(2)}, ${sb(0)}${todaySubjectNote(ref, "체육")}`, tone: "check" },
+      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(5)}, ${sb(4)}, ${sb(1)} 대화에서 기록`, tone: "check" },
+      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(5)}, ${sb(4)}, ${sb(0)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
+      { student: "김민준", pattern: `${weekday}요일 등교에서 반복`, detail: `${sw(2)}, ${sw(1)}, ${sw(0)} ${weekday}요일`, tone: "repeat" },
+      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "watch" },
     ],
     participation: { absentIds: [16, 20], weeklyAverageRate: 87, recentRates: [80, 95, 85, 95, 90] },
     conflictPairs: [
@@ -369,15 +490,14 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       [1, 13],
     ],
     vocabStep: 0,
-  },
+  };
+}
 
-  "2026-09-15": {
-    weather: {
-      kind: "partly",
-      headline: "구름 조금",
-      question: "우리 반 마음에는 어떤 날씨가 찾아왔을까요?",
-      support: "속상한 아이가 어제보다 한 명 더 있었어요.",
-    },
+function yesterdaySnapshot(ref: string): DaySnapshot {
+  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
+  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
+  return {
+    weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
     recentWeather: ["sunny", "partly", "cloudy", "sunny", "partly"],
     mood: {
@@ -387,20 +507,16 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       navy: [2],
     },
     watch: [
-      { studentId: 1, name: "김민준", initial: "민", tone: "red", status: "빨강 2일 연속", reason: "어제부터 같은 색을 고르고 있어요" },
-      { studentId: 13, name: "한지훈", initial: "지", tone: "red", status: "면담 필요 신호", reason: "대화에서 도움을 요청하는 표현이 있었어요" },
-      { studentId: 3, name: "박예린", initial: "예", tone: "yellow", status: "노랑 유지", reason: "며칠째 같은 자리에 머물러 있어요" },
-    ],
-    praise: [
-      { studentId: 4, name: "최하준", initial: "하", tone: "star", status: "12일 연속 초록", reason: "모둠 활동에서 친구를 챙겼어요" },
-      { studentId: 8, name: "박수빈", initial: "수", tone: "star", status: "감정 어휘 +2", reason: "이번 주에 새로운 표현을 썼어요" },
-      { studentId: 5, name: "정지우", initial: "정", tone: "star", status: "노랑 → 초록", reason: "하교 때 표정이 밝아졌어요" },
+      { studentId: 1, name: "김민준", tone: "red", status: "빨강 2일 연속", reason: "어제부터 같은 색을 고르고 있어요" },
+      { studentId: 13, name: "한지훈", tone: "red", status: "초록 → 빨강", reason: "대화에서 도움을 요청하는 표현이 있었어요" },
+      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "며칠 노랑에 머물다 오늘 더 내려갔어요" },
+      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 3회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
     ],
     patterns: [
-      { student: "김민준", pattern: "빨강 2일 연속", detail: "9/14, 9/15 등교", tone: "check" },
-      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: "9/9, 9/11, 9/15 대화에서 기록", tone: "check" },
-      { student: "이서연", pattern: "남색 응답 반복", detail: "최근 2주 3회", tone: "watch" },
-      { student: "박예린", pattern: "노랑 4일 연속", detail: "9/10 ~ 9/15", tone: "repeat" },
+      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(4)}, ${sb(3)}, ${sb(0)} 대화에서 기록`, tone: "check" },
+      { student: "김민준", pattern: "체육 있는 날 갈등 반복", detail: `${sb(4)}, ${sb(1)}${todaySubjectNote(ref, "체육")}`, tone: "repeat" },
+      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(4)}, ${sb(3)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
+      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "watch" },
     ],
     participation: { absentIds: [16], weeklyAverageRate: 88, recentRates: [95, 85, 95, 80, 95] },
     conflictPairs: [
@@ -408,15 +524,15 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       [3, 7],
     ],
     vocabStep: 1,
-  },
+  };
+}
 
-  "2026-09-14": {
-    weather: {
-      kind: "sunny",
-      headline: "맑음",
-      question: "우리 반 마음에는 어떤 날씨가 찾아왔을까요?",
-      support: "한 주를 가볍게 시작한 날이었어요.",
-    },
+function twoDaysAgoSnapshot(ref: string): DaySnapshot {
+  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
+  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
+  const weekday = weekdayOf(ref);
+  return {
+    weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
     recentWeather: ["partly", "sunny", "partly", "cloudy", "sunny"],
     mood: {
@@ -426,18 +542,15 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       navy: [17],
     },
     watch: [
-      { studentId: 1, name: "김민준", initial: "민", tone: "red", status: "빨강 선택", reason: "주말 이후 첫 등교에서 색이 바뀌었어요" },
-      { studentId: 17, name: "오지안", initial: "지", tone: "navy", status: "혼자 있을 시간이 필요해요", reason: "3주째 친구 이야기가 나오지 않았어요" },
-    ],
-    praise: [
-      { studentId: 2, name: "이서연", initial: "서", tone: "star", status: "남색 → 초록", reason: "지난주보다 말수가 늘었어요" },
-      { studentId: 4, name: "최하준", initial: "하", tone: "star", status: "11일 연속 초록", reason: "꾸준히 자기 기분을 설명해요" },
-      { studentId: 11, name: "김다은", initial: "다", tone: "star", status: "감정 어휘 +3", reason: "지난주에 표현이 크게 늘었어요" },
+      { studentId: 1, name: "김민준", tone: "red", status: "빨강 선택", reason: "주말 이후 첫 등교에서 색이 바뀌었어요" },
+      { studentId: 17, name: "오지안", tone: "navy", status: "남색 선택", reason: "오늘은 혼자 있을 시간을 골랐어요" },
+      { studentId: 3, name: "박예린", tone: "yellow", status: "노랑 3일 연속", reason: "며칠째 같은 자리에 머물러 있어요" },
     ],
     patterns: [
-      { student: "오지안", pattern: "3주간 친구 언급 없음", detail: "8/24 이후 대화에서 또래 이름이 나오지 않음", tone: "check" },
-      { student: "박예린", pattern: "노랑 3일 연속", detail: "9/10, 9/11, 9/14", tone: "repeat" },
-      { student: "이서연", pattern: "남색 응답 반복", detail: "최근 2주 2회", tone: "watch" },
+      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "check" },
+      { student: "김민준", pattern: `${weekday}요일 등교에서 반복`, detail: `${sw(2)}, ${sw(1)}, ${sw(0)} ${weekday}요일`, tone: "check" },
+      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(3)}, ${sb(2)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
+      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(3)}, ${sb(2)} 대화에서 기록`, tone: "watch" },
     ],
     participation: { absentIds: [9, 16, 20], weeklyAverageRate: 85, recentRates: [85, 95, 80, 95, 85] },
     conflictPairs: [
@@ -445,15 +558,25 @@ const SNAPSHOTS: Record<string, DaySnapshot> = {
       [3, 7],
     ],
     vocabStep: 2,
-  },
-};
+  };
+}
+
+/** 가장 최근 수업일 3개에 스냅샷을 얹는다 (키가 오늘을 따라 움직인다). */
+function buildSnapshots(): Record<string, DaySnapshot> {
+  const [older, mid, today] = dashboardDates();
+  return {
+    [today]: todaySnapshot(today),
+    [mid]: yesterdaySnapshot(mid),
+    [older]: twoDaysAgoSnapshot(older),
+  };
+}
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
 
 export type DashboardData = {
   dateKey: string;
   isToday: boolean;
-  briefing: { watch: BriefingStudent[]; praise: BriefingStudent[] };
+  briefing: { watch: BriefingStudent[] };
   classroom: {
     weather: ClassroomWeather;
     delta: string;
@@ -503,35 +626,47 @@ function buildRelation(snapshot: DaySnapshot): DashboardData["relation"] {
 }
 
 function buildVocab(snapshot: DaySnapshot): DashboardData["vocab"] {
-  const students: VocabStudent[] = VOCAB_BASE.map((v) => ({
-    studentId: v.studentId,
-    name: STUDENT_NAMES[v.studentId],
-    count: Math.max(3, v.count - snapshot.vocabStep),
-    delta: Math.max(0, v.delta - snapshot.vocabStep),
-  }));
+  const students: VocabStudent[] = VOCAB_BASE.map((v) => {
+    const count = Math.max(3, v.count - snapshot.vocabStep);
+    return {
+      studentId: v.studentId,
+      name: STUDENT_NAMES[v.studentId],
+      count,
+      delta: Math.max(0, v.delta - snapshot.vocabStep),
+      words: vocabWordsFor(v.studentId, count),
+    };
+  });
   const average =
     Math.round((students.reduce((sum, s) => sum + s.count, 0) / students.length) * 10) / 10;
-  return { students, trend: [...VOCAB_TREND_BASE, { month: "9월", average }] };
+  const thisMonth = `${Number(todayKst().slice(5, 7))}월`;
+  return { students, trend: [...vocabTrendBase(), { month: thisMonth, average }] };
 }
 
 /** 선택한 날짜의 대시보드 데이터 한 벌. 실데이터 연결 시 이 함수 안만 쿼리 호출로 바꾸면 된다. */
 export function getDashboardSnapshot(dateKey: string): DashboardData {
-  const key = SNAPSHOTS[dateKey] ? dateKey : DASHBOARD_TODAY;
-  const snapshot = SNAPSHOTS[key];
+  const snapshots = buildSnapshots();
+  const today = dashboardToday();
+  const key = snapshots[dateKey] ? dateKey : today;
+  const snapshot = snapshots[key];
   const schoolDays = recentSchoolDays(key, 5);
 
   return {
     dateKey: key,
-    isToday: key === DASHBOARD_TODAY,
-    briefing: { watch: snapshot.watch, praise: snapshot.praise },
+    isToday: key === today,
+    briefing: { watch: snapshot.watch },
     classroom: {
-      weather: snapshot.weather,
+      weather: {
+        ...deriveWeather(snapshot.mood),
+        question: WEATHER_QUESTION,
+        support: snapshot.weatherSupport,
+      },
       delta: snapshot.classroomDelta,
       mood: buildMood(snapshot),
+      // 스냅샷이 있는 날은 큰 아이콘과 같은 규칙으로 유도한다 — 둘이 어긋나면 안 된다.
       recentDays: schoolDays.map((date, i) => ({
         date: shortDate(date),
         weekday: weekdayOf(date),
-        kind: snapshot.recentWeather[i],
+        kind: snapshots[date] ? deriveWeather(snapshots[date].mood).kind : snapshot.recentWeather[i],
         isToday: date === key,
       })),
     },
@@ -553,22 +688,18 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
       })),
     },
     relation: buildRelation(snapshot),
-    conflicts: CONFLICT_LEDGER.filter((c) => c.date <= key).slice(0, 2),
+    conflicts: conflictLedger().filter((c) => c.date <= key).slice(0, 2),
     vocab: buildVocab(snapshot),
   };
 }
 
 /* ── 사용 중단 (기존 ColorSummaryBar.tsx 가 아직 import 하고 있어 유지) ──
    대시보드에서는 "오늘의 교실" 카드가 같은 집계를 흡수했다. */
-export const COLOR_STATS = {
-  morning: getDashboardSnapshot(DASHBOARD_TODAY).classroom.mood.map((m) => ({
+export function colorStats() {
+  const mood = getDashboardSnapshot(dashboardToday()).classroom.mood.map((m) => ({
     color: m.color,
     count: m.count,
     pct: m.pct,
-  })),
-  afternoon: getDashboardSnapshot(DASHBOARD_TODAY).classroom.mood.map((m) => ({
-    color: m.color,
-    count: m.count,
-    pct: m.pct,
-  })),
-};
+  }));
+  return { morning: mood, afternoon: mood };
+}
