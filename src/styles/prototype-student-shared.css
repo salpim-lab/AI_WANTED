@@ -87,29 +87,3 @@
   font-family: inherit;
 }
 .btn-ghost:hover { border-color: #6366f1; color: #6366f1; }
-
-/* 높이는 --sh-dots-h 와 반드시 같아야 한다 (styles/student-home.css).
-   홈 외 화면은 이 줄만큼 아래에서 시작하므로, 헤더를 그만큼 끌어올려
-   홈과 같은 자리에 놓는다. px 로 두면 스테이지가 커질 때 어긋난다. */
-.progress-dots {
-  display: flex;
-  gap: 0.6cqh;
-  justify-content: center;
-  padding: 1cqh 0 0.6cqh;
-}
-.progress-dots span {
-  width: 0.6cqh; height: 0.6cqh;
-  border-radius: 50%;
-  /* 배경이 흰색이 된 뒤로 #e5e7eb 는 거의 안 보인다 */
-  background: #d6d9e3;
-  transition: background 0.2s, width 0.2s;
-  display: inline-block;
-}
-.progress-dots span.active {
-  background: #6366f1;
-  width: 1.8cqh;
-  border-radius: 0.3cqh;
-}
-.progress-dots span.done {
-  background: #a5b4fc;
-}

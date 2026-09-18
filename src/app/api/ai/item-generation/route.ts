@@ -1,9 +1,12 @@
 // 전문 저장과 병렬로 작업을 접수한다. 실행은 전문 저장 완료 후 워커가 담당한다.
-// 이 라우트는 작업을 오래 실행하지 않는다. 실제 inferItem → assembleItem 실행기는 워커 단계다.
-import { NextResponse } from "next/server";
+// 응답은 바로 돌려준다. 학생 화면이 조회하는 동안 실행 가능한 작업은 응답 뒤(after)에 실행한다.
+import { after, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { runItemGenerationJob } from "@/lib/items/runItemGenerationJob";
 
 export const runtime = "nodejs";
+// after()로 실행하는 작업(추론 + 조립)이 이 시간 안에 끝나야 한다. 워커 라우트와 같다.
+export const maxDuration = 180;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (code: string, message: string, status: number) => NextResponse.json({ code, message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -65,6 +68,19 @@ export async function GET(request: Request) {
     const { data: job, error } = await admin.from("item_generation_jobs").select("id, status, attempt_count, max_attempts, next_attempt_at, fallback_asset_id, generated_asset_id, student_item_id, inference_output, student_message, completed_at").eq("source_session_id", session.id).maybeSingle();
     if (error) return fail("DATABASE_ERROR", "생성 작업을 조회하지 못했습니다.", 500);
     if (!job) return fail("JOB_NOT_FOUND", "생성 작업이 아직 접수되지 않았습니다.", 404);
+    // ponytail: cron 결정 전까지 학생이 기다리는 동안의 조회가 워커를 대신한다. 학생이 화면을 떠나면
+    // fallback 재시도는 다음 조회까지 멈춘다. cron이 정해지면 워커 라우트를 주기 호출하면 된다.
+    // 같은 작업을 동시에 여러 번 호출해도 runItemGenerationJob의 원자적 claim이 한 번만 실행한다.
+    const runnable = ["queued", "retry_wait", "fallback"].includes(job.status) && job.attempt_count < job.max_attempts && (!job.next_attempt_at || new Date(job.next_attempt_at) <= new Date());
+    if (runnable && session.status !== "started" && session.transcript !== null) {
+      after(() => runItemGenerationJob(job.id).catch(error => console.error("[item-generation] 작업 실행 실패", job.id, error)));
+    }
+    const assetId = job.generated_asset_id ?? job.fallback_asset_id;
+    if (assetId && job.student_item_id) {
+      const { data: asset, error: assetError } = await admin.from("asset_catalog").select("name, asset_format, geometry_spec").eq("id", assetId).eq("status", "ready").maybeSingle();
+      if (assetError) return fail("DATABASE_ERROR", "아이템을 조회하지 못했습니다.", 500);
+      job.asset = asset;
+    }
     return NextResponse.json({ job }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return errorResponse(error); }
 }

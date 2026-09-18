@@ -31,19 +31,19 @@ export function parseExtrudedItem(value: unknown): ExtrudedItemSpec {
   if (v.version !== 1 || v.shape !== "extrudedShape") throw new Error("version은 1, shape은 extrudedShape이어야 해요.");
   if (typeof v.name !== "string" || !v.name.trim() || v.name.length > 80) throw new Error("이름은 1~80자로 입력해 주세요.");
   if (typeof v.color !== "string" || !/^#[0-9a-f]{6}$/i.test(v.color)) throw new Error("색은 #F5C84C 형식으로 입력해 주세요.");
-  if (typeof v.depth !== "number" || !Number.isFinite(v.depth) || v.depth < 0.02 || v.depth > 1) throw new Error("두께는 0.02~1 사이여야 해요.");
-  if (typeof v.bevel !== "number" || !Number.isFinite(v.bevel) || v.bevel < 0 || v.bevel > Math.min(0.05, v.depth / 2)) throw new Error("모서리 둥글기는 0~0.05이며 두께의 절반 이하여야 해요.");
+  if (typeof v.depth !== "number" || !Number.isFinite(v.depth) || v.depth <= 0) throw new Error("두께는 0보다 큰 유한한 숫자여야 해요.");
+  if (typeof v.bevel !== "number" || !Number.isFinite(v.bevel) || v.bevel < 0) throw new Error("모서리 둥글기는 0 이상의 유한한 숫자여야 해요.");
   if (!Array.isArray(v.points) || v.points.length < 3 || v.points.length > 32) throw new Error("윤곽점은 3~32개여야 해요.");
   const points: [number, number][] = v.points.map((p: unknown) => {
-    if (!Array.isArray(p) || p.length !== 2 || !p.every(n => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= 2)) throw new Error("윤곽점은 -2~2 범위의 [x, y] 숫자 쌍이어야 해요.");
+    if (!Array.isArray(p) || p.length !== 2 || !p.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error("윤곽점은 유한한 [x, y] 숫자 쌍이어야 해요.");
     return [p[0], p[1]];
   });
   const area = points.reduce((sum, p, i) => {
     const q = points[(i + 1) % points.length];
     return sum + p[0] * q[1] - q[0] * p[1];
   }, 0);
-  if (Math.abs(area) < 0.0001) throw new Error("윤곽에는 넓이가 있어야 해요.");
-  return { version: 1, name: v.name, shape: "extrudedShape", points, depth: v.depth, bevel: v.bevel, color: v.color };
+  if (!Number.isFinite(area) || area === 0) throw new Error("윤곽에는 유한한 넓이가 있어야 해요.");
+  return { version: 1, name: v.name, shape: "extrudedShape", points, depth: v.depth, bevel: Math.min(v.bevel, v.depth / 2), color: v.color };
 }
 
 export function createExtrudedItem(value: unknown) {

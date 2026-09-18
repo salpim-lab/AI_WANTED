@@ -56,18 +56,8 @@
      홈 화면은 절대 배치라 영향 없다. */
   display: flex;
   flex-direction: column;
-  /* 진행 점 줄 뒤에는 아무 배경이 없어서 베젤의 검은 그라데이션이 비쳐 보였다.
-     마음·대화 화면 배경의 시작색과 같은 값을 깔아 위아래가 이어지게 한다.
-     홈 화면은 absolute inset-0 이라 이 값에 가려지지 않는다. */
+  /* 화면 전환 사이에 베젤의 검은 그라데이션이 비치지 않게 마음·대화 화면 시작색을 깐다 */
   background: #fbfbfe;
-
-  /* 상단 헤더(살핌 로고·프로필) 기준 위치.
-     홈은 absolute inset-0 이라 스테이지 맨 위에서 시작하지만, 다른 화면은
-     진행 점 줄 아래에서 시작한다. 그래서 그 화면들만 점 줄 높이를 빼서
-     헤더가 홈과 같은 자리에 오게 한다. --sh-dots-h 는 .progress-dots 의
-     실제 높이(패딩 1 + 점 0.6 + 패딩 0.6)와 같아야 한다. */
-  --sh-dots-h: 2.2cqh;
-  --sh-header-top: 4.4cqh;
 
   font-family: var(--font-sans-kr), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color: var(--sh-navy);
@@ -322,12 +312,6 @@
   .sh-morning-intro-entering > .sh-intro { animation: none; }
 }
 
-/* ── 프로필 pill ───────────────────────────────────────── */
-/* 홈 외 화면(마음·대화)은 진행 점 줄 아래에서 시작한다 */
-.mood-screen,
-.chat-screen {
-  --sh-header-top: calc(4.4cqh - var(--sh-dots-h));
-}
 
 .sh-profile {
   display: inline-flex;

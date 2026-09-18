@@ -10,6 +10,7 @@ export type ItemGenerationJobState = {
   generated_asset_id: string | null;
   fallback_asset_id: string | null;
   student_item_id: string | null;
+  asset?: { name: string; asset_format: "procedural"; geometry_spec: unknown } | null;
 };
 
 /** Start alongside transcript saving and the final AI response, using the existing session ID. */

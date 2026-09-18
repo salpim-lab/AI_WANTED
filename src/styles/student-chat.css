@@ -462,3 +462,39 @@
   .guide-chips { animation: none; }
   .chat-typing span { animation: none; }
 }
+
+/* ── 아이템 준비·섬 (4·5단계, 강윤지) ─────────────────────
+   대화 화면 뒤로 이어지는 화면이라 같은 배경·머리·버튼을 그대로 쓴다. */
+.item-prep__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3cqh;
+  text-align: center;
+}
+.item-prep__face { width: 12cqh; height: 12cqh; }
+.item-prep__title {
+  margin: 0 0 1.2cqh;
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 4cqh;
+  color: #2f3560;
+}
+.item-prep__sub {
+  margin: 0;
+  font-size: 2.2cqh;
+  font-weight: 600;
+  color: #8b92ad;
+}
+.item-prep__retry { width: auto; padding: 2cqh 5cqh; }
+.item-prep__alert {
+  position: absolute;
+  inset: auto 0 3.4cqh;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2cqh;
+}
+

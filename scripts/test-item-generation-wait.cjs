@@ -33,6 +33,7 @@ const stubs = {
   '@/lib/openai/assembleItem': { assembleItem: async () => { throw new Error('Cached asset must be reused'); } },
   '@/lib/openai/client': { ItemAIError: class extends Error {} },
   './assembledItem': {}, './fallbackItem': {},
+  './generationTiming': { createGenerationTimer: () => async (_stage, work) => await work() },
   './itemCatalog': { findCatalogItem: () => null },
   './presetAssets': { ensurePresetAssetsSynced: async () => {}, STYLE_VERSION: 'test' },
   './issueStudentItem': { issueStudentItem: async () => { events.push(['issue']); return { id: 'item' }; } },
@@ -57,6 +58,7 @@ loaded._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOpti
   assert.ok(published < events.findIndex(e => e[0] === 'issue'));
   const routeFile = require('node:path').resolve('src/app/api/ai/item-generation/route.ts');
   const routeModule = new Module(routeFile, module);
+  const kicked = [];
   const routeAdmin = { from(table) {
     const query = { select() { return query; }, eq() { return query; }, async maybeSingle() {
       return { data: table === 'checkin_sessions' ? session : job };
@@ -64,8 +66,9 @@ loaded._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOpti
     return query;
   } };
   routeModule.require = name => {
-    if (name === 'next/server') return { NextResponse: { json: (body, options) => new Response(JSON.stringify(body), options) } };
+    if (name === 'next/server') return { after: fn => kicked.push(fn), NextResponse: { json: (body, options) => new Response(JSON.stringify(body), options) } };
     if (name === '@/lib/supabase/admin') return { createAdminClient: () => routeAdmin };
+    if (name === '@/lib/items/runItemGenerationJob') return { runItemGenerationJob: async () => {} };
     throw new Error(`Unexpected route dependency: ${name}`);
   };
   routeModule._compile(ts.transpileModule(fs.readFileSync(routeFile, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, routeFile);
@@ -73,6 +76,19 @@ loaded._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOpti
   session = { id: sessionId, enrollment_id: '40000000-0000-4000-8000-000000000001', status: 'started', transcript: null };
   const post = () => routeModule.exports.POST(new Request('http://localhost/api/ai/item-generation', { method: 'POST', body: JSON.stringify({ session_id: sessionId }) }));
   assert.equal((await post()).status, 200); // Existing queued job, no login or saved transcript required.
+  const get = () => routeModule.exports.GET(new Request(`http://localhost/api/ai/item-generation?session_id=${sessionId}`));
+  job.status = 'queued'; job.attempt_count = 0;
+  assert.equal((await get()).status, 200);
+  assert.equal(kicked.length, 0); // Polling before the transcript is saved must not start the job.
+  session.status = 'completed'; session.transcript = [];
+  await get();
+  assert.equal(kicked.length, 1); // The poll replaces the missing scheduler once the transcript exists.
+  job.status = 'fallback'; job.next_attempt_at = new Date(Date.now() + 30_000).toISOString();
+  await get();
+  assert.equal(kicked.length, 1); // A fallback retry waits for next_attempt_at.
+  job.status = 'completed';
+  await get();
+  assert.equal(kicked.length, 1);
   session.enrollment_id = 'other-student';
   assert.equal((await post()).status, 404);
   const clientFile = require('node:path').resolve('src/lib/items/itemGenerationClient.ts');
@@ -92,4 +108,5 @@ loaded._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOpti
   console.log('PASS: no claim/attempt/fallback before save; inference published before cached asset issuance.');
   console.log('PASS: two readiness stages, immediate completion, 12s default, timeout including slow fetch.');
   console.log('PASS: Minjun-only MVP access and repeated pre-save requests without login.');
+  console.log('PASS: status polling starts a runnable job only after the transcript is saved.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

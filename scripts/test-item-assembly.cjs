@@ -52,12 +52,33 @@ async function main() {
     curvedPlate: { width: .3, height: .4, depth: .02, bend: 1 }, hollowContainer: { radiusTop: .2, radiusBottom: .2, height: .4, wallThickness: .03, bottomThickness: .03 },
   };
   for (const [shape, params] of Object.entries(variants)) parseItemAssembly({ version: 1, name: inference.itemName, parts: [{ id: shape, shape, position: [0, 0, 0], rotation: [0, 0, 0], color: '#ABCDEF', mirror: null, repeat: null, ...params }] }, inference.itemName);
+  const thinTube = radius => ({ version: 1, name: inference.itemName, parts: [{ id: 'waffle-grid', shape: 'curvedTube', position: [0, 0, 0], rotation: [0, 0, 0], color: '#A96532', mirror: null, repeat: null, points: [[-.04, .16, .039], [-.015, .31, .106], [.055, .49, .159]], radius }] });
+  for (const radius of [.008, .0001, .301, 10]) assert.equal(parseItemAssembly(thinTube(radius), inference.itemName).parts[0].radius, radius);
+  for (const radius of [0, -.008, Infinity]) assert.throws(() => parseItemAssembly(thinTube(radius), inference.itemName));
+  const { createLabItem } = load('src/lib/items/assembledItem.ts');
+  for (const factor of [.001, 100]) {
+    for (const [shape, params] of Object.entries(variants)) {
+      const scaled = Object.fromEntries(Object.entries(params).map(([key, value]) => [key, ['sides', 'arc', 'bend'].includes(key) ? value : Array.isArray(value) ? value.map(v => Array.isArray(v) ? v.map(n => n * factor) : v * factor) : value * factor]));
+      const spec = { version: 1, name: inference.itemName, parts: [{ id: shape, shape, position: [3, -4, 5], rotation: [7, 0, 0], color: '#ABCDEF', mirror: null, repeat: null, ...scaled }] };
+      const parsed = parseItemAssembly(spec, inference.itemName);
+      const model = createLabItem(parsed);
+      model.traverse(node => {
+        if (node.geometry) {
+          assert.ok(Array.from(node.geometry.getAttribute('position').array).every(Number.isFinite), `${shape}: finite geometry at scale ${factor}`);
+          node.geometry.dispose(); node.material.dispose();
+        }
+      });
+    }
+  }
   const bad = mutate => { const v = structuredClone(wire); mutate(v); assert.throws(() => parseItemAssembly(v, inference.itemName)); };
   bad(v => { v.parts[0].unexpected = 1; });
   bad(v => { delete v.parts[0].mirror; });
   bad(v => { v.parts[0].shape = 'unknown'; });
   bad(v => { v.name = 'changed'; });
-  bad(v => { v.parts[0].wallThickness = .3; });
+  bad(v => { v.parts[0].wallThickness = -.3; });
+  const oversizedWall = structuredClone(wire);
+  oversizedWall.parts[0].wallThickness = 3;
+  assert.ok(parseItemAssembly(oversizedWall, inference.itemName).parts[0].wallThickness < .3);
   bad(v => { v.parts[0].position = [0, 0]; });
   bad(v => { v.parts[0].id = v.parts[1].id; });
   bad(v => { v.parts[0].repeat = { count: 30, step: [.01, 0, 0] }; v.parts[0].mirror = 'x'; });
@@ -79,6 +100,21 @@ async function main() {
   // The closest pick fails soft: assembly still runs (here it receives the assembly JSON as the pick answer).
   respond(wire);
   assert.deepEqual(await assembleItem(inference), valid);
+  const measuredStages = [];
+  await assembleItem(inference, async (stage, work) => { measuredStages.push(stage); return await work(); });
+  assert.deepEqual(measuredStages, ['catalog_example_selection', 'geometry_generation']);
+  const { createGenerationTimer } = load('src/lib/items/generationTiming.ts');
+  const timingLogs = [];
+  const originalInfo = console.info;
+  console.info = (_prefix, value) => timingLogs.push(JSON.parse(value));
+  try {
+    const measure = createGenerationTimer('test-job', 2);
+    assert.equal(await measure('success', () => 42), 42);
+    await assert.rejects(measure('failure', () => { throw new Error('test'); }), /test/);
+  } finally { console.info = originalInfo; }
+  assert.deepEqual(timingLogs.map(log => [log.stage, log.event, log.outcome]), [['success', 'start', undefined], ['success', 'end', 'success'], ['failure', 'start', undefined], ['failure', 'end', 'error']]);
+  assert.ok(timingLogs.every(log => log.jobId === 'test-job' && log.attempt === 2 && log.startedAt));
+  assert.ok(timingLogs.filter(log => log.event === 'end').every(log => log.durationMs >= 0 && log.endedAt));
   respond({ ...wire, name: 'changed' });
   await assert.rejects(assembleItem(inference), e => e.code === 'INVALID_ASSEMBLY_OUTPUT');
   for (const [data, code] of [[{ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } }, 'ASSEMBLY_INCOMPLETE'], [{ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }] }, 'ASSEMBLY_REFUSAL']]) {
@@ -86,19 +122,44 @@ async function main() {
     await assert.rejects(assembleItem(inference), e => e.code === code && (e.detail.error === 'max_output_tokens' || e.detail.raw === 'no'));
   }
   // Inference: evidence mismatch is its own code and the raw model text survives for the job log.
-  const { inferItem } = load('src/lib/openai/inferItem.ts');
+  const { inferItem, buildItemInferenceRequest } = load('src/lib/openai/inferItem.ts');
+  await assert.rejects(inferItem([{ speaker: 'student', content: '안녕' }]), e => e.code === 'AI_NOT_CONFIGURED');
+  process.env.ANTHROPIC_API_KEY = 'offline-test-key';
+  const respondClaude = value => {
+    global.fetch = async (url, options) => {
+      assert.equal(url, 'https://api.anthropic.com/v1/messages');
+      assert.equal(options.headers['x-api-key'], 'offline-test-key');
+      assert.equal(options.headers['anthropic-version'], '2023-06-01');
+      const request = JSON.parse(options.body);
+      assert.equal(request.model, 'claude-sonnet-4-6');
+      assert.equal(request.output_config.format.type, 'json_schema');
+      return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] }));
+    };
+  };
+  process.env.ANTHROPIC_ITEM_MODEL = 'custom-claude';
+  assert.equal(buildItemInferenceRequest([]).model, 'custom-claude');
+  delete process.env.ANTHROPIC_ITEM_MODEL;
   const transcript = [{ speaker: 'student', content: '축구에서 골을 넣었어요' }];
-  const inferred = { coreExperience: '골', evidence: ['축구에서 골을 넣었어요'], itemName: '축구공', subject: '축구공', selectionReason: '이유', studentMessage: '설명', sizeClass: 'small', appearance: ['둥근 공', '오각형 패치'] };
-  respond(inferred);
+  const inferred = { coreExperience: '골', evidence: ['축구에서 골을 넣었어요'], subject: '축구공', selectionReason: '이유', studentMessage: '설명', sizeClass: 'small', appearance: ['둥근 공', '오각형 패치'] };
+  respondClaude(inferred);
   assert.equal((await inferItem(transcript)).studentMessage, '설명');
-  respond({ ...inferred, itemName: '노란 하트 스티커', subject: '빨간색 풍선' });
-  assert.deepEqual(await inferItem(transcript).then(r => [r.itemName, r.subject]), ['하트 스티커', '풍선']);
-  const { withoutColor } = load('src/lib/items/itemInference.ts');
+  respondClaude({ ...inferred, subject: '빨간색 풍선' });
+  assert.deepEqual(await inferItem(transcript).then(r => [r.itemName, r.subject]), ['풍선', '풍선']); // The name is the plain subject.
+  respondClaude({ ...inferred, itemName: '작고 고요한 조약돌' });
+  await assert.rejects(inferItem(transcript), e => e.code === 'INVALID_AI_OUTPUT'); // The schema no longer has a free-form name.
+  const { withoutColor, withoutModifier } = load('src/lib/items/itemInference.ts');
+  assert.deepEqual(['작은 돌멩이', '작고 고요한 조약돌', '커다란 둥근 우산', '반짝이는 별', '하트 스티커', '석류 씨앗', '손 편지', '돌멩이', '작은'].map(withoutModifier), ['돌멩이', '조약돌', '우산', '별', '하트 스티커', '석류 씨앗', '손 편지', '돌멩이', '작은']);
   assert.deepEqual(['무지개빛 우산', '하늘색 연', '노란', '금메달', '은행잎', '초록 잎'].map(withoutColor), ['우산', '연', '노란', '금메달', '은행잎', '잎']);
-  respond({ ...inferred, evidence: ['농구를 했어요'] });
+  respondClaude({ ...inferred, evidence: ['농구를 했어요'] });
   await assert.rejects(inferItem(transcript), e => e.code === 'EVIDENCE_MISMATCH' && e.detail.raw.includes('농구를 했어요'));
-  respond({ ...inferred, coreExperience: 'x'.repeat(301) });
+  respondClaude({ ...inferred, coreExperience: 'x'.repeat(301) });
   await assert.rejects(inferItem(transcript), e => e.code === 'INVALID_AI_OUTPUT' && e.detail.error.length > 0);
+  for (const [stop_reason, code] of [['max_tokens', 'AI_INCOMPLETE'], ['refusal', 'AI_REFUSAL']]) {
+    global.fetch = async () => new Response(JSON.stringify({ stop_reason, content: [{ type: 'text', text: 'partial' }] }));
+    await assert.rejects(inferItem(transcript), e => e.code === code && e.detail.raw === 'partial');
+  }
+  global.fetch = async () => { throw new Error('offline timeout'); };
+  await assert.rejects(inferItem(transcript), e => e.code === 'AI_UNAVAILABLE');
   global.fetch = async () => new Response('{"error":{"message":"model not found"}}', { status: 404 });
   await assert.rejects(inferItem(transcript), e => e.code === 'AI_REQUEST_FAILED' && e.detail.error.includes('model not found'));
   global.fetch = async () => new Response('', { status: 429 });

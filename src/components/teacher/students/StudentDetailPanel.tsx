@@ -19,6 +19,7 @@ import AiAnalysisBox from "./AiAnalysisBox";
 import CommentComposer from "./CommentComposer";
 import ConversationTurns from "./ConversationTurns";
 import MiniCalendar from "./MiniCalendar";
+import StudentAvatar from "./StudentAvatar";
 import DateControl from "@/components/teacher/shared/DateControl";
 
 export default function StudentDetailPanel({
@@ -60,12 +61,7 @@ export default function StudentDetailPanel({
     <div className="space-y-4">
       <article className={`${salpimCard} px-6 py-5`}>
         <header className="flex flex-wrap items-center gap-3.5">
-          <div
-            aria-hidden
-            className="flex size-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#8b83ff] to-[#635bff] font-[family-name:var(--font-cute)] text-2xl text-white shadow-[0_6px_16px_rgba(99,91,255,.3)]"
-          >
-            {shortName.slice(0, 1)}
-          </div>
+          <StudentAvatar name={student.name} initial={shortName.slice(0, 1)} />
           <div className="min-w-0 flex-1">
             <h2 className={`${salpimTitle} text-[26px] leading-tight`}>{shortName}의 하루</h2>
             <p className={`mt-0.5 text-xs ${salpimMuted}`}>

@@ -6,9 +6,11 @@
 
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { preloadIsland } from "./island/preloadIsland";
 import type { SignalColor } from "@/lib/types/signal";
 import { pickOpener } from "@/lib/chat/openers";
+import { requestItemGeneration } from "@/lib/items/itemGenerationClient";
 import {
   chatTurn,
   finishSession,
@@ -53,6 +55,7 @@ const CLOSING_PAUSE_MS = 4500;
 const CLOSING_LINE_GAP_MS = 1400;
 
 export function useCheckinFlow(flow: "checkin" | "checkout") {
+  useEffect(() => { void preloadIsland().catch(error => console.warn("[island] 미리 준비 실패", error)); }, []);
   // ⚠️ checkin_sessions 행은 **색 선택(2단계)에서** 만들어야 한다. 1단계(홈)에서 만들면 안 된다.
   //    등교 홈의 선생님 편지는 "마지막 등교 세션 이후에 보낸 편지"만 띄우는 방식으로
   //    읽음 처리를 대신한다(읽음 컬럼 없이). 홈에서 세션을 만들면 자기 세션 때문에
@@ -83,6 +86,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   // 로그인 없이 보는 데모에서는 sessionId 가 null 로 남고, 아래 경로는 전부 건너뛴다.
   // 그때 화면은 기존 목업 칩 흐름 그대로 동작한다.
   const sessionIdRef = useRef<string | null>(null);
+  const [itemSessionId, setItemSessionId] = useState<string | null>(null);
   /** color state 는 setColor 직후 아직 낡아 있다. 게이트 요청에는 이 ref 를 쓴다 */
   const activeColorRef = useRef<SignalColor | null>(null);
   /** 위험 신호로 종료됐는가. 면담 신청의 우선순위를 올린다 */
@@ -164,6 +168,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       // 세션 생성은 기다리지 않는다. 첫 질문은 고정 문장이라 서버가 필요 없고,
       // 기획안의 "색 3초" 예산이 네트워크에 묶이면 안 된다.
       sessionIdRef.current = null;
+      setItemSessionId(null);
       activeColorRef.current = c;
       transcriptRef.current = [];
       prosodyRef.current = [];
@@ -173,10 +178,12 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       void startSession(flow, c).then((result) => {
         if (result.sessionId !== null) {
           sessionIdRef.current = result.sessionId;
+          setItemSessionId(result.sessionId);
           setLive(true);
           return;
         }
         sessionIdRef.current = null;
+        setItemSessionId(null);
         setLive(false);
         // 목업으로 조용히 되돌아가면 무엇이 잘못됐는지 알 길이 없다.
         // 아이에게는 보여주지 않되, 개발 중에는 콘솔에 남긴다.
@@ -346,6 +353,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
           transcript: transcriptRef.current,
           prosody: prosodyRef.current,
         }).catch((error) => console.error("[finish] 전문 저장 실패", error));
+        void requestItemGeneration(sessionId).catch((error) => console.warn("[item] 접수 실패", error));
 
         for (const [i, line] of lines.entries()) {
           if (i > 0) {
@@ -426,6 +434,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     setReplies2(null);
     setConsultState("hidden");
     sessionIdRef.current = null;
+    setItemSessionId(null);
     activeColorRef.current = null;
     transcriptRef.current = [];
     prosodyRef.current = [];
@@ -441,6 +450,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     step,
     color,
     item,
+    setItem,
+    sessionId: itemSessionId,
     messages,
     typing,
     replies,

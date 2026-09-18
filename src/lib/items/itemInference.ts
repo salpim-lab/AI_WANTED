@@ -7,21 +7,30 @@ const text = { type: "string" };
 export const ITEM_INFERENCE_SCHEMA = {
   type: "object", additionalProperties: false,
   properties: {
-    coreExperience: text, evidence: { type: "array", items: text }, itemName: text,
+    coreExperience: text, evidence: { type: "array", items: text },
     subject: text, selectionReason: text, studentMessage: text,
     sizeClass: { type: "string", enum: ["small", "medium", "large"] },
     appearance: { type: "array", items: text },
   },
-  required: ["coreExperience", "evidence", "itemName", "subject", "selectionReason", "studentMessage", "sizeClass", "appearance"],
+  required: ["coreExperience", "evidence", "subject", "selectionReason", "studentMessage", "sizeClass", "appearance"],
 };
 // The prompt forbids colour in names but the model still echoes "노란 하트" ~1 in 3 times; the catalog look has a fixed palette.
 const COLOR_WORD = /^(?:(?:빨간|노란|파란|하얀|까만|검은|흰)색?|(?:빨강|노랑|파랑|초록|연두|보라|분홍|주황|핑크|무지개)(?:색|빛)?|(?:금|은|갈|회|하늘|남|살)색)$/;
 export const withoutColor = (name: string) => name.split(/\s+/).filter(word => !COLOR_WORD.test(word)).join(" ").trim() || name;
+// The model still prefixes "작은"/"고요한" to ~1 in 3 names even when told not to. Drop adjective-form words
+// (…은/는/운/란/한/근) and everything before them ("작고 고요한"). ponytail: suffix heuristic; a noun modifier like
+// "기린 인형" survives only because 린 is not listed. Add an explicit allowlist if a real name gets cut.
+const MODIFIER_WORD = /^[가-힣]+[은는운란한근]$/;
+export const withoutModifier = (name: string) => {
+  const words = name.split(/\s+/).filter(Boolean);
+  const lastModifier = words.slice(0, -1).findLastIndex(word => MODIFIER_WORD.test(word));
+  return words.slice(lastModifier + 1).join(" ") || name;
+};
 export const EVIDENCE_MISMATCH = "근거가 실제 학생 발화와 일치하지 않습니다.";
 export function parseItemInference(value: unknown, studentUtterances: string[]): ItemInference {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("추론 결과는 JSON 객체여야 합니다.");
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).length !== 8 || Object.keys(v).some(key => !ITEM_INFERENCE_SCHEMA.required.includes(key))) throw new Error("추론 필드가 잘못되었습니다.");
+  if (Object.keys(v).length !== ITEM_INFERENCE_SCHEMA.required.length || Object.keys(v).some(key => !ITEM_INFERENCE_SCHEMA.required.includes(key))) throw new Error("추론 필드가 잘못되었습니다.");
   const string = (v: unknown, max: number) => {
     if (typeof v !== "string" || !v.trim() || v.length > max) throw new Error("추론 문자열이 잘못되었습니다.");
     return v;
@@ -33,9 +42,12 @@ export function parseItemInference(value: unknown, studentUtterances: string[]):
   const evidence = array(v.evidence, 1, 1000);
   if (evidence.some(q => !studentUtterances.some(u => u.includes(q)))) throw new Error(EVIDENCE_MISMATCH);
   if (v.sizeClass !== "small" && v.sizeClass !== "medium" && v.sizeClass !== "large") throw new Error("크기 분류가 잘못되었습니다.");
+  // The model is not asked for a display name: given one, it decorates it ("작고 고요한 조약돌").
+  // The plain subject is the name; why it was chosen lives in studentMessage.
+  const subject = withoutModifier(withoutColor(string(v.subject, 200)));
   return {
-    coreExperience: string(v.coreExperience, 300), evidence, itemName: withoutColor(string(v.itemName, 80)),
-    subject: withoutColor(string(v.subject, 200)), selectionReason: string(v.selectionReason, 500),
+    coreExperience: string(v.coreExperience, 300), evidence, itemName: subject,
+    subject, selectionReason: string(v.selectionReason, 500),
     studentMessage: string(v.studentMessage, 300), sizeClass: v.sizeClass, appearance: array(v.appearance, 2, 200),
   };
 }

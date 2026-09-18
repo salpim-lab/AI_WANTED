@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Offline TypeScript module loader uses CommonJS. */
-// Live item inference with the real OPENAI_API_KEY from .env.local. No Supabase, no DB writes.
+// Live item inference with the real ANTHROPIC_API_KEY from .env.local. No Supabase, no DB writes.
 // Usage: node scripts/try-item-inference.cjs [transcript.json]
 const fs = require('node:fs'), path = require('node:path'), Module = require('node:module');
 const root = path.resolve(__dirname, '..');
@@ -25,5 +25,5 @@ const transcript = process.argv[2] ? JSON.parse(fs.readFileSync(process.argv[2],
   { speaker: 'assistant', content: '친구 도움도 받고 끝까지 해냈구나. 오늘 이야기 고마워.', input_method: 'text' },
 ];
 const t = Date.now();
-inferItem(transcript).then(r => console.log(JSON.stringify(r, null, 2), `\n${Date.now() - t}ms, model=${process.env.OPENAI_ITEM_MODEL || 'gpt-4.1-mini'}`))
+inferItem(transcript).then(r => console.log(JSON.stringify(r, null, 2), `\n${Date.now() - t}ms, model=${process.env.ANTHROPIC_ITEM_MODEL || 'claude-sonnet-4-6'}`))
   .catch(e => { console.error('FAIL', e.code, e.httpStatus, e.message, JSON.stringify(e.detail ?? {}).slice(0, 800)); process.exit(1); });

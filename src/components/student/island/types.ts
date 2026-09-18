@@ -22,4 +22,3 @@ export type SceneHandle = {
   toggleOverview: () => void;
 };
 
-export type IslandScreenRect = { left: number; right: number; top: number; bottom: number };
