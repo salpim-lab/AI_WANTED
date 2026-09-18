@@ -18,8 +18,10 @@ import type {
   ConsultationMethod,
   NewConsultationLog,
   NewScheduledConsultation,
+  RescheduleConsultation,
   ScheduledConsultation,
 } from "@/lib/types/teacherRecord";
+import { toKstDate } from "@/components/shared/datetime";
 import { MOCK_STUDENTS, mockStore, type ParentConsultationRow, type WorkRecordRow } from "./_mockTeacherData";
 
 const METHOD_LABEL: Record<ConsultationMethod, string> = { phone: "전화", visit: "방문", online: "온라인" };
@@ -91,6 +93,12 @@ export async function listScheduledConsultations(classId: string): Promise<Sched
     .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
 }
 
+/** 특정 날짜(KST, "YYYY-MM-DD")에 예정된 상담 — 대시보드 아침 브리핑의 "그날 예정된 상담"에 쓴다 */
+export async function listScheduledConsultationsOn(classId: string, date: string): Promise<ScheduledConsultation[]> {
+  const scheduled = await listScheduledConsultations(classId);
+  return scheduled.filter((c) => toKstDate(c.scheduledAt) === date);
+}
+
 /** 상담을 예약만 해 둔다 — 아직 내용이 없으니 work_records는 만들지 않는다 */
 export async function scheduleConsultation(input: NewScheduledConsultation): Promise<ScheduledConsultation> {
   const student = MOCK_STUDENTS.find((s) => s.student_id === input.studentId && s.class_id === input.classId);
@@ -112,6 +120,28 @@ export async function scheduleConsultation(input: NewScheduledConsultation): Pro
     created_at: now,
   };
   mockStore().parentConsultations.push(row);
+
+  const scheduled = toScheduledConsultation(row);
+  if (!scheduled) throw new Error("예정된 상담 변환에 실패했습니다");
+  return scheduled;
+}
+
+/**
+ * 예정된 상담의 일시·상담 대상·방식을 바꾼다 — parent_consultations(일정 메타)만 갱신한다.
+ * 아직 상담 전이라 work_records가 없는 건만 허용하고, 완료된 상담(봉인된 원문이 있는 건)은 거부한다.
+ */
+export async function rescheduleConsultation(input: RescheduleConsultation): Promise<ScheduledConsultation> {
+  const row = mockStore().parentConsultations.find((r) => r.id === input.id);
+  if (!row) throw new Error("예정된 상담을 찾을 수 없습니다");
+  if (row.status !== "preparing" || row.work_record_id) throw new Error("완료된 상담은 바꿀 수 없습니다");
+
+  const student = MOCK_STUDENTS.find((s) => s.enrollment_id === row.enrollment_id && s.class_id === input.classId);
+  if (!student) throw new Error("담당 학급의 예정된 상담이 아닙니다");
+
+  row.scheduled_at = input.scheduledAt;
+  row.counterpart = input.counterpart;
+  row.method = input.method;
+  row.updated_at = new Date().toISOString();
 
   const scheduled = toScheduledConsultation(row);
   if (!scheduled) throw new Error("예정된 상담 변환에 실패했습니다");

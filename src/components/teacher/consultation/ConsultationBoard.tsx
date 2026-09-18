@@ -8,7 +8,7 @@
 import Form from "next/form";
 import Link from "next/link";
 import { formatKstDateTime } from "@/components/shared/datetime";
-import { card, emptyState, pageContainer, pageTitle, textInput, timestampText } from "@/components/shared/ui";
+import { card, emptyState, boardPageContainer, boardPageTitle, textInput, timestampText } from "@/components/shared/ui";
 import type {
   ClassStudent,
   ConsultationFilter,
@@ -17,6 +17,7 @@ import type {
   ScheduledConsultation,
 } from "@/lib/types/teacherRecord";
 import CompleteConsultationButton from "./CompleteConsultationButton";
+import EditScheduledConsultationButton from "./EditScheduledConsultationButton";
 import CompletedConsultationCard from "./CompletedConsultationCard";
 import ConsultationComposer from "./ConsultationComposer";
 import ScheduleConsultationComposer from "./ScheduleConsultationComposer";
@@ -40,8 +41,8 @@ export default function ConsultationBoard({
   const filterKey = [filter.keyword, filter.studentId].join("|");
 
   return (
-    <div className={pageContainer}>
-      <h2 className={`${pageTitle} mb-3`}>학부모상담기록</h2>
+    <div className={boardPageContainer}>
+      <h2 className={`${boardPageTitle} mb-5`}>학부모상담기록</h2>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
@@ -141,6 +142,7 @@ function ScheduledConsultationCard({ consultation }: { consultation: ScheduledCo
         >
           📄 {consultation.student.name} 누적 자료 보기
         </Link>
+        <EditScheduledConsultationButton consultation={consultation} />
         <CompleteConsultationButton consultation={consultation} />
       </div>
     </article>

@@ -154,6 +154,15 @@ export type NewScheduledConsultation = {
   scheduledAt: string; // ISO
 };
 
+/** 예정된 상담의 일정 변경 — 아직 상담 전(status='preparing')인 건만. 학생은 바꾸지 않는다(다른 상담이 된다) */
+export type RescheduleConsultation = {
+  id: string; // ScheduledConsultation.id
+  classId: string;
+  counterpart: string;
+  method: ConsultationMethod;
+  scheduledAt: string; // ISO
+};
+
 /** 예정된 상담을 완료 처리할 때 입력 — 이때 처음으로 work_records에 봉인된 원문이 생긴다 */
 export type CompleteScheduledConsultation = {
   id: string; // ScheduledConsultation.id

@@ -34,12 +34,17 @@ import {
   getDashboardSnapshot,
   resolveDateKey,
 } from "@/components/teacher/dashboard/mockData";
+// 아침 브리핑의 "그날 예정된 상담" — 김현우 담당 상담 데이터(읽기만)
+import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { listScheduledConsultationsOn } from "@/lib/supabase/raw/consultationLog";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const { date } = await searchParams;
   const dateKey = resolveDateKey(date);
   const data = getDashboardSnapshot(dateKey);
   const { isToday } = data;
+  const teacher = await getActingTeacher();
+  const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
   return (
     <div className="page-dashboard">
@@ -65,7 +70,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <div className="dashboard-grid">
         <div className="col-8">
-          <MorningBriefing watch={data.briefing.watch} isToday={isToday} />
+          <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
         </div>
         <div className="col-4">
           <ClassroomToday

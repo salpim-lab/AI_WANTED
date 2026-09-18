@@ -259,6 +259,7 @@ export type Database = {
           id: string
           mood_color: string
           period: string
+          prosody: Json | null
           session_date: string
           started_at: string
           status: string
@@ -273,6 +274,7 @@ export type Database = {
           id?: string
           mood_color: string
           period: string
+          prosody?: Json | null
           session_date?: string
           started_at?: string
           status?: string
@@ -287,6 +289,7 @@ export type Database = {
           id?: string
           mood_color?: string
           period?: string
+          prosody?: Json | null
           session_date?: string
           started_at?: string
           status?: string
@@ -997,10 +1000,12 @@ export type Database = {
       }
       parent_consultations: {
         Row: {
+          counterpart: string | null
           created_at: string
           enrollment_id: string
           evidence_refs: Json
           id: string
+          method: string | null
           notes: string
           scheduled_at: string | null
           status: string
@@ -1009,10 +1014,12 @@ export type Database = {
           work_record_id: string | null
         }
         Insert: {
+          counterpart?: string | null
           created_at?: string
           enrollment_id: string
           evidence_refs?: Json
           id?: string
+          method?: string | null
           notes?: string
           scheduled_at?: string | null
           status?: string
@@ -1021,10 +1028,12 @@ export type Database = {
           work_record_id?: string | null
         }
         Update: {
+          counterpart?: string | null
           created_at?: string
           enrollment_id?: string
           evidence_refs?: Json
           id?: string
+          method?: string | null
           notes?: string
           scheduled_at?: string | null
           status?: string

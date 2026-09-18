@@ -7,6 +7,12 @@ export const pageContainer = "mx-auto max-w-[900px] px-6 py-5";
 
 export const pageTitle = "text-lg font-extrabold tracking-[-0.3px]";
 
+/** 게시판 화면(학생관찰일지·학부모상담기록) 바깥 틀 — 대시보드(.page-dashboard)와 같은 폭·여백이라 제목이 같은 자리에 온다. */
+export const boardPageContainer = "mx-auto max-w-[1320px] px-[34px] pt-[30px] pb-11 max-[760px]:px-4 max-[760px]:pt-5 max-[760px]:pb-8";
+
+/** 게시판 화면 제목 — 대시보드 제목(.dashboard-title)과 같은 크기 */
+export const boardPageTitle = "m-0 text-[19px] font-extrabold tracking-[-0.5px]";
+
 export const card = "rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,.06),0_4px_16px_rgba(0,0,0,.04)]";
 
 export const fieldLabel = "mt-3.5 mb-1.5 block text-xs font-bold tracking-[0.5px] text-gray-500";
