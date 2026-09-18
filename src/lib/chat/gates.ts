@@ -60,11 +60,18 @@ export function decideNext(state: TurnState): GateDecision {
 /** 하드 게이트에서 아이에게 하는 말. 캐묻지 않고 교사에게 넘긴다. */
 export const HANDOFF_MESSAGE = "그건 선생님한테 직접 얘기해줄래?";
 
-/** 종료 인사. 사유에 따라 다르되 모두 "더 묻지 않는다"는 점은 같다. */
-export const CLOSING_MESSAGES: Record<"sufficient" | "max_turns" | "avoidance", string> = {
-  sufficient: "이야기해줘서 고마워. 오늘도 잘 지내 😊",
-  max_turns: "이야기해줘서 고마워. 내일 또 들려줘!",
-  avoidance: "괜찮아. 말하고 싶을 때 언제든 얘기해줘.",
+/**
+ * 종료 인사. 사유에 따라 다르되 모두 "더 묻지 않는다"는 점은 같다.
+ *
+ * 한 줄이 아니라 여러 줄인 이유: 이 뒤에 아이템 추론(3~4초)이 돈다.
+ * 빈 화면으로 기다리게 하는 대신 말풍선을 나눠 띄워 그 시간을 덮는다.
+ * 다만 시간을 벌려고 빈말을 채우지는 않는다 — 두 번째 줄은 실제로 지금
+ * 일어나는 일을 알려준다. 무슨 일이 벌어지는지 아는 기다림은 견딜 만하다.
+ */
+export const CLOSING_MESSAGES: Record<"sufficient" | "max_turns" | "avoidance", string[]> = {
+  sufficient: ["이야기해줘서 고마워.", "오늘 이야기로 아이템을 만들고 있어!"],
+  max_turns: ["이야기해줘서 고마워. 내일 또 들려줘!", "오늘 이야기로 아이템을 만들고 있어!"],
+  avoidance: ["괜찮아. 말하고 싶을 때 언제든 얘기해줘.", "오늘 마음도 아이템으로 남겨둘게."],
 };
 
 /**
