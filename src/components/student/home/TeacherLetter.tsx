@@ -7,17 +7,21 @@
 // 선생님 프로필 사진은 나중에 업로드하므로 지금은 빈 원형이다.
 
 /**
- * 퀼트 박음질 한 줄. 세 겹으로 그린다:
- *   눌린 홈(옅은 그림자) → 실(점선) → 실 위의 가는 광.
- * 실이 천을 살짝 누르고 있는 입체감이 여기서 난다. 흰 실은 쓰지 않는다 — 따로 노는 테두리처럼 보였다.
+ * 박음질 한 줄 — 짧고 둥근 땀(쫑쫑). 옅은 라벤더 실 한 겹.
+ * 조각마다 한 바퀴씩 두르고 홈 그림자까지 넣었더니 꿰맨 상처처럼 보여서 덜어냈다.
+ * 선은 접힌 곳 두 군데만, 원래 봉투 곡선을 그대로 따라간다(뾰족하게 꺾지 않는다).
  */
 function Stitch({ d }: { d: string }) {
   return (
-    <g fill="none" strokeLinecap="round" strokeLinejoin="round">
-      <path d={d} stroke="#6f64c4" strokeOpacity="0.1" strokeWidth="3.6" />
-      <path d={d} stroke="#9a90e4" strokeOpacity="0.62" strokeWidth="1.5" strokeDasharray="6 4.5" />
-      <path d={d} stroke="#f7f5ff" strokeOpacity="0.4" strokeWidth="0.6" strokeDasharray="6 4.5" transform="translate(-0.5 -0.5)" />
-    </g>
+    <path
+      d={d}
+      fill="none"
+      stroke="#a89ff0"
+      strokeOpacity="0.55"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeDasharray="3 6"
+    />
   );
 }
 
@@ -192,12 +196,8 @@ export default function TeacherLetter({
                 봉투보다 한 톤 밝은 라벤더로 아주 옅게 둔다. */}
             <path d="M3 23 L169 184 M597 23 L431 184" fill="none" stroke="#f4f2ff" strokeOpacity="0.5" strokeWidth="1.6" strokeLinecap="round" />
             <path d="M4 352 C10 330 22 318 38 303 L166 191 Q177 180 193 180 H407 Q423 180 434 191 L562 303 C578 318 590 330 596 352" fill="none" stroke="#f4f2ff" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" />
-            {/* 퀼트 박음질 — 조각 천(좌 날개·우 날개·아래 접힘)마다 자기 가장자리를 따라
-                같은 간격(10)으로 한 바퀴씩 돈다. 실제 퀼트 봉투가 조각을 이어 박는 방식이다.
-                간격은 각 변을 수직으로 밀어 계산했다(윤곽을 비율로 줄이면 변마다 간격이 달라진다). */}
-            <Stitch d="M13.1 47.2 L152.5 186.6 L30.4 296.3 L13.9 320.2 Z" />
-            <Stitch d="M586.9 47.2 L447.5 186.6 L569.6 296.3 L586.1 320.2 Z" />
-            <Stitch d="M20 353 L45.5 309.7 L167 202 Q173.8 196 183 196 H417 Q426.2 196 433 202 L554.5 309.7 L580 353 Z" />
+            {/* 박음질 — 아래 접힘 윗선을 따라 한 줄 */}
+            <Stitch d="M16 350 C22 331 32 321 47 308 L171 200 Q181 192 195 192 H405 Q419 192 429 200 L553 308 C568 321 578 331 584 350" />
           </g>
         </svg>
       </div>
@@ -228,8 +228,8 @@ export default function TeacherLetter({
               <path d="M8 18 C15 43 22 54 38 66 L273 246 Q300 267 327 246 L562 66 C578 54 585 43 592 18" fill="none" stroke="#8b83d6" strokeOpacity="0.045" strokeWidth="14" strokeLinecap="round" />
               <path d="M8 17 C15 42 22 53 38 65 L273 245 Q300 266 327 245 L562 65 C578 53 585 42 592 17" fill="none" stroke="#8b83d6" strokeOpacity="0.08" strokeWidth="5" strokeLinecap="round" />
               <use href="#envClosedFlap" fill="url(#envClosedLidG)" />
-              {/* 덮개 조각의 박음질 — 윤곽에서 같은 간격(10) 안쪽 */}
-              <Stitch d="M23.8 15 H576.2 L557.1 55.4 L312 234 Q300 243 288 234 L42.9 55.4 Z" />
+              {/* 박음질 — 덮개 ∨선을 따라 한 줄 */}
+              <Stitch d="M44 56 L288 236 Q300 245 312 236 L556 56" />
             </g>
           </g>
           {/* 하트 스티커 — 덮개가 닫히면 덮개 끝(300, 252)에 붙는다. 열려 있을 때는 없다.
