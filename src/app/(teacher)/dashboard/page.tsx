@@ -21,6 +21,8 @@
 // 이 화면은 읽기 전용이다 (살핌_DB_스키마_v0.3.md §13): 어떤 원본 테이블에도 쓰지 않는다.
 
 import "@/styles/prototype-teacher-dashboard.css";
+// 시안용 테마 — .theme-student 안에서만 덮어쓰므로 켜지 않으면 아무 영향이 없다
+import "@/styles/dashboard-theme-student.css";
 import MorningBriefing from "@/components/teacher/dashboard/MorningBriefing";
 import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
 import RelationBoard from "@/components/teacher/dashboard/RelationBoard";
@@ -38,15 +40,19 @@ import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listScheduledConsultationsOn } from "@/lib/supabase/raw/consultationLog";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
-  const { date } = await searchParams;
+  const { date, theme } = await searchParams;
   const dateKey = resolveDateKey(date);
   const data = getDashboardSnapshot(dateKey);
   const { isToday } = data;
   const teacher = await getActingTeacher();
   const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
+  // 시안용 — /dashboard?theme=student 로만 켜진다. 기본은 원래 화면 그대로다.
+  // 뺄 때는 이 줄과 위의 theme import, styles/dashboard-theme-student.css 를 지우면 된다.
+  const themeClass = theme === "student" ? " theme-student" : "";
+
   return (
-    <div className="page-dashboard">
+    <div className={`page-dashboard${themeClass}`}>
       <header className="dashboard-head">
         <div>
           <h1 className="dashboard-title">대시보드</h1>
