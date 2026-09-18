@@ -41,6 +41,14 @@ function wait(ms: number) {
 
 let bubbleId = 0;
 
+/**
+ * 마지막 인사가 뜨고 마무리 팝업이 올라오기까지 기다리는 시간.
+ *
+ * 인사와 동시에 팝업이 뜨면 아이가 인사를 읽기도 전에 화면이 덮인다.
+ * 아이가 두 줄을 읽을 시간을 준다.
+ */
+const CLOSING_PAUSE_MS = 2200;
+
 export function useCheckinFlow(flow: "checkin" | "checkout") {
   // ⚠️ checkin_sessions 행은 **색 선택(2단계)에서** 만들어야 한다. 1단계(홈)에서 만들면 안 된다.
   //    등교 홈의 선생님 편지는 "마지막 등교 세션 이후에 보낸 편지"만 띄우는 방식으로
@@ -129,7 +137,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       }
 
       if (scenario.autoEnd) {
-        await wait(1200);
+        await wait(CLOSING_PAUSE_MS);
         if (!isCurrent()) return;
         setConsultState("choice");
         return;
@@ -214,8 +222,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         return;
       }
       if (fu.done) {
-        // 음성 경로와 같은 종료 화면을 쓴다. 아이가 직접 끝낸다.
-        await wait(700);
+        // 음성 경로와 같은 종료 화면·같은 템포를 쓴다. 아이가 직접 끝낸다.
+        await wait(CLOSING_PAUSE_MS);
         if (!isCurrent()) return;
         setConsultState("choice");
       }
@@ -242,7 +250,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       if (!isCurrent()) return;
       if (fu.ai) addBubble("ai", fu.ai);
       if (fu.item) setItem(fu.item);
-      await wait(700);
+      await wait(CLOSING_PAUSE_MS);
       if (!isCurrent()) return;
       setConsultState("choice");
     },
@@ -348,6 +356,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         // 아이가 직접 끝낸다. 자동으로 넘어가지 않는다.
         // 위험 신호로 넘어온 경우에는 면담 쪽을 권하는 문구로 바뀐다.
         riskRef.current = result.risk === "flag" || result.action === "handoff_to_teacher";
+        await wait(CLOSING_PAUSE_MS);
+        if (!isCurrent()) return true;
         setConsultState("choice");
         void saving;
         return true;

@@ -12,6 +12,18 @@
 
 /** 한 세션에서 아이가 말할 수 있는 최대 횟수 */
 export const MAX_TURNS = 2;
+/**
+ * sufficient 로 끝낼 수 있는 최소 턴 수.
+ *
+ * 모델은 "그냥 좀 별로였어요" 같은 한마디에도 sufficient=true 를 자주 낸다.
+ * 그러면 한 턴 만에 대화가 끝나고, 그 세션에서 남는 재료가 거의 없다.
+ * 이 대화는 뒤따르는 모든 화면(감정 추론·아이템·관계 지도)의 원재료라
+ * 한 마디로 닫히면 그날 기록이 사실상 비는 셈이다.
+ *
+ * 그래서 첫 턴은 sufficient 로 닫지 않고 한 번 더 묻는다.
+ * 말하기 싫어하는 아이는 이 규칙이 아니라 회피 게이트가 먼저 막는다.
+ */
+export const MIN_TURNS_BEFORE_SUFFICIENT = 2;
 /** 회피 신호가 이만큼 쌓이면 종료 */
 export const MAX_AVOIDANCE = 2;
 
@@ -52,7 +64,11 @@ export function decideNext(state: TurnState): GateDecision {
   if (state.turnCount >= MAX_TURNS) return { action: "close", reason: "max_turns" };
 
   // ④ 충분히 이야기했다면 더 묻지 않는다.
-  if (state.sufficient) return { action: "close", reason: "sufficient" };
+  //    단 첫 턴에는 적용하지 않는다 — 한마디에 sufficient 가 붙어 대화가
+  //    한 턴 만에 끝나는 일이 잦았다. 2턴이 상한이니 한 번은 더 물을 여유가 있다.
+  if (state.sufficient && state.turnCount >= MIN_TURNS_BEFORE_SUFFICIENT) {
+    return { action: "close", reason: "sufficient" };
+  }
 
   return { action: "ask_followup" };
 }

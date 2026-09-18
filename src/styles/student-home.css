@@ -214,11 +214,21 @@
   animation: shLetterPullUp 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
+.sh-letter-scene { position: absolute; inset: 0; pointer-events: none; }
+.sh-letter-assembly {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 77.6cqh;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.sh-envelope-lid { transform: scaleY(0); transform-origin: center 1cqh; opacity: 0; }
 .sh-letter-paper {
   background: var(--sh-paper);
   border-radius: 0.6cqh;
   box-shadow: 0 1.4cqh 3.4cqh rgba(40, 48, 90, 0.16);
-  position: relative;
+  position: absolute;
   overflow: hidden;
 }
 /* 아주 약한 종이 결 */
@@ -273,15 +283,43 @@
 .sh-letter-close:hover { background: rgba(105, 112, 150, 0.22); }
 .sh-letter-close:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
-/* 닫기: 200~300ms 의 얕은 fade/scale 만 */
-@keyframes shLetterOut {
-  to { opacity: 0; transform: scale(0.97); }
+/* 450ms 종이 → 200ms 덮개 → 100ms 닫힌 봉투 → 400ms 퇴장 → 300ms 인사.
+   전체 1.45초. 뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
+@keyframes shLetterTuck {
+  from { transform: translateY(0); }
+  to { transform: translateY(66.2cqh); }
 }
-.sh-letter-leaving { animation: shLetterOut 0.24s ease-in forwards; }
-
+@keyframes shEnvelopeClose {
+  from { transform: scaleY(0); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+@keyframes shLetterOut {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(48cqh); opacity: 0; }
+}
+@keyframes shMorningIntroIn {
+  from { transform: translateY(2cqh); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sh-letter-leaving .sh-letter-paper {
+  animation: shLetterTuck 0.45s ease-in forwards;
+}
+.sh-letter-leaving .sh-envelope-lid {
+  animation: shEnvelopeClose 0.2s 0.45s ease-out forwards;
+}
+.sh-letter-leaving .sh-letter-assembly {
+  animation: shLetterOut 0.4s 0.75s ease-in forwards;
+  pointer-events: none;
+}
+.sh-morning-intro-entering > .sh-intro {
+  animation: shMorningIntroIn 0.3s ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .sh-letter-entering { animation: none; }
-  .sh-letter-leaving { animation: none; opacity: 0; }
+  .sh-letter-entering,
+  .sh-letter-leaving .sh-letter-assembly,
+  .sh-letter-leaving .sh-envelope-lid,
+  .sh-letter-leaving .sh-letter-paper,
+  .sh-morning-intro-entering > .sh-intro { animation: none; }
 }
 
 /* ── 프로필 pill ───────────────────────────────────────── */
