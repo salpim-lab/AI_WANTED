@@ -1,5 +1,5 @@
 // 담당: 김현우
-// 학생관찰일지 "상담" 탭의 "+ 학생 상담 기록" 버튼과 글쓰기 모달. 아이 본인과 나눈 상담 내용을 적는다 —
+// 학생관찰일지 "상담" 탭의 "학생 상담 기록" 버튼과 글쓰기 모달. 아이 본인과 나눈 상담 내용을 적는다 —
 // 학부모 상담(ConsultationComposer, 학부모상담기록 화면)과는 다른 기록이다. 저장은 같은 Server
 // Action(createObservation)을 쓰되 recordType="student_consultation"으로 표시해 관찰 기록과 구분한다.
 
@@ -52,7 +52,7 @@ export default function StudentConsultationComposer({ students }: { students: Cl
         </span>
       )}
       <button type="button" className="btn btn-primary btn-sm shrink-0" onClick={openModal}>
-        + 학생 상담 기록
+        학생 상담 기록
       </button>
 
       <Modal open={open} title="아이와 상담한 내용" onClose={closeModal}>

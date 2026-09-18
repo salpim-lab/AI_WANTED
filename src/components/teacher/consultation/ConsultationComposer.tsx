@@ -1,5 +1,5 @@
 // 담당: 김현우
-// 학부모상담기록 "+ 상담 바로 기록" 버튼과 글쓰기 모달 — 예약 없이 이미 끝난 상담을 바로 완료로 적을 때 쓴다.
+// 학부모상담기록 "상담 바로 기록" 버튼과 글쓰기 모달 — 예약 없이 이미 끝난 상담을 바로 완료로 적을 때 쓴다.
 // 예약해 뒀다가 완료 처리하는 흐름은 ScheduleConsultationComposer/CompleteConsultationButton 쪽이다.
 // 저장은 Server Action(createConsultation)으로만 한다.
 // 학생을 고르면 <DataExportBox />로 상담 자료 리포트를 열 수 있다.
@@ -66,7 +66,7 @@ export default function ConsultationComposer({ students, reportDays }: { student
         </span>
       )}
       <button type="button" className="btn btn-primary btn-sm" onClick={openModal}>
-        + 상담 바로 기록
+        상담 바로 기록
       </button>
 
       <Modal open={open} title="학부모 상담 바로 기록" onClose={closeModal}>
