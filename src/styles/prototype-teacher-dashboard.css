@@ -266,6 +266,62 @@
   padding: 3px 9px;
 }
 .conflict-empty { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* ── 관계 상세 (지도 옆 패널) ─────────────────────────────────────
+   아이를 누르면 여기만 바뀐다. 지도는 그 자리에 그대로 있다. */
+.conflict-pane { display: flex; flex-direction: column; }
+.conflict-pane .pane-title .rd-clear {
+  margin-left: auto;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: none;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.conflict-pane .pane-title .rd-clear:hover { color: var(--text); border-color: var(--navy-ring); }
+
+.rd-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+.rd-name { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+.rd-sub { font-size: 11px; color: var(--muted); }
+
+.rd-peer-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 4px; }
+.rd-peers-title { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 7px; }
+.rd-peer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+.rd-peer-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--soft);
+  border-radius: 99px;
+  padding: 3px 9px;
+}
+.rd-peer-list li em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); }
+.rd-empty { margin: 0; font-size: 11.5px; color: var(--faint); }
+
+.rd-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.rd-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rd-quotes li {
+  border-left: 2px solid var(--line);
+  padding: 2px 0 2px 11px;
+}
+.rd-quotes li p { margin: 0; font-size: 12.5px; line-height: 1.55; }
+.rd-quote-by { font-size: 10.5px; color: var(--faint); }
 .conflict-stmts { display: flex; flex-direction: column; gap: 8px; }
 .conflict-stmt { background: var(--soft); border-radius: 12px; padding: 11px 13px; }
 .conflict-stmt .who { font-size: 11.5px; font-weight: 800; margin-bottom: 4px; }
@@ -537,12 +593,16 @@
 /* 날짜 컨트롤(.date-control)과 시간표 버튼은 세 화면이 공유하므로 styles/teacher-date-control.css 에 있다. */
 .dashboard-head-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-/* ══ 관계 지도 노드 링크 ══════════════════════════════════════════════
-   원+이름만 링크다. 관계선은 클릭 대상이 아니다. */
+/* ══ 관계 지도 노드 ═══════════════════════════════════════════════════
+   원+이름을 누르면 옆 패널이 그 아이로 바뀐다. 관계선은 클릭 대상이 아니다. */
 .relation-node { cursor: pointer; }
 .relation-node .relation-node-ring { transition: stroke-width 0.15s, r 0.15s; }
 .relation-node:focus { outline: none; }
 .relation-node:focus-visible .relation-node-ring { stroke-dasharray: none; }
+
+/* 누른 아이는 마우스를 떼도 표시가 남는다 — 옆 패널이 그 아이를 보고 있으니 지도에도 있어야 한다 */
+.relation-node.picked .relation-node-ring { stroke: var(--navy); stroke-dasharray: none; stroke-width: 3; }
+.relation-map.has-active .relation-node.picked { opacity: 1; }
 
 /* ── 올린 아이와 이어진 것만 남기기 ──────────────────────────────────
    has-active 는 아이 하나에 마우스를 올렸거나 키보드 포커스가 갔을 때만 붙는다.

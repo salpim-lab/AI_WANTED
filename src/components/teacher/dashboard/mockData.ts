@@ -157,6 +157,38 @@ export type RelationEdge = {
   kind: "normal" | "conflict";
 };
 
+/** 관계 지도에서 아이를 눌렀을 때 옆에 펼칠 내용. 아이 상세로 넘어가지 않고 여기서 끝난다. */
+export type RelationDetail = {
+  studentId: number;
+  name: string;
+  /** 이 아이를 말한 친구 (많이 말한 순) */
+  mentionedBy: { studentId: number; name: string; count: number }[];
+  /** 이 아이가 말한 친구 */
+  mentioning: { studentId: number; name: string; count: number }[];
+  /** 대화에서 이 아이 이름이 나온 대목. 실제로는 전사에서 그대로 잘라 온다 */
+  quotes: { from: string; date: string; text: string }[];
+  /** 이 아이가 낀 갈등 (최근 것부터) */
+  conflicts: ConflictRow[];
+};
+
+/** 아이 이름을 문장에 넣는 꼴. 받침이 있으면 "이"가 붙는다 — 민준이가 / 지우가. */
+function callName(given: string): string {
+  const last = given.charCodeAt(given.length - 1) - 0xac00;
+  const hasFinalConsonant = last >= 0 && last <= 11171 && last % 28 !== 0;
+  return hasFinalConsonant ? `${given}이` : given;
+}
+
+/** 또래 언급 발췌 — 실제로는 전사 원문이다. 해석하지 않고 그대로 보여주기 위한 자리. */
+const MENTION_QUOTE = [
+  "{to}랑 같이 놀았어요",
+  "{to}가 도와줬어요",
+  "쉬는 시간에 {to}랑 이야기했어요",
+  "{to}가 먼저 말 걸어줬어요",
+  "{to}랑 같은 모둠이었어요",
+  "{to}가 제 물건을 안 돌려줬어요",
+  "{to}한테 서운했어요",
+];
+
 /** 아이마다 또래 대화에 얼마나 자주 오르내리는지. 실제로는 전사에서 이름을 세면 나온다. */
 const SOCIAL_WEIGHT: Record<number, number> = {
   1: 9, 2: 7, 3: 8, 4: 6, 5: 5, 6: 4, 7: 5, 8: 6, 9: 3, 10: 3,
@@ -643,7 +675,7 @@ export type DashboardData = {
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
-  relation: { nodes: RelationNode[]; edges: RelationEdge[] };
+  relation: { nodes: RelationNode[]; edges: RelationEdge[]; details: Record<number, RelationDetail> };
   conflicts: ConflictRow[];
   vocab: { students: VocabStudent[]; trend: VocabMonth[] };
 };
@@ -757,7 +789,54 @@ function buildRelation(dateKey: string): DashboardData["relation"] {
     }
   }
 
-  return { nodes, edges };
+  return { nodes, edges, details: buildRelationDetails(ids, window, records) };
+}
+
+/** 아이별 관계 상세. 지도 옆 패널이 쓴다 — 방향을 합치지 않고 "누가 나를 / 내가 누구를"로 나눠 둔다. */
+function buildRelationDetails(
+  ids: number[],
+  window: string[],
+  records: ConflictRow[],
+): Record<number, RelationDetail> {
+  const byMe = new Map<number, Map<number, number>>(ids.map((id) => [id, new Map()]));
+  const aboutMe = new Map<number, Map<number, number>>(ids.map((id) => [id, new Map()]));
+  const quotes = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
+
+  for (const date of window) {
+    for (const { from, to } of mentionsOn(date)) {
+      const mine = byMe.get(from)!;
+      mine.set(to, (mine.get(to) ?? 0) + 1);
+      const theirs = aboutMe.get(to)!;
+      theirs.set(from, (theirs.get(from) ?? 0) + 1);
+      const template = MENTION_QUOTE[Math.floor(hash01(date, from * 100 + to, 61) * MENTION_QUOTE.length)];
+      // 인용은 "말한 아이"의 발화다 — 그 안에 상대 이름이 들어간다
+      quotes.get(to)!.push({
+        from: STUDENT_NAMES[from],
+        date,
+        text: template.replace("{to}", callName(STUDENT_NAMES[to].slice(1))),
+      });
+    }
+  }
+
+  const rank = (counts: Map<number, number>) =>
+    [...counts]
+      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+      .map(([studentId, count]) => ({ studentId, name: STUDENT_NAMES[studentId], count }));
+
+  return Object.fromEntries(
+    ids.map((studentId) => [
+      studentId,
+      {
+        studentId,
+        name: STUDENT_NAMES[studentId],
+        mentionedBy: rank(aboutMe.get(studentId)!),
+        mentioning: rank(byMe.get(studentId)!),
+        // 최근 것부터 3개까지 — 더 보여줘도 패널에서 읽히지 않는다
+        quotes: quotes.get(studentId)!.slice().reverse().slice(0, 3),
+        conflicts: records.filter((c) => c.pairIds.includes(studentId)),
+      },
+    ]),
+  );
 }
 
 function buildVocab(snapshot: DaySnapshot): DashboardData["vocab"] {

@@ -23,8 +23,7 @@
 import "@/styles/prototype-teacher-dashboard.css";
 import MorningBriefing from "@/components/teacher/dashboard/MorningBriefing";
 import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
-import RelationshipMap from "@/components/teacher/dashboard/RelationshipMap";
-import ConflictLog from "@/components/teacher/dashboard/ConflictLog";
+import RelationBoard from "@/components/teacher/dashboard/RelationBoard";
 import VocabGrowthChart from "@/components/teacher/dashboard/VocabGrowthChart";
 import DateControl from "@/components/teacher/shared/DateControl";
 import TimetableButton from "@/components/teacher/shared/TimetableButton";
@@ -80,16 +79,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           />
         </div>
 
-        <section className="card col-12 relation-conflict">
-          <div className="card-title">
-            우리 반 관계
-            <span className="card-sub">발화·기록에서 본 아이들 사이</span>
-          </div>
-          <div className="relation-conflict-body">
-            <RelationshipMap nodes={data.relation.nodes} edges={data.relation.edges} />
-            <ConflictLog rows={data.conflicts} />
-          </div>
-        </section>
+        <RelationBoard relation={data.relation} conflicts={data.conflicts} />
 
         <div className="col-12">
           <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />
