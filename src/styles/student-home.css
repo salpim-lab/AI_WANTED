@@ -216,6 +216,8 @@
 /* 뒤판·앞판·닫힌 덮개는 같은 바닥을 축으로 깊어진다. 종이는 별도로 내려간다. */
 .sh-envelope-depth { transform-origin: center bottom; transform: scaleY(0.7104); }
 .sh-envelope-rear { overflow: visible; }
+/* 앞판 윗변이 편지지 위로 옅은 그림자를 드리운다 — 편지지가 봉투 "안" 에 들어가 있어 보인다 */
+.sh-envelope-front { filter: drop-shadow(0 -0.5cqh 0.9cqh rgba(70, 60, 150, 0.14)); }
 .sh-envelope-open-flap { transform-origin: center 0; }
 .sh-envelope-closed {
   opacity: 0;
