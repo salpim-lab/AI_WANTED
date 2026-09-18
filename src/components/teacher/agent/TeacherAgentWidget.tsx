@@ -19,6 +19,11 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentChat, type DomainFinding } from "./useAgentChat";
+// 로봇 이모지 대신 학생 화면과 같은 "살핌" 브랜드 얼굴을 쓴다 — 로고·학생 대화 아바타랑 같은 캐릭터라
+// 교사 화면도 같은 톤으로 보이게 된다. 파일은 이유민 소유라 import만, 내부는 손대지 않는다.
+// --sh-violet(색상 변수)은 student-home.css에만 정의돼 있어서(교사 레이아웃엔 없음) 이 위젯
+// 루트에서 인라인으로 같은 값을 다시 선언한다 — 그 스타일시트 전체를 끌어오지 않기 위함.
+import SalpimFace from "@/components/student/SalpimFace";
 
 const DOMAIN_STYLE: Record<string, { icon: string; bar: string }> = {
   emotion: { icon: "💚", bar: "bg-emerald-400" },
@@ -87,7 +92,10 @@ export default function TeacherAgentWidget() {
   }, [messages, sending]);
 
   return (
-    <div className="fixed right-5 bottom-5 z-[1500] flex flex-col items-end gap-2.5">
+    <div
+      className="fixed right-5 bottom-5 z-[1500] flex flex-col items-end gap-2.5"
+      style={{ "--sh-violet": "#635bff", "--sh-violet-light": "#8b83ff" } as React.CSSProperties}
+    >
       <div
         className={`flex h-[600px] w-[360px] max-h-[80vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-black/20 ring-1 ring-black/5 transition-all duration-150 ease-out origin-bottom-right ${
           open ? "scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-95 opacity-0"
@@ -95,9 +103,7 @@ export default function TeacherAgentWidget() {
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm">
-              🤖
-            </span>
+            <SalpimFace className="h-7 w-7" withSparkles={false} />
             <span className="text-sm font-bold text-gray-900">살핌 도우미</span>
           </div>
           <button
@@ -173,9 +179,15 @@ export default function TeacherAgentWidget() {
       <button
         onClick={() => setOpen(!open)}
         aria-label={open ? "살핌 도우미 닫기" : "살핌 도우미 열기"}
-        className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl text-white shadow-lg shadow-indigo-500/40 transition-transform hover:scale-105 active:scale-95"
+        className="grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-transform hover:scale-105 active:scale-95"
       >
-        {open ? "✕" : "🤖"}
+        {open ? (
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white">
+            ✕
+          </span>
+        ) : (
+          <SalpimFace className="h-11 w-11" />
+        )}
       </button>
     </div>
   );
