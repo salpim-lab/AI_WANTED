@@ -1,36 +1,30 @@
 // 담당: 이유민
 // 하교 흐름: 첫 화면 → 색 선택 → AI 고정 질문(녹음) → 아이템 생성 + 섬 배치
 // 참고: docs/planning/PLANNING.md "[학생 화면] — 하교 흐름"
-// StudentHome/MoodPicker/ChatScreen/ItemReveal은 checkin과 동일 컴포넌트 재사용.
+// StudentHome/MoodPicker/ChatScreen/ItemPreparation은 checkin과 동일 컴포넌트 재사용.
 // 첫 화면은 period="afternoon" 으로 문구가 바뀌고 선생님 편지는 나오지 않는다.
 
 "use client";
 
 import "@/styles/prototype-student-chat.css";
+import { useCallback } from "react";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
-import ItemReveal from "@/components/student/ItemReveal";
-import IslandBoard from "@/components/student/IslandBoard";
+import ItemPreparation from "@/components/student/ItemPreparation";
+import type { Item } from "@/components/student/mockScenarios";
 
 export default function CheckoutPage() {
   const flow = useCheckinFlow("checkout");
+  const { setItem, goTo } = flow;
+  const enterIsland = useCallback((item: Item) => { setItem(item); goTo(5); }, [setItem, goTo]);
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
 
   return (
     <>
-      <div className="progress-dots">
-        {[1, 2, 3, 4, 5].map((s) => (
-          <span
-            key={s}
-            className={s === flow.step ? "active" : s < flow.step ? "done" : undefined}
-          />
-        ))}
-      </div>
-
       <StudentHome
         mode="afternoon"
         active={flow.step === 1}
@@ -58,8 +52,7 @@ export default function CheckoutPage() {
         flow="checkout"
         color={flow.color}
       />
-      <ItemReveal active={flow.step === 4} item={flow.item} onNext={() => flow.goTo(5)} />
-      <IslandBoard active={flow.step === 5} item={flow.item} onComplete={() => {}} />
+      {(flow.step === 4 || flow.step === 5) && <ItemPreparation sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
     </>
   );
 }

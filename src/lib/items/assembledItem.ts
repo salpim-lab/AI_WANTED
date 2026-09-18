@@ -40,9 +40,17 @@ function number(value: unknown, min: number, max: number): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) throw new Error(`숫자는 ${min}~${max} 범위여야 해요.`);
   return value;
 }
-function vector(value: unknown, min: number, max: number): Vec3 {
+function vector(value: unknown, min = -Infinity, max = Infinity): Vec3 {
   if (!Array.isArray(value) || value.length !== 3) throw new Error("크기·위치·회전은 숫자 3개로 입력해 주세요.");
   return [number(value[0], min, max), number(value[1], min, max), number(value[2], min, max)];
+}
+function dimension(value: unknown): number {
+  const n = number(value, 0, Infinity);
+  if (n === 0) throw new Error("도형 크기는 0보다 커야 해요.");
+  return n;
+}
+function sizeVector(value: unknown): Vec3 {
+  return vector(value).map(dimension) as Vec3;
 }
 
 export function parseLabItem(value: unknown): LabItemSpec {
@@ -57,32 +65,33 @@ export function parseLabItem(value: unknown): LabItemSpec {
     ids.add(p.id);
     if (typeof p.color !== "string" || !/^#[0-9a-f]{6}$/i.test(p.color)) throw new Error("부품 색은 #F5C84C 형식이어야 해요.");
     if (p.mirror !== undefined && p.mirror !== "x") throw new Error("대칭 축은 x만 지원해요.");
-    const common: CommonPart = { id: p.id, color: p.color, mirror: p.mirror as "x" | undefined, position: vector(p.position, -2, 2), rotation: vector(p.rotation, -Math.PI * 2, Math.PI * 2) };
+    const common: CommonPart = { id: p.id, color: p.color, mirror: p.mirror as "x" | undefined, position: vector(p.position), rotation: vector(p.rotation) };
     if (p.repeat !== undefined) {
       const repeat = object(p.repeat);
       const count = number(repeat.count, 2, 30);
       if (!Number.isInteger(count)) throw new Error("반복 개수는 정수여야 해요.");
-      common.repeat = { count, step: vector(repeat.step, -2, 2) };
-      for (let i = 1; i < count; i++) vector(common.position.map((v, axis) => v + common.repeat!.step[axis] * i), -2, 2);
+      common.repeat = { count, step: vector(repeat.step) };
+      for (let i = 1; i < count; i++) vector(common.position.map((v, axis) => v + common.repeat!.step[axis] * i));
     }
     if (p.shape === "box") {
-      const size = vector(p.size, 0.02, 2);
-      return { ...common, shape: "box", size, roundness: number(p.roundness, 0, Math.min(...size) / 2) };
+      const size = sizeVector(p.size);
+      return { ...common, shape: "box", size, roundness: Math.min(number(p.roundness, 0, Infinity), Math.min(...size) / 2) };
     }
-    if (p.shape === "ellipsoid") return { ...common, shape: "ellipsoid", size: vector(p.size, 0.02, 2) };
+    if (p.shape === "ellipsoid") return { ...common, shape: "ellipsoid", size: sizeVector(p.size) };
     if (p.shape === "extrudedShape") {
       const outline = parseExtrudedItem({ ...p, version: 1, name: p.id });
       return { ...common, shape: "extrudedShape", points: outline.points, depth: outline.depth, bevel: outline.bevel };
     }
-    if (p.shape === "cylinder") return { ...common, shape: "cylinder", radius: number(p.radius, 0.01, 1), height: number(p.height, 0.02, 2) };
+    if (p.shape === "cylinder") return { ...common, shape: "cylinder", radius: dimension(p.radius), height: dimension(p.height) };
     if (p.shape === "curvedTube") {
       if (!Array.isArray(p.points) || p.points.length < 2 || p.points.length > 4) throw new Error("곡선 관의 제어점은 2~4개여야 해요.");
-      const points = p.points.map(point => vector(point, -2, 2));
+      const points = p.points.map(point => vector(point));
       if (points.some((point, i) => i > 0 && point.every((n, axis) => n === points[i - 1][axis]))) throw new Error("연속된 곡선 제어점은 서로 달라야 해요.");
-      return { ...common, shape: "curvedTube", points, radius: number(p.radius, 0.01, 0.3) };
+      const radius = dimension(p.radius);
+      return { ...common, shape: "curvedTube", points, radius };
     }
     if (p.shape === "pyramid" && p.sides !== undefined && (!Number.isInteger(p.sides) || number(p.sides, 3, 12) < 3)) throw new Error("각뿔의 변 수는 3~12 정수여야 해요.");
-    if (p.shape === "pyramid") return { ...common, shape: "pyramid", sides: p.sides as number | undefined, width: number(p.width, 0.02, 2), depth: number(p.depth, 0.02, 2), height: number(p.height, 0.02, 2) };
+    if (p.shape === "pyramid") return { ...common, shape: "pyramid", sides: p.sides as number | undefined, width: dimension(p.width), depth: dimension(p.depth), height: dimension(p.height) };
     return { ...common, ...parseExtendedShape(p) };
   });
   if (parts.reduce((count, part) => count + (part.mirror ? 2 : 1) * (part.repeat?.count ?? 1), 0) > 60) throw new Error("복제 후 부품은 최대 60개예요.");

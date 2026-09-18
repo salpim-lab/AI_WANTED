@@ -4,6 +4,7 @@ import { ITEM_ASSEMBLY_SCHEMA, parseItemAssembly } from "../items/itemAssembly";
 import { ITEM_ASSEMBLY_PROMPT, ITEM_CLOSEST_PROMPT } from "./prompts/item-assembly";
 import { ASSEMBLY_EXAMPLE_IDS, ITEM_CATALOG } from "../items/itemCatalog";
 import { callModel, ItemAIError } from "./client";
+import type { GenerationMeasure } from "../items/generationTiming";
 
 /** Fixed reviewed examples plus the catalog item the inference found closest, if any. */
 function assemblyExamples(closestCatalogId: string) {
@@ -47,12 +48,13 @@ export function buildItemAssemblyRequest(inference: ItemInference, closestCatalo
 }
 
 /** Server function only. A later generation job should call this after inferItem. */
-export async function assembleItem(inference: ItemInference) {
-  const request = buildItemAssemblyRequest(inference, await pickClosestCatalogId(inference));
+export async function assembleItem(inference: ItemInference, measure: GenerationMeasure = async (_stage, work) => await work()) {
+  const closest = await measure("catalog_example_selection", () => pickClosestCatalogId(inference));
+  const request = buildItemAssemblyRequest(inference, closest);
   if (JSON.stringify(request.input).length > 4000) throw new ItemAIError("INVALID_ASSEMBLY_INPUT", 422, "조립 입력이 너무 깁니다.");
-  return callModel("ASSEMBLY", request, 120000, {
+  return measure("geometry_generation", () => callModel("ASSEMBLY", request, 120000, {
     unavailable: "조립 응답을 받지 못했습니다.",
     failed: "조립 요청에 실패했습니다. 키와 모델 설정을 확인해 주세요.",
     invalid: "조립 결과를 검증하지 못했습니다.",
-  }, value => parseItemAssembly(value, inference.itemName));
+  }, value => parseItemAssembly(value, inference.itemName)));
 }
