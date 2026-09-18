@@ -40,6 +40,7 @@ export default function ChatScreen({
   sessionNote = null,
   live = false,
   studentFullName = "김민준",
+  studentPhotoSrc,
 }: {
   active: boolean;
   badgeLabel: string;
@@ -64,6 +65,8 @@ export default function ChatScreen({
   /** 실제 대화(로그인 + API)가 가능한 상태인가 */
   live?: boolean;
   studentFullName?: string;
+  /** 아이 말풍선 옆 프로필. 없으면 이름 첫 글자를 쓴다 */
+  studentPhotoSrc?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -71,6 +74,15 @@ export default function ChatScreen({
   const promptShownAtRef = useRef<number | null>(null);
 
   const hasOptions = Boolean(replies?.length || replies2?.length);
+
+  // 말할 수 있는 때 = 아이 차례일 때.
+  //
+  // 예전에는 칩(hasOptions)이 있을 때만 버튼을 열었는데, 그건 목업 시절 조건이다.
+  // 실제 대화에서는 후속 질문에 칩이 붙지 않으므로 2턴째에 버튼이 죽어 있었다.
+  // 기준은 "말할 차례인가" 하나다.
+  const waitingForAnswer = messages.some((m) => m.pending) || typing || thinking;
+  const ended = consultState !== "hidden";
+  const canTalk = !ended && !waitingForAnswer && messages.length > 0;
 
   const getPromptShownAt = useCallback(() => promptShownAtRef.current, []);
 
@@ -100,14 +112,14 @@ export default function ChatScreen({
   // setState 는 전부 타이머·정리 함수 안에서만 부른다.
   // 이펙트 본문에서 동기로 부르면 연쇄 렌더가 난다.
   useEffect(() => {
-    if (!hasOptions) return;
+    if (!hasOptions || ended) return;
     promptShownAtRef.current = Date.now();
     const show = window.setTimeout(() => setShowGuide(true), HESITATION_MS);
     return () => {
       window.clearTimeout(show);
       setShowGuide(false);
     };
-  }, [hasOptions, replies, replies2]);
+  }, [hasOptions, ended, replies, replies2]);
 
   // 새 말풍선이 생기면 아래로 따라간다
   useEffect(() => {
@@ -130,8 +142,10 @@ export default function ChatScreen({
           <ChatBubble
             key={m.id}
             bubble={m}
-            // 바로 앞이 아이 말풍선이거나 첫 줄일 때만 아바타를 보인다
-            showAvatar={m.type !== "user" && messages[i - 1]?.type !== m.type}
+            // 연속된 같은 화자 중 첫 줄에만 아바타를 보인다. 양쪽 모두.
+            showAvatar={messages[i - 1]?.type !== m.type}
+            studentName={studentFullName}
+            studentPhotoSrc={studentPhotoSrc}
           />
         ))}
 
@@ -180,7 +194,7 @@ export default function ChatScreen({
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
-        {showGuide && hasOptions && (
+        {showGuide && hasOptions && !ended && (
           <GuideChips
             replies={replies}
             replies2={replies2}
@@ -199,7 +213,7 @@ export default function ChatScreen({
           onStart={recorder.start}
           onStop={recorder.stop}
           onFallback={() => setShowGuide(true)}
-          disabled={!hasOptions}
+          disabled={!canTalk}
         />
       </div>
     </section>

@@ -356,10 +356,17 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         setTyping(false);
         setThinking(false);
         // AI_ENABLED=false 로 꺼둔 상태는 고장이 아니다. 조용히 칩으로 되돌린다.
-        if (error instanceof LiveChatError && error.isDisabled) return false;
+        // 말해도 전사되지 않으므로 칩을 고를 수 있게 바꾼다.
+        if (error instanceof LiveChatError && error.isDisabled) {
+          setLive(false);
+          // 시작할 때 치워둔 칩을 되돌린다. 안 그러면 고를 것도 말할 것도 없이 멈춘다.
+          setReplies(pendingRepliesRef.current);
+          return false;
+        }
         setVoiceError(
           error instanceof LiveChatError ? error.message : "지금은 듣기가 어려워. 아래에서 골라줄래?",
         );
+        setReplies(pendingRepliesRef.current);
         return true;
       }
     },

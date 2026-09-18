@@ -67,6 +67,28 @@
 .chat-row--ai { justify-content: flex-start; }
 .chat-row--mine { justify-content: flex-end; }
 
+/* 아이 쪽 아바타. 사진이 없으면 이름 끝 글자를 원 안에 둔다.
+   살핌 아바타와 같은 크기라 줄이 어긋나지 않는다 */
+.chat-avatar--me {
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.chat-avatar__initial {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 2.6cqh;
+  line-height: 1;
+}
+.chat-avatar__photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .chat-bubble {
   max-width: 62%;
   padding: 2.2cqh 2.8cqh;
