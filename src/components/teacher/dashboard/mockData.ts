@@ -8,7 +8,7 @@
 // 실데이터 교체 지점 — getDashboardSnapshot 안을 아래 쿼리 호출로 바꾸면 컴포넌트는 그대로다:
 //   lib/supabase/queries/{colorSummary,morningBriefing,relationshipMap,conflictLog,
 //                          classroomToday,participation}.ts  (전부 date 인자를 받는다)
-//   감정 어휘는 app/api/ai/vocab-growth, 패턴 경고는 app/api/ai/pattern-alert
+//   감정 어휘는 app/api/ai/vocab-growth
 //
 // 대시보드는 읽기 전용이다 (살핌_DB_스키마_v0.3.md §13) — 어떤 원본 테이블에도 쓰지 않는다.
 // UI/URL 에 노출하는 식별자는 student_id 다. enrollment_id 는 repository 내부 변환용.
@@ -20,8 +20,6 @@ import type { SignalColor } from "@/lib/types/signal";
 // 헤더의 "오늘 날짜"(components/teacher/CurrentDate.tsx)와 같은 기준을 써야
 // 상단 날짜와 대시보드의 "오늘"이 어긋나지 않는다. 둘 다 Asia/Seoul 기준이다.
 import { todayKst } from "@/components/shared/datetime";
-// 패턴 경고의 "체육 있는 날" 같은 교차는 실제 시간표를 봐야 근거가 참이 된다.
-import { periodOf } from "@/lib/timetable/classTimetable";
 
 /* ══ 날짜 유틸 ═══════════════════════════════════════════════════════
    날짜 문자열 산술은 전부 UTC 기준으로 계산한다 (로컬 타임존에 흔들리지 않게).
@@ -63,14 +61,30 @@ function monthDayLabel(dateKey: string): string {
   return `${Number(m)}월 ${Number(d)}일`;
 }
 
+/** from ~ to 사이의 수업일 (양끝 포함, 오래된 날 → 최근 날) */
+function schoolDaysBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) out.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
 /* ══ 선택 가능한 날짜 ════════════════════════════════════════════════
-   mock 스냅샷은 특정 날짜에 묶여 있지 않다. "가장 최근 수업일 3개"에 얹는다.
+   mock 스냅샷은 특정 날짜에 묶여 있지 않다. "이번 달 1일부터 오늘까지의 수업일" 전부에 얹는다.
    상단 헤더가 실제 오늘을 그리므로 여기가 멈춰 있으면 두 날짜가 어긋난다.
    자정을 넘겨도 맞아야 해서 상수가 아니라 함수다 — 서버 프로세스가 오래 떠 있어도 안전하다. */
 
 /** 대시보드가 보여줄 수 있는 날짜 (오래된 날 → 오늘) */
 export function dashboardDates(): string[] {
-  return recentSchoolDays(todayKst(), 3);
+  const today = todayKst();
+  const days = schoolDaysBetween(`${today.slice(0, 8)}01`, today);
+  // 달이 주말로 시작하면 이번 달 수업일이 아직 없다 — 가장 가까운 지난 수업일 하나라도 둔다.
+  return days.length ? days : [schoolDayAgo(0)];
 }
 
 export function dashboardToday(): string {
@@ -78,7 +92,7 @@ export function dashboardToday(): string {
 }
 
 export function dashboardMinDate(): string {
-  return schoolDayAgo(2);
+  return dashboardDates()[0];
 }
 
 /** ?date= 쿼리를 안전한 dateKey 로 정규화. 모르는 값·미래 날짜는 전부 오늘로 되돌린다. */
@@ -182,9 +196,15 @@ export type ConflictRow = {
   warn?: string;
 };
 
-/** 갈등은 "오늘 / 그저께 / 2주 전쯤"에 있었던 일로 둔다 — 날짜가 today 를 따라 움직인다. */
+/** 갈등은 오늘 / 그저께 / 1주 전 / 2주 반 전에 있었던 일로 둔다 — 날짜가 today 를 따라 움직인다.
+    가장 오래된 한 건은 달 초 날짜를 골라도 갈등 기록이 비지 않게 하려고 멀리 둔다. */
 function conflictLedger(): ConflictRow[] {
-  const [today, twoDaysAgo, older] = [schoolDayAgo(0), schoolDayAgo(2), schoolDayAgo(5)];
+  const [today, twoDaysAgo, older, oldest] = [
+    schoolDayAgo(0),
+    schoolDayAgo(2),
+    schoolDayAgo(5),
+    schoolDayAgo(12),
+  ];
   return [
   {
     date: today,
@@ -224,6 +244,19 @@ function conflictLedger(): ConflictRow[] {
     statements: [
       { who: "박예린 (하교)", tone: "yellow", text: "준혁이가 자기 맡은 걸 안 해서 제가 다 했어요." },
       { who: "김준혁 (하교)", tone: "muted", text: "예린이가 제 몫까지 먼저 해버려서 할 게 없었어요." },
+    ],
+  },
+  {
+    date: oldest,
+    label: monthDayLabel(oldest),
+    context: "쉬는 시간",
+    pair: "한지훈 ↔ 박수빈",
+    pairIds: [13, 8],
+    summary: "놀이 규칙으로 다툼",
+    status: "담임 중재 완료",
+    statements: [
+      { who: "한지훈 (하교)", tone: "yellow", text: "수빈이가 자꾸 규칙을 바꿔서 그만하자고 했어요." },
+      { who: "박수빈 (하교)", tone: "muted", text: "처음에 정한 게 헷갈려서 다시 말한 거예요." },
     ],
   },
   ];
@@ -376,39 +409,14 @@ export type BriefingStudent = {
   reason: string;
 };
 
-export type PatternTone = "check" | "repeat" | "watch";
-
-/** 패턴 경고 행 — 감정 색 연속/변화는 여기 넣지 않는다(아침 브리핑 담당).
-    여기는 요일·시간표·활동 같은 다른 축과 교차했을 때만 나오는 반복이다. */
-export type PatternRow = {
-  student: string;
-  /** 반복 패턴을 한 덩어리로 빠르게 읽히게 — 카드에 보여주는 건 여기까지 */
-  pattern: string;
-  /** 근거(날짜 등). 카드에는 펼치지 않고 툴팁으로만 둔다 — 아이 상세에서 쓸 값 */
-  detail: string;
-  tone: PatternTone;
-};
-
-export const PATTERN_TONE_LABEL: Record<PatternTone, string> = {
-  check: "확인 필요",
-  repeat: "최근 반복된 변화",
-  watch: "지켜보는 중",
-};
-
-export const PATTERN_FOOTNOTE =
-  "반복해서 기록된 신호를 모아둔 것입니다. 아이에 대한 판단이 아니라, 한 번 더 살펴볼 지점입니다.";
-
-export type ParticipationDay = { weekday: string; date: string; rate: number; isToday?: boolean };
-
+/** "오늘의 교실" 카드 안 참여 인원 줄 */
 export type ParticipationSummary = {
   date: string;
   /** absentStudents 에서 파생된다 — 숫자와 명단이 어긋날 수 없다 */
   completedCount: number;
   totalCount: number;
-  weeklyAverageRate: number;
   /** 그날 체크인을 완료하지 않은 아이들 */
   absentStudents: StudentRef[];
-  recentDays: ParticipationDay[];
 };
 
 /* ══ 날짜별 스냅샷 ═══════════════════════════════════════════════════
@@ -426,9 +434,8 @@ type DaySnapshot = {
   mood: Record<SignalColor, number[]>;
   /** 아침 브리핑에 올릴 아이 — 그날 mood 에서 걸린 색만 온다 */
   watch: BriefingStudent[];
-  /** 감정 색 축과 겹치지 않는 교차 패턴만 */
-  patterns: PatternRow[];
-  participation: { absentIds: number[]; weeklyAverageRate: number; recentRates: number[] };
+  /** 그날 체크인을 완료하지 않은 아이 id */
+  participation: { absentIds: number[] };
   /** 그날 기준 관계 지도에서 갈등으로 표시할 짝 */
   conflictPairs: [number, number][];
   /** 그 시점까지의 누적 어휘가 얼마나 적었는지 (오늘=0) */
@@ -443,24 +450,8 @@ function schoolDayBefore(ref: string, k: number): string {
   return recentSchoolDays(ref, k + 1)[0];
 }
 
-/** ref 와 같은 요일로 weeksAgo 주 전 */
-function sameWeekdayBefore(ref: string, weeksAgo: number): string {
-  const d = new Date(`${ref}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - weeksAgo * 7);
-  return d.toISOString().slice(0, 10);
-}
-
-/** 그날 그 과목이 실제로 있으면 " · 오늘 N교시 과목", 없으면 빈 문자열.
-    시간표에 없는 날까지 "오늘 체육"이라고 적으면 근거가 거짓이 된다. */
-function todaySubjectNote(ref: string, subject: string): string {
-  const period = periodOf(ref, subject);
-  return period ? ` · 오늘 ${period}교시 ${subject}` : "";
-}
-
-function todaySnapshot(ref: string): DaySnapshot {
+function profileA(ref: string, vocabStep: number): DaySnapshot {
   const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
-  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
-  const weekday = weekdayOf(ref);
   return {
     weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
@@ -477,25 +468,16 @@ function todaySnapshot(ref: string): DaySnapshot {
       { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 4회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
       { studentId: 13, name: "한지훈", tone: "yellow", status: "빨강 → 노랑", reason: "어제보다 나아졌지만 아직 초록은 아니에요" },
     ],
-    patterns: [
-      { student: "김민준", pattern: "체육 있는 날 갈등 반복", detail: `${sb(5)}, ${sb(2)}, ${sb(0)}${todaySubjectNote(ref, "체육")}`, tone: "check" },
-      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(5)}, ${sb(4)}, ${sb(1)} 대화에서 기록`, tone: "check" },
-      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(5)}, ${sb(4)}, ${sb(0)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
-      { student: "김민준", pattern: `${weekday}요일 등교에서 반복`, detail: `${sw(2)}, ${sw(1)}, ${sw(0)} ${weekday}요일`, tone: "repeat" },
-      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "watch" },
-    ],
-    participation: { absentIds: [16, 20], weeklyAverageRate: 87, recentRates: [80, 95, 85, 95, 90] },
+    participation: { absentIds: [16, 20] },
     conflictPairs: [
       [1, 2],
       [1, 13],
     ],
-    vocabStep: 0,
+    vocabStep,
   };
 }
 
-function yesterdaySnapshot(ref: string): DaySnapshot {
-  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
-  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
+function profileB(ref: string, vocabStep: number): DaySnapshot {
   return {
     weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
@@ -512,25 +494,16 @@ function yesterdaySnapshot(ref: string): DaySnapshot {
       { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "며칠 노랑에 머물다 오늘 더 내려갔어요" },
       { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 3회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
     ],
-    patterns: [
-      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(4)}, ${sb(3)}, ${sb(0)} 대화에서 기록`, tone: "check" },
-      { student: "김민준", pattern: "체육 있는 날 갈등 반복", detail: `${sb(4)}, ${sb(1)}${todaySubjectNote(ref, "체육")}`, tone: "repeat" },
-      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(4)}, ${sb(3)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
-      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "watch" },
-    ],
-    participation: { absentIds: [16], weeklyAverageRate: 88, recentRates: [95, 85, 95, 80, 95] },
+    participation: { absentIds: [16] },
     conflictPairs: [
       [1, 13],
       [3, 7],
     ],
-    vocabStep: 1,
+    vocabStep,
   };
 }
 
-function twoDaysAgoSnapshot(ref: string): DaySnapshot {
-  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
-  const sw = (w: number) => shortDate(sameWeekdayBefore(ref, w));
-  const weekday = weekdayOf(ref);
+function profileC(ref: string, vocabStep: number): DaySnapshot {
   return {
     weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
@@ -546,29 +519,33 @@ function twoDaysAgoSnapshot(ref: string): DaySnapshot {
       { studentId: 17, name: "오지안", tone: "navy", status: "남색 선택", reason: "오늘은 혼자 있을 시간을 골랐어요" },
       { studentId: 3, name: "박예린", tone: "yellow", status: "노랑 3일 연속", reason: "며칠째 같은 자리에 머물러 있어요" },
     ],
-    patterns: [
-      { student: "오지안", pattern: "3주간 또래 이름 언급 없음", detail: `${sw(3)} 이후 대화에서 친구 이름이 나오지 않음`, tone: "check" },
-      { student: "김민준", pattern: `${weekday}요일 등교에서 반복`, detail: `${sw(2)}, ${sw(1)}, ${sw(0)} ${weekday}요일`, tone: "check" },
-      { student: "박예린", pattern: "미술 있는 날 반복", detail: `${sb(3)}, ${sb(2)}${todaySubjectNote(ref, "미술")}`, tone: "repeat" },
-      { student: "한지훈", pattern: "면담 필요 신호 반복", detail: `${sb(3)}, ${sb(2)} 대화에서 기록`, tone: "watch" },
-    ],
-    participation: { absentIds: [9, 16, 20], weeklyAverageRate: 85, recentRates: [85, 95, 80, 95, 85] },
+    participation: { absentIds: [9, 16, 20] },
     conflictPairs: [
       [1, 13],
       [3, 7],
     ],
-    vocabStep: 2,
+    vocabStep,
   };
 }
 
-/** 가장 최근 수업일 3개에 스냅샷을 얹는다 (키가 오늘을 따라 움직인다). */
+/** 하루치 mock 을 세 가지 모양으로만 둔다 — 이번 달 수업일에 돌아가며 얹는다.
+    (실데이터가 붙으면 이 배열 자리가 그날 쿼리 결과로 바뀐다) */
+const DAY_PROFILES = [profileA, profileB, profileC];
+
+/** 누적 어휘는 과거로 갈수록 적어야 한다. 수업일 2일마다 1개씩 낮춘다 (최소 3개는 남는다). */
+function vocabStepFor(daysBack: number): number {
+  return Math.min(6, Math.floor(daysBack / 2));
+}
+
+/** 이번 달 1일부터 오늘까지의 모든 수업일에 스냅샷을 얹는다. */
 function buildSnapshots(): Record<string, DaySnapshot> {
-  const [older, mid, today] = dashboardDates();
-  return {
-    [today]: todaySnapshot(today),
-    [mid]: yesterdaySnapshot(mid),
-    [older]: twoDaysAgoSnapshot(older),
-  };
+  const dates = dashboardDates();
+  const out: Record<string, DaySnapshot> = {};
+  dates.forEach((date, i) => {
+    const daysBack = dates.length - 1 - i; // 0 = 오늘
+    out[date] = DAY_PROFILES[daysBack % DAY_PROFILES.length](date, vocabStepFor(daysBack));
+  });
+  return out;
 }
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
@@ -583,7 +560,6 @@ export type DashboardData = {
     mood: MoodShare[];
     recentDays: ClassroomDay[];
   };
-  patterns: PatternRow[];
   participation: ParticipationSummary;
   relation: { nodes: RelationNode[]; edges: RelationEdge[] };
   conflicts: ConflictRow[];
@@ -670,21 +646,13 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
         isToday: date === key,
       })),
     },
-    patterns: snapshot.patterns,
     participation: {
       date: key,
       completedCount: CLASS_SIZE - snapshot.participation.absentIds.length,
       totalCount: CLASS_SIZE,
-      weeklyAverageRate: snapshot.participation.weeklyAverageRate,
       absentStudents: snapshot.participation.absentIds.map((studentId) => ({
         studentId,
         name: STUDENT_NAMES[studentId],
-      })),
-      recentDays: schoolDays.map((date, i) => ({
-        date: shortDate(date),
-        weekday: weekdayOf(date),
-        rate: snapshot.participation.recentRates[i],
-        isToday: date === key,
       })),
     },
     relation: buildRelation(snapshot),

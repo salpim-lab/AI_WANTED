@@ -1,11 +1,14 @@
 // 담당: 진승혜
 // 참고: docs/planning/PLANNING.md "[교사 화면] 탭 1. 대시보드"
 //
-// 6개 영역 배치:
+// 4개 영역 배치:
 //   상단  아침 브리핑(8/12)       · 오늘의 교실(4/12)   ← 높이 동일
 //   중단  관계 지도 + 갈등 기록(전폭)
-//         감정 어휘 성장(전폭)
-//   하단  패턴 경고(7/12)         · 전체 참여도(5/12)   ← 높이 동일
+//   하단  감정 어휘 성장(전폭)
+//
+// 패턴 경고는 뺐다 — 브리핑과 축이 겹치지 않게 정리하고 나니 남는 게 적었고,
+// 규칙 기반 판정을 제대로 만들기 전에는 카드 한 칸을 차지할 값이 없었다.
+// 전체 참여도는 단독 카드에서 "오늘의 교실" 안 작은 줄로 옮겼다 (같은 날의 같은 집계라서).
 //
 // 날짜 상태는 URL 쿼리(?date=YYYY-MM-DD)가 단일 출처다.
 // 이 서버 컴포넌트가 쿼리를 읽어 그 날짜의 데이터 한 벌을 조립하고 각 카드에 props 로 내려준다.
@@ -20,8 +23,6 @@
 import "@/styles/prototype-teacher-dashboard.css";
 import MorningBriefing from "@/components/teacher/dashboard/MorningBriefing";
 import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
-import PatternAlert from "@/components/teacher/dashboard/PatternAlert";
-import ParticipationOverview from "@/components/teacher/dashboard/ParticipationOverview";
 import RelationshipMap from "@/components/teacher/dashboard/RelationshipMap";
 import ConflictLog from "@/components/teacher/dashboard/ConflictLog";
 import VocabGrowthChart from "@/components/teacher/dashboard/VocabGrowthChart";
@@ -67,7 +68,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           <MorningBriefing watch={data.briefing.watch} isToday={isToday} />
         </div>
         <div className="col-4">
-          <ClassroomToday classroom={data.classroom} isToday={isToday} />
+          <ClassroomToday
+            classroom={data.classroom}
+            participation={data.participation}
+            isToday={isToday}
+          />
         </div>
 
         <section className="card col-12 relation-conflict">
@@ -83,13 +88,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
         <div className="col-12">
           <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />
-        </div>
-
-        <div className="col-7">
-          <PatternAlert rows={data.patterns} />
-        </div>
-        <div className="col-5">
-          <ParticipationOverview summary={data.participation} isToday={isToday} />
         </div>
       </div>
     </div>
