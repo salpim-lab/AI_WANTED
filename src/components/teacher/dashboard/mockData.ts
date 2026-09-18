@@ -20,6 +20,10 @@ import type { SignalColor } from "@/lib/types/signal";
 // 헤더의 "오늘 날짜"(components/teacher/CurrentDate.tsx)와 같은 기준을 써야
 // 상단 날짜와 대시보드의 "오늘"이 어긋나지 않는다. 둘 다 Asia/Seoul 기준이다.
 import { todayKst } from "@/components/shared/datetime";
+// 아침 브리핑 판정은 여기 없다 — 규칙과 문구는 lib/briefing, 조립은 queries/morningBriefing 이 갖는다.
+import type { StudentFacts } from "@/lib/briefing/triggers";
+import { isDistressWord } from "@/lib/vocab/lexicon";
+import { BRIEFING_HISTORY_DAYS, buildBriefingRows, type BriefingRow } from "@/lib/supabase/queries/morningBriefing";
 
 /* ══ 날짜 유틸 ═══════════════════════════════════════════════════════
    날짜 문자열 산술은 전부 UTC 기준으로 계산한다 (로컬 타임존에 흔들리지 않게).
@@ -153,30 +157,72 @@ export type RelationEdge = {
   kind: "normal" | "conflict";
 };
 
-/** viewBox 0 0 660 380 기준 좌표 — 노드 사이 간격을 넉넉히 둔다 */
-const RELATION_NODE_BASE: Omit<RelationNode, "tone">[] = [
-  { studentId: 1, name: "김민준", x: 300, y: 190, r: 34 },
-  { studentId: 2, name: "이서연", x: 150, y: 96, r: 31 },
-  { studentId: 13, name: "한지훈", x: 460, y: 108, r: 30 },
-  { studentId: 3, name: "박예린", x: 262, y: 312, r: 29 },
-  { studentId: 4, name: "최하준", x: 600, y: 60, r: 28 },
-  { studentId: 5, name: "정지우", x: 604, y: 236, r: 28 },
-  { studentId: 7, name: "김준혁", x: 96, y: 296, r: 28 },
-  { studentId: 8, name: "박수빈", x: 452, y: 318, r: 28 },
-  { studentId: 17, name: "오지안", x: 86, y: 196, r: 28, note: "3주 언급 없음" },
+/** 관계 지도에서 아이를 눌렀을 때 옆에 펼칠 내용. 아이 상세로 넘어가지 않고 여기서 끝난다. */
+export type RelationDetail = {
+  studentId: number;
+  name: string;
+  /** 다른 아이 대화에 이 아이 이름이 나온 횟수 — 지도의 원 크기와 같은 수 */
+  mentionCount: number;
+  /** 대화에서 이 아이 이름이 나온 대목. 실제로는 전사에서 그대로 잘라 온다 */
+  quotes: { from: string; date: string; text: string }[];
+  /** 이 아이가 낀 갈등 (최근 것부터) */
+  conflicts: ConflictRow[];
+};
+
+/** 선 하나를 눌렀을 때 — "이 선이 왜 생겼나"에 답하는 데 필요한 것만. */
+export type RelationPairDetail = {
+  a: { studentId: number; name: string };
+  b: { studentId: number; name: string };
+  /** 두 아이가 서로를 말한 총 횟수 */
+  mentionCount: number;
+  quotes: { from: string; date: string; text: string }[];
+  conflicts: ConflictRow[];
+};
+
+/** 아이 이름을 문장에 넣는 꼴. 받침이 있으면 "이"가 붙는다 — 민준이가 / 지우가. */
+function callName(given: string): string {
+  const last = given.charCodeAt(given.length - 1) - 0xac00;
+  const hasFinalConsonant = last >= 0 && last <= 11171 && last % 28 !== 0;
+  return hasFinalConsonant ? `${given}이` : given;
+}
+
+/** 또래 언급 발췌 — 실제로는 전사 원문이다. 해석하지 않고 그대로 보여주기 위한 자리. */
+const MENTION_QUOTE = [
+  "{to}랑 같이 놀았어요",
+  "{to}가 도와줬어요",
+  "쉬는 시간에 {to}랑 이야기했어요",
+  "{to}가 먼저 말 걸어줬어요",
+  "{to}랑 같은 모둠이었어요",
+  "{to}가 제 물건을 안 돌려줬어요",
+  "{to}한테 서운했어요",
 ];
 
-const RELATION_EDGE_BASE: { from: number; to: number }[] = [
-  { from: 1, to: 2 },
-  { from: 1, to: 13 },
-  { from: 1, to: 3 },
-  { from: 13, to: 4 },
-  { from: 13, to: 5 },
-  { from: 3, to: 8 },
-  { from: 3, to: 7 },
-];
+/** 아이마다 또래 대화에 얼마나 자주 오르내리는지. 실제로는 전사에서 이름을 세면 나온다. */
+const SOCIAL_WEIGHT: Record<number, number> = {
+  1: 9, 2: 7, 3: 8, 4: 6, 5: 5, 6: 4, 7: 5, 8: 6, 9: 3, 10: 3,
+  11: 5, 12: 3, 13: 8, 14: 3, 15: 2, 16: 2, 17: 0, 18: 3, 19: 4, 20: 2,
+};
 
-const ISOLATED_IDS = [17];
+/** 관계 지도가 보는 기간 — 최근 2주(수업일 10일) */
+const RELATION_WINDOW_DAYS = 10;
+
+/** 그날 대화에서 누가 누구를 말했는지. 실제로는 전사에 나온 또래 이름을 매칭한 결과다.
+    아이마다 하루 0~2명을 언급하고, 언급 대상은 SOCIAL_WEIGHT 로 기운다. */
+function mentionsOn(date: string): { from: number; to: number }[] {
+  const ids = Object.keys(STUDENT_NAMES).map(Number);
+  const pool = ids.flatMap((id) => Array<number>(SOCIAL_WEIGHT[id] ?? 1).fill(id));
+  const out: { from: number; to: number }[] = [];
+  for (const from of ids) {
+    // 체크인을 안 한 날은 대화가 없으니 언급도 없다
+    if (isAbsentOn(date, from)) continue;
+    const howMany = hash01(date, from, 41) < 0.35 ? 0 : hash01(date, from, 43) < 0.75 ? 1 : 2;
+    for (let i = 0; i < howMany; i++) {
+      const to = pool[Math.floor(hash01(date, from, 51 + i) * pool.length)];
+      if (to !== from && !out.some((m) => m.from === from && m.to === to)) out.push({ from, to });
+    }
+  }
+  return out;
+}
 
 /* ── 갈등 기록 (날짜순 원장. 선택 날짜 이하만 최근 것부터 보여준다) ────
    → lib/supabase/queries/conflictLog.ts (work_records / conflict_statements 읽기 전용)
@@ -187,7 +233,6 @@ export type ConflictRow = {
   /** YYYY-MM-DD — 선택 날짜 필터에 쓴다 */
   date: string;
   label: string;
-  context: string;
   pair: string;
   pairIds: [number, number];
   summary: string;
@@ -209,7 +254,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: today,
     label: monthDayLabel(today),
-    context: "점심시간",
     pair: "김민준 ↔ 이서연",
     pairIds: [1, 2],
     summary: "자리 문제로 다툼",
@@ -223,7 +267,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: twoDaysAgo,
     label: monthDayLabel(twoDaysAgo),
-    context: "체육 시간",
     pair: "김민준 ↔ 한지훈",
     pairIds: [1, 13],
     summary: "팀 편성으로 다툼",
@@ -236,7 +279,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: older,
     label: monthDayLabel(older),
-    context: "모둠 활동",
     pair: "박예린 ↔ 김준혁",
     pairIds: [3, 7],
     summary: "역할 분담으로 다툼",
@@ -249,7 +291,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: oldest,
     label: monthDayLabel(oldest),
-    context: "쉬는 시간",
     pair: "한지훈 ↔ 박수빈",
     pairIds: [13, 8],
     summary: "놀이 규칙으로 다툼",
@@ -399,15 +440,9 @@ export type ClassroomDay = {
   isToday?: boolean;
 };
 
-/** 아침 브리핑 행 — 감정 신호(색) 축만 다룬다. tone 은 그날 고른 색 그대로다.
+/** 아침 브리핑 행. status/reason 은 lib/briefing 의 규칙과 템플릿이 만든다 — 여기서 적지 않는다.
     이름 첫 글자 대신 색 동그라미만 쓴다: 교사가 훑을 때 읽어야 할 건 글자가 아니라 색이다. */
-export type BriefingStudent = {
-  studentId: number;
-  name: string;
-  tone: SignalColor;
-  status: string;
-  reason: string;
-};
+export type BriefingStudent = BriefingRow;
 
 /** "오늘의 교실" 카드 안 참여 인원 줄 */
 export type ParticipationSummary = {
@@ -422,24 +457,24 @@ export type ParticipationSummary = {
 /* ══ 날짜별 스냅샷 ═══════════════════════════════════════════════════
    날짜마다 "다른 것"만 적는다. 나머지는 위 공통 데이터에서 파생시킨다. */
 
-type DaySnapshot = {
+/** 하루치 중 "손으로 적는" 부분. 색 분포는 여기 없다 — 아래 moodOn 이 아이별 성향에서 만든다. */
+type DayNarrative = {
   /** 날씨 아래 한 줄. kind/headline 은 mood 에서 유도하므로 여기 적지 않는다. */
   weatherSupport: string;
   classroomDelta: string;
   /** 스냅샷이 없는 과거 수업일의 날씨 (오래된 날 → 선택 날짜 순).
       SNAPSHOTS 에 있는 날은 이 값 대신 그날 mood 에서 유도한다. */
   recentWeather: WeatherKind[];
+  /** 그 시점까지의 누적 어휘가 얼마나 적었는지 (오늘=0) */
+  vocabStep: number;
+};
+
+type DaySnapshot = DayNarrative & {
   /** 감정 색별 학생 id — 체크인을 완료한 아이만 들어간다.
       합 + absentIds.length 가 반드시 CLASS_SIZE 여야 한다. */
   mood: Record<SignalColor, number[]>;
-  /** 아침 브리핑에 올릴 아이 — 그날 mood 에서 걸린 색만 온다 */
-  watch: BriefingStudent[];
   /** 그날 체크인을 완료하지 않은 아이 id */
   participation: { absentIds: number[] };
-  /** 그날 기준 관계 지도에서 갈등으로 표시할 짝 */
-  conflictPairs: [number, number][];
-  /** 그 시점까지의 누적 어휘가 얼마나 적었는지 (오늘=0) */
-  vocabStep: number;
 };
 
 /* 스냅샷은 특정 날짜에 묶여 있지 않다. 각자 "자기 날짜(ref)"를 받아서
@@ -450,80 +485,29 @@ function schoolDayBefore(ref: string, k: number): string {
   return recentSchoolDays(ref, k + 1)[0];
 }
 
-function profileA(ref: string, vocabStep: number): DaySnapshot {
-  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
+function profileA(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
     recentWeather: ["partly", "cloudy", "sunny", "partly", "sunny"],
-    mood: {
-      green: [4, 5, 6, 8, 9, 11, 12, 14, 17, 19],
-      yellow: [7, 10, 13, 15, 18],
-      red: [1, 3],
-      navy: [2],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 3일 연속", reason: `${sb(2)}부터 같은 색이에요 · 말수도 함께 줄었어요` },
-      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "최근 5일 중 4일이 속상해요·그저 그래요였어요" },
-      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 4회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
-      { studentId: 13, name: "한지훈", tone: "yellow", status: "빨강 → 노랑", reason: "어제보다 나아졌지만 아직 초록은 아니에요" },
-    ],
-    participation: { absentIds: [16, 20] },
-    conflictPairs: [
-      [1, 2],
-      [1, 13],
-    ],
     vocabStep,
   };
 }
 
-function profileB(ref: string, vocabStep: number): DaySnapshot {
+function profileB(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
     recentWeather: ["sunny", "partly", "cloudy", "sunny", "partly"],
-    mood: {
-      green: [4, 5, 6, 8, 11, 12, 14, 17, 19],
-      yellow: [7, 9, 10, 15, 18, 20],
-      red: [1, 3, 13],
-      navy: [2],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 2일 연속", reason: "어제부터 같은 색을 고르고 있어요" },
-      { studentId: 13, name: "한지훈", tone: "red", status: "초록 → 빨강", reason: "대화에서 도움을 요청하는 표현이 있었어요" },
-      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "며칠 노랑에 머물다 오늘 더 내려갔어요" },
-      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 3회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
-    ],
-    participation: { absentIds: [16] },
-    conflictPairs: [
-      [1, 13],
-      [3, 7],
-    ],
     vocabStep,
   };
 }
 
-function profileC(ref: string, vocabStep: number): DaySnapshot {
+function profileC(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
     recentWeather: ["partly", "sunny", "partly", "cloudy", "sunny"],
-    mood: {
-      green: [2, 4, 5, 6, 7, 8, 11, 12, 14, 15, 19],
-      yellow: [3, 10, 13, 18],
-      red: [1],
-      navy: [17],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 선택", reason: "주말 이후 첫 등교에서 색이 바뀌었어요" },
-      { studentId: 17, name: "오지안", tone: "navy", status: "남색 선택", reason: "오늘은 혼자 있을 시간을 골랐어요" },
-      { studentId: 3, name: "박예린", tone: "yellow", status: "노랑 3일 연속", reason: "며칠째 같은 자리에 머물러 있어요" },
-    ],
-    participation: { absentIds: [9, 16, 20] },
-    conflictPairs: [
-      [1, 13],
-      [3, 7],
-    ],
     vocabStep,
   };
 }
@@ -537,15 +521,153 @@ function vocabStepFor(daysBack: number): number {
   return Math.min(6, Math.floor(daysBack / 2));
 }
 
+/* ── 그날 그 아이가 고른 색 ──────────────────────────────────────────
+   색은 프로필에 적지 않고 아이별 성향에서 만든다.
+
+   왜: 브리핑의 기준선 규칙은 "이 아이의 평소와 다른가"를 본다. 모든 아이가 매일 같은 색이면
+   평소라는 게 없어서 규칙이 한 번도 걸리지 않고, 매일 같은 이름만 뜬다.
+   아이마다 다른 분포로 흔들려야 "늘 초록이던 아이의 노랑"이 잡힌다.
+
+   날짜+학생으로만 정해지는 해시라 같은 날을 몇 번 열어도 같은 색이 나온다. */
+
+/** [초록, 노랑, 빨강, 남색] 가중치 — 아이마다 평소 색 분포가 다르다 */
+const DISPOSITION: Record<number, [number, number, number, number]> = {
+  1: [2, 3, 5, 0],   2: [5, 2, 1, 4],   3: [3, 4, 3, 0],   4: [9, 1, 0, 0],
+  5: [7, 2, 1, 0],   6: [6, 3, 1, 0],   7: [4, 4, 2, 0],   8: [7, 2, 1, 0],
+  9: [6, 3, 1, 0],  10: [3, 6, 1, 0],  11: [8, 2, 0, 0],  12: [6, 3, 1, 0],
+  13: [4, 3, 3, 0], 14: [7, 2, 1, 0],  15: [6, 3, 1, 0],  16: [5, 3, 2, 0],
+  17: [4, 3, 1, 4], 18: [3, 5, 2, 0],  19: [8, 2, 0, 0],  20: [5, 4, 1, 0],
+};
+
+/** 날짜+학생 → 0~1. 같은 입력이면 항상 같은 값 (mulberry 계열의 아주 단순한 형태). */
+function hash01(date: string, studentId: number, salt = 0): number {
+  let h = 2166136261 ^ salt;
+  const key = `${date}#${studentId}`;
+  for (let i = 0; i < key.length; i++) {
+    h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  }
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+/** 그날 체크인을 안 한 아이인지 — 하루에 대략 2명 */
+function isAbsentOn(date: string, studentId: number): boolean {
+  return hash01(date, studentId, 7) < 0.1;
+}
+
+/** 그날 그 아이가 고른 색. 체크인을 안 했으면 null */
+function colorOn(date: string, studentId: number): SignalColor | null {
+  if (isAbsentOn(date, studentId)) return null;
+  const weights = DISPOSITION[studentId] ?? [6, 3, 1, 0];
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = hash01(date, studentId) * total;
+  for (let i = 0; i < SIGNAL_ORDER.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return SIGNAL_ORDER[i];
+  }
+  return "green";
+}
+
+/** 그날 반 전체의 색 분포 + 미참여 명단 */
+function moodOn(date: string): { mood: Record<SignalColor, number[]>; absentIds: number[] } {
+  const mood: Record<SignalColor, number[]> = { green: [], yellow: [], red: [], navy: [] };
+  const absentIds: number[] = [];
+  for (const id of Object.keys(STUDENT_NAMES).map(Number)) {
+    const color = colorOn(date, id);
+    if (color === null) absentIds.push(id);
+    else mood[color].push(id);
+  }
+  return { mood, absentIds };
+}
+
+/** 아무 수업일이나 그날 스냅샷. 화면에 뜨는 이번 달뿐 아니라, 기준선 계산용으로
+    달 이전까지 거슬러 올라가며 만들어야 해서 날짜만으로 결정되어야 한다. */
+function snapshotOn(date: string): DaySnapshot {
+  const daysBack = Math.max(0, schoolDaysBetween(date, dashboardToday()).length - 1);
+  const { mood, absentIds } = moodOn(date);
+  return {
+    ...DAY_PROFILES[daysBack % DAY_PROFILES.length](date, vocabStepFor(daysBack)),
+    mood,
+    participation: { absentIds },
+  };
+}
+
 /** 이번 달 1일부터 오늘까지의 모든 수업일에 스냅샷을 얹는다. */
 function buildSnapshots(): Record<string, DaySnapshot> {
-  const dates = dashboardDates();
   const out: Record<string, DaySnapshot> = {};
-  dates.forEach((date, i) => {
-    const daysBack = dates.length - 1 - i; // 0 = 오늘
-    out[date] = DAY_PROFILES[daysBack % DAY_PROFILES.length](date, vocabStepFor(daysBack));
-  });
+  for (const date of dashboardDates()) out[date] = snapshotOn(date);
   return out;
+}
+
+/* ── 아침 브리핑 입력 ────────────────────────────────────────────────
+   판정은 lib/briefing 이 한다. 여기서는 그 규칙이 읽을 사실만 스냅샷에서 긁어 담는다
+   — 실데이터로 바꿀 때 lib/supabase/queries/morningBriefing.ts 가 같은 모양을 만들면 된다. */
+
+/** 그날 대화에서 뽑힌 감정 표제어 — 실제로는 analysis_runs(emotion_vocab)의 result 다.
+    그 아이가 쓸 줄 아는 말(vocabWordsFor) 중에서 그날 한두 개를 고른 것으로 흉내 낸다. */
+function lemmasOn(date: string, studentId: number): { lemma: string; quote?: string }[] {
+  const known = vocabWordsFor(studentId, VOCAB_BASE.find((v) => v.studentId === studentId)?.count ?? 8);
+  // 절반 정도의 날은 기분을 말하지 않고 지나간다.
+  if (!known.length || hash01(date, studentId, 21) < 0.5) return [];
+  const hard = known.filter(isDistressWord);
+  const soft = known.filter((w) => !isDistressWord(w));
+  // 힘든 말은 드물게 나온다. 여기를 높이면 "색과 말이 달라요"가 브리핑을 다 덮어버린다
+  // — 그런 반이라면 규칙이 아니라 교실에 먼저 손을 써야 한다.
+  const pool = hash01(date, studentId, 27) < 0.15 && hard.length ? hard : soft.length ? soft : hard;
+  const pick = pool[Math.floor(hash01(date, studentId, 33) * pool.length)];
+  return [{ lemma: pick, quote: MOCK_QUOTE[pick] }];
+}
+
+/** 근거 인용 — 실제로는 추출기가 학생 발화에서 그대로 잘라 온 문장이다. */
+const MOCK_QUOTE: Record<string, string> = {
+  속상하다: "진짜 속상했어요",
+  억울하다: "저만 혼나서 억울했어요",
+  외롭다: "쉬는 시간에 혼자 있었어요",
+  답답하다: "말이 잘 안 나왔어요",
+  힘들다: "오늘은 좀 힘들었어요",
+  부끄럽다: "애들이 다 봐서 부끄러웠어요",
+  걱정되다: "내일 발표가 걱정돼요",
+  무섭다: "조금 무서웠어요",
+  짜증나다: "계속 안 돼서 짜증났어요",
+};
+
+/** 색 말고는 mock 에 근거가 없는 신호들 — 화면에서 규칙이 도는 걸 보려고 몇 개만 심어둔다. */
+const MOCK_SIGNALS: Record<number, { speechRatio?: number; peerMentionGapWeeks?: number; emotionWordGap?: number }> = {
+  1: { speechRatio: 0.6 },        // 김민준 — 말수가 줄었다
+  17: { peerMentionGapWeeks: 3 }, // 오지안 — 3주째 친구 이름이 안 나온다
+  13: { emotionWordGap: 3 },      // 한지훈 — 최근 세 번의 대화에서 기분을 말하지 않았다
+};
+
+function buildBriefingFacts(dateKey: string): StudentFacts[] {
+  const pastDays = recentSchoolDays(schoolDayBefore(dateKey, 1), BRIEFING_HISTORY_DAYS);
+  const ledger = conflictLedger();
+
+  return Object.entries(STUDENT_NAMES).map(([id, name]) => {
+    const studentId = Number(id);
+    const history = pastDays
+      .map((date) => ({ date, color: colorOn(date, studentId) }))
+      .filter((h): h is { date: string; color: SignalColor } => h.color !== null);
+
+    const lastConflict = ledger.find((c) => c.date <= dateKey && c.pairIds.includes(studentId));
+    const todayLemmas = lemmasOn(dateKey, studentId);
+
+    return {
+      studentId,
+      name,
+      todayColor: colorOn(dateKey, studentId),
+      history,
+      // 최근 2주 = 수업일 10일
+      navyCountLast2Weeks: history.slice(-10).filter((h) => h.color === "navy").length,
+      lastConflict: lastConflict && { date: lastConflict.date, resolved: lastConflict.status !== "진술 확인 중" },
+      prosody: MOCK_SIGNALS[studentId]?.speechRatio ? { speechRatio: MOCK_SIGNALS[studentId].speechRatio } : undefined,
+      peerMentionGapWeeks: MOCK_SIGNALS[studentId]?.peerMentionGapWeeks ?? null,
+      emotionWordGap: MOCK_SIGNALS[studentId]?.emotionWordGap ?? 0,
+      todayLemmas,
+      // 오늘 쓴 말 중 지난 30일에 한 번도 안 나온 것 = 오늘 처음 쓴 말
+      newLemmas: todayLemmas
+        .map((w) => w.lemma)
+        .filter((lemma) => !pastDays.some((d) => lemmasOn(d, studentId).some((w) => w.lemma === lemma))),
+    };
+  });
 }
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
@@ -561,7 +683,12 @@ export type DashboardData = {
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
-  relation: { nodes: RelationNode[]; edges: RelationEdge[] };
+  relation: {
+    nodes: RelationNode[];
+    edges: RelationEdge[];
+    details: Record<number, RelationDetail>;
+    pairs: Record<string, RelationPairDetail>;
+  };
   conflicts: ConflictRow[];
   vocab: { students: VocabStudent[]; trend: VocabMonth[] };
 };
@@ -579,26 +706,167 @@ function buildMood(snapshot: DaySnapshot): MoodShare[] {
   });
 }
 
-function buildRelation(snapshot: DaySnapshot): DashboardData["relation"] {
-  const isConflict = (a: number, b: number) =>
-    snapshot.conflictPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+/* ── 관계 지도 ───────────────────────────────────────────────────────
+   반 전체가 나온다. 9명만 그리면 빠진 11명이 "관계가 없는 아이"인지 "안 그린 아이"인지
+   교사가 알 수 없고, 정작 찾아야 할 조용한 아이가 거기 숨는다.
 
-  const conflictIds = new Set(snapshot.conflictPairs.flat());
+   원 크기 = 중요도. 최근 2주 동안
+     · 다른 아이 대화에 이름이 오른 횟수 (발화 추출)
+     · 업무기록에 이름이 오른 건수 (갈등·관찰) — 기록에 남은 건 더 무겁게 센다
+   인기 순위가 아니다. "이 아이 이야기가 교실에서 얼마나 오갔나"의 양이다. */
 
-  return {
-    nodes: RELATION_NODE_BASE.map((n) => ({
-      ...n,
-      tone: ISOLATED_IDS.includes(n.studentId)
-        ? "isolated"
-        : conflictIds.has(n.studentId)
-          ? "conflict"
-          : "normal",
-    })),
-    edges: RELATION_EDGE_BASE.map((e) => ({
-      ...e,
-      kind: isConflict(e.from, e.to) ? "conflict" : "normal",
-    })),
-  };
+/** 업무기록 한 건은 언급 몇 번만큼 무겁게 볼 것인가 */
+const RECORD_WEIGHT = 3;
+/** 선을 그릴 최소 언급 횟수 — 한 번 스친 이름까지 이으면 그물이 된다 */
+const EDGE_MIN_MENTIONS = 2;
+
+/** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
+const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
+
+function buildRelation(dateKey: string): DashboardData["relation"] {
+  const window = recentSchoolDays(dateKey, RELATION_WINDOW_DAYS);
+  const ids = Object.keys(STUDENT_NAMES).map(Number);
+
+  // 서로 언급한 횟수 (방향은 합친다 — 지도는 "이야기가 오갔다"만 보여준다)
+  const pairCount = new Map<string, number>();
+  const mentioned = new Map<number, number>(ids.map((id) => [id, 0]));
+  // 말한 쪽도 따로 센다 — "친구 이야기를 하는데 아무도 내 이야기를 안 하는" 아이를
+  // "아무와도 오가는 게 없는" 아이와 같이 묶으면, 정작 다른 상황인 둘을 놓친다.
+  const mentioning = new Map<number, number>(ids.map((id) => [id, 0]));
+  for (const date of window) {
+    for (const { from, to } of mentionsOn(date)) {
+      mentioned.set(to, (mentioned.get(to) ?? 0) + 1);
+      mentioning.set(from, (mentioning.get(from) ?? 0) + 1);
+      const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+      pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
+    }
+  }
+
+  // 업무기록(갈등)에 이름이 오른 건수
+  const oldest = window[0];
+  const records = conflictLedger().filter((c) => c.date >= oldest && c.date <= dateKey);
+  const recordCount = new Map<number, number>(ids.map((id) => [id, 0]));
+  for (const c of records) for (const id of c.pairIds) recordCount.set(id, (recordCount.get(id) ?? 0) + 1);
+
+  const weightOf = (id: number) => (mentioned.get(id) ?? 0) + (recordCount.get(id) ?? 0) * RECORD_WEIGHT;
+  const maxWeight = Math.max(1, ...ids.map(weightOf));
+
+  const conflictIds = new Set(records.flatMap((c) => c.pairIds));
+  const isConflictPair = (a: number, b: number) =>
+    records.some((c) => c.pairIds.includes(a) && c.pairIds.includes(b));
+
+  // 중요도 높은 순으로 가운데부터. 동점이면 번호순이라 매일 자리가 흔들리지 않는다.
+  const ranked = [...ids].sort((a, b) => weightOf(b) - weightOf(a) || a - b);
+
+  const nodes: RelationNode[] = ranked.map((studentId, rank) => {
+    const weight = weightOf(studentId);
+    let x = LAYOUT.cx;
+    let y = LAYOUT.cy;
+    if (rank > 0) {
+      const ring = rank <= LAYOUT.rings[0].count ? LAYOUT.rings[0] : LAYOUT.rings[1];
+      const index = rank <= LAYOUT.rings[0].count ? rank - 1 : rank - 1 - LAYOUT.rings[0].count;
+      // 안쪽 고리와 바깥 고리의 각도를 엇갈리게 둬서 노드가 한 줄로 겹쳐 보이지 않게 한다
+      const offset = ring === LAYOUT.rings[0] ? -Math.PI / 2 : -Math.PI / 2 + Math.PI / ring.count;
+      const angle = offset + (index / ring.count) * Math.PI * 2;
+      x = Math.round(LAYOUT.cx + Math.cos(angle) * ring.rx);
+      y = Math.round(LAYOUT.cy + Math.sin(angle) * ring.ry);
+    }
+    return {
+      studentId,
+      name: STUDENT_NAMES[studentId],
+      x,
+      y,
+      r: Math.round(13 + (weight / maxWeight) * 19),
+      tone: weight === 0 ? "isolated" : conflictIds.has(studentId) ? "conflict" : "normal",
+      note:
+        weight > 0
+          ? undefined
+          : (mentioning.get(studentId) ?? 0) > 0
+            ? "먼저 이야기하지만 이름이 안 나와요"
+            : "2주간 오간 이야기 없음",
+    };
+  });
+
+  const edges: RelationEdge[] = [...pairCount]
+    .filter(([, count]) => count >= EDGE_MIN_MENTIONS)
+    .map(([key]) => {
+      const [from, to] = key.split("-").map(Number);
+      return { from, to, kind: isConflictPair(from, to) ? "conflict" : "normal" };
+    });
+
+  // 갈등은 언급이 적어도 반드시 보여야 한다
+  for (const c of records) {
+    const [from, to] = c.pairIds;
+    if (!edges.some((e) => (e.from === from && e.to === to) || (e.from === to && e.to === from))) {
+      edges.push({ from, to, kind: "conflict" });
+    }
+  }
+
+  return { nodes, edges, ...buildRelationDetails(ids, window, records) };
+}
+
+/** 짝 키는 늘 작은 번호가 앞이다 — 방향이 달라도 같은 선을 가리키게 */
+export const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+/** 아이별·짝별 관계 상세. 언급을 한 번만 모아서 두 갈래로 나눠 담는다. */
+function buildRelationDetails(
+  ids: number[],
+  window: string[],
+  records: ConflictRow[],
+): { details: Record<number, RelationDetail>; pairs: Record<string, RelationPairDetail> } {
+  const byStudent = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
+  const byPair = new Map<string, RelationPairDetail["quotes"]>();
+
+  for (const date of window) {
+    for (const { from, to } of mentionsOn(date)) {
+      const template = MENTION_QUOTE[Math.floor(hash01(date, from * 100 + to, 61) * MENTION_QUOTE.length)];
+      // 인용은 "말한 아이"의 발화다 — 그 안에 상대 이름이 들어간다
+      const quote = {
+        from: STUDENT_NAMES[from],
+        date,
+        text: template.replace("{to}", callName(STUDENT_NAMES[to].slice(1))),
+      };
+      byStudent.get(to)!.push(quote);
+      const key = pairKey(from, to);
+      if (!byPair.has(key)) byPair.set(key, []);
+      byPair.get(key)!.push(quote);
+    }
+  }
+
+  const details = Object.fromEntries(
+    ids.map((studentId) => [
+      studentId,
+      {
+        studentId,
+        name: STUDENT_NAMES[studentId],
+        mentionCount: byStudent.get(studentId)!.length,
+        // 최근 것부터 3개까지 — 더 보여줘도 패널에서 읽히지 않는다
+        quotes: byStudent.get(studentId)!.slice().reverse().slice(0, 3),
+        conflicts: records.filter((c) => c.pairIds.includes(studentId)),
+      },
+    ]),
+  );
+
+  // 갈등만 있고 언급은 없는 짝도 선이 그려지므로, 그 짝의 상세도 있어야 한다
+  const keys = new Set([...byPair.keys(), ...records.map((c) => pairKey(...c.pairIds))]);
+  const pairs = Object.fromEntries(
+    [...keys].map((key) => {
+      const [a, b] = key.split("-").map(Number);
+      const quotes = byPair.get(key) ?? [];
+      return [
+        key,
+        {
+          a: { studentId: a, name: STUDENT_NAMES[a] },
+          b: { studentId: b, name: STUDENT_NAMES[b] },
+          mentionCount: quotes.length,
+          quotes: quotes.slice().reverse().slice(0, 4),
+          conflicts: records.filter((c) => pairKey(...c.pairIds) === key),
+        },
+      ];
+    }),
+  );
+
+  return { details, pairs };
 }
 
 function buildVocab(snapshot: DaySnapshot): DashboardData["vocab"] {
@@ -629,7 +897,7 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
   return {
     dateKey: key,
     isToday: key === today,
-    briefing: { watch: snapshot.watch },
+    briefing: { watch: buildBriefingRows(buildBriefingFacts(key), key) },
     classroom: {
       weather: {
         ...deriveWeather(snapshot.mood),
@@ -655,7 +923,7 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
         name: STUDENT_NAMES[studentId],
       })),
     },
-    relation: buildRelation(snapshot),
+    relation: buildRelation(key),
     conflicts: conflictLedger().filter((c) => c.date <= key).slice(0, 2),
     vocab: buildVocab(snapshot),
   };

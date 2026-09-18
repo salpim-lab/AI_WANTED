@@ -111,3 +111,18 @@ export function canonicalize(value: unknown): string | null {
 export function familyOf(lemma: string): EmotionFamily | null {
   return BY_LEMMA.get(lemma)?.family ?? null;
 }
+
+/** 아이가 힘들다고 말한 쪽의 계열. 아침 브리핑이 "색과 말이 어긋났나"를 볼 때 쓴다.
+    놀람·관계는 뺀다 — "신기했어요", "고마웠어요"는 힘든 마음이 아니다. */
+const DISTRESS_FAMILIES: EmotionFamily[] = ["슬픔", "분노", "불안", "부끄러움", "지침"];
+
+/** 계열은 힘든 쪽에 묶여 있지만 브리핑에 올릴 말은 아닌 것.
+    "심심하다"는 기운이 낮다는 뜻이라 지침에 넣었을 뿐, 힘들다는 말이 아니다. */
+const NOT_DISTRESS = new Set(["심심하다"]);
+
+/** 이 말이 "힘든 마음"을 가리키는가. 계열만으로는 모자라서 예외를 하나 둔다. */
+export function isDistressWord(lemma: string): boolean {
+  if (NOT_DISTRESS.has(lemma)) return false;
+  const family = familyOf(lemma);
+  return family !== null && DISTRESS_FAMILIES.includes(family);
+}
