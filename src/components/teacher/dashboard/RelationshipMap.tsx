@@ -46,7 +46,7 @@ export default function RelationshipMap({ nodes, edges }: DashboardData["relatio
     <div className="relation-pane">
       <div className="pane-title">
         관계 지도
-        <span className="pane-sub">발화에서 추출 · 최근 4주</span>
+        <span className="pane-sub">발화·업무기록에서 추출 · 최근 2주</span>
       </div>
 
       <div className="relation-map-wrap">
@@ -109,8 +109,17 @@ export default function RelationshipMap({ nodes, edges }: DashboardData["relatio
                   strokeWidth={active || peer ? 3 : 2}
                   strokeDasharray={n.tone === "isolated" ? "5 4" : undefined}
                 />
-                <text x={n.x} y={n.y + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill={style.text}>
-                  {n.name}
+                {/* 반 전체(20명)가 들어가서 원이 작아질 수 있다. 작은 원에는 성을 떼고 이름만,
+                    글자 크기도 원에 맞춰 줄인다 — 넘치면 이름이 원 밖으로 삐져나온다. */}
+                <text
+                  x={n.x}
+                  y={n.y + (active || peer ? 5 : 4)}
+                  textAnchor="middle"
+                  fontSize={n.r >= 26 ? 13 : n.r >= 20 ? 11 : 9.5}
+                  fontWeight="700"
+                  fill={style.text}
+                >
+                  {n.r >= 26 ? n.name : n.name.slice(1)}
                 </text>
                 {n.note && (
                   <text
@@ -137,7 +146,7 @@ export default function RelationshipMap({ nodes, edges }: DashboardData["relatio
           <i className="legend-line" /> 서로 언급한 관계
         </span>
         <span>
-          <i className="legend-ring" /> 3주간 언급 없음
+          <i className="legend-ring" /> 다른 아이 대화에 이름이 안 나온 아이
         </span>
         <span className="relation-hint">아이 위에 올리면 이어진 아이만 남아요</span>
       </div>

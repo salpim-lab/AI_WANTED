@@ -157,30 +157,32 @@ export type RelationEdge = {
   kind: "normal" | "conflict";
 };
 
-/** viewBox 0 0 660 380 기준 좌표 — 노드 사이 간격을 넉넉히 둔다 */
-const RELATION_NODE_BASE: Omit<RelationNode, "tone">[] = [
-  { studentId: 1, name: "김민준", x: 300, y: 190, r: 34 },
-  { studentId: 2, name: "이서연", x: 150, y: 96, r: 31 },
-  { studentId: 13, name: "한지훈", x: 460, y: 108, r: 30 },
-  { studentId: 3, name: "박예린", x: 262, y: 312, r: 29 },
-  { studentId: 4, name: "최하준", x: 600, y: 60, r: 28 },
-  { studentId: 5, name: "정지우", x: 604, y: 236, r: 28 },
-  { studentId: 7, name: "김준혁", x: 96, y: 296, r: 28 },
-  { studentId: 8, name: "박수빈", x: 452, y: 318, r: 28 },
-  { studentId: 17, name: "오지안", x: 86, y: 196, r: 28, note: "3주 언급 없음" },
-];
+/** 아이마다 또래 대화에 얼마나 자주 오르내리는지. 실제로는 전사에서 이름을 세면 나온다. */
+const SOCIAL_WEIGHT: Record<number, number> = {
+  1: 9, 2: 7, 3: 8, 4: 6, 5: 5, 6: 4, 7: 5, 8: 6, 9: 3, 10: 3,
+  11: 5, 12: 3, 13: 8, 14: 3, 15: 2, 16: 2, 17: 0, 18: 3, 19: 4, 20: 2,
+};
 
-const RELATION_EDGE_BASE: { from: number; to: number }[] = [
-  { from: 1, to: 2 },
-  { from: 1, to: 13 },
-  { from: 1, to: 3 },
-  { from: 13, to: 4 },
-  { from: 13, to: 5 },
-  { from: 3, to: 8 },
-  { from: 3, to: 7 },
-];
+/** 관계 지도가 보는 기간 — 최근 2주(수업일 10일) */
+const RELATION_WINDOW_DAYS = 10;
 
-const ISOLATED_IDS = [17];
+/** 그날 대화에서 누가 누구를 말했는지. 실제로는 전사에 나온 또래 이름을 매칭한 결과다.
+    아이마다 하루 0~2명을 언급하고, 언급 대상은 SOCIAL_WEIGHT 로 기운다. */
+function mentionsOn(date: string): { from: number; to: number }[] {
+  const ids = Object.keys(STUDENT_NAMES).map(Number);
+  const pool = ids.flatMap((id) => Array<number>(SOCIAL_WEIGHT[id] ?? 1).fill(id));
+  const out: { from: number; to: number }[] = [];
+  for (const from of ids) {
+    // 체크인을 안 한 날은 대화가 없으니 언급도 없다
+    if (isAbsentOn(date, from)) continue;
+    const howMany = hash01(date, from, 41) < 0.35 ? 0 : hash01(date, from, 43) < 0.75 ? 1 : 2;
+    for (let i = 0; i < howMany; i++) {
+      const to = pool[Math.floor(hash01(date, from, 51 + i) * pool.length)];
+      if (to !== from && !out.some((m) => m.from === from && m.to === to)) out.push({ from, to });
+    }
+  }
+  return out;
+}
 
 /* ── 갈등 기록 (날짜순 원장. 선택 날짜 이하만 최근 것부터 보여준다) ────
    → lib/supabase/queries/conflictLog.ts (work_records / conflict_statements 읽기 전용)
@@ -423,8 +425,6 @@ type DayNarrative = {
   /** 스냅샷이 없는 과거 수업일의 날씨 (오래된 날 → 선택 날짜 순).
       SNAPSHOTS 에 있는 날은 이 값 대신 그날 mood 에서 유도한다. */
   recentWeather: WeatherKind[];
-  /** 그날 기준 관계 지도에서 갈등으로 표시할 짝 */
-  conflictPairs: [number, number][];
   /** 그 시점까지의 누적 어휘가 얼마나 적었는지 (오늘=0) */
   vocabStep: number;
 };
@@ -450,10 +450,6 @@ function profileA(ref: string, vocabStep: number): DayNarrative {
     weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
     recentWeather: ["partly", "cloudy", "sunny", "partly", "sunny"],
-    conflictPairs: [
-      [1, 2],
-      [1, 13],
-    ],
     vocabStep,
   };
 }
@@ -463,10 +459,6 @@ function profileB(ref: string, vocabStep: number): DayNarrative {
     weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
     recentWeather: ["sunny", "partly", "cloudy", "sunny", "partly"],
-    conflictPairs: [
-      [1, 13],
-      [3, 7],
-    ],
     vocabStep,
   };
 }
@@ -476,10 +468,6 @@ function profileC(ref: string, vocabStep: number): DayNarrative {
     weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
     recentWeather: ["partly", "sunny", "partly", "cloudy", "sunny"],
-    conflictPairs: [
-      [1, 13],
-      [3, 7],
-    ],
     vocabStep,
   };
 }
@@ -673,26 +661,103 @@ function buildMood(snapshot: DaySnapshot): MoodShare[] {
   });
 }
 
-function buildRelation(snapshot: DaySnapshot): DashboardData["relation"] {
-  const isConflict = (a: number, b: number) =>
-    snapshot.conflictPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+/* ── 관계 지도 ───────────────────────────────────────────────────────
+   반 전체가 나온다. 9명만 그리면 빠진 11명이 "관계가 없는 아이"인지 "안 그린 아이"인지
+   교사가 알 수 없고, 정작 찾아야 할 조용한 아이가 거기 숨는다.
 
-  const conflictIds = new Set(snapshot.conflictPairs.flat());
+   원 크기 = 중요도. 최근 2주 동안
+     · 다른 아이 대화에 이름이 오른 횟수 (발화 추출)
+     · 업무기록에 이름이 오른 건수 (갈등·관찰) — 기록에 남은 건 더 무겁게 센다
+   인기 순위가 아니다. "이 아이 이야기가 교실에서 얼마나 오갔나"의 양이다. */
 
-  return {
-    nodes: RELATION_NODE_BASE.map((n) => ({
-      ...n,
-      tone: ISOLATED_IDS.includes(n.studentId)
-        ? "isolated"
-        : conflictIds.has(n.studentId)
-          ? "conflict"
-          : "normal",
-    })),
-    edges: RELATION_EDGE_BASE.map((e) => ({
-      ...e,
-      kind: isConflict(e.from, e.to) ? "conflict" : "normal",
-    })),
-  };
+/** 업무기록 한 건은 언급 몇 번만큼 무겁게 볼 것인가 */
+const RECORD_WEIGHT = 3;
+/** 선을 그릴 최소 언급 횟수 — 한 번 스친 이름까지 이으면 그물이 된다 */
+const EDGE_MIN_MENTIONS = 2;
+
+/** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
+const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
+
+function buildRelation(dateKey: string): DashboardData["relation"] {
+  const window = recentSchoolDays(dateKey, RELATION_WINDOW_DAYS);
+  const ids = Object.keys(STUDENT_NAMES).map(Number);
+
+  // 서로 언급한 횟수 (방향은 합친다 — 지도는 "이야기가 오갔다"만 보여준다)
+  const pairCount = new Map<string, number>();
+  const mentioned = new Map<number, number>(ids.map((id) => [id, 0]));
+  // 말한 쪽도 따로 센다 — "친구 이야기를 하는데 아무도 내 이야기를 안 하는" 아이를
+  // "아무와도 오가는 게 없는" 아이와 같이 묶으면, 정작 다른 상황인 둘을 놓친다.
+  const mentioning = new Map<number, number>(ids.map((id) => [id, 0]));
+  for (const date of window) {
+    for (const { from, to } of mentionsOn(date)) {
+      mentioned.set(to, (mentioned.get(to) ?? 0) + 1);
+      mentioning.set(from, (mentioning.get(from) ?? 0) + 1);
+      const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+      pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
+    }
+  }
+
+  // 업무기록(갈등)에 이름이 오른 건수
+  const oldest = window[0];
+  const records = conflictLedger().filter((c) => c.date >= oldest && c.date <= dateKey);
+  const recordCount = new Map<number, number>(ids.map((id) => [id, 0]));
+  for (const c of records) for (const id of c.pairIds) recordCount.set(id, (recordCount.get(id) ?? 0) + 1);
+
+  const weightOf = (id: number) => (mentioned.get(id) ?? 0) + (recordCount.get(id) ?? 0) * RECORD_WEIGHT;
+  const maxWeight = Math.max(1, ...ids.map(weightOf));
+
+  const conflictIds = new Set(records.flatMap((c) => c.pairIds));
+  const isConflictPair = (a: number, b: number) =>
+    records.some((c) => c.pairIds.includes(a) && c.pairIds.includes(b));
+
+  // 중요도 높은 순으로 가운데부터. 동점이면 번호순이라 매일 자리가 흔들리지 않는다.
+  const ranked = [...ids].sort((a, b) => weightOf(b) - weightOf(a) || a - b);
+
+  const nodes: RelationNode[] = ranked.map((studentId, rank) => {
+    const weight = weightOf(studentId);
+    let x = LAYOUT.cx;
+    let y = LAYOUT.cy;
+    if (rank > 0) {
+      const ring = rank <= LAYOUT.rings[0].count ? LAYOUT.rings[0] : LAYOUT.rings[1];
+      const index = rank <= LAYOUT.rings[0].count ? rank - 1 : rank - 1 - LAYOUT.rings[0].count;
+      // 안쪽 고리와 바깥 고리의 각도를 엇갈리게 둬서 노드가 한 줄로 겹쳐 보이지 않게 한다
+      const offset = ring === LAYOUT.rings[0] ? -Math.PI / 2 : -Math.PI / 2 + Math.PI / ring.count;
+      const angle = offset + (index / ring.count) * Math.PI * 2;
+      x = Math.round(LAYOUT.cx + Math.cos(angle) * ring.rx);
+      y = Math.round(LAYOUT.cy + Math.sin(angle) * ring.ry);
+    }
+    return {
+      studentId,
+      name: STUDENT_NAMES[studentId],
+      x,
+      y,
+      r: Math.round(13 + (weight / maxWeight) * 19),
+      tone: weight === 0 ? "isolated" : conflictIds.has(studentId) ? "conflict" : "normal",
+      note:
+        weight > 0
+          ? undefined
+          : (mentioning.get(studentId) ?? 0) > 0
+            ? "먼저 이야기하지만 이름이 안 나와요"
+            : "2주간 오간 이야기 없음",
+    };
+  });
+
+  const edges: RelationEdge[] = [...pairCount]
+    .filter(([, count]) => count >= EDGE_MIN_MENTIONS)
+    .map(([key]) => {
+      const [from, to] = key.split("-").map(Number);
+      return { from, to, kind: isConflictPair(from, to) ? "conflict" : "normal" };
+    });
+
+  // 갈등은 언급이 적어도 반드시 보여야 한다
+  for (const c of records) {
+    const [from, to] = c.pairIds;
+    if (!edges.some((e) => (e.from === from && e.to === to) || (e.from === to && e.to === from))) {
+      edges.push({ from, to, kind: "conflict" });
+    }
+  }
+
+  return { nodes, edges };
 }
 
 function buildVocab(snapshot: DaySnapshot): DashboardData["vocab"] {
@@ -749,7 +814,7 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
         name: STUDENT_NAMES[studentId],
       })),
     },
-    relation: buildRelation(snapshot),
+    relation: buildRelation(key),
     conflicts: conflictLedger().filter((c) => c.date <= key).slice(0, 2),
     vocab: buildVocab(snapshot),
   };
