@@ -76,6 +76,10 @@ export async function runItemGenerationJob(jobId: string) {
   if (error) throw error;
   if (!job || !["queued", "retry_wait", "fallback"].includes(job.status)) return { skipped: true, status: job?.status ?? "missing" };
   if (job.attempt_count >= job.max_attempts) return { skipped: true, status: job.status };
+  // Waiting for a parallel transcript save is not an AI attempt or a generation failure.
+  const { data: session, error: sessionError } = await client.from("checkin_sessions").select("transcript, status").eq("id", job.source_session_id).single();
+  if (sessionError) throw sessionError;
+  if (!session || session.transcript === null || session.status === "started") return { skipped: true, status: job.status, reason: "TRANSCRIPT_NOT_READY" };
   const nextAttempt = job.attempt_count + 1;
   const { data: claimed, error: claimError } = await client.from("item_generation_jobs").update({ status: "generating", attempt_count: nextAttempt, started_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", job.id).in("status", ["queued", "retry_wait", "fallback"]).eq("attempt_count", job.attempt_count).select("id").maybeSingle();
   if (claimError) throw claimError;
@@ -84,10 +88,10 @@ export async function runItemGenerationJob(jobId: string) {
   let inference: ItemInference | undefined;
   let assembly: AssembledItemSpec | undefined;
   try {
-    const { data: session, error: sessionError } = await client.from("checkin_sessions").select("transcript, status").eq("id", job.source_session_id).single();
-    if (sessionError || !session || session.transcript === null || session.status === "started") throw new Error("TRANSCRIPT_NOT_READY");
     stage = "inference";
     inference = await inferItem(parseTranscript(session.transcript));
+    // Publish the reveal data before the potentially slow assembly call.
+    await updateJob(job.id, { inference_output: inference, student_message: inference.studentMessage });
     const catalogItem = findCatalogItem(inference.subject);
     const dedupKey = canonicalAssetKey(inference.subject, catalogItem);
     stage = "save";
@@ -111,13 +115,6 @@ export async function runItemGenerationJob(jobId: string) {
   } catch (error) {
     const code = error instanceof ItemAIError ? error.code : error instanceof Error ? error.message : "GENERATION_FAILED";
     const failure = { inference_output: inference ?? null, assembly_output: assembly ?? null, last_error_detail: { stage, ...(error instanceof ItemAIError ? error.detail : {}) } };
-    if (code === "TRANSCRIPT_NOT_READY") {
-      const fallbackId = await saveProceduralAsset(FALLBACK_ITEM_SPEC, job, "fallback");
-      const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId: fallbackId });
-      await replacePlacedAsset(studentItem.id, fallbackId);
-      await updateJob(job.id, { status: "fallback_final", fallback_asset_id: fallbackId, student_item_id: studentItem.id, ...failure, last_error_code: code, last_error_at: new Date().toISOString(), fallback_at: new Date().toISOString() });
-      return { status: "fallback_final", assetId: fallbackId, studentItemId: studentItem.id, reason: code };
-    }
     const fallbackId = await saveProceduralAsset(FALLBACK_ITEM_SPEC, job, "fallback");
     const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId: fallbackId });
     await replacePlacedAsset(studentItem.id, fallbackId);

@@ -138,6 +138,19 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "heart", shape: "extrudedShape", points: heartOutline(0.5, 32), depth: 0.2, bevel: 0.03, position: [0, 0.3, 0], color: "#E4606F" }),
       part({ id: "shine", shape: "ellipsoid", size: [0.1, 0.06, 0.03], position: [-0.1, 0.42, 0.13], rotation: [0, 0, 0.6], color: "#F6C0C2" }),
     ]),
+    item("snail", "달팽이", { names: ["달팽이", "snail"], concepts: [] }, [
+      part({ id: "foot-body", shape: "ellipsoid", size: [0.28, 0.18, 1.02], position: [0, 0.12, 0], color: "#C99A62" }),
+      part({ id: "neck", shape: "ellipsoid", size: [0.27, 0.25, 0.4], position: [0, 0.22, 0.3], color: "#C99A62" }),
+      part({ id: "head", shape: "ellipsoid", size: [0.3, 0.27, 0.3], position: [0, 0.29, 0.49], color: "#C99A62" }),
+      part({ id: "shell", shape: "ellipsoid", size: [0.4, 0.6, 0.6], position: [0, 0.41, -0.08], color: "#A9693F" }),
+      part({ id: "shell-spiral-outer", shape: "torusArc", radius: 0.17, tubeRadius: 0.025, arc: 5.5, mirror: "x", position: [-0.15, 0.41, -0.08], rotation: [0, Math.PI / 2, 0], color: "#71452F" }),
+      part({ id: "shell-spiral-inner", shape: "torusArc", radius: 0.085, tubeRadius: 0.022, arc: 4.8, mirror: "x", position: [-0.18, 0.41, -0.08], rotation: [0, Math.PI / 2, 0], color: "#71452F" }),
+      part({ id: "shell-spiral-center", shape: "sphere", radius: 0.035, mirror: "x", position: [-0.19, 0.41, -0.08], color: "#71452F" }),
+      part({ id: "upper-feeler", shape: "curvedTube", radius: 0.018, mirror: "x", position: [0, 0, 0], color: "#C99A62", points: [[-0.075, 0.37, 0.53], [-0.09, 0.46, 0.57], [-0.135, 0.56, 0.6], [-0.18, 0.64, 0.62]] }),
+      part({ id: "eye", shape: "sphere", radius: 0.032, mirror: "x", position: [-0.18, 0.64, 0.62], color: "#2F2926" }),
+      part({ id: "lower-feeler", shape: "curvedTube", radius: 0.013, mirror: "x", position: [0, 0, 0], color: "#C99A62", points: [[-0.08, 0.29, 0.59], [-0.12, 0.31, 0.65], [-0.16, 0.32, 0.7]] }),
+      part({ id: "tail-tip", shape: "ellipsoid", size: [0.23, 0.14, 0.3], position: [0, 0.13, -0.49], color: "#C99A62" }),
+    ], "small"),
   ]),
   ...category("학교", [
     item("book", "책", { names: ["책", "동화책", "그림책", "만화책", "소설책", "교과서", "book"], concepts: ["독서", "읽기", "책 읽기"] }, [
@@ -427,6 +440,13 @@ export const ITEM_CATALOG: CatalogItem[] = [
 ];
 
 export const ITEM_CATALOG_SPECS = ITEM_CATALOG.map(item => item.spec);
+
+/**
+ * AI 조립 프롬프트에 항상 넣는 검수된 조립 예시. 대상이 아니라 조립 방식을 보여 준다:
+ * 강아지(몸통·머리·다리, 대칭), 작은 집(건물·지붕 윤곽), 컵(속 빈 용기·손잡이),
+ * 새싹(식물·잎 윤곽·줄기), 연필(길쭉한 도구·반복), 사과(둥근 몸체·꼭지).
+ */
+export const ASSEMBLY_EXAMPLE_IDS = ["dog", "house", "cup", "sprout", "pencil", "apple"];
 
 const compact = (text: string) => text.normalize("NFKC").toLocaleLowerCase("ko-KR").replace(/[^가-힣a-z0-9]+/g, "");
 // "별 하나", "사과 한 개", "하트 모양"처럼 대상 뒤에 붙는 수량·모양 표현은 매칭 전에 뗀다.
