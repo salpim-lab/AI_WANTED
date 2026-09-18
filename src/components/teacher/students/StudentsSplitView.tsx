@@ -5,10 +5,13 @@
 //   - 선택 있음: 자리 배치도는 왼쪽 좁은 열(넓은 화면에서 스크롤해도 고정), 오른쪽에 상세(children)
 // 좁은 화면(lg 미만)에서는 선택 시 배치도를 숨기고 상세만 보여준다 (상세의 ✕로 돌아감).
 // 살핌 학생 화면 톤: 바깥 틀은 SalpimBackdrop(교실 일러스트 배경·글꼴).
+// 배치도의 오늘 색은 layout이 그린 시점 값이라, 교사가 다른 창(학생 화면 등)에 갔다가 돌아오면
+// router.refresh()로 다시 불러온다 — 아이가 새로 누른 색이 새로고침 없이 반영된다.
 
 "use client";
 
-import { useSelectedLayoutSegment } from "next/navigation";
+import { useEffect } from "react";
+import { useRouter, useSelectedLayoutSegment } from "next/navigation";
 import SalpimBackdrop from "@/components/shared/SalpimBackdrop";
 import type { SeatGrid, SeatingStudent } from "@/lib/types/teacherRecord";
 import SeatingChart from "./SeatingChart";
@@ -26,6 +29,23 @@ export default function StudentsSplitView({
 }) {
   const selectedStudentId = useSelectedLayoutSegment();
   const isOpen = selectedStudentId !== null;
+  const router = useRouter();
+
+  useEffect(() => {
+    let last = Date.now();
+    const refresh = () => {
+      // 탭 전환마다 연달아 부르지 않게 5초에 한 번까지
+      if (document.visibilityState !== "visible" || Date.now() - last < 5000) return;
+      last = Date.now();
+      router.refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [router]);
 
   return (
     <SalpimBackdrop>
