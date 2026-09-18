@@ -1,5 +1,8 @@
 // 담당: 진승혜
 // 대시보드 영역 1: 아침 브리핑 — 대시보드에서 가장 먼저 읽혀야 하는 카드다.
+// "아침 브리핑" 이라는 제목 줄은 없앴다. 카드 이름을 한 번 읽히게 하려고 한 단을 쓰고
+// 정작 볼 것("살펴볼 아이", "예정된 상담")을 아래로 밀어내던 구조였다.
+// 이제 그 두 묶음이 카드 제목과 같은 층위에 나란히 선다 — 박스는 지금처럼 하나 그대로다.
 // 감정 신호(색) 축만 담당한다: 오늘 색이 걸리는 아이를 한 줄로 보여준다.
 //   - 칭찬("한마디 돌려줄 아이") 열은 뺐다. 아침에 교사가 쓸 시간은 살펴볼 아이에게 간다.
 //   - 요일·시간표 교차 같은 반복 패턴은 여기가 아니라 패턴 경고 카드가 맡는다.
@@ -45,13 +48,8 @@ export default function MorningBriefing({
   return (
     <section className="card briefing-card">
       <div className="card-title">
-        아침 브리핑
-        <span className="card-sub">{isToday ? "오늘 하루를 시작하기 전에" : "이 날의 등교 기록"}</span>
-      </div>
-
-      <div className="briefing-col-title">
         {isToday ? "오늘 먼저 살펴볼 아이" : "먼저 살펴본 아이"}
-        <span className="briefing-col-hint">{watch.length}명 · 등교 때 고른 색 기준</span>
+        <span className="card-sub">{watch.length}명 · 등교 때 고른 색 기준</span>
       </div>
 
       <HorizontalScroller listClassName="briefing-list" label="먼저 살펴볼 아이">
@@ -66,17 +64,18 @@ export default function MorningBriefing({
                 </span>
                 <span className="breason">{s.reason}</span>
               </span>
+              {/* 같은 화면 안에서 옆으로 가는 게 아니라 아이 상세로 빠져나간다 — ↗ 가 그 뜻이다 */}
               <span className="briefing-go" aria-hidden>
-                →
+                ↗
               </span>
             </Link>
           </li>
         ))}
       </HorizontalScroller>
 
-      <div className="briefing-col-title briefing-col-title-next">
+      <div className="card-title briefing-title-next">
         {isToday ? "오늘 예정된 상담" : "이 날 예정된 상담"}
-        <span className="briefing-col-hint">{consultations.length}건 · 학부모·학생 상담</span>
+        <span className="card-sub">{consultations.length}건 · 학부모·학생 상담</span>
       </div>
 
       {consultations.length === 0 ? (

@@ -68,13 +68,13 @@ export default function RelationBoard({
           selected={selected}
           // 같은 걸 다시 누르면 닫힌다
           onSelect={(focus) => setSelected((current) => (sameFocus(current, focus) ? null : focus))}
+          onClear={() => setSelected(null)}
         />
         <RelationDetailPane
           detail={selected?.kind === "student" ? (graph.details[selected.id] ?? null) : null}
           pair={selected?.kind === "pair" ? (graph.pairs[selected.key] ?? null) : null}
           periodLabel={label}
           fallbackConflicts={conflicts}
-          onClear={() => setSelected(null)}
         />
       </div>
     </section>

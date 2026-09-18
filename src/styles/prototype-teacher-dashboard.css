@@ -23,16 +23,16 @@
   --w-sun: #e3c568;
   --w-cloud: #d9d2bf;
 
-  /* 관계 지도 */
+  /* 관계 지도 — 원에는 색을 쓰지 않는다 (링·글자 각 한 톤). 구분은 크기와 점선이 맡는다. */
   --rel-node-fill: #fbf9f4;
-  --rel-ring: #8fb9ae;
-  --rel-ring-conflict: #dd8f76;
-  --rel-ring-isolated: #d8d3c7;
+  --rel-ring: #b3ab99;
+  --rel-text: #4a4741;
+  --rel-text-muted: #9c968a;
+  /* 선은 색을 남긴다. -strong 은 고른 아이에 닿은 선을 진하게 내릴 때 쓴다. */
   --rel-edge: #ddd8cc;
   --rel-edge-conflict: #e0a58e;
-  --rel-text: #4a4741;
-  --rel-text-conflict: #b9674a;
-  --rel-text-muted: #9c968a;
+  --rel-edge-strong: #8d8471;
+  --rel-edge-conflict-strong: #c07751;
 
   padding: 30px 34px 44px;
   max-width: 1320px;
@@ -109,17 +109,10 @@
   border-radius: 99px;
 }
 
-/* ── 1. 아침 브리핑 (가장 먼저 읽히는 카드) ─────────────────────── */
-.briefing-col-title {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 12px;
-}
-.briefing-col-hint { font-size: 11px; font-weight: 600; color: var(--faint); }
+/* ── 1. 아침 브리핑 (가장 먼저 읽히는 카드) ───────────────────────
+   카드 이름("아침 브리핑") 줄은 없앴다. 대신 "살펴볼 아이"와 "예정된 상담"이
+   둘 다 .card-title 을 쓴다 — 한 박스 안에서 같은 층위로 나란히 선다. */
+.briefing-title-next { margin-top: 22px; }
 
 /* 카드가 가로 목록 전체 폭만큼 늘어나 옆 카드(오늘의 교실)를 덮지 않게 — flex 항목 기본 min-width:auto 를 끈다 */
 .briefing-card { min-width: 0; }
@@ -135,8 +128,6 @@
   scroll-snap-type: x proximity;
 }
 .briefing-list > li { display: flex; flex: 0 0 250px; scroll-snap-align: start; }
-/* 두 번째 묶음(예정된 상담) 제목 — 위 목록과 간격 */
-.briefing-col-title-next { margin-top: 20px; }
 .briefing-empty { margin: 0; font-size: 12px; color: var(--faint); }
 /* 상담 행: 색 동그라미 대신 예정 시각 */
 .briefing-time {
@@ -240,17 +231,48 @@
 .relation-pane, .conflict-pane { min-width: 0; }
 .relation-pane { display: flex; flex-direction: column; }
 
+/* 관계 지도와 갈등 상세가 공유하는 고정 높이.
+   지도 viewBox 가 660×380 이라 이 높이면 스무 명 이름이 다 읽히고,
+   갈등 카드는 한 건(제목·요약·진술 둘)이 잘리지 않고 통째로 들어간다. */
+.relation-conflict { --relation-pane-h: 440px; }
+
 /* viewBox 가 660×380(가로:세로 ≈ 1.74)이라, 폭에 맞춰 그리려면 세로가 그만큼 필요하다.
    여기가 모자라면 SVG 가 세로에 맞춰 줄어들어 좌우에 빈 띠가 생기고 지도가 작아 보인다.
    스무 명 이름을 읽어야 하는 카드라 넉넉히 준다. */
 .relation-map-wrap {
-  flex: 1;
-  min-height: 440px;
+  /* 높이를 고정한다 — flex:1 로 두면 옆 패널의 내용 길이가 지도 높이를 흔든다.
+     갈등 상세(.rd-body)도 같은 값을 써서 두 칸이 언제나 같은 높이로 선다. */
+  height: var(--relation-pane-h);
+  flex: none;
   display: flex;
   background: #faf8f3;
   border-radius: 18px;
   padding: 10px 6px;
+  /* 안쪽 오른쪽 위 "닫기" 의 기준 */
+  position: relative;
 }
+
+/* 고른 것을 푸는 자리는 고르는 자리(지도) 안에 있다 — 옆 패널까지 눈이 건너가지 않게.
+   노드는 고리 위에만 놓이므로 오른쪽 위 구석은 늘 비어 있다. */
+.relation-clear {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(60, 50, 35, 0.08);
+  transition: color 0.15s, border-color 0.15s;
+}
+.relation-clear:hover { color: var(--text); border-color: var(--navy-ring); }
+.relation-clear:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
 .relation-map-wrap svg { display: block; width: 100%; height: 100%; }
 
 .relation-legend {
@@ -275,7 +297,14 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 1.6px dashed var(--rel-ring-isolated);
+  border: 1.6px dashed var(--rel-ring);
+}
+/* 원 크기가 뜻을 갖게 됐으니 범례에도 큰 원 하나를 둔다 */
+.legend-big {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--rel-ring);
 }
 
 .conflict-row {
@@ -283,8 +312,9 @@
   border-radius: 16px;
   padding: 15px 16px;
 }
-.conflict-row + .conflict-row { margin-top: 12px; }
-.conflict-header { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+
+/* 오른쪽 위 ‹ › 자리를 비워 둔다 (버튼 둘 + 여백) */
+.conflict-header { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; padding-right: 56px; }
 .conflict-header strong { font-size: 12.5px; font-weight: 800; color: var(--text); }
 .conflict-pair { font-size: 11.5px; color: var(--muted); }
 .conflict-summary {
@@ -292,7 +322,7 @@
   align-items: center;
   gap: 9px;
   flex-wrap: wrap;
-  margin: 8px 0 11px;
+  margin: 7px 0 9px;
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: -0.2px;
@@ -318,22 +348,16 @@
    그래야 제목이 늘 보이고, 스크롤 안에 또 스크롤이 생기지 않는다. */
 .conflict-pane { display: flex; flex-direction: column; min-height: 0; }
 .conflict-pane .pane-title { flex-shrink: 0; }
-.conflict-pane .pane-title .rd-clear {
-  margin-left: auto;
-  padding: 3px 9px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  background: none;
-  font-family: inherit;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+/* .rd-clear(패널 제목 옆 닫기)는 지도 안 .relation-clear 로 옮겼다 */
+/* 지도의 .relation-map-wrap 과 같은 고정 높이. 제목 줄이 그 위에 나란히 있으므로
+   두 칸의 회색 영역 윗변·아랫변이 정확히 맞는다. */
+.conflict-pane .rd-body {
+  height: var(--relation-pane-h);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-.conflict-pane .pane-title .rd-clear:hover { color: var(--text); border-color: var(--navy-ring); }
-
-.rd-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+.rd-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 10px; }
 .rd-name { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
 .rd-sub { font-size: 11px; color: var(--muted); }
 
@@ -341,7 +365,8 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  margin: 18px 0 10px;
+  /* 위 여백을 줄여 아래 갈등 기록에 높이를 넘긴다 — 기록이 잘리지 않는 게 먼저다 */
+  margin: 12px 0 8px;
   font-size: 12px;
   font-weight: 700;
   color: var(--muted);
@@ -351,18 +376,22 @@
 .rd-body > .rd-head:first-child { margin-top: 0; }
 
 /* 대화 발췌는 제 칸 안에서만 스크롤한다 — 길어져도 아래 갈등 기록을 밀어내지 않게.
-   높이는 흔한 경우(발췌 3~4개)가 스크롤 없이 다 보이게 잡았다. 스크롤바는 정말
-   긴 날에만 나와야지, 늘 나오면 모든 칸을 다 굴려봐야 하는 화면이 된다. */
+   패널 높이가 고정(--relation-pane-h)이라 이 칸이 커지는 만큼 아래 갈등 카드가 깎인다.
+   갈등 기록은 스크롤 없이 한눈에 보여야 하므로(진술 둘이 맞춰져야 한다) 여기서 먼저 접는다.
+   발췌 두 개가 보이는 높이 — 더 있으면 이 칸 안에서만 굴린다. */
 .rd-quotes {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 168px;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-height: 44px;
+  max-height: 92px;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-width: thin;
 }
 .rd-quotes li {
   border-left: 2px solid var(--line);
@@ -370,30 +399,79 @@
 }
 .rd-quotes li p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 .rd-quote-by { font-size: 10.5px; color: var(--faint); }
-.conflict-stmts { display: flex; flex-direction: column; gap: 8px; }
+.conflict-stmts { display: flex; flex-direction: column; gap: 7px; }
 
-/* 기록이 여러 건이어도 한 건 높이만 쓴다 — 쌓으면 패널이 길어지고 옆의 지도까지 끌고 늘어난다.
-   기록 하나는 통째로 보여야 진술 둘이 "엇갈린 진술"로 읽히므로, 자르지 않고 칸 안에서 넘긴다.
-   snap 을 걸어 1건 → 2건이 중간에 걸치지 않고 딱딱 넘어가게 한다. */
+/* 기록이 여러 건이면 아래로 쌓지 않고 옆으로 넘긴다 (카로셀).
+   쌓으면 패널이 길어지고 옆의 지도까지 끌고 늘어난다. 기록 하나는 통째로 보여야
+   진술 둘이 "엇갈린 진술"로 읽히므로, 자르지 않고 한 건씩 넘긴다.
+   mandatory snap 이라 반쯤 걸친 카드가 남지 않는다 — 넘기면 늘 한 건이 딱 선다. */
 .rd-conflicts {
-  max-height: 272px;
-  overflow-y: auto;
-  scroll-snap-type: y proximity;
-  padding-right: 4px;
+  flex: 1;
+  /* 갈등 카드 한 건(머리글·요약·진술 둘)이 잘리지 않는 최소 높이를 먼저 확보한다.
+     칸 전체가 고정 높이라 자리가 모자라면 위 .rd-quotes 가 대신 줄어든다 — 순서가 중요하다:
+     발췌는 몇 줄 덜 보여도 되지만 진술은 한쪽만 보이면 읽는 뜻이 달라진다. */
+  min-height: 224px;
+  display: flex;
+  flex-direction: column;
+  /* 카드 위에 겹쳐 뜨는 ‹ › 의 기준 */
+  position: relative;
 }
-.rd-conflicts > .conflict-row { scroll-snap-align: start; }
+/* 창 하나에 장 하나. 옆 장은 여기서 잘려 안 보인다. */
+.rd-carousel-viewport { flex: 1; min-height: 0; overflow: hidden; }
+/* 장을 통째로 옮긴다 — gap 을 두면 translateX 의 % 가 장 폭과 어긋나므로 간격은 두지 않는다 */
+.rd-carousel-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.28s ease;
+}
+.rd-carousel-slide { flex: 0 0 100%; min-width: 0; display: flex; }
+.rd-carousel-slide > .conflict-row {
+  flex: 1;
+  min-width: 0;
+  /* 스크롤을 걸지 않는다 — 갈등 기록은 한눈에 다 보여야 진술 둘이 맞춰진다.
+     칸 높이는 위쪽 .rd-quotes 를 먼저 접어 확보한다. */
+  overflow: hidden;
+}
+
+/* ‹ › 는 카드 오른쪽 위에 겹쳐 올린다 — 카드 아래 줄을 따로 쓰면 그만큼 기록이 깎인다.
+   카드 머리글(날짜·이름)은 왼쪽에 있어 글자와 겹치지 않는다. */
+.rd-carousel-nav {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rd-carousel-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(60, 50, 35, 0.08);
+  transition: color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.rd-carousel-btn:hover:not(:disabled) { color: var(--text); border-color: var(--navy-ring); }
+.rd-carousel-btn:disabled { opacity: 0.35; cursor: default; }
+.rd-carousel-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-carousel-track { transition: none; }
+}
 .conflict-stmt { background: var(--soft); border-radius: 12px; padding: 11px 13px; }
 .conflict-stmt .who { font-size: 11.5px; font-weight: 800; margin-bottom: 4px; }
 .conflict-stmt p { margin: 0; font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
-.conflict-warn {
-  margin: 10px 0 0;
-  font-size: 11px;
-  line-height: 1.6;
-  color: #9a7b34;
-  background: #faf4e2;
-  border-radius: 10px;
-  padding: 8px 11px;
-}
+/* .conflict-warn("두 진술이 서로 다릅니다") 은 없앴다 — 진술 둘을 나란히 놓은 것이 이미 그 말이고,
+   노란 경고 박스가 붙으면 확인 중인 일이 판정된 일처럼 읽혔다. */
 
 /* ── 3. 오늘의 교실 ───────────────────────────────────────────── */
 /* 오늘의 교실만 제목 바로 아래 질문 한 줄이 붙는다 (제목 위치 자체는 다른 카드와 동일) */
@@ -565,17 +643,16 @@
 .vocab-foot span { display: inline-flex; align-items: center; gap: 6px; }
 .vocab-key { width: 11px; height: 11px; border-radius: 3px; background: #c8ccf2; }
 .vocab-key.above { background: #6b71e0; }
-.vocab-foot-right { margin-left: auto; }
-.vocab-foot-right strong { color: var(--text); font-weight: 800; }
 
 /* ── 감정 어휘 tooltip — 그 아이가 실제로 쓴 말 ───────────────────
    막대 아래에 펼친다. 위로 띄우면 막대와 숫자를 가려서 비교하던 걸 놓친다.
    막대가 20개라 좌우 끝에서 잘리지 않게 가운데 정렬로 둔다. */
+/* 막대 옆에 붙는다 — 왼쪽 절반(.tip-right)은 오른쪽으로, 오른쪽 절반(.tip-left)은 왼쪽으로.
+   아래에 두면 끝 막대의 툴팁이 카드 밖으로 나가 화면에 가로 스크롤이 생긴다.
+   어느 쪽인지는 VocabGrowthChart 가 클래스로 정해 준다. */
 .vocab-tooltip {
   position: absolute;
-  left: 50%;
-  top: calc(100% + 8px);
-  transform: translateX(-50%) translateY(-3px);
+  top: 50%;
   z-index: 30;
   width: max-content;
   max-width: 230px;
@@ -588,11 +665,15 @@
   visibility: hidden;
   transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
 }
+/* 닫힌 상태에서는 나올 방향으로 3px 밀어 두고, 열리면 제자리로 온다 */
+.tip-right .vocab-tooltip { left: calc(100% + 10px); transform: translateY(-50%) translateX(-3px); }
+.tip-left .vocab-tooltip { right: calc(100% + 10px); transform: translateY(-50%) translateX(3px); }
+
 .vocab-bar-group:hover .vocab-tooltip,
 .vocab-bar-group:focus-within .vocab-tooltip {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%);
+  transform: translateY(-50%);
 }
 .vocab-tooltip-head {
   display: flex;
@@ -655,12 +736,13 @@
 /* ══ 관계 지도 노드 ═══════════════════════════════════════════════════
    원+이름을 누르면 옆 패널이 그 아이로 바뀐다. 관계선은 클릭 대상이 아니다. */
 .relation-node { cursor: pointer; }
-.relation-node .relation-node-ring { transition: stroke-width 0.15s, r 0.15s; }
+.relation-node .relation-node-ring { transition: stroke-width 0.18s, r 0.18s; }
 .relation-node:focus { outline: none; }
 .relation-node:focus-visible .relation-node-ring { stroke-dasharray: none; }
 
-/* 누른 아이는 마우스를 떼도 표시가 남는다 — 옆 패널이 그 아이를 보고 있으니 지도에도 있어야 한다 */
-.relation-node.picked .relation-node-ring { stroke: var(--navy); stroke-dasharray: none; stroke-width: 3; }
+/* 누른 아이는 마우스를 떼도 표시가 남는다 — 옆 패널이 그 아이를 보고 있으니 지도에도 있어야 한다.
+   색이 아니라 굵기·실선으로만 티를 낸다 (원에는 색을 쓰지 않는다). */
+.relation-node.picked .relation-node-ring { stroke-dasharray: none; stroke-width: 3.5; }
 .relation-map.has-active .relation-node.picked { opacity: 1; }
 
 /* ── 올린 아이와 이어진 것만 남기기 ──────────────────────────────────
@@ -670,23 +752,38 @@
 .relation-map .relation-node { transition: opacity 0.15s; }
 
 .relation-map.has-active .relation-edge-hit .relation-edge { opacity: 0.1; }
-.relation-map.has-active .relation-edge-hit.on .relation-edge { opacity: 1; stroke-width: 3.4; }
+
+/* 고른 아이에 닿은 선은 굵기만 키우지 않고 색까지 진하게 내린다 — 옅은 연보라(--rel-edge)를
+   그대로 두고 굵게만 하면 배경(#faf8f3) 위에서 여전히 희미해 어디로 이어졌는지 안 읽힌다.
+   여기 stroke 는 SVG 의 stroke 속성을 덮는다 (CSS 규칙이 presentation attribute 보다 우선). */
+.relation-map.has-active .relation-edge-hit.on .relation-edge {
+  opacity: 1;
+  stroke: var(--rel-edge-strong);
+  stroke-opacity: 1;
+  stroke-width: 3.6;
+}
+.relation-map.has-active .relation-edge-hit.on .relation-edge.is-conflict {
+  stroke: var(--rel-edge-conflict-strong);
+  stroke-width: 3;
+}
 
 /* 선도 누를 수 있다 — 투명한 굵은 선이 판정을 맡고, 보이는 선은 그대로 얇게 둔다 */
 .relation-edge-hit { cursor: pointer; }
 .relation-edge-hit:focus { outline: none; }
-.relation-edge-hit:focus-visible .relation-edge { stroke: var(--navy); stroke-width: 3.4; opacity: 1; }
-.relation-edge-hit.picked .relation-edge { stroke: var(--navy); stroke-width: 3.4; opacity: 1; }
+.relation-edge-hit:focus-visible .relation-edge { stroke: var(--navy); stroke-width: 3.6; opacity: 1; stroke-opacity: 1; }
+.relation-edge-hit.picked .relation-edge { stroke: var(--navy); stroke-width: 3.6; opacity: 1; stroke-opacity: 1; }
 
 .relation-map.has-active .relation-node { opacity: 0.28; }
 .relation-map.has-active .relation-node.active,
 .relation-map.has-active .relation-node.peer { opacity: 1; }
 
-/* 이어진 선을 굵게 하는 것만으로는 어느 쪽을 올렸는지 안 보여서, 올린 아이만 링 색을 바꾼다. */
+/* 어느 쪽을 골랐는지는 원 크기가 말한다 (RelationshipMap 의 ACTIVE_SCALE).
+   여기서는 점선만 실선으로 바꾼다 — 부푼 원에 점선이 남으면 테두리가 끊겨 보인다. */
 .relation-map.has-active .relation-node.active .relation-node-ring {
-  stroke: var(--navy-ring);
   stroke-dasharray: none;
 }
+/* 커진 원이 이웃 원·이름 위로 올라오게 (SVG 는 z-index 가 없어 그리는 순서가 곧 위아래다) */
+.relation-map .relation-node.active { paint-order: stroke; }
 
 @media (prefers-reduced-motion: reduce) {
   .relation-map .relation-edge,
@@ -781,6 +878,8 @@
 }
 
 @media (max-width: 760px) {
+  /* 지도와 갈등 상세가 세로로 쌓이는 폭이다 — 둘 다 440px 이면 한 카드가 화면 두 개를 넘는다 */
+  .relation-conflict { --relation-pane-h: 320px; }
   .page-dashboard { padding: 20px 16px 32px; }
   .dashboard-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .date-control { justify-content: flex-start; flex-wrap: wrap; }
@@ -791,6 +890,5 @@
   .vocab-track { height: 96px; }
   .vocab-bar-group .student-label { display: none; }
   .vocab-foot { flex-wrap: wrap; gap: 12px; }
-  .vocab-foot-right { margin-left: 0; width: 100%; }
   .vocab-trend-note { margin-left: 0; width: 100%; }
 }
