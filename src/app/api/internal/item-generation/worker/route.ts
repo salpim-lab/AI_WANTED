@@ -6,7 +6,7 @@ import { runItemGenerationJob } from "@/lib/items/runItemGenerationJob";
 import { ensurePresetAssetsSynced } from "@/lib/items/presetAssets";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 export async function POST(request: Request) {
   const expected = process.env.ITEM_WORKER_SECRET?.trim();

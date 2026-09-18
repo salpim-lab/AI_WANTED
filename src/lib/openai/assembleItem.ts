@@ -20,7 +20,7 @@ export function buildItemAssemblyRequest(inference: ItemInference) {
 export async function assembleItem(inference: ItemInference) {
   const request = buildItemAssemblyRequest(inference);
   if (JSON.stringify(request.input).length > 4000) throw new ItemAIError("INVALID_ASSEMBLY_INPUT", 422, "조립 입력이 너무 깁니다.");
-  return callModel("ASSEMBLY", request, 60000, {
+  return callModel("ASSEMBLY", request, 120000, {
     unavailable: "조립 응답을 받지 못했습니다.",
     failed: "조립 요청에 실패했습니다. 키와 모델 설정을 확인해 주세요.",
     invalid: "조립 결과를 검증하지 못했습니다.",

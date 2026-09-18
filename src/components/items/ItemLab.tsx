@@ -8,6 +8,7 @@ import { disposeExtrudedItem, STAR_SPEC } from "@/lib/items/extrudedItem";
 import { createLabItem, parseLabItem, HOUSE_SPEC, type LabItemSpec } from "@/lib/items/assembledItem";
 
 import { ITEM_CATALOG, ITEM_CATALOG_SPECS } from "@/lib/items/itemCatalog";
+import InferenceLab from "./InferenceLab";
 
 const samples: LabItemSpec[] = [STAR_SPEC, HOUSE_SPEC, ...ITEM_CATALOG_SPECS];
 
@@ -84,6 +85,7 @@ export default function ItemLab() {
       <h1 className="mt-2 text-3xl font-bold">입체 조립 테스트: {spec.name}</h1>
       <p className="mt-3 text-sm">드래그해서 옆과 뒤를 보고, 휠이나 두 손가락으로 확대해 보세요.</p>
       <a href="/item-lab/village" className="mt-3 inline-block text-sm underline">실제 마을에서 집·별 크기 비교하기 →</a>
+      {process.env.NODE_ENV !== "production" && <InferenceLab onSpec={next => { setSpec(next); setDraft(JSON.stringify(next, null, 2)); setError(""); }} />}
       <div className="mt-4 rounded-2xl border border-[#dce3d6] bg-white p-4">
         <p className="mb-3 text-sm font-semibold">카탈로그 · {ITEM_CATALOG.length}개</p>
         {[...new Set(ITEM_CATALOG.map(item => item.category))].map(category => <div key={category} className="mt-2 flex flex-wrap items-center gap-2">
