@@ -3,6 +3,8 @@
 // 요청: POST { studentId, date }  →  응답: 200 { morning: string | null, full: string | null }
 // 한 카드 안에 위에는 "등교 기준"(등교 데이터만으로 추정), 선 아래에는 "등교·하교 기준"을 보여준다.
 // 하교 전이면 등교 기준만 있다. 하교 뒤 다시 열면 아래 칸이 생긴다.
+// 분석은 마음 기록이 있을 때만 보여준다 — 등교 기록이 없으면 등교 기준(과 예시)을, 등교·하교 중 하나라도
+// 없으면 통합 분석을 응답에 와도 보여주지 않는다. 둘 다 없으면 부모가 이 상자 자체를 그리지 않는다.
 // 라우트가 501(키 미설정·테스트 대상 아님)이면 서버가 넘겨준 mock 예시(fallback)를 "예시" 표시와 함께 보여준다.
 // 날짜가 바뀌면 부모가 key를 바꿔 새로 마운트한다 (이전 날짜 결과가 남지 않게).
 
@@ -22,10 +24,16 @@ export default function AiAnalysisBox({
   studentId,
   date,
   fallback,
+  hasMorning,
+  hasAfternoon,
 }: {
   studentId: string;
   date: string;
   fallback: string | null;
+  /** 그 날 등교 기록이 있는지 — 없으면 등교 기준 분석을 내지 않는다 */
+  hasMorning: boolean;
+  /** 그 날 하교 기록이 있는지 — 없으면 통합 분석을 내지 않는다 */
+  hasAfternoon: boolean;
 }) {
   const [state, setState] = useState<AnalysisState>({ status: "loading" });
 
@@ -41,7 +49,7 @@ export default function AiAnalysisBox({
       .then(async (response) => {
         if (response.status === 501) {
           setState(
-            fallback
+            fallback && hasMorning
               ? { status: "ready", sections: [{ label: null, text: fallback }], isExample: true }
               : { status: "empty" },
           );
@@ -50,8 +58,8 @@ export default function AiAnalysisBox({
         if (!response.ok) throw new Error(`daily-analysis HTTP ${response.status}`);
         const data: { morning?: string | null; full?: string | null } = await response.json();
         const sections: AnalysisSection[] = [];
-        if (data.morning) sections.push({ label: "등교 기준", text: data.morning });
-        if (data.full) sections.push({ label: "등교·하교 기준", text: data.full });
+        if (hasMorning && data.morning) sections.push({ label: "등교 기준", text: data.morning });
+        if (hasMorning && hasAfternoon && data.full) sections.push({ label: "등교-하교 기준", text: data.full });
         setState(sections.length ? { status: "ready", sections, isExample: false } : { status: "empty" });
       })
       .catch((error: unknown) => {
@@ -61,7 +69,7 @@ export default function AiAnalysisBox({
       });
 
     return () => controller.abort();
-  }, [studentId, date, fallback]);
+  }, [studentId, date, fallback, hasMorning, hasAfternoon]);
 
   return (
     <section
@@ -72,7 +80,7 @@ export default function AiAnalysisBox({
         <span aria-hidden>✨</span>
         AI 분석
         {state.status === "ready" && state.isExample && (
-          <span className="rounded-full bg-white/80 px-2 py-px font-[family-name:var(--font-sans-kr)] text-[10px] font-semibold text-amber-700">API 연결 전 · 예시</span>
+          <span className="rounded-full bg-white/80 px-2 py-px font-[family-name:var(--font-sans-kr)] text-[10px] font-semibold text-amber-700">API 연결 전 - 예시</span>
         )}
       </div>
       {state.status === "loading" && <p>분석을 불러오는 중…</p>}

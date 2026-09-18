@@ -1,6 +1,6 @@
 // 담당: 김현우
 // 학부모상담기록 "예정된 상담" 칼럼의 "상담 예약" 버튼과 모달. 아직 상담 전이라 내용은 받지 않고
-// 학생·상담 대상·방식·예정 일시만 받는다 — 저장은 Server Action(scheduleConsultationAction).
+// 학생(@태그, 한 명)·상담 대상·방식·예정 일시만 받는다 — 저장은 Server Action(scheduleConsultationAction).
 // 참고: docs/prototype/prototype-teacher.html #modal-consult
 
 "use client";
@@ -8,30 +8,27 @@
 import { useActionState, useState } from "react";
 import { scheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import Modal from "@/components/shared/Modal";
-import { choicePill, errorText, fieldLabel, textInput } from "@/components/shared/ui";
-import type { ClassStudent, FormActionState } from "@/lib/types/teacherRecord";
+import TagInput, { type TagOption } from "@/components/shared/TagInput";
+import { errorText, fieldLabel, textInput } from "@/components/shared/ui";
+import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
+import MethodPicker from "./MethodPicker";
 
 const INITIAL_STATE: FormActionState = { status: "idle", message: null, seq: 0 };
-const METHODS = [
-  { value: "phone", label: "전화" },
-  { value: "visit", label: "방문" },
-  { value: "online", label: "온라인" },
-] as const;
 const MAX_COUNTERPART_LENGTH = 30;
 
 export default function ScheduleConsultationComposer({ students }: { students: ClassStudent[] }) {
   const [open, setOpen] = useState(false);
   const [openedAtSeq, setOpenedAtSeq] = useState(0);
-  const [studentId, setStudentId] = useState("");
+  const [tags, setTags] = useState<TagOption[]>([]);
   const [counterpart, setCounterpart] = useState("");
-  const [method, setMethod] = useState<(typeof METHODS)[number]["value"]>("phone");
+  const [method, setMethod] = useState<ConsultationMethod>("phone");
   const [scheduledAt, setScheduledAt] = useState("");
 
   const [state, formAction, pending] = useActionState(async (previous: FormActionState, formData: FormData) => {
     const result = await scheduleConsultationAction(formData);
     if (result.status === "success") {
       setOpen(false);
-      setStudentId("");
+      setTags([]);
       setCounterpart("");
       setMethod("phone");
       setScheduledAt("");
@@ -40,6 +37,7 @@ export default function ScheduleConsultationComposer({ students }: { students: C
   }, INITIAL_STATE);
 
   const isFreshResult = state.seq > openedAtSeq;
+  const studentId = tags[0]?.id ?? "";
 
   function openModal() {
     setOpenedAtSeq(state.seq);
@@ -63,24 +61,17 @@ export default function ScheduleConsultationComposer({ students }: { students: C
 
       <Modal open={open} title="상담 예약하기" onClose={closeModal}>
         <form action={formAction}>
-          <fieldset>
-            <legend className={fieldLabel}>상담할 학생</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {students.map((s) => (
-                <label key={s.studentId}>
-                  <input
-                    type="radio"
-                    name="studentId"
-                    value={s.studentId}
-                    checked={studentId === s.studentId}
-                    onChange={() => setStudentId(s.studentId)}
-                    className="peer sr-only"
-                  />
-                  <span className={choicePill}>{s.name}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <label htmlFor="schedule-student" className={fieldLabel}>
+            상담할 학생
+          </label>
+          {/* 한 상담은 아이 한 명 — 새로 태그하면 앞의 아이를 바꾼다 */}
+          <TagInput
+            options={students.map((s) => ({ id: s.studentId, label: s.name }))}
+            value={tags}
+            onChange={(next) => setTags(next.slice(-1))}
+            name="studentId"
+            inputId="schedule-student"
+          />
 
           <div className="grid gap-x-3 sm:grid-cols-2">
             <div>
@@ -94,27 +85,10 @@ export default function ScheduleConsultationComposer({ students }: { students: C
                 maxLength={MAX_COUNTERPART_LENGTH}
                 placeholder="예: 어머니"
                 onChange={(e) => setCounterpart(e.target.value)}
-                className={`${textInput} w-full`}
+                className={`${textInput} h-9 w-full`}
               />
             </div>
-            <fieldset>
-              <legend className={fieldLabel}>상담 방식</legend>
-              <div className="flex gap-1.5">
-                {METHODS.map((m) => (
-                  <label key={m.value}>
-                    <input
-                      type="radio"
-                      name="method"
-                      value={m.value}
-                      checked={method === m.value}
-                      onChange={() => setMethod(m.value)}
-                      className="peer sr-only"
-                    />
-                    <span className={choicePill}>{m.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <MethodPicker id="schedule-method" value={method} onChange={setMethod} />
           </div>
 
           <label htmlFor="schedule-at" className={fieldLabel}>

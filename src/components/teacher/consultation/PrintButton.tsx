@@ -6,7 +6,7 @@
 export default function PrintButton() {
   return (
     <button type="button" className="btn btn-primary btn-sm" onClick={() => window.print()}>
-      🖨 인쇄 · PDF로 저장
+      🖨 인쇄 / PDF로 저장
     </button>
   );
 }
