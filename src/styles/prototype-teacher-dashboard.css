@@ -289,22 +289,6 @@
 .rd-name { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
 .rd-sub { font-size: 11px; color: var(--muted); }
 
-.rd-peer-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 4px; }
-.rd-peers-title { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 7px; }
-.rd-peer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 5px; }
-.rd-peer-list li {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 600;
-  background: var(--soft);
-  border-radius: 99px;
-  padding: 3px 9px;
-}
-.rd-peer-list li em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); }
-.rd-empty { margin: 0; font-size: 11.5px; color: var(--faint); }
-
 .rd-section-title {
   display: flex;
   align-items: center;

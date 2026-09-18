@@ -48,26 +48,6 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
   );
 }
 
-function PeerList({ title, peers }: { title: string; peers: RelationDetail["mentionedBy"] }) {
-  return (
-    <div className="rd-peers">
-      <div className="rd-peers-title">{title}</div>
-      {peers.length === 0 ? (
-        <p className="rd-empty">없어요</p>
-      ) : (
-        <ul className="rd-peer-list">
-          {peers.map((p) => (
-            <li key={p.studentId}>
-              {p.name}
-              <em>{p.count}</em>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export default function RelationDetailPane({
   detail,
   fallbackConflicts,
@@ -99,8 +79,6 @@ export default function RelationDetailPane({
     );
   }
 
-  const total = detail.mentionedBy.reduce((sum, p) => sum + p.count, 0);
-
   return (
     <div className="conflict-pane">
       <div className="pane-title">
@@ -112,12 +90,7 @@ export default function RelationDetailPane({
 
       <div className="rd-head">
         <strong className="rd-name">{detail.name}</strong>
-        <span className="rd-sub">최근 2주 · 이름이 나온 횟수 {total}번</span>
-      </div>
-
-      <div className="rd-peer-cols">
-        <PeerList title="이 아이를 말한 친구" peers={detail.mentionedBy} />
-        <PeerList title="이 아이가 말한 친구" peers={detail.mentioning} />
+        <span className="rd-sub">최근 2주 · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
       </div>
 
       {detail.quotes.length > 0 && (

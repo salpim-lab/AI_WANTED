@@ -161,10 +161,8 @@ export type RelationEdge = {
 export type RelationDetail = {
   studentId: number;
   name: string;
-  /** 이 아이를 말한 친구 (많이 말한 순) */
-  mentionedBy: { studentId: number; name: string; count: number }[];
-  /** 이 아이가 말한 친구 */
-  mentioning: { studentId: number; name: string; count: number }[];
+  /** 다른 아이 대화에 이 아이 이름이 나온 횟수 — 지도의 원 크기와 같은 수 */
+  mentionCount: number;
   /** 대화에서 이 아이 이름이 나온 대목. 실제로는 전사에서 그대로 잘라 온다 */
   quotes: { from: string; date: string; text: string }[];
   /** 이 아이가 낀 갈등 (최근 것부터) */
@@ -792,22 +790,16 @@ function buildRelation(dateKey: string): DashboardData["relation"] {
   return { nodes, edges, details: buildRelationDetails(ids, window, records) };
 }
 
-/** 아이별 관계 상세. 지도 옆 패널이 쓴다 — 방향을 합치지 않고 "누가 나를 / 내가 누구를"로 나눠 둔다. */
+/** 아이별 관계 상세. 지도 옆 패널이 쓴다 — 횟수와 원문, 그리고 갈등. */
 function buildRelationDetails(
   ids: number[],
   window: string[],
   records: ConflictRow[],
 ): Record<number, RelationDetail> {
-  const byMe = new Map<number, Map<number, number>>(ids.map((id) => [id, new Map()]));
-  const aboutMe = new Map<number, Map<number, number>>(ids.map((id) => [id, new Map()]));
   const quotes = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
 
   for (const date of window) {
     for (const { from, to } of mentionsOn(date)) {
-      const mine = byMe.get(from)!;
-      mine.set(to, (mine.get(to) ?? 0) + 1);
-      const theirs = aboutMe.get(to)!;
-      theirs.set(from, (theirs.get(from) ?? 0) + 1);
       const template = MENTION_QUOTE[Math.floor(hash01(date, from * 100 + to, 61) * MENTION_QUOTE.length)];
       // 인용은 "말한 아이"의 발화다 — 그 안에 상대 이름이 들어간다
       quotes.get(to)!.push({
@@ -818,19 +810,13 @@ function buildRelationDetails(
     }
   }
 
-  const rank = (counts: Map<number, number>) =>
-    [...counts]
-      .sort((a, b) => b[1] - a[1] || a[0] - b[0])
-      .map(([studentId, count]) => ({ studentId, name: STUDENT_NAMES[studentId], count }));
-
   return Object.fromEntries(
     ids.map((studentId) => [
       studentId,
       {
         studentId,
         name: STUDENT_NAMES[studentId],
-        mentionedBy: rank(aboutMe.get(studentId)!),
-        mentioning: rank(byMe.get(studentId)!),
+        mentionCount: quotes.get(studentId)!.length,
         // 최근 것부터 3개까지 — 더 보여줘도 패널에서 읽히지 않는다
         quotes: quotes.get(studentId)!.slice().reverse().slice(0, 3),
         conflicts: records.filter((c) => c.pairIds.includes(studentId)),
