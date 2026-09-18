@@ -53,6 +53,18 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
   );
 }
 
+/** 기록이 여러 건이면 아래로 쌓지 않고 한 칸 안에서 넘긴다 — 쌓으면 패널이 길어지고,
+    길어진 패널이 같은 행의 관계 지도까지 끌고 늘어난다. */
+function ConflictList({ rows }: { rows: ConflictRow[] }) {
+  return (
+    <div className="rd-conflicts">
+      {rows.map((row) => (
+        <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />
+      ))}
+    </div>
+  );
+}
+
 function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
   return (
     <ul className="rd-quotes">
@@ -68,37 +80,58 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
   );
 }
 
+/** 세 갈래(선택 없음 / 아이 / 선)가 같은 제목 줄을 쓴다.
+    패널에는 스크롤을 걸지 않는다 — 길어지는 덩어리는 각자 안에서 잘린다 (CSS 참고). */
+function Pane({
+  action,
+  children,
+}: {
+  action: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="conflict-pane">
+      <div className="pane-title">
+        관계 상세
+        {action}
+      </div>
+      <div className="rd-body">{children}</div>
+    </div>
+  );
+}
+
 export default function RelationDetailPane({
   detail,
   pair,
+  periodLabel,
   fallbackConflicts,
   onClear,
 }: {
   detail: RelationDetail | null;
   pair: RelationPairDetail | null;
+  periodLabel: string;
   /** 아무것도 선택하지 않았을 때 보여줄 최근 갈등 */
   fallbackConflicts: ConflictRow[];
   onClear: () => void;
 }) {
+  const closeButton = (
+    <button type="button" className="rd-clear" onClick={onClear}>
+      닫기
+    </button>
+  );
+
   // 선을 눌렀을 때 — "이 선이 왜 생겼나"에만 답한다.
   if (pair) {
     return (
-      <div className="conflict-pane">
-        <div className="pane-title">
-          관계 상세
-          <button type="button" className="rd-clear" onClick={onClear}>
-            닫기
-          </button>
-        </div>
-
+      <Pane action={closeButton}>
         <div className="rd-head">
           <strong className="rd-name">
             {pair.a.name} ↔ {pair.b.name}
           </strong>
           <span className="rd-sub">
             {pair.mentionCount > 0
-              ? `최근 2주 · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
-              : "최근 2주 · 서로 언급한 기록은 없어요"}
+              ? `${periodLabel} · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
+              : `${periodLabel} · 서로 언급한 기록은 없어요`}
           </span>
         </div>
 
@@ -118,45 +151,32 @@ export default function RelationDetailPane({
         {pair.conflicts.length === 0 ? (
           <p className="conflict-empty">두 아이 사이의 갈등 기록은 없어요.</p>
         ) : (
-          pair.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
+          <ConflictList rows={pair.conflicts} />
         )}
-      </div>
+      </Pane>
     );
   }
 
   if (!detail) {
     return (
-      <div className="conflict-pane">
-        <div className="pane-title">
-          관계 상세
-          <span className="pane-sub">아이를 누르면 그 아이 이야기가 나와요</span>
-        </div>
+      <Pane action={<span className="pane-sub">아이나 선을 누르면 여기에 나와요</span>}>
         {fallbackConflicts.length === 0 ? (
           <p className="conflict-empty">이 날짜까지 기록된 갈등이 없어요.</p>
         ) : (
           <>
             <div className="rd-section-title">최근 갈등 기록</div>
-            {fallbackConflicts.map((row) => (
-              <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />
-            ))}
+            <ConflictList rows={fallbackConflicts} />
           </>
         )}
-      </div>
+      </Pane>
     );
   }
 
   return (
-    <div className="conflict-pane">
-      <div className="pane-title">
-        관계 상세
-        <button type="button" className="rd-clear" onClick={onClear}>
-          닫기
-        </button>
-      </div>
-
+    <Pane action={closeButton}>
       <div className="rd-head">
         <strong className="rd-name">{detail.name}</strong>
-        <span className="rd-sub">최근 2주 · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
+        <span className="rd-sub">{periodLabel} · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
       </div>
 
       {detail.quotes.length > 0 && (
@@ -171,10 +191,10 @@ export default function RelationDetailPane({
         <span className="cnt">{detail.conflicts.length}</span>
       </div>
       {detail.conflicts.length === 0 ? (
-        <p className="conflict-empty">최근 2주 갈등 기록이 없어요.</p>
+        <p className="conflict-empty">{periodLabel} 갈등 기록이 없어요.</p>
       ) : (
-        detail.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
+        <ConflictList rows={detail.conflicts} />
       )}
-    </div>
+    </Pane>
   );
 }

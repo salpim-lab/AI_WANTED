@@ -15,7 +15,7 @@
 // 이름은 성까지 다 쓴다: 같은 이름이 흔해서(민준/지훈) 성이 빠지면 누군지 헷갈린다.
 
 import { useState } from "react";
-import type { DashboardData, RelationNode } from "./mockData";
+import type { RelationGraph, RelationNode } from "./mockData";
 
 const NODE_STYLE: Record<RelationNode["tone"], { ring: string; text: string }> = {
   normal: { ring: "var(--rel-ring)", text: "var(--rel-text)" },
@@ -31,9 +31,11 @@ const keyOf = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 export default function RelationshipMap({
   nodes,
   edges,
+  periodLabel,
   selected,
   onSelect,
-}: Pick<DashboardData["relation"], "nodes" | "edges"> & {
+}: Pick<RelationGraph, "nodes" | "edges"> & {
+  periodLabel: string;
   selected: MapFocus;
   onSelect: (focus: NonNullable<MapFocus>) => void;
 }) {
@@ -64,7 +66,7 @@ export default function RelationshipMap({
     <div className="relation-pane">
       <div className="pane-title">
         관계 지도
-        <span className="pane-sub">발화·업무기록에서 추출 · 최근 2주</span>
+        <span className="pane-sub">발화·업무기록에서 추출 · {periodLabel}</span>
       </div>
 
       <div className="relation-map-wrap">
@@ -107,6 +109,8 @@ export default function RelationshipMap({
               >
                 {/* 선이 2px 라 그대로는 못 누른다. 투명한 굵은 선을 겹쳐 누를 자리를 넓힌다. */}
                 <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={16} />
+                {/* 자주 오간 사이일수록 굵고 진하게. 기간을 넓히면 선이 늘어나는데,
+                    굵기가 다 같으면 빽빽해 보이기만 하고 무리가 안 보인다. */}
                 <line
                   className="relation-edge"
                   x1={a.x}
@@ -114,7 +118,8 @@ export default function RelationshipMap({
                   x2={b.x}
                   y2={b.y}
                   stroke={conflict ? "var(--rel-edge-conflict)" : "var(--rel-edge)"}
-                  strokeWidth={conflict ? 2.4 : 2}
+                  strokeWidth={conflict ? 2.4 : 1 + e.strength * 2.2}
+                  strokeOpacity={conflict ? 1 : 0.35 + e.strength * 0.65}
                   strokeLinecap="round"
                   strokeDasharray={conflict ? "7 6" : undefined}
                 />

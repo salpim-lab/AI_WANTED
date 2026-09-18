@@ -200,12 +200,46 @@
   gap: 28px;
   align-items: stretch;
 }
+/* 기간 토글 — 카드 제목 오른쪽 끝에 붙는다. 날짜 컨트롤처럼 굵게 세우지 않는다:
+   이건 화면 전체가 아니라 이 카드 하나의 보기 설정이다. */
+.rel-period {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--soft);
+  border-radius: 99px;
+}
+.rel-period-btn {
+  padding: 4px 11px;
+  border: none;
+  border-radius: 99px;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.rel-period-btn:hover { color: var(--text); }
+.rel-period-btn.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(60, 50, 35, 0.06);
+}
+.rel-period-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
 .relation-pane, .conflict-pane { min-width: 0; }
 .relation-pane { display: flex; flex-direction: column; }
 
+/* viewBox 가 660×380(가로:세로 ≈ 1.74)이라, 폭에 맞춰 그리려면 세로가 그만큼 필요하다.
+   여기가 모자라면 SVG 가 세로에 맞춰 줄어들어 좌우에 빈 띠가 생기고 지도가 작아 보인다.
+   스무 명 이름을 읽어야 하는 카드라 넉넉히 준다. */
 .relation-map-wrap {
   flex: 1;
-  min-height: 300px;
+  min-height: 440px;
   display: flex;
   background: #faf8f3;
   border-radius: 18px;
@@ -268,8 +302,16 @@
 .conflict-empty { margin: 0; font-size: 12px; color: var(--muted); }
 
 /* ── 관계 상세 (지도 옆 패널) ─────────────────────────────────────
-   아이를 누르면 여기만 바뀐다. 지도는 그 자리에 그대로 있다. */
-.conflict-pane { display: flex; flex-direction: column; }
+   아이를 누르면 여기만 바뀐다. 지도는 그 자리에 그대로 있다.
+
+   기록이 몇 건이든 카드 높이는 그대로여야 한다 — 패널이 늘어나면 같은 행에 있는
+   관계 지도까지 같이 늘어나서, 갈등이 많은 날에는 지도가 화면을 넘긴다.
+
+   패널 자체에는 스크롤을 걸지 않는다. 대신 안쪽 덩어리(.rd-quotes, .conflict-stmts)를
+   각각 잘라서, 내용이 아무리 늘어도 패널 높이가 일정하게 유지되도록 한다.
+   그래야 제목이 늘 보이고, 스크롤 안에 또 스크롤이 생기지 않는다. */
+.conflict-pane { display: flex; flex-direction: column; min-height: 0; }
+.conflict-pane .pane-title { flex-shrink: 0; }
 .conflict-pane .pane-title .rd-clear {
   margin-left: auto;
   padding: 3px 9px;
@@ -298,8 +340,24 @@
   font-weight: 700;
   color: var(--muted);
 }
+/* 스크롤 영역 맨 위에 오면 위쪽 여백은 필요 없다 */
+.rd-body > .rd-section-title:first-child,
+.rd-body > .rd-head:first-child { margin-top: 0; }
 
-.rd-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+/* 대화 발췌는 제 칸 안에서만 스크롤한다 — 길어져도 아래 갈등 기록을 밀어내지 않게.
+   높이는 흔한 경우(발췌 3~4개)가 스크롤 없이 다 보이게 잡았다. 스크롤바는 정말
+   긴 날에만 나와야지, 늘 나오면 모든 칸을 다 굴려봐야 하는 화면이 된다. */
+.rd-quotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .rd-quotes li {
   border-left: 2px solid var(--line);
   padding: 2px 0 2px 11px;
@@ -307,6 +365,17 @@
 .rd-quotes li p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 .rd-quote-by { font-size: 10.5px; color: var(--faint); }
 .conflict-stmts { display: flex; flex-direction: column; gap: 8px; }
+
+/* 기록이 여러 건이어도 한 건 높이만 쓴다 — 쌓으면 패널이 길어지고 옆의 지도까지 끌고 늘어난다.
+   기록 하나는 통째로 보여야 진술 둘이 "엇갈린 진술"로 읽히므로, 자르지 않고 칸 안에서 넘긴다.
+   snap 을 걸어 1건 → 2건이 중간에 걸치지 않고 딱딱 넘어가게 한다. */
+.rd-conflicts {
+  max-height: 272px;
+  overflow-y: auto;
+  scroll-snap-type: y proximity;
+  padding-right: 4px;
+}
+.rd-conflicts > .conflict-row { scroll-snap-align: start; }
 .conflict-stmt { background: var(--soft); border-radius: 12px; padding: 11px 13px; }
 .conflict-stmt .who { font-size: 11.5px; font-weight: 800; margin-bottom: 4px; }
 .conflict-stmt p { margin: 0; font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
