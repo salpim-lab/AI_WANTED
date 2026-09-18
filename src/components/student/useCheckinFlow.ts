@@ -8,6 +8,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { SignalColor } from "@/lib/types/signal";
+import { pickOpener } from "@/lib/chat/openers";
 import {
   CHECKOUT_SCENARIO,
   getCheckinScenario,
@@ -55,7 +56,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   }, []);
 
   const runScenario = useCallback(
-    async (scenario: ColorScenario) => {
+    async (scenario: ColorScenario, activeColor: SignalColor) => {
       const gen = ++genRef.current;
       const isCurrent = () => genRef.current === gen;
 
@@ -66,7 +67,17 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       setConsultState("hidden");
       goTo(3);
 
-      for (const msg of scenario.messages) {
+      // 첫 질문은 openers.ts 가 만든다 — 색 + 등하교 + 요일로 정해지는 고정 문장이다.
+      // AI 를 부르지 않으므로 "색 3초" 예산을 지킨다. mockScenarios 의 문장은
+      // 같은 내용이지만 요일 변주가 없어 여기서 덮어쓴다.
+      const opener = pickOpener(flow, activeColor);
+      const [first, ...rest] = scenario.messages;
+      if (first) {
+        await wait(first.delay);
+        if (!isCurrent()) return;
+        addBubble(first.isNavy ? "navy-msg" : "ai", opener);
+      }
+      for (const msg of rest) {
         await wait(msg.delay);
         if (!isCurrent()) return;
         addBubble(msg.isNavy ? "navy-msg" : "ai", msg.text);
@@ -94,7 +105,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     (c: SignalColor) => {
       setColor(c);
       const scenario = flow === "checkin" ? getCheckinScenario(c) : CHECKOUT_SCENARIO;
-      void runScenario(scenario);
+      void runScenario(scenario, c);
     },
     [flow, runScenario],
   );

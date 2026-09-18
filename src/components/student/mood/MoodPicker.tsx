@@ -10,16 +10,17 @@
 "use client";
 
 import type { SignalColor } from "@/lib/types/signal";
+import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import SalpimHeader from "../home/SalpimHeader";
 import StudentProfile from "../home/StudentProfile";
 import MoodButton, { type MoodOption } from "./MoodButton";
 
-const OPTIONS: MoodOption[] = [
-  { color: "green", name: "초록", desc: "기분 좋아요" },
-  { color: "yellow", name: "노랑", desc: "그저 그래요" },
-  { color: "red", name: "빨강", desc: "기분이 안 좋아요" },
-  { color: "navy", name: "남색", desc: "혼자 있고 싶어요" },
-];
+// 문구는 SIGNAL_COLORS 한 곳에서만 관리한다. 여기서 다시 쓰면 대화 화면 뱃지와 어긋난다.
+const OPTIONS: MoodOption[] = (["green", "yellow", "red", "navy"] as const).map((color) => ({
+  color,
+  name: SIGNAL_COLORS[color].name,
+  desc: SIGNAL_COLORS[color].label,
+}));
 
 export default function MoodPicker({
   active = true,
