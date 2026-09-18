@@ -5,8 +5,25 @@
 // 여기가 뚫리면 다른 아이의 상담을 읽고 쓸 수 있다.
 import "server-only";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+
+/**
+ * 개발 환경에서 로그인 없이 쓰는 학생. 시드의 민준이다.
+ *
+ * ⚠️ 프로덕션에서는 절대 쓰이지 않는다 — NODE_ENV 로 막는다.
+ *    로그인 화면이 아직 없어서 두는 임시 장치이고, 로그인이 붙으면 지운다.
+ *    DEV_STUDENT_ID=off 로 끄면 개발 환경에서도 401 을 그대로 본다.
+ */
+const DEV_STUDENT_FALLBACK = "30000000-0000-4000-8000-000000000001";
+
+function devStudentId() {
+  if (process.env.NODE_ENV === "production") return null;
+  const configured = process.env.DEV_STUDENT_ID;
+  if (configured === "off") return null;
+  return configured || DEV_STUDENT_FALLBACK;
+}
 
 export class CheckinAuthError extends Error {
   constructor(
@@ -27,10 +44,26 @@ export async function requireStudent() {
   const client = await createClient();
   const {
     data: { user },
-    error: authError,
   } = await client.auth.getUser();
-  if (authError || !user) {
-    throw new CheckinAuthError("UNAUTHORIZED", 401, "학생 로그인이 필요합니다.");
+
+  if (!user) {
+    // 로그인 화면이 없는 동안, 개발 환경에서만 시드 학생으로 진행한다.
+    const devId = devStudentId();
+    if (!devId) throw new CheckinAuthError("UNAUTHORIZED", 401, "학생 로그인이 필요합니다.");
+
+    // 로그인 세션이 없으니 RLS 를 통과할 수 없다. 이 경로에서만 admin 으로 읽는다.
+    const admin = createAdminClient();
+    const { data: devStudent } = await admin
+      .from("students")
+      .select("id, status")
+      .eq("id", devId)
+      .maybeSingle();
+    if (!devStudent || devStudent.status !== "active") {
+      throw new CheckinAuthError("UNAUTHORIZED", 401, "개발용 학생을 찾을 수 없습니다.");
+    }
+    // 매 요청 남긴다. 조용히 동작하면 언젠가 이게 켜진 줄 모르고 배포한다.
+    console.warn(`[auth] 개발 모드: 로그인 없이 학생 ${devId} 로 진행합니다.`);
+    return { client: admin, studentId: devStudent.id, authUserId: null };
   }
 
   const { data: student, error } = await client
