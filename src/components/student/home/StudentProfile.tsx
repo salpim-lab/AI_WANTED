@@ -14,7 +14,11 @@ export default function StudentProfile({
 }) {
   const src = photoSrc ?? studentPhotoPath(name);
   return (
-    <div className="sh-profile absolute right-[2.2cqw] top-[4.2cqh] z-[2] gap-[1.2cqw] py-[0.9cqh] pl-[0.9cqh] pr-[1.8cqw]">
+    <div
+      className="sh-profile absolute right-[2.2cqw] z-[2] gap-[1.2cqw] py-[0.9cqh] pl-[0.9cqh] pr-[1.8cqw]"
+      // 로고와 같은 기준을 쓴다. 0.2cqh 차이는 pill 의 패딩 때문에 생기던 눈속임이라 없앴다.
+      style={{ top: "var(--sh-header-top, 4.4cqh)" }}
+    >
       {src ? (
         <img
           src={src}
