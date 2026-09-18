@@ -14,6 +14,7 @@
 import type { Reply } from "../mockScenarios";
 
 export default function GuideChips({
+  hints,
   replies,
   replies2,
   /**
@@ -25,16 +26,16 @@ export default function GuideChips({
   onReply,
   onReply2,
 }: {
+  /** 주제 힌트. 답변 문장이 아니다 */
+  hints: string[];
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
   selectable?: boolean;
   onReply?: (r: Reply) => void;
   onReply2?: (r: { text: string; next2: string }) => void;
 }) {
-  if (!replies?.length && !replies2?.length) return null;
-
   if (!selectable) {
-    const hints = [...(replies ?? []), ...(replies2 ?? [])].map((r) => r.text);
+    if (!hints.length) return null;
     return (
       <div className="guide-chips">
         <p className="guide-chips__label">이런 이야기를 해도 좋아요</p>
@@ -49,6 +50,7 @@ export default function GuideChips({
     );
   }
 
+  if (!replies?.length && !replies2?.length) return null;
   return (
     <div className="guide-chips">
       <p className="guide-chips__label">눌러서 골라줘</p>

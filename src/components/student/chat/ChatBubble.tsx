@@ -56,7 +56,7 @@ export default function ChatBubble({
     <div className="chat-row chat-row--ai">
       {!mine &&
         (showAvatar ? (
-          <span className="chat-avatar" aria-hidden="true">
+          <span className="chat-avatar chat-avatar--ai" aria-hidden="true">
             <SalpimFace className="chat-avatar__face" withSparkles={false} />
           </span>
         ) : (

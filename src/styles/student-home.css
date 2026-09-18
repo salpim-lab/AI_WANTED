@@ -285,5 +285,7 @@
   background: #e6e9f4;
   object-fit: cover;
   flex: none;
+  /* 흰 pill 위의 밝은 사진이 배경과 뭉개져서 테두리로 경계를 준다 */
+  border: 0.3cqh solid #dfe3ee;
 }
 

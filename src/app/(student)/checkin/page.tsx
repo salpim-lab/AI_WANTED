@@ -59,6 +59,8 @@ export default function CheckinPage() {
         voiceError={flow.voiceError}
         sessionNote={flow.sessionNote}
         live={flow.live}
+        flow="checkin"
+        color={flow.color}
       />
       <ItemReveal active={flow.step === 4} item={flow.item} onNext={() => flow.goTo(5)} />
       <IslandBoard active={flow.step === 5} item={flow.item} onComplete={() => {}} />

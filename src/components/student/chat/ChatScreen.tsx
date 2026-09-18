@@ -14,9 +14,11 @@ import SalpimHeader from "../home/SalpimHeader";
 import StudentProfile from "../home/StudentProfile";
 import type { ChatBubble as Bubble } from "../useCheckinFlow";
 import type { Reply } from "../mockScenarios";
+import type { SignalColor } from "@/lib/types/signal";
 import ChatBubble from "./ChatBubble";
 import GuideChips from "./GuideChips";
 import TalkButton from "./TalkButton";
+import { pickHints } from "@/lib/chat/hints";
 import { studentPhotoPath } from "@/lib/students/photo";
 import { useVoiceRecorder, type RecordingResult } from "./useVoiceRecorder";
 
@@ -40,6 +42,8 @@ export default function ChatScreen({
   voiceError = null,
   sessionNote = null,
   live = false,
+  flow,
+  color,
   studentFullName = "김민준",
   studentPhotoSrc,
 }: {
@@ -65,19 +69,22 @@ export default function ChatScreen({
   sessionNote?: string | null;
   /** 실제 대화(로그인 + API)가 가능한 상태인가 */
   live?: boolean;
+  flow: "checkin" | "checkout";
+  color: SignalColor | null;
   studentFullName?: string;
   /** 아이 말풍선 옆 프로필. 없으면 이름 첫 글자를 쓴다 */
   studentPhotoSrc?: string;
 }) {
   // 사진을 명시하지 않으면 이름으로 찾는다. 없으면 화면이 이름 글자로 대신한다.
   const photo = studentPhotoSrc ?? studentPhotoPath(studentFullName);
+  const canShowHints = pickHints(flow, color).length > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState(false);
   /** 질문이 화면에 뜬 시각. 녹음 훅이 응답 지연을 재는 기준이 된다 */
   const promptShownAtRef = useRef<number | null>(null);
 
-  const hasOptions = Boolean(replies?.length || replies2?.length);
+  const hasOptions = Boolean(replies?.length || replies2?.length) || canShowHints;
 
   // 말할 수 있는 때 = 아이 차례일 때.
   //
@@ -164,48 +171,48 @@ export default function ChatScreen({
           </div>
         )}
 
-        {/* 대화가 끝나면 아이가 직접 고른다. 자동으로 넘어가지 않는다 —
-            "선생님과 이야기하고 싶다"는 선택지가 지나가 버리면 안 된다. */}
-        {consultState !== "hidden" && (
-          <div className="chat-row chat-row--ai">
-            <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
-            {consultState === "sent" || consultState === "failed" ? (
-              <span
-                className={`chat-consult chat-consult--done${consultState === "failed" ? " chat-consult--failed" : ""}`}
-              >
-                {consultState === "sent"
-                  ? "선생님께 전했어 ✓"
-                  : "지금은 전하지 못했어. 선생님께 직접 말해줄래?"}
-              </span>
-            ) : (
-              <div className="chat-ending">
-                <button
-                  type="button"
-                  className="chat-consult"
-                  onClick={onRequestConsult}
-                  disabled={consultState === "sending"}
-                >
-                  {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
-                </button>
-                <button
-                  type="button"
-                  className="chat-end"
-                  onClick={onEndConversation}
-                  disabled={consultState === "sending"}
-                >
-                  오늘 대화 끝내기
-                </button>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
+        {/* 대화가 끝나면 아이가 직접 고른다. 자동으로 넘어가지 않는다 —
+            "선생님과 이야기하고 싶다"는 선택지가 지나가 버리면 안 된다.
+            말풍선 사이가 아니라 말하기 버튼 바로 위에 둔다. 아이가 누를 것은
+            화면 아래 한곳에 모여 있어야 찾기 쉽다. */}
+        {consultState !== "hidden" &&
+          (consultState === "sent" || consultState === "failed" ? (
+            <p
+              className={`chat-ending__done${consultState === "failed" ? " chat-ending__done--failed" : ""}`}
+            >
+              {consultState === "sent"
+                ? "선생님께 전했어 ✓"
+                : "지금은 전하지 못했어. 선생님께 직접 말해줄래?"}
+            </p>
+          ) : (
+            <div className="chat-ending">
+              <button
+                type="button"
+                className="chat-consult"
+                onClick={onRequestConsult}
+                disabled={consultState === "sending"}
+              >
+                {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
+              </button>
+              <button
+                type="button"
+                className="chat-end"
+                onClick={onEndConversation}
+                disabled={consultState === "sending"}
+              >
+                오늘 대화 끝내기
+              </button>
+            </div>
+          ))}
+
         {showGuide && hasOptions && !ended && (
           <GuideChips
+            hints={pickHints(flow, color)}
             replies={replies}
             replies2={replies2}
             // 음성이 실제로 동작하는 상황에서는 고를 수 없다. 아이가 직접 말해야
