@@ -10,6 +10,12 @@
 // 내려준다 — DB 스키마 v0.3 §9.2 agent_messages.evidence(근거 레코드 ID 목록) 설계와 같은 취지를
 // mock 단계에서 문자열로 구현한 것. 화면에는 "📎 근거" 칩으로 보여준다(TeacherAgentWidget).
 //
+// (2026-09-18) 합친 답변만 보이면 어떤 도메인 보조가 뭐라고 했는지 구분이 안 된다는 피드백을 받아,
+// domainFindings(도메인별 라벨+소견+근거)도 같이 내려준다 — 최종 답변은 여전히 "요약"으로 위에 두고,
+// 화면에서 그 아래 펼쳐서 보여준다(TeacherAgentWidget). 클라이언트는 서버 전용(context.ts)의
+// DOMAIN_LABEL을 직접 import할 수 없어서(그 파일 상단에 "server-only") 라벨은 여기서 문자열로 미리
+// 박아 내려보낸다.
+//
 // TODO(다음 단계): agent_threads/agent_messages(DB 스키마 v0.3 §9.1~§9.2)에 대화를 영구 저장하는 건
 // 교사 인증이 붙은 뒤로 미룬다 — 지금은 auth.uid()가 없어서 RLS 쓰기 정책을 만족할 수 없다.
 
@@ -57,25 +63,33 @@ export async function POST(request: Request) {
     const evidence = domains.flatMap((d) => d.evidence);
 
     if (!hasOpenAIKey()) {
-      const answer =
-        `[개발용 응답 · OpenAI 키 미설정]\n\n` +
-        domains
-          .map((d) => `[${DOMAIN_LABEL[d.domain]}]\n${d.text || "참고할 기록이 없습니다."}`)
-          .join("\n\n");
+      const domainFindings = domains.map((d) => ({
+        domain: d.domain,
+        label: DOMAIN_LABEL[d.domain],
+        finding: d.text || "참고할 기록이 없습니다.",
+        evidence: d.evidence,
+      }));
+      const answer = `[개발용 응답 · OpenAI 키 미설정]\n\n` + domainFindings.map((f) => `[${f.label}]\n${f.finding}`).join("\n\n");
       return NextResponse.json(
-        { answer, studentName, evidence, mocked: true },
+        { answer, studentName, evidence, domainFindings, mocked: true },
         { headers: { "Cache-Control": "no-store" } },
       );
     }
 
     const findings = await Promise.all(domains.map((d) => runDomain(d, question, studentName)));
+    const domainFindings = findings.map((f) => ({
+      domain: f.domain,
+      label: DOMAIN_LABEL[f.domain],
+      finding: f.finding,
+      evidence: f.evidence,
+    }));
     const mergeInput =
       findings.map((f) => `[${DOMAIN_LABEL[f.domain]} 소견]\n${f.finding}`).join("\n\n") +
       `\n\n[교사 질문]\n${question}`;
     const answer = await callTeacherAgentModel(buildMergeSystemPrompt(studentName), mergeInput, 20_000);
 
     return NextResponse.json(
-      { answer, studentName, evidence, mocked: false },
+      { answer, studentName, evidence, domainFindings, mocked: false },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

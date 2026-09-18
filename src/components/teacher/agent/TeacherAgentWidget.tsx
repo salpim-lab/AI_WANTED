@@ -6,10 +6,86 @@
 // 라우트가 컨텍스트 그대로 보여주는 개발용 응답을 주므로 화면은 끝까지 확인 가능하다.
 // 답변마다 어떤 기록을 근거로 했는지 "📎 근거" 칩으로 같이 보여준다(DB 스키마 v0.3 §9.2
 // agent_messages.evidence와 같은 취지 — 지금은 레코드 ID 대신 사람이 읽는 문자열로 표시).
+//
+// (2026-09-18) 최종 답변만 보이면 정서/학교생활 관찰/가정 연계 세 보조 중 누가 뭐라고 했는지 안
+// 보인다는 피드백 — 답변 아래 "도메인별 소견 보기"를 펼치면 3개를 각각 따로 보여준다.
 
 "use client";
 
-import { useAgentChat } from "./useAgentChat";
+import { useState } from "react";
+import { useAgentChat, type DomainFinding } from "./useAgentChat";
+
+const DOMAIN_ICON: Record<string, string> = { emotion: "💚", learning: "📔", home: "🏠" };
+
+function EvidenceChips({ evidence }: { evidence: string[] }) {
+  if (evidence.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {evidence.map((e, i) => (
+        <span
+          key={i}
+          style={{
+            fontSize: 10,
+            color: "#4338ca",
+            background: "#eef2ff",
+            border: "1px solid #c7d2fe",
+            borderRadius: 99,
+            padding: "2px 8px",
+          }}
+        >
+          📎 {e}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function DomainBreakdown({ findings }: { findings: DomainFinding[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ width: "100%" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontSize: 11,
+          color: "#6366f1",
+          fontWeight: 600,
+          padding: "2px 0",
+        }}
+      >
+        {open ? "▾ 도메인별 소견 접기" : "▸ 정서·학교생활·가정 각각 보기"}
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+          {findings.map((f) => (
+            <div
+              key={f.domain}
+              style={{
+                background: "#fafafa",
+                border: "1px solid #e5e7eb",
+                borderRadius: 10,
+                padding: "8px 10px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#374151" }}>
+                {DOMAIN_ICON[f.domain] ?? "🔹"} {f.label}
+              </div>
+              <div style={{ fontSize: 12, color: "#111827", whiteSpace: "pre-line" }}>{f.finding}</div>
+              <EvidenceChips evidence={f.evidence} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TeacherAgentWidget() {
   const { messages, open, setOpen, input, setInput, send, sending, scopedStudentName, studentId } = useAgentChat();
@@ -19,8 +95,8 @@ export default function TeacherAgentWidget() {
       {open && (
         <div
           style={{
-            width: 320,
-            maxHeight: 420,
+            width: 360,
+            maxHeight: 480,
             background: "var(--surface, #fff)",
             borderRadius: 16,
             boxShadow: "0 20px 60px rgba(0,0,0,.2)",
@@ -63,7 +139,7 @@ export default function TeacherAgentWidget() {
               📌 {scopedStudentName ?? "이 페이지의 학생"} 기준으로 답해요
             </div>
           )}
-          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {messages.length === 0 && (
               <div style={{ fontSize: 12, color: "var(--muted, #6b7280)" }}>
                 우리 반 아이들 기록에 대해 궁금한 걸 물어보세요. (예: &quot;오늘 살펴볼 아이 있어?&quot;)
@@ -77,7 +153,7 @@ export default function TeacherAgentWidget() {
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
-                  maxWidth: "85%",
+                  maxWidth: m.role === "user" ? "85%" : "95%",
                 }}
               >
                 <div
@@ -92,25 +168,8 @@ export default function TeacherAgentWidget() {
                 >
                   {m.text}
                 </div>
-                {m.evidence && m.evidence.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {m.evidence.map((e, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          fontSize: 10,
-                          color: "#4338ca",
-                          background: "#eef2ff",
-                          border: "1px solid #c7d2fe",
-                          borderRadius: 99,
-                          padding: "2px 8px",
-                        }}
-                      >
-                        📎 {e}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {m.evidence && <EvidenceChips evidence={m.evidence} />}
+                {m.domainFindings && m.domainFindings.length > 0 && <DomainBreakdown findings={m.domainFindings} />}
               </div>
             ))}
           </div>
@@ -134,11 +193,7 @@ export default function TeacherAgentWidget() {
                 outline: "none",
               }}
             />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="btn btn-primary btn-sm"
-            >
+            <button type="submit" disabled={sending || !input.trim()} className="btn btn-primary btn-sm">
               전송
             </button>
           </form>

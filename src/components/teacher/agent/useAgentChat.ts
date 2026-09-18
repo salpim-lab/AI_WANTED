@@ -15,7 +15,14 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-type AgentMessage = { id: number; role: "user" | "agent"; text: string; evidence?: string[] };
+export type DomainFinding = { domain: string; label: string; finding: string; evidence: string[] };
+type AgentMessage = {
+  id: number;
+  role: "user" | "agent";
+  text: string;
+  evidence?: string[];
+  domainFindings?: DomainFinding[];
+};
 
 let msgId = 0;
 
@@ -57,7 +64,11 @@ export function useAgentChat() {
       if (res.ok) {
         setScopedStudentName(data.studentName ?? null);
         const evidence = Array.isArray(data.evidence) ? (data.evidence as string[]) : undefined;
-        setMessages((prev) => [...prev, { id: msgId++, role: "agent", text: data.answer, evidence }]);
+        const domainFindings = Array.isArray(data.domainFindings) ? (data.domainFindings as DomainFinding[]) : undefined;
+        setMessages((prev) => [
+          ...prev,
+          { id: msgId++, role: "agent", text: data.answer, evidence, domainFindings },
+        ]);
       } else {
         setMessages((prev) => [
           ...prev,
