@@ -289,10 +289,13 @@
 
 /* ── 편지 닫기 ──────────────────────────────────────────
    0.00 편지지가 봉투로 들어간다 (0.45s)
-   0.40 봉투가 왼쪽 아래 모서리 쪽으로 작아지며 흐려지기 시작한다 (0.8s)
-   0.45 그 사이 덮개가 닫힌다 (0.25s) — 닫히"면서" 작아진다
-   1.20 인사가 제목 → 부제 → 버튼 순으로 떠오른다
-        (MorningHome 타이머 1200ms — 한쪽을 바꾸면 같이 바꿀 것)
+   0.45 덮개가 닫힌다 (0.25s)
+   --lt-drop-delay 봉투가 아래로 미끄러져 내려간다 — 처음엔 천천히, 점점 빨리(떨어지는 물건처럼).
+        크기·회전은 바꾸지 않고 1~2° 만 기운다. 화면 아래 가장자리 밖으로 나가며 가려지고,
+        흐려지는 건 맨 끝에서만.
+   --lt-greet-delay 인사가 떠오른다 — 봉투가 내려가는 도중에 겹쳐 시작한다
+   값은 letterMotion.ts 한곳에서 오고, MorningHome 이 같은 값으로 장면을 치운다.
+   개발 중에는 /checkin?tune=1 에서 슬라이더로 맞춘다.
    뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
 @keyframes shLetterTuck {
   from { transform: translateY(0); }
@@ -319,12 +322,12 @@
   from { transform: scaleY(0); opacity: 0; }
   to { transform: scaleY(1); opacity: 1; }
 }
-/* 왼쪽 아래 모서리 쪽으로 작아지며 사라진다. 흐려지는 건 뒤쪽에서 — 처음부터 흐리면 녹는 것처럼 보인다. */
-@keyframes shEnvelopeShrinkAway {
-  0% { transform: translate(0, 0) scale(1); opacity: 1; }
-  45% { opacity: 1; }
-  100% { transform: translate(-6cqh, 3cqh) scale(0.3); opacity: 0; }
+@keyframes shEnvelopeDrop {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translateY(var(--lt-drop-dist, 72cqh)) rotate(var(--lt-tilt, 1.5deg)); opacity: 0; }
 }
+@keyframes shLetterCtaAway { to { opacity: 0; transform: translateY(1cqh); } }
 @keyframes shMorningIntroIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -349,23 +352,27 @@
 .sh-letter-leaving .sh-envelope-closed-flap {
   animation: shEnvelopeClose 0.15s 0.55s ease-out forwards;
 }
-/* 기준점은 봉투의 왼쪽 아래 모서리. 조립체는 화면 전체 폭이고 봉투(78cqh)는 가운데라
-   모서리는 가로 50% − 39cqh, 세로 맨 아래(봉투 바닥 = 조립체 바닥)다. */
 .sh-letter-leaving .sh-letter-assembly {
-  transform-origin: calc(50% - 39cqh) 100%;
-  animation: shEnvelopeShrinkAway 0.8s 0.4s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+  transform-origin: 50% 69%;
+  animation: shEnvelopeDrop var(--lt-drop-dur, 0.7s) var(--lt-drop-delay, 0.65s)
+    cubic-bezier(0.55, 0, 0.85, 0.35) forwards;
   pointer-events: none;
 }
-/* 인사: 제목 → 부제 → 버튼 순으로 떠오른다 */
+/* 아래 버튼은 편지와 함께 조용히 빠진다. 인사 화면에 자기 버튼이 있다. */
+.sh-letter-cta-away {
+  animation: shLetterCtaAway 0.3s ease-out forwards;
+  pointer-events: none;
+}
+/* 인사: 봉투가 내려가는 도중에 시작해, 제목 → 부제 → 버튼 순으로 떠오른다 */
 .sh-morning-intro-entering > .sh-intro {
-  animation: shMorningIntroIn 0.6s ease-out both;
+  animation: shMorningIntroIn 0.6s var(--lt-greet-delay, 0.95s) ease-out both;
 }
 .sh-morning-intro-entering > .sh-intro > * {
   animation: shMorningIntroRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: 0.05s; }
-.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: 0.25s; }
-.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: 0.45s; }
+.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.05s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.25s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.45s); }
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,
@@ -374,6 +381,7 @@
   .sh-letter-leaving .sh-envelope-closed,
   .sh-letter-leaving .sh-envelope-closed-flap,
   .sh-letter-leaving .sh-letter-paper,
+  .sh-letter-cta-away,
   .sh-morning-intro-entering > .sh-intro,
   .sh-morning-intro-entering > .sh-intro > * { animation: none; }
 }
