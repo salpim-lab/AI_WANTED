@@ -29,6 +29,10 @@ export function statusOf(t: Trigger): string {
   switch (t.kind) {
     case "meetingRequest":
       return t.daysWaiting >= 1 ? `면담 대기 ${t.daysWaiting}일째` : "먼저 이야기하고 싶대요";
+    case "colorWordGap":
+      return "색과 말이 달라요";
+    case "firstHardWord":
+      return "처음 쓴 말";
     case "drop":
     case "dip":
       return `${COLOR_LABEL[t.from]} → ${COLOR_LABEL[t.to]}`;
@@ -58,6 +62,15 @@ export function reasonOf(t: Trigger): string {
       return t.daysWaiting >= 1
         ? `${short(t.requestedOn)}에 신청했고 아직 이야기하지 못했어요`
         : "오늘 등교하며 이야기를 신청했어요";
+    // 아이 말은 요약하지 않고 그대로 인용한다 — 요약하는 순간 해석이 되고, 원문이 더 짧다.
+    case "colorWordGap":
+      return t.quote
+        ? `${COLOR_LABEL[t.color]}을 골랐는데 대화에서는 "${t.quote}" 라고 했어요`
+        : `${COLOR_LABEL[t.color]}을 골랐는데 대화에서는 힘든 마음을 말했어요`;
+    case "firstHardWord":
+      return t.quote
+        ? `"${t.quote}" — 이 말은 오늘 처음 썼어요`
+        : `"${t.lemma}"를 오늘 처음 썼어요`;
     case "drop":
       return `어제까지 ${COLOR_LABEL[t.from]}이었는데 오늘 크게 바뀌었어요`;
     case "dip":

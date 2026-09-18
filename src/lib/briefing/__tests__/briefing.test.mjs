@@ -1,10 +1,16 @@
 // node --test src/lib/briefing/__tests__/briefing.test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
 
 // 소스는 확장자 없는 TS import 를 쓰므로 node 기본 로더로는 못 읽는다 (island 테스트와 같은 방식).
-const jiti = createJiti(import.meta.url, { interopDefault: false, fsCache: false });
+// tsconfig 의 "@/*" 별칭은 jiti 가 모르므로 여기서 알려준다.
+const jiti = createJiti(import.meta.url, {
+  interopDefault: false,
+  fsCache: false,
+  alias: { "@": fileURLToPath(new URL("../../..", import.meta.url)) },
+});
 const { BASELINE_MIN_DAYS, deviation, mad, median, scoreOf } = await jiti.import("../baseline.ts");
 const { detectTriggers, selectBriefing, THRESHOLD, TRIGGER_ORDER } = await jiti.import("../triggers.ts");
 const { BANNED_PATTERNS, renderBriefingLine, reasonOf, statusOf } = await jiti.import("../templates.ts");
@@ -99,6 +105,39 @@ test("연속은 오늘 포함해서 세고, 초록 연속은 올리지 않는다
   assert.ok(!green.includes("streak"), "잘 지내는 연속은 브리핑에 올리지 않는다");
 });
 
+test("초록을 눌렀지만 힘든 말을 했으면 색보다 먼저 잡힌다", () => {
+  const facts = baseFacts({
+    todayColor: "green",
+    todayLemmas: [{ lemma: "속상하다", quote: "진짜 속상했어요" }],
+  });
+  const triggers = detectTriggers(facts, TODAY);
+  assert.equal(triggers[0].kind, "colorWordGap");
+  // 아이 말은 요약하지 않고 그대로 나온다
+  assert.ok(reasonOf(triggers[0]).includes("진짜 속상했어요"), reasonOf(triggers[0]));
+});
+
+test("초록에 좋은 말이면 어긋난 게 아니다", () => {
+  const facts = baseFacts({ todayColor: "green", todayLemmas: [{ lemma: "뿌듯하다" }] });
+  assert.deepEqual(detectTriggers(facts, TODAY), []);
+});
+
+test("빨강에 힘든 말은 어긋난 게 아니다 — 색과 말이 같은 방향이다", () => {
+  const facts = baseFacts({
+    todayColor: "red",
+    history: history(repeat("red", 20)),
+    todayLemmas: [{ lemma: "속상하다", quote: "속상했어요" }],
+  });
+  const kinds = detectTriggers(facts, TODAY).map((t) => t.kind);
+  assert.ok(!kinds.includes("colorWordGap"), kinds.join(","));
+});
+
+test("처음 쓴 힘든 말만 올린다 — 좋은 말을 처음 쓴 건 브리핑 일이 아니다", () => {
+  const hard = baseFacts({ newLemmas: ["외롭다"], todayLemmas: [{ lemma: "외롭다" }] });
+  assert.ok(detectTriggers(hard, TODAY).some((t) => t.kind === "firstHardWord"));
+  const good = baseFacts({ newLemmas: ["뿌듯하다"], todayLemmas: [{ lemma: "뿌듯하다" }] });
+  assert.deepEqual(detectTriggers(good, TODAY), []);
+});
+
 test("체크인이 없으면 색 규칙 대신 noCheckin 하나만", () => {
   const kinds = detectTriggers(baseFacts({ todayColor: null }), TODAY).map((t) => t.kind);
   assert.deepEqual(kinds, ["noCheckin"]);
@@ -138,6 +177,10 @@ test("모든 트리거가 status 와 reason 을 가진다", () => {
   const samples = [
     { kind: "meetingRequest", requestedOn: "2026-09-17", daysWaiting: 1, urgent: false },
     { kind: "meetingRequest", requestedOn: TODAY, daysWaiting: 0, urgent: true },
+    { kind: "colorWordGap", color: "green", lemma: "속상하다", quote: "속상했어요" },
+    { kind: "colorWordGap", color: "green", lemma: "속상하다" },
+    { kind: "firstHardWord", lemma: "외롭다", quote: "혼자 있는 게 외로웠어요" },
+    { kind: "firstHardWord", lemma: "외롭다" },
     { kind: "drop", from: "green", to: "red" },
     { kind: "dip", from: "green", to: "yellow" },
     { kind: "baseline", rareWeeks: 3, lastSeenOn: "2026-08-28" },

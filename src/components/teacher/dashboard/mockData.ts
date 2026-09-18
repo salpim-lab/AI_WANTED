@@ -22,6 +22,7 @@ import type { SignalColor } from "@/lib/types/signal";
 import { todayKst } from "@/components/shared/datetime";
 // 아침 브리핑 판정은 여기 없다 — 규칙과 문구는 lib/briefing, 조립은 queries/morningBriefing 이 갖는다.
 import type { StudentFacts } from "@/lib/briefing/triggers";
+import { isDistressWord } from "@/lib/vocab/lexicon";
 import { BRIEFING_HISTORY_DAYS, buildBriefingRows, type BriefingRow } from "@/lib/supabase/queries/morningBriefing";
 
 /* ══ 날짜 유틸 ═══════════════════════════════════════════════════════
@@ -573,6 +574,34 @@ function buildSnapshots(): Record<string, DaySnapshot> {
    판정은 lib/briefing 이 한다. 여기서는 그 규칙이 읽을 사실만 스냅샷에서 긁어 담는다
    — 실데이터로 바꿀 때 lib/supabase/queries/morningBriefing.ts 가 같은 모양을 만들면 된다. */
 
+/** 그날 대화에서 뽑힌 감정 표제어 — 실제로는 analysis_runs(emotion_vocab)의 result 다.
+    그 아이가 쓸 줄 아는 말(vocabWordsFor) 중에서 그날 한두 개를 고른 것으로 흉내 낸다. */
+function lemmasOn(date: string, studentId: number): { lemma: string; quote?: string }[] {
+  const known = vocabWordsFor(studentId, VOCAB_BASE.find((v) => v.studentId === studentId)?.count ?? 8);
+  // 절반 정도의 날은 기분을 말하지 않고 지나간다.
+  if (!known.length || hash01(date, studentId, 21) < 0.5) return [];
+  const hard = known.filter(isDistressWord);
+  const soft = known.filter((w) => !isDistressWord(w));
+  // 힘든 말은 드물게 나온다. 여기를 높이면 "색과 말이 달라요"가 브리핑을 다 덮어버린다
+  // — 그런 반이라면 규칙이 아니라 교실에 먼저 손을 써야 한다.
+  const pool = hash01(date, studentId, 27) < 0.15 && hard.length ? hard : soft.length ? soft : hard;
+  const pick = pool[Math.floor(hash01(date, studentId, 33) * pool.length)];
+  return [{ lemma: pick, quote: MOCK_QUOTE[pick] }];
+}
+
+/** 근거 인용 — 실제로는 추출기가 학생 발화에서 그대로 잘라 온 문장이다. */
+const MOCK_QUOTE: Record<string, string> = {
+  속상하다: "진짜 속상했어요",
+  억울하다: "저만 혼나서 억울했어요",
+  외롭다: "쉬는 시간에 혼자 있었어요",
+  답답하다: "말이 잘 안 나왔어요",
+  힘들다: "오늘은 좀 힘들었어요",
+  부끄럽다: "애들이 다 봐서 부끄러웠어요",
+  걱정되다: "내일 발표가 걱정돼요",
+  무섭다: "조금 무서웠어요",
+  짜증나다: "계속 안 돼서 짜증났어요",
+};
+
 /** 색 말고는 mock 에 근거가 없는 신호들 — 화면에서 규칙이 도는 걸 보려고 몇 개만 심어둔다. */
 const MOCK_SIGNALS: Record<number, { speechRatio?: number; peerMentionGapWeeks?: number; emotionWordGap?: number }> = {
   1: { speechRatio: 0.6 },        // 김민준 — 말수가 줄었다
@@ -591,6 +620,7 @@ function buildBriefingFacts(dateKey: string): StudentFacts[] {
       .filter((h): h is { date: string; color: SignalColor } => h.color !== null);
 
     const lastConflict = ledger.find((c) => c.date <= dateKey && c.pairIds.includes(studentId));
+    const todayLemmas = lemmasOn(dateKey, studentId);
 
     return {
       studentId,
@@ -603,6 +633,11 @@ function buildBriefingFacts(dateKey: string): StudentFacts[] {
       prosody: MOCK_SIGNALS[studentId]?.speechRatio ? { speechRatio: MOCK_SIGNALS[studentId].speechRatio } : undefined,
       peerMentionGapWeeks: MOCK_SIGNALS[studentId]?.peerMentionGapWeeks ?? null,
       emotionWordGap: MOCK_SIGNALS[studentId]?.emotionWordGap ?? 0,
+      todayLemmas,
+      // 오늘 쓴 말 중 지난 30일에 한 번도 안 나온 것 = 오늘 처음 쓴 말
+      newLemmas: todayLemmas
+        .map((w) => w.lemma)
+        .filter((lemma) => !pastDays.some((d) => lemmasOn(d, studentId).some((w) => w.lemma === lemma))),
     };
   });
 }

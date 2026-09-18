@@ -11,15 +11,18 @@
 // 그래서 이 파일은 Supabase 를 모르고, 테스트에서 그냥 객체를 넣어 돌릴 수 있다.
 
 import type { SignalColor } from "@/lib/types/signal";
+import { isDistressWord } from "@/lib/vocab/lexicon";
 import { deviation, isAnchor, scoreOf } from "./baseline";
 
 export type TriggerKind =
   | "meetingRequest"
+  | "colorWordGap"
   | "drop"
   | "dip"
   | "baseline"
   | "afterConflict"
   | "streak"
+  | "firstHardWord"
   | "quiet"
   | "noCheckin"
   | "noEmotionWord"
@@ -32,11 +35,14 @@ export type TriggerKind =
     사흘째에는 "빨강 3일 연속"이 "이 아이에게는 드문 색이에요"보다 교사에게 알려주는 게 많다. */
 export const TRIGGER_ORDER: TriggerKind[] = [
   "meetingRequest",
+  // 색과 말이 어긋난 날은 어떤 색 집계보다 먼저다 — 색은 버튼 한 번이고 대화가 더 많이 말한다.
+  "colorWordGap",
   "drop",
   "streak",
   "baseline",
   "afterConflict",
   "dip",
+  "firstHardWord",
   "quiet",
   "noCheckin",
   "noEmotionWord",
@@ -50,6 +56,8 @@ const COLOR_AXIS: TriggerKind[] = ["drop", "dip", "baseline", "streak"];
 
 export type Trigger =
   | { kind: "meetingRequest"; requestedOn: string; daysWaiting: number; urgent: boolean }
+  | { kind: "colorWordGap"; color: SignalColor; lemma: string; quote?: string }
+  | { kind: "firstHardWord"; lemma: string; quote?: string }
   | { kind: "drop"; from: SignalColor; to: SignalColor }
   | { kind: "dip"; from: SignalColor; to: SignalColor }
   | { kind: "baseline"; rareWeeks: number | null; lastSeenOn: string | null }
@@ -77,6 +85,11 @@ export type StudentFacts = {
   lastConflict?: { date: string; resolved: boolean };
   /** 최근 연속 몇 번의 대화에서 감정 표제어가 하나도 안 나왔는지 */
   emotionWordGap?: number;
+  /** 오늘 대화에서 뽑힌 감정 표제어와 근거 인용. lib/vocab 추출 결과(analysis_runs)를 그대로 옮긴다.
+      인용은 추출기가 "실제 학생 발화에 있는 문장"인지 검증한 것이라 그대로 화면에 쓸 수 있다. */
+  todayLemmas?: { lemma: string; quote?: string }[];
+  /** 그중 그 아이가 처음 쓴 표제어 */
+  newLemmas?: string[];
   /** 대화에 또래 이름이 안 나온 기간(주). 없으면 null */
   peerMentionGapWeeks?: number | null;
   /** 최근 2주 남색 횟수 */
@@ -174,6 +187,24 @@ export function detectTriggers(facts: StudentFacts, today: string): Trigger[] {
     if (streak.days >= THRESHOLD.streakDays && todayColor !== "green") {
       found.push({ kind: "streak", color: todayColor, days: streak.days, since: streak.since });
     }
+  }
+
+  // 색과 말이 어긋난 날. 초록만 본다 — "좋아요"를 누르고 힘든 말을 한 것이 가장 분명한 간극이고,
+  // 노랑("그저 그래요")까지 넓히면 평범한 날이 거의 다 걸린다.
+  const hardWords = (facts.todayLemmas ?? []).filter((w) => isDistressWord(w.lemma));
+  if (todayColor === "green" && hardWords.length) {
+    found.push({ kind: "colorWordGap", color: todayColor, ...hardWords[0] });
+  }
+
+  // 그 아이가 처음 쓴 힘든 말. 어휘가 늘어난 건 좋은 일이지만, 처음 꺼낸 말이
+  // "외롭다"라면 교사가 한 번은 들여다볼 일이다.
+  const firstHard = (facts.newLemmas ?? []).find(isDistressWord);
+  if (firstHard) {
+    found.push({
+      kind: "firstHardWord",
+      lemma: firstHard,
+      quote: hardWords.find((w) => w.lemma === firstHard)?.quote,
+    });
   }
 
   const speech = (facts.prosody?.speechRatio ?? 1) <= THRESHOLD.speechRatio;
