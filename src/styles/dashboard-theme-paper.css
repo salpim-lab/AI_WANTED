@@ -97,6 +97,43 @@
   border: 1px solid #f1edfd;
 }
 
+/* ── 왼쪽 메뉴 · 상단 헤더 ───────────────────────────────────────────
+   layout.tsx 가 그려서 .page-dashboard 바깥에 있다. 마크업을 건드리지 않고
+   :has() 로 이 테마가 켜진 화면일 때만 잡는다. */
+.teacher-app:has(.theme-paper) .app-header {
+  background: #fffdf8;
+  border-bottom-color: #ece0c9;
+}
+.teacher-app:has(.theme-paper) .app-header .logo { color: #102a56; }
+.teacher-app:has(.theme-paper) .app-header .logo span { color: #635bff; }
+.teacher-app:has(.theme-paper) .app-header .meta { color: #7d849b; }
+.teacher-app:has(.theme-paper) .app-header .meta strong { color: #102a56; }
+
+.app-body:has(.theme-paper) .side-nav {
+  background: #fdf9ef;
+  background-image: radial-gradient(#ece0c9 1px, transparent 1px);
+  background-size: 22px 22px;
+  border-right-color: #ece0c9;
+}
+.app-body:has(.theme-paper) .side-nav-label { color: #a49fb8; }
+.app-body:has(.theme-paper) .side-nav-item {
+  border-radius: 999px;
+  color: #5b6478;
+}
+.app-body:has(.theme-paper) .side-nav-item:hover {
+  background: #f2eeff;
+  color: #102a56;
+}
+.app-body:has(.theme-paper) .side-nav-item.active {
+  background: #635bff;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 91, 255, 0.32);
+}
+.app-body:has(.theme-paper) .side-nav-foot {
+  border-top-color: #ece0c9;
+  color: #a49fb8;
+}
+
 /* ── 기간 토글 ───────────────────────────────────────────────────── */
 .theme-paper .rel-period { background: #f2eeff; }
 .theme-paper .rel-period-btn.on {

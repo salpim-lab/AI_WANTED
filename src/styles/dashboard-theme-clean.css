@@ -111,6 +111,42 @@
 /* ── 관계 지도 ───────────────────────────────────────────────────── */
 .theme-clean .relation-map-wrap { background: #f8f9fd; border-radius: 22px; }
 
+/* ── 왼쪽 메뉴 · 상단 헤더 ───────────────────────────────────────────
+   둘 다 layout.tsx 가 그리므로 .page-dashboard 바깥에 있다. 마크업을 건드리지 않고
+   :has() 로 "이 테마가 켜진 화면일 때만" 잡는다 (이 코드베이스가 이미 쓰는 방식).
+   대시보드만 차갑고 메뉴는 따뜻한 크림이면 한 화면으로 안 읽힌다. */
+.teacher-app:has(.theme-clean) .app-header {
+  background: #ffffff;
+  border-bottom-color: #eaedf5;
+}
+.teacher-app:has(.theme-clean) .app-header .logo { color: #2f3560; }
+.teacher-app:has(.theme-clean) .app-header .logo span { color: #6366f1; }
+.teacher-app:has(.theme-clean) .app-header .meta { color: #8b92ad; }
+.teacher-app:has(.theme-clean) .app-header .meta strong { color: #2f3560; }
+
+.app-body:has(.theme-clean) .side-nav {
+  background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
+  border-right-color: #eaedf5;
+}
+.app-body:has(.theme-clean) .side-nav-label { color: #a3a9c4; }
+.app-body:has(.theme-clean) .side-nav-item {
+  border-radius: 999px;
+  color: #5b6478;
+}
+.app-body:has(.theme-clean) .side-nav-item:hover {
+  background: #eef1fa;
+  color: #2f3560;
+}
+.app-body:has(.theme-clean) .side-nav-item.active {
+  background: #ffffff;
+  color: #4338ca;
+  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.06), 0 4px 12px rgba(60, 68, 110, 0.08);
+}
+.app-body:has(.theme-clean) .side-nav-foot {
+  border-top-color: #eaedf5;
+  color: #a3a9c4;
+}
+
 /* ── 기간 토글 · 달력 ────────────────────────────────────────────── */
 .theme-clean .rel-period { background: #eef1fa; }
 .theme-clean .rel-period-btn.on {
