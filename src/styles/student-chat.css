@@ -104,14 +104,14 @@
 
 .chat-bubble {
   max-width: 70%;
-  padding: 2.3cqh 2.9cqh;
+  padding: 1.8cqh 2.3cqh;
   border-radius: 3cqh;
   /* 16:10 스테이지(높이 1000px 기준) 에서 약 27px.
      가이드 칩 2.2cqh 보다 한 단계 위 — 읽어야 하는 것과 참고만 하는 것의
      크기가 같으면 안 되지만, 너무 벌리면 말풍선이 화면을 잡아먹는다.
      ⚠️ 이 값을 올려도 화면이 안 바뀌면 prototype-student-chat.css 를 먼저 볼 것.
         거기 있던 .chat-bubble{font-size:14px} 가 나중에 로드되며 덮고 있었다. */
-  font-size: 2.7cqh;
+  font-size: 2.4cqh;
   line-height: 1.6;
   font-weight: 500;
   position: relative;

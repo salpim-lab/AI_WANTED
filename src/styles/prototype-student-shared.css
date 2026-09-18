@@ -97,7 +97,8 @@
 .progress-dots span {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: #e5e7eb;
+  /* 배경이 흰색이 된 뒤로 #e5e7eb 는 거의 안 보인다 */
+  background: #d6d9e3;
   transition: background 0.2s, width 0.2s;
   display: inline-block;
 }
