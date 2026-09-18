@@ -16,8 +16,6 @@ export type FollowUp = {
 export type Reply = { text: string; next: string };
 
 export type ColorScenario = {
-  badgeLabel: string;
-  badgeStyle: { background: string; color: string };
   item: Item;
   messages: { text: string; delay: number; isNavy?: boolean }[];
   replies: Reply[];
@@ -27,8 +25,6 @@ export type ColorScenario = {
 
 export const CHECKIN_SCENARIOS: Record<string, ColorScenario> = {
   green: {
-    badgeLabel: "🟢 초록",
-    badgeStyle: { background: "#dcfce7", color: "#15803d" },
     item: { emoji: "⭐", name: "반짝이 별", reason: '"좋은 기분"에서 만들어졌어' },
     messages: [
       {
@@ -56,8 +52,6 @@ export const CHECKIN_SCENARIOS: Record<string, ColorScenario> = {
     },
   },
   yellow: {
-    badgeLabel: "🟡 노랑",
-    badgeStyle: { background: "#fef9c3", color: "#854d0e" },
     item: { emoji: "🌤", name: "구름 낀 해", reason: '"그저 그런 기분"에서 만들어졌어' },
     messages: [
       { text: "노랑이구나. 완전 좋지도 나쁘지도 않은 날이 있지.\n무슨 일인지 말해줄 수 있어?", delay: 700 },
@@ -94,8 +88,6 @@ export const CHECKIN_SCENARIOS: Record<string, ColorScenario> = {
     },
   },
   red: {
-    badgeLabel: "🔴 빨강",
-    badgeStyle: { background: "#fee2e2", color: "#b91c1c" },
     item: { emoji: "💗", name: "분홍 하트", reason: '"힘든 마음"에서 만들어졌어' },
     messages: [
       { text: "빨강이구나. 기분이 많이 안 좋은 것 같아.\n무슨 일 있었어? 말해줄 수 있으면 얘기해봐.", delay: 700 },
@@ -125,20 +117,43 @@ export const CHECKIN_SCENARIOS: Record<string, ColorScenario> = {
     },
   },
   navy: {
-    badgeLabel: "🔵 남색",
-    badgeStyle: { background: "#e0e7ff", color: "#4338ca" },
     item: { emoji: "🌙", name: "달", reason: '"혼자만의 시간"에서 만들어졌어' },
-    messages: [{ text: "알겠어. 오늘은 그냥 둘게.\n필요하면 언제든 눌러. 🔵", delay: 600, isNavy: true }],
-    replies: [],
-    followups: {},
-    autoEnd: true,
-  },
+    // 남색도 다른 색과 같이 최대 2턴 진행한다 (2026-09-18 결정).
+    // 기획안 §5.2 는 "대화를 시작하지 않는다"였지만, 그러면 남색이 가장 편한 선택지가 되어
+    // 귀찮은 날 누르고 끝내는 도피처가 된다. 기준선이 오염되고 진짜 남색인 아이를 구분할 수 없다.
+    //
+    // 대신 "왜 혼자 있고 싶은지" 는 묻지 않는다 — 요청을 받아들인다면서 이유를 캐묻는 셈이다.
+    // 하루에 대해서만 묻는다. 품은 같아지고, 선택 자체는 존중된다.
+    messages: [
+      {
+        text: "알겠어. 오늘은 조용히 있고 싶구나.\n오늘 하루는 어땠어? 한마디만 해도 괜찮아.",
+        delay: 600,
+        isNavy: true,
+      },
+    ],
+    replies: [
+      { text: "그냥 좀 피곤해요", next: "navy_r1" },
+      { text: "혼자 있고 싶은 날이에요", next: "navy_r2" },
+      { text: "말하기 싫어요", next: "skip" },
+    ],
+    followups: {
+      navy_r1: {
+        ai: "그랬구나. 푹 쉬는 것도 중요해.\n오늘은 무리하지 마 🌙",
+        item: { emoji: "🌙", name: "달", reason: '"쉬고 싶은 날"에서 만들어졌어' },
+        done: true,
+      },
+      navy_r2: {
+        ai: "알겠어. 그런 날도 있지.\n선생님도 오늘은 그냥 둘 수 있게 해둘게.",
+        item: { emoji: "🌙", name: "달", reason: '"혼자만의 시간"에서 만들어졌어' },
+        done: true,
+      },
+      skip: { done: true },
+    },
+  }
 };
 
 // 하교: 색은 고르되 질문은 매일 동일 (PLANNING.md "하교 흐름 2단계") — 갈등 포착 창구라 색별 분기 없음.
 export const CHECKOUT_SCENARIO: ColorScenario = {
-  badgeLabel: "",
-  badgeStyle: { background: "#eef2ff", color: "#4338ca" },
   item: { emoji: "🌈", name: "무지개", reason: '"오늘 하루"에서 만들어졌어' },
   messages: [{ text: "오늘 학교에서 털어놓고 싶은 일 있어?", delay: 500 }],
   replies: [
