@@ -52,7 +52,7 @@ export default function CheckoutPage() {
         flow="checkout"
         color={flow.color}
       />
-      {(flow.step === 4 || flow.step === 5) && <ItemPreparation sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
+      {(flow.step === 4 || flow.step === 5) && <ItemPreparation flow="checkout" sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
     </>
   );
 }

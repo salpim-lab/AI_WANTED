@@ -28,11 +28,12 @@ body {
 .island-viewport-panel { height: clamp(520px, calc(100dvh - 250px), 760px); }
 .island-cta-enter { animation: island-cta-enter 350ms ease-out both; }
 .island-cta-exit { animation: island-cta-exit 200ms ease-in both; }
-/* One bottom card, just above the camera toolbar, for every placement step. */
-.island-guidance-card { @apply absolute bottom-[76px] left-1/2 z-30 flex w-[min(320px,calc(100%-24px))] -translate-x-1/2 items-center justify-center gap-2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-left leading-snug shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md; }
-.island-bubble-tail { left: calc(50% - 6px); bottom: -6px; }
-.island-bubble[data-tail="left"] .island-bubble-tail { left: auto; right: -6px; bottom: calc(50% - 6px); }
-.island-bubble[data-tail="right"] .island-bubble-tail { left: -6px; bottom: calc(50% - 6px); }
+/* Anchor every placement card to the bottom edge of the island viewport. */
+.island-guidance-card { @apply absolute bottom-0 left-1/2 z-30 flex w-[min(320px,calc(100%-24px))] -translate-x-1/2 items-center justify-center gap-2 rounded-t-2xl border border-white/70 bg-white/55 px-3 py-2 text-left leading-snug shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md; }
+/* The tail is translucent like the bubble, so only its outer half is drawn (no darker overlap). */
+.island-bubble-tail { left: calc(50% - 6px); bottom: -6px; border-width: 0 1px 1px 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.island-bubble[data-tail="left"] .island-bubble-tail { left: auto; right: -6px; bottom: calc(50% - 6px); border-width: 1px 1px 0 0; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.island-bubble[data-tail="right"] .island-bubble-tail { left: -6px; bottom: calc(50% - 6px); border-width: 0 0 1px 1px; clip-path: polygon(0 0, 100% 100%, 0 100%); }
 
 @keyframes island-cta-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes island-cta-exit { to { opacity: 0; } }
