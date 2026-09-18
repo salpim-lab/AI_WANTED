@@ -23,6 +23,14 @@ export type SeatingStudent = ClassStudent & {
   badge: "watch" | "unicorn" | null;
 };
 
+/** 자리 배치도 격자 크기 (행 = 교탁에서 먼 쪽으로 1, 2, …) */
+export type SeatGrid = { rows: number; cols: number };
+
+export type SeatPlacement = { studentId: string; row: number; col: number };
+
+/** 교사가 편집·저장하는 자리 배치 한 벌 — 학급 학생 전원이 격자 안에 한 번씩 앉는다 */
+export type SeatLayout = SeatGrid & { seats: SeatPlacement[] };
+
 export type TaggedStudent = { studentId: string; name: string };
 
 // ── 등하교 기록 (이유민 소유 테이블 — 읽기만) ─────────────
@@ -42,6 +50,48 @@ export type DaySession = {
   status: "started" | "completed" | "stopped";
   startedAt: string; // ISO
   turns: ConversationTurn[];
+};
+
+/**
+ * checkin_sessions.prosody 발화 1건 — 1080_session_prosody 마이그레이션의 형식 계약(jsonb) 그대로 snake_case.
+ * 감정 판정이 아니라 측정값이다. 발화 순서(index)는 그 세션의 학생 음성 발화 순서와 같다.
+ */
+export type StoredUtteranceProsody = {
+  index: number;
+  duration_sec: number;
+  response_delay_sec: number;
+  silence_count: number;
+  silence_total_sec: number;
+  syllables_per_sec?: number;
+  /** 본인 평균 대비 음량 (-1 ~ 1) */
+  loudness_rel?: number;
+};
+
+export type StoredSessionProsody = {
+  utterances: StoredUtteranceProsody[];
+  /** 이 비교에 쓰인 기준선 일수. 부족하면 해석하지 않는다 */
+  baseline_days: number;
+};
+
+/** AI 하루 분석 입력 — 세션(색·대화) + 그 세션의 발화 측정값 */
+export type AnalysisInputSession = DaySession & { prosody: StoredSessionProsody | null };
+
+/** 분석 날짜 이전 하루의 흐름 — 색과, 그날 이미 만든 AI 분석의 추정 상태(없으면 null) */
+export type AnalysisPastDay = {
+  date: string;
+  morning: SignalColor | null;
+  afternoon: SignalColor | null;
+  stateEstimate: string | null;
+};
+
+export type DailyAnalysisInput = {
+  student: ClassStudent;
+  /** 이름 치환용 학급 명단 (본인 포함) */
+  classmates: ClassStudent[];
+  date: string;
+  sessions: AnalysisInputSession[];
+  /** 분석 날짜 직전 며칠 (오래된 날 → 최근 날 순) */
+  pastDays: AnalysisPastDay[];
 };
 
 export type ColorHistoryDay = {

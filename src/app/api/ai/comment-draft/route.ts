@@ -1,18 +1,56 @@
-// 담당: 이유민 (※ 2026-09-13 재배정 — 아래 사유 참고)
-// 역할: 당일 대화 기반 교사 코멘트 초안 자동 작성
+// 담당: 김현우 (2026-09-18 구현 — 원래 이유민 배정. 담당 이관은 PR에서 이유민 님과 협의)
+// 역할: 아이 상세 "선생님의 한마디" AI 초안 — 그날 등하교 색·대화·발화 기반
 // 참고: docs/planning/PLANNING.md "탭 2. 아이 상세 — 하단: 교사 코멘트 작성"
-//       docs/planning/살핌_DB_스키마_v0.3.md §8.1 feedback_drafts, §13 담당자별 작업 경계
+//       docs/planning/살핌_DB_스키마_v0.3.md §8.1 feedback_drafts
 //
-// 재배정 사유: 이 API가 쓰는 테이블 feedback_drafts는 DB 스키마 문서에서 이유민 담당으로
-// 지정돼 있음(draft_text는 그날 대화 기반 AI 생성이라 이유민의 체크인 파이프라인과 같은 도메인).
-// UI(교사가 초안을 고쳐서 저장하는 화면)는 여전히 김현우의 "아이 상세" 페이지에 있고,
-// 김현우 쪽 컴포넌트는 이 라우트를 fetch로만 호출한다 — 이 파일을 직접 고치지 않는다.
-// (교사가 수정한 최종본을 저장하는 쓰기 라우트도 이 파일 담당자가 추가할 것 — feedback_drafts.final_text)
+// 요청: POST { studentId, date }  →  200 { draft: string | null }
+//   - 501: OPENAI_API_KEY 미설정 또는 테스트 대상 아님 → 화면이 mock 예시 초안을 쓴다
+//   - 404: 담당 학급 밖 학생
+// 초안 생성·저장은 lib/supabase/interpretation/teacherComment.ts.
+// 교사 최종본(final_text) 저장 라우트는 아직 없다 — 초안은 제안일 뿐, 자동 발송·자동 저장 없음.
 
 import { NextResponse } from "next/server";
+import { isDateString, todayKst } from "@/components/shared/datetime";
+import { DailyAnalysisUnavailableError } from "@/lib/supabase/interpretation/dailyAnalysis";
+import { getOrCreateCommentDraft } from "@/lib/supabase/interpretation/teacherComment";
+import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getDailyAnalysisInput } from "@/lib/supabase/queries/teacherStudents";
+
+export const runtime = "nodejs";
+
+const NO_STORE = { "Cache-Control": "no-store" };
+const fail = (message: string, status: number) => NextResponse.json({ message }, { status, headers: NO_STORE });
 
 export async function POST(request: Request) {
-  // TODO(이유민): { studentId, date } → 해당 일자 대화(conversation_messages) 조회 →
-  // OpenAI 초안 생성 → feedback_drafts.draft_text insert → { draft } 반환
-  return NextResponse.json({ message: "not implemented" }, { status: 501 });
+  let body: { studentId?: unknown; date?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return fail("유효한 JSON을 보내주세요.", 400);
+  }
+
+  const studentId = typeof body.studentId === "string" ? body.studentId.trim() : "";
+  const date = typeof body.date === "string" ? body.date.trim() : "";
+  if (!studentId) return fail("studentId가 필요합니다.", 400);
+  if (!isDateString(date) || date > todayKst()) return fail("date는 오늘 이전의 YYYY-MM-DD여야 합니다.", 400);
+
+  // 인증 대용 — 교사의 담당 학급 안에서만 조회한다
+  const teacher = await getActingTeacher();
+  const input = await getDailyAnalysisInput(teacher.classId, studentId, date);
+  if (!input) return fail("학생을 찾을 수 없습니다.", 404);
+
+  // 테스트 중 토큰 절약 — AI 하루 분석과 같은 목록을 쓴다
+  const onlyIds = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean);
+  if (onlyIds?.length && !onlyIds.includes(input.student.studentId)) {
+    return fail("테스트 대상 학생이 아닙니다 (DAILY_ANALYSIS_ONLY_STUDENT_IDS).", 501);
+  }
+
+  try {
+    const draft = await getOrCreateCommentDraft(input);
+    return NextResponse.json({ draft }, { headers: NO_STORE });
+  } catch (error) {
+    if (error instanceof DailyAnalysisUnavailableError) return fail(error.message, 501);
+    console.error("[comment-draft]", error);
+    return fail("초안을 만들지 못했습니다.", 502);
+  }
 }
