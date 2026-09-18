@@ -1,6 +1,6 @@
 // 담당: 진승혜
 // 대시보드 영역 2-②: 최근 갈등 기록 — 관계 지도의 보조 패널.
-// 위계: 날짜·상황(진하게) → 학생(회색) → 요약(굵게) → 양측 진술 → 주의 문구
+// 위계: 날짜(진하게) → 학생(회색) → 요약(굵게) → 양측 진술 → 주의 문구
 // 참고: 살핌_기획안.md "6.4 갈등 기록 — 최대 기록 업무"
 // 읽기 전용이다. work_records / conflict_statements 쓰기는 김현우 담당 — 여기서는 절대 쓰지 않는다.
 // 데이터: page.tsx 가 "선택 날짜 이하의 최근 기록"으로 걸러 props 로 내려준다.
@@ -24,9 +24,7 @@ export default function ConflictLog({ rows }: { rows: ConflictRow[] }) {
       {rows.map((row) => (
         <article className="conflict-row" key={`${row.date}-${row.pair}`}>
           <header className="conflict-header">
-            <strong>
-              {row.label} · {row.context}
-            </strong>
+            <strong>{row.label}</strong>
             <span className="conflict-pair">{row.pair}</span>
           </header>
 

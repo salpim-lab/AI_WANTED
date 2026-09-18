@@ -20,6 +20,9 @@ import type { SignalColor } from "@/lib/types/signal";
 // 헤더의 "오늘 날짜"(components/teacher/CurrentDate.tsx)와 같은 기준을 써야
 // 상단 날짜와 대시보드의 "오늘"이 어긋나지 않는다. 둘 다 Asia/Seoul 기준이다.
 import { todayKst } from "@/components/shared/datetime";
+// 아침 브리핑 판정은 여기 없다 — 규칙과 문구는 lib/briefing, 조립은 queries/morningBriefing 이 갖는다.
+import type { StudentFacts } from "@/lib/briefing/triggers";
+import { BRIEFING_HISTORY_DAYS, buildBriefingRows, type BriefingRow } from "@/lib/supabase/queries/morningBriefing";
 
 /* ══ 날짜 유틸 ═══════════════════════════════════════════════════════
    날짜 문자열 산술은 전부 UTC 기준으로 계산한다 (로컬 타임존에 흔들리지 않게).
@@ -187,7 +190,6 @@ export type ConflictRow = {
   /** YYYY-MM-DD — 선택 날짜 필터에 쓴다 */
   date: string;
   label: string;
-  context: string;
   pair: string;
   pairIds: [number, number];
   summary: string;
@@ -209,7 +211,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: today,
     label: monthDayLabel(today),
-    context: "점심시간",
     pair: "김민준 ↔ 이서연",
     pairIds: [1, 2],
     summary: "자리 문제로 다툼",
@@ -223,7 +224,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: twoDaysAgo,
     label: monthDayLabel(twoDaysAgo),
-    context: "체육 시간",
     pair: "김민준 ↔ 한지훈",
     pairIds: [1, 13],
     summary: "팀 편성으로 다툼",
@@ -236,7 +236,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: older,
     label: monthDayLabel(older),
-    context: "모둠 활동",
     pair: "박예린 ↔ 김준혁",
     pairIds: [3, 7],
     summary: "역할 분담으로 다툼",
@@ -249,7 +248,6 @@ function conflictLedger(): ConflictRow[] {
   {
     date: oldest,
     label: monthDayLabel(oldest),
-    context: "쉬는 시간",
     pair: "한지훈 ↔ 박수빈",
     pairIds: [13, 8],
     summary: "놀이 규칙으로 다툼",
@@ -399,15 +397,9 @@ export type ClassroomDay = {
   isToday?: boolean;
 };
 
-/** 아침 브리핑 행 — 감정 신호(색) 축만 다룬다. tone 은 그날 고른 색 그대로다.
+/** 아침 브리핑 행. status/reason 은 lib/briefing 의 규칙과 템플릿이 만든다 — 여기서 적지 않는다.
     이름 첫 글자 대신 색 동그라미만 쓴다: 교사가 훑을 때 읽어야 할 건 글자가 아니라 색이다. */
-export type BriefingStudent = {
-  studentId: number;
-  name: string;
-  tone: SignalColor;
-  status: string;
-  reason: string;
-};
+export type BriefingStudent = BriefingRow;
 
 /** "오늘의 교실" 카드 안 참여 인원 줄 */
 export type ParticipationSummary = {
@@ -422,24 +414,26 @@ export type ParticipationSummary = {
 /* ══ 날짜별 스냅샷 ═══════════════════════════════════════════════════
    날짜마다 "다른 것"만 적는다. 나머지는 위 공통 데이터에서 파생시킨다. */
 
-type DaySnapshot = {
+/** 하루치 중 "손으로 적는" 부분. 색 분포는 여기 없다 — 아래 moodOn 이 아이별 성향에서 만든다. */
+type DayNarrative = {
   /** 날씨 아래 한 줄. kind/headline 은 mood 에서 유도하므로 여기 적지 않는다. */
   weatherSupport: string;
   classroomDelta: string;
   /** 스냅샷이 없는 과거 수업일의 날씨 (오래된 날 → 선택 날짜 순).
       SNAPSHOTS 에 있는 날은 이 값 대신 그날 mood 에서 유도한다. */
   recentWeather: WeatherKind[];
-  /** 감정 색별 학생 id — 체크인을 완료한 아이만 들어간다.
-      합 + absentIds.length 가 반드시 CLASS_SIZE 여야 한다. */
-  mood: Record<SignalColor, number[]>;
-  /** 아침 브리핑에 올릴 아이 — 그날 mood 에서 걸린 색만 온다 */
-  watch: BriefingStudent[];
-  /** 그날 체크인을 완료하지 않은 아이 id */
-  participation: { absentIds: number[] };
   /** 그날 기준 관계 지도에서 갈등으로 표시할 짝 */
   conflictPairs: [number, number][];
   /** 그 시점까지의 누적 어휘가 얼마나 적었는지 (오늘=0) */
   vocabStep: number;
+};
+
+type DaySnapshot = DayNarrative & {
+  /** 감정 색별 학생 id — 체크인을 완료한 아이만 들어간다.
+      합 + absentIds.length 가 반드시 CLASS_SIZE 여야 한다. */
+  mood: Record<SignalColor, number[]>;
+  /** 그날 체크인을 완료하지 않은 아이 id */
+  participation: { absentIds: number[] };
 };
 
 /* 스냅샷은 특정 날짜에 묶여 있지 않다. 각자 "자기 날짜(ref)"를 받아서
@@ -450,25 +444,11 @@ function schoolDayBefore(ref: string, k: number): string {
   return recentSchoolDays(ref, k + 1)[0];
 }
 
-function profileA(ref: string, vocabStep: number): DaySnapshot {
-  const sb = (k: number) => shortDate(schoolDayBefore(ref, k));
+function profileA(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
     recentWeather: ["partly", "cloudy", "sunny", "partly", "sunny"],
-    mood: {
-      green: [4, 5, 6, 8, 9, 11, 12, 14, 17, 19],
-      yellow: [7, 10, 13, 15, 18],
-      red: [1, 3],
-      navy: [2],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 3일 연속", reason: `${sb(2)}부터 같은 색이에요 · 말수도 함께 줄었어요` },
-      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "최근 5일 중 4일이 속상해요·그저 그래요였어요" },
-      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 4회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
-      { studentId: 13, name: "한지훈", tone: "yellow", status: "빨강 → 노랑", reason: "어제보다 나아졌지만 아직 초록은 아니에요" },
-    ],
-    participation: { absentIds: [16, 20] },
     conflictPairs: [
       [1, 2],
       [1, 13],
@@ -477,24 +457,11 @@ function profileA(ref: string, vocabStep: number): DaySnapshot {
   };
 }
 
-function profileB(ref: string, vocabStep: number): DaySnapshot {
+function profileB(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
     recentWeather: ["sunny", "partly", "cloudy", "sunny", "partly"],
-    mood: {
-      green: [4, 5, 6, 8, 11, 12, 14, 17, 19],
-      yellow: [7, 9, 10, 15, 18, 20],
-      red: [1, 3, 13],
-      navy: [2],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 2일 연속", reason: "어제부터 같은 색을 고르고 있어요" },
-      { studentId: 13, name: "한지훈", tone: "red", status: "초록 → 빨강", reason: "대화에서 도움을 요청하는 표현이 있었어요" },
-      { studentId: 3, name: "박예린", tone: "red", status: "노랑 → 빨강", reason: "며칠 노랑에 머물다 오늘 더 내려갔어요" },
-      { studentId: 2, name: "이서연", tone: "navy", status: "남색 2주 3회", reason: "혼자 있을 시간을 반복해서 고르고 있어요" },
-    ],
-    participation: { absentIds: [16] },
     conflictPairs: [
       [1, 13],
       [3, 7],
@@ -503,23 +470,11 @@ function profileB(ref: string, vocabStep: number): DaySnapshot {
   };
 }
 
-function profileC(ref: string, vocabStep: number): DaySnapshot {
+function profileC(ref: string, vocabStep: number): DayNarrative {
   return {
     weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
     recentWeather: ["partly", "sunny", "partly", "cloudy", "sunny"],
-    mood: {
-      green: [2, 4, 5, 6, 7, 8, 11, 12, 14, 15, 19],
-      yellow: [3, 10, 13, 18],
-      red: [1],
-      navy: [17],
-    },
-    watch: [
-      { studentId: 1, name: "김민준", tone: "red", status: "빨강 선택", reason: "주말 이후 첫 등교에서 색이 바뀌었어요" },
-      { studentId: 17, name: "오지안", tone: "navy", status: "남색 선택", reason: "오늘은 혼자 있을 시간을 골랐어요" },
-      { studentId: 3, name: "박예린", tone: "yellow", status: "노랑 3일 연속", reason: "며칠째 같은 자리에 머물러 있어요" },
-    ],
-    participation: { absentIds: [9, 16, 20] },
     conflictPairs: [
       [1, 13],
       [3, 7],
@@ -537,15 +492,119 @@ function vocabStepFor(daysBack: number): number {
   return Math.min(6, Math.floor(daysBack / 2));
 }
 
+/* ── 그날 그 아이가 고른 색 ──────────────────────────────────────────
+   색은 프로필에 적지 않고 아이별 성향에서 만든다.
+
+   왜: 브리핑의 기준선 규칙은 "이 아이의 평소와 다른가"를 본다. 모든 아이가 매일 같은 색이면
+   평소라는 게 없어서 규칙이 한 번도 걸리지 않고, 매일 같은 이름만 뜬다.
+   아이마다 다른 분포로 흔들려야 "늘 초록이던 아이의 노랑"이 잡힌다.
+
+   날짜+학생으로만 정해지는 해시라 같은 날을 몇 번 열어도 같은 색이 나온다. */
+
+/** [초록, 노랑, 빨강, 남색] 가중치 — 아이마다 평소 색 분포가 다르다 */
+const DISPOSITION: Record<number, [number, number, number, number]> = {
+  1: [2, 3, 5, 0],   2: [5, 2, 1, 4],   3: [3, 4, 3, 0],   4: [9, 1, 0, 0],
+  5: [7, 2, 1, 0],   6: [6, 3, 1, 0],   7: [4, 4, 2, 0],   8: [7, 2, 1, 0],
+  9: [6, 3, 1, 0],  10: [3, 6, 1, 0],  11: [8, 2, 0, 0],  12: [6, 3, 1, 0],
+  13: [4, 3, 3, 0], 14: [7, 2, 1, 0],  15: [6, 3, 1, 0],  16: [5, 3, 2, 0],
+  17: [4, 3, 1, 4], 18: [3, 5, 2, 0],  19: [8, 2, 0, 0],  20: [5, 4, 1, 0],
+};
+
+/** 날짜+학생 → 0~1. 같은 입력이면 항상 같은 값 (mulberry 계열의 아주 단순한 형태). */
+function hash01(date: string, studentId: number, salt = 0): number {
+  let h = 2166136261 ^ salt;
+  const key = `${date}#${studentId}`;
+  for (let i = 0; i < key.length; i++) {
+    h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  }
+  return ((h >>> 0) % 100000) / 100000;
+}
+
+/** 그날 체크인을 안 한 아이인지 — 하루에 대략 2명 */
+function isAbsentOn(date: string, studentId: number): boolean {
+  return hash01(date, studentId, 7) < 0.1;
+}
+
+/** 그날 그 아이가 고른 색. 체크인을 안 했으면 null */
+function colorOn(date: string, studentId: number): SignalColor | null {
+  if (isAbsentOn(date, studentId)) return null;
+  const weights = DISPOSITION[studentId] ?? [6, 3, 1, 0];
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = hash01(date, studentId) * total;
+  for (let i = 0; i < SIGNAL_ORDER.length; i++) {
+    roll -= weights[i];
+    if (roll < 0) return SIGNAL_ORDER[i];
+  }
+  return "green";
+}
+
+/** 그날 반 전체의 색 분포 + 미참여 명단 */
+function moodOn(date: string): { mood: Record<SignalColor, number[]>; absentIds: number[] } {
+  const mood: Record<SignalColor, number[]> = { green: [], yellow: [], red: [], navy: [] };
+  const absentIds: number[] = [];
+  for (const id of Object.keys(STUDENT_NAMES).map(Number)) {
+    const color = colorOn(date, id);
+    if (color === null) absentIds.push(id);
+    else mood[color].push(id);
+  }
+  return { mood, absentIds };
+}
+
+/** 아무 수업일이나 그날 스냅샷. 화면에 뜨는 이번 달뿐 아니라, 기준선 계산용으로
+    달 이전까지 거슬러 올라가며 만들어야 해서 날짜만으로 결정되어야 한다. */
+function snapshotOn(date: string): DaySnapshot {
+  const daysBack = Math.max(0, schoolDaysBetween(date, dashboardToday()).length - 1);
+  const { mood, absentIds } = moodOn(date);
+  return {
+    ...DAY_PROFILES[daysBack % DAY_PROFILES.length](date, vocabStepFor(daysBack)),
+    mood,
+    participation: { absentIds },
+  };
+}
+
 /** 이번 달 1일부터 오늘까지의 모든 수업일에 스냅샷을 얹는다. */
 function buildSnapshots(): Record<string, DaySnapshot> {
-  const dates = dashboardDates();
   const out: Record<string, DaySnapshot> = {};
-  dates.forEach((date, i) => {
-    const daysBack = dates.length - 1 - i; // 0 = 오늘
-    out[date] = DAY_PROFILES[daysBack % DAY_PROFILES.length](date, vocabStepFor(daysBack));
-  });
+  for (const date of dashboardDates()) out[date] = snapshotOn(date);
   return out;
+}
+
+/* ── 아침 브리핑 입력 ────────────────────────────────────────────────
+   판정은 lib/briefing 이 한다. 여기서는 그 규칙이 읽을 사실만 스냅샷에서 긁어 담는다
+   — 실데이터로 바꿀 때 lib/supabase/queries/morningBriefing.ts 가 같은 모양을 만들면 된다. */
+
+/** 색 말고는 mock 에 근거가 없는 신호들 — 화면에서 규칙이 도는 걸 보려고 몇 개만 심어둔다. */
+const MOCK_SIGNALS: Record<number, { speechRatio?: number; peerMentionGapWeeks?: number; emotionWordGap?: number }> = {
+  1: { speechRatio: 0.6 },        // 김민준 — 말수가 줄었다
+  17: { peerMentionGapWeeks: 3 }, // 오지안 — 3주째 친구 이름이 안 나온다
+  13: { emotionWordGap: 3 },      // 한지훈 — 최근 세 번의 대화에서 기분을 말하지 않았다
+};
+
+function buildBriefingFacts(dateKey: string): StudentFacts[] {
+  const pastDays = recentSchoolDays(schoolDayBefore(dateKey, 1), BRIEFING_HISTORY_DAYS);
+  const ledger = conflictLedger();
+
+  return Object.entries(STUDENT_NAMES).map(([id, name]) => {
+    const studentId = Number(id);
+    const history = pastDays
+      .map((date) => ({ date, color: colorOn(date, studentId) }))
+      .filter((h): h is { date: string; color: SignalColor } => h.color !== null);
+
+    const lastConflict = ledger.find((c) => c.date <= dateKey && c.pairIds.includes(studentId));
+
+    return {
+      studentId,
+      name,
+      todayColor: colorOn(dateKey, studentId),
+      history,
+      // 최근 2주 = 수업일 10일
+      navyCountLast2Weeks: history.slice(-10).filter((h) => h.color === "navy").length,
+      lastConflict: lastConflict && { date: lastConflict.date, resolved: lastConflict.status !== "진술 확인 중" },
+      prosody: MOCK_SIGNALS[studentId]?.speechRatio ? { speechRatio: MOCK_SIGNALS[studentId].speechRatio } : undefined,
+      peerMentionGapWeeks: MOCK_SIGNALS[studentId]?.peerMentionGapWeeks ?? null,
+      emotionWordGap: MOCK_SIGNALS[studentId]?.emotionWordGap ?? 0,
+    };
+  });
 }
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
@@ -629,7 +688,7 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
   return {
     dateKey: key,
     isToday: key === today,
-    briefing: { watch: snapshot.watch },
+    briefing: { watch: buildBriefingRows(buildBriefingFacts(key), key) },
     classroom: {
       weather: {
         ...deriveWeather(snapshot.mood),
