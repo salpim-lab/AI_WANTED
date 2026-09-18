@@ -177,6 +177,16 @@ export default function TeacherLetter({
                 봉투보다 한 톤 밝은 라벤더로 아주 옅게 둔다. */}
             <path d="M3 23 L169 184 M597 23 L431 184" fill="none" stroke="#f4f2ff" strokeOpacity="0.5" strokeWidth="1.6" strokeLinecap="round" />
             <path d="M4 352 C10 330 22 318 38 303 L166 191 Q177 180 193 180 H407 Q423 180 434 191 L562 303 C578 318 590 330 596 352" fill="none" stroke="#f4f2ff" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" />
+            {/* 퀼트 스티치 — 가장자리·접힌 선 안쪽을 따라 도는 가는 점선. 손으로 만든 천 봉투 느낌.
+                실 색은 흰색이 아니라 봉투보다 조금 진한 라벤더로 옅게 둔다(흰색은 따로 노는 테두리처럼 보였다). */}
+            <g fill="none" stroke="#9d94e6" strokeOpacity="0.5" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="5 5">
+              {/* 바깥 테두리 안쪽 */}
+              <path d="M13 42 V342 Q13 355 26 355 H574 Q587 355 587 342 V42" />
+              {/* 좌우 날개 윗선 안쪽 */}
+              <path d="M13 46 L152 180 M587 46 L448 180" />
+              {/* 아래 접힘 윗선 안쪽 */}
+              <path d="M30 337 C34 327 42 319 52 309 L172 203 Q181 193 196 193 H404 Q419 193 428 203 L548 309 C558 319 566 327 570 337" />
+            </g>
           </g>
         </svg>
       </div>
@@ -207,6 +217,17 @@ export default function TeacherLetter({
               <path d="M8 18 C15 43 22 54 38 66 L273 246 Q300 267 327 246 L562 66 C578 54 585 43 592 18" fill="none" stroke="#8b83d6" strokeOpacity="0.045" strokeWidth="14" strokeLinecap="round" />
               <path d="M8 17 C15 42 22 53 38 65 L273 245 Q300 266 327 245 L562 65 C578 53 585 42 592 17" fill="none" stroke="#8b83d6" strokeOpacity="0.08" strokeWidth="5" strokeLinecap="round" />
               <use href="#envClosedFlap" fill="url(#envClosedLidG)" />
+              {/* 덮개 윤곽 안쪽 스티치 — 같은 윤곽을 안쪽으로 줄여 점선으로 두른다 */}
+              <use
+                href="#envClosedFlap"
+                fill="none"
+                stroke="#9d94e6"
+                strokeOpacity="0.5"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeDasharray="5 5"
+                transform="translate(300 110) scale(0.93) translate(-300 -110)"
+              />
             </g>
           </g>
           {/* 하트 스티커 — 덮개가 닫히면 덮개 끝(300, 252)에 붙는다. 열려 있을 때는 없다.
