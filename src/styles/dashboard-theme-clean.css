@@ -1,0 +1,127 @@
+/* 담당: 진승혜 — 대시보드 시안 B — 학생 화면 그대로의 깔끔한 톤. 시안이고 기본값이 아니다.
+
+   켜는 법: /dashboard?theme=clean   (없으면 원래 대시보드 그대로)
+   끄는 법: 이 파일을 지우고 page.tsx 의 import 한 줄을 빼면 끝.
+            원본 규칙은 하나도 건드리지 않는다 — 전부 .theme-clean 안에서만 덮어쓴다.
+
+   학생 화면에서 그대로 가져온 값:
+     바탕   linear-gradient(180deg, #fbfbfe, #f4f5fb)   student-chat.css .chat-screen
+     카드   #fff + rgba(60, 68, 110, .13) 그림자        student-chat.css .chat-bubble
+     강조   #4338ca / #eef2ff                            student-chat.css .chat-color-badge
+     선     #dfe3ee                                      student-chat.css
+     글자   #2f3560 · #5b6478 · #8b92ad                  student-chat.css
+     모서리 999px pill                                    학생 화면 기본
+
+   크림(#fdf9ef)은 쓰지 않는다 — 시안 A(theme-paper)가 그쪽이다. */
+
+.page-dashboard.theme-clean {
+  /* 신호 4색 — 차가운 계열로 맞춘다. 학생 mood 버튼의 원색 그대로는 쓰지 않는다:
+     버튼 하나에 칠할 색과 아이 이름 스무 개 옆에 놓을 색은 달라야 한다. */
+  --green: #34c48a;  --green-bg: #e9f9f2;  --green-ring: #b3e8d2;
+  --yellow: #eab54b; --yellow-bg: #fdf6e7; --yellow-ring: #f2dfae;
+  --red: #f4837d;    --red-bg: #fdeeee;    --red-ring: #f8c8c6;
+  --navy: #6366f1;   --navy-bg: #eef2ff;   --navy-ring: #c7cdfb;
+
+  --line: #eaedf5;
+  --soft: #f6f7fc;
+  --faint: #8b92ad;
+  --ink-soft: #3d4468;
+
+  --w-sun: #eab54b;
+  --w-cloud: #cdd3e4;
+
+  /* 관계 지도 */
+  --rel-node-fill: #ffffff;
+  --rel-ring: #6366f1;
+  --rel-ring-conflict: #f4837d;
+  --rel-ring-isolated: #d8dbe6;
+  --rel-edge: #d3d8ea;
+  --rel-edge-conflict: #f4a9a5;
+  --rel-text: #2f3560;
+  --rel-text-conflict: #c96560;
+  --rel-text-muted: #8b92ad;
+
+  background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
+  color: #2f3560;
+}
+
+/* ── 카드 ────────────────────────────────────────────────────────────
+   학생 말풍선과 같은 규칙: 흰 바탕, 큰 모서리, 푸른 기가 도는 옅은 그림자.
+   테두리를 두르지 않는다 — 그림자만으로 떠 있게 하는 게 학생 화면 쪽 인상이다. */
+.theme-clean .card {
+  border-radius: 24px;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05), 0 8px 24px rgba(60, 68, 110, 0.09);
+}
+.theme-clean .card-title { color: #2f3560; letter-spacing: -0.4px; }
+.theme-clean .card-sub,
+.theme-clean .pane-title,
+.theme-clean .pane-title .pane-sub { color: #8b92ad; }
+
+.theme-clean .dashboard-title { color: #2f3560; letter-spacing: -0.6px; }
+.theme-clean .dashboard-caption { color: #5b6478; }
+
+/* ── 아침 브리핑 ─────────────────────────────────────────────────── */
+.theme-clean .briefing-row {
+  background: #f8f9fd;
+  border-radius: 18px;
+  border: none;
+}
+.theme-clean .briefing-row:hover { background: #eef1fa; }
+.theme-clean .briefing-line .bname { color: #2f3560; }
+.theme-clean .briefing-info .breason { color: #5b6478; }
+
+/* ── pill ────────────────────────────────────────────────────────────
+   학생 화면은 누를 수 있는 것과 라벨이 전부 999px 다 */
+.theme-clean .date-field,
+.theme-clean .tt-btn,
+.theme-clean .conflict-status,
+.theme-clean .rd-quotes li,
+.theme-clean .vocab-word-list li,
+.theme-clean .rd-clear,
+.theme-clean .ca-absent-trigger { border-radius: 999px; }
+.theme-clean .date-field,
+.theme-clean .tt-btn {
+  border-color: #dfe3ee;
+  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05);
+}
+.theme-clean .rd-quotes li { border-left: none; background: var(--soft); padding: 8px 13px; }
+.theme-clean .conflict-row,
+.theme-clean .cal,
+.theme-clean .tt-panel,
+.theme-clean .mood-tooltip,
+.theme-clean .vocab-tooltip { border-radius: 20px; border-color: #eaedf5; }
+.theme-clean .cal,
+.theme-clean .tt-panel,
+.theme-clean .mood-tooltip,
+.theme-clean .vocab-tooltip {
+  box-shadow: 0 2px 6px rgba(60, 68, 110, 0.07), 0 14px 32px rgba(60, 68, 110, 0.13);
+}
+
+/* ── 감정 어휘 ───────────────────────────────────────────────────── */
+.theme-clean .vocab-bar { background: #dfe3f7; border-radius: 9px 9px 0 0; }
+.theme-clean .vocab-bar.above { background: #6366f1; }
+.theme-clean .vocab-val { color: #a3a9c4; }
+.theme-clean .vocab-val.above { color: #4338ca; }
+.theme-clean .vocab-key { background: #dfe3f7; }
+.theme-clean .vocab-key.above { background: #6366f1; }
+.theme-clean .vocab-word-list li.fresh { color: #4338ca; background: #eef2ff; }
+
+/* ── 관계 지도 ───────────────────────────────────────────────────── */
+.theme-clean .relation-map-wrap { background: #f8f9fd; border-radius: 22px; }
+
+/* ── 기간 토글 · 달력 ────────────────────────────────────────────── */
+.theme-clean .rel-period { background: #eef1fa; }
+.theme-clean .rel-period-btn.on {
+  background: #ffffff;
+  color: #4338ca;
+  box-shadow: 0 1px 3px rgba(60, 68, 110, 0.14);
+}
+.theme-clean .cal-today {
+  background: #eef2ff;
+  border-color: #c7cdfb;
+  color: #4338ca;
+}
+.theme-clean .cal-day.on { background: #6366f1; }
+.theme-clean .date-text em { background: #eef2ff; color: #4338ca; }

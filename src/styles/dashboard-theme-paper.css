@@ -1,8 +1,8 @@
-/* 담당: 진승혜 — 대시보드 "학생 화면 톤" 실험용 테마. 시안 확인용이고 기본값이 아니다.
+/* 담당: 진승혜 — 대시보드 시안 A — 학생 화면의 "종이" 쪽 (크림 바탕 + 보라). 시안 확인용이고 기본값이 아니다.
 
-   켜는 법: /dashboard?theme=student   (없으면 원래 대시보드 그대로)
+   켜는 법: /dashboard?theme=paper   (없으면 원래 대시보드 그대로)
    끄는 법: 이 파일을 지우고 page.tsx 의 import 한 줄과 theme 처리 세 줄을 빼면 끝.
-            원본 규칙은 하나도 건드리지 않았다 — 여기는 전부 .theme-student 안에서만 덮어쓴다.
+            원본 규칙은 하나도 건드리지 않았다 — 여기는 전부 .theme-paper 안에서만 덮어쓴다.
 
    학생 화면에서 가져온 것:
      · 보라(#635bff)·남색(#102a56) 강조   student-home.css --sh-violet / --sh-navy
@@ -13,7 +13,7 @@
    교사 화면이 원래 채도를 낮춰 둔 건 이유가 있다 (카드가 경고처럼 보이지 않게).
    이 테마는 그 판단을 뒤집어 보는 시안이라, 마음에 들면 톤을 다시 조율해야 한다. */
 
-.page-dashboard.theme-student {
+.page-dashboard.theme-paper {
   /* 신호 4색 — 학생 화면 쪽 채도로 */
   --green: #2fbf6a;  --green-bg: #e6f7ed;  --green-ring: #a6e6c1;
   --yellow: #f2bf3c; --yellow-bg: #fdf5e0; --yellow-ring: #f4dfa0;
@@ -47,69 +47,69 @@
 }
 
 /* ── 카드 ────────────────────────────────────────────────────────── */
-.theme-student .card {
+.theme-paper .card {
   border-radius: 26px;
   background: #ffffff;
   border: 1px solid #f0ecfa;
   box-shadow: 0 2px 4px rgba(99, 91, 255, 0.05), 0 12px 32px rgba(16, 42, 86, 0.07);
 }
-.theme-student .card-title { color: #102a56; letter-spacing: -0.4px; }
-.theme-student .card-sub,
-.theme-student .pane-title { color: #7d849b; }
+.theme-paper .card-title { color: #102a56; letter-spacing: -0.4px; }
+.theme-paper .card-sub,
+.theme-paper .pane-title { color: #7d849b; }
 
-.theme-student .dashboard-title { color: #102a56; letter-spacing: -0.6px; }
-.theme-student .dashboard-caption { color: #7d849b; }
+.theme-paper .dashboard-title { color: #102a56; letter-spacing: -0.6px; }
+.theme-paper .dashboard-caption { color: #7d849b; }
 
 /* ── 아침 브리핑 ─────────────────────────────────────────────────── */
-.theme-student .briefing-row {
+.theme-paper .briefing-row {
   background: #faf8ff;
   border-radius: 20px;
   border: 1px solid #f1edfd;
 }
-.theme-student .briefing-row:hover { background: #f2eeff; border-color: var(--navy-ring); }
-.theme-student .briefing-line .bname { color: #102a56; }
+.theme-paper .briefing-row:hover { background: #f2eeff; border-color: var(--navy-ring); }
+.theme-paper .briefing-line .bname { color: #102a56; }
 
 /* ── 둥근 것은 더 둥글게 — 학생 화면은 pill 이 기본이다 ───────────── */
-.theme-student .date-field,
-.theme-student .tt-btn,
-.theme-student .conflict-row,
-.theme-student .cal { border-radius: 20px; }
-.theme-student .date-field,
-.theme-student .tt-btn { border-radius: 999px; }
-.theme-student .conflict-status,
-.theme-student .rd-quotes li,
-.theme-student .vocab-word-list li { border-radius: 999px; }
-.theme-student .rd-quotes li { border-left: none; background: var(--soft); padding: 7px 12px; }
+.theme-paper .date-field,
+.theme-paper .tt-btn,
+.theme-paper .conflict-row,
+.theme-paper .cal { border-radius: 20px; }
+.theme-paper .date-field,
+.theme-paper .tt-btn { border-radius: 999px; }
+.theme-paper .conflict-status,
+.theme-paper .rd-quotes li,
+.theme-paper .vocab-word-list li { border-radius: 999px; }
+.theme-paper .rd-quotes li { border-left: none; background: var(--soft); padding: 7px 12px; }
 
 /* ── 감정 어휘 막대 — 보라 계열로 ─────────────────────────────────── */
-.theme-student .vocab-bar { background: #d9d5fb; border-radius: 10px 10px 0 0; }
-.theme-student .vocab-bar.above { background: #635bff; }
-.theme-student .vocab-val { color: #a49fb8; }
-.theme-student .vocab-val.above { color: #635bff; }
-.theme-student .vocab-key { background: #d9d5fb; }
-.theme-student .vocab-key.above { background: #635bff; }
-.theme-student .vocab-word-list li.fresh { color: #4a43d6; background: var(--navy-bg); }
+.theme-paper .vocab-bar { background: #d9d5fb; border-radius: 10px 10px 0 0; }
+.theme-paper .vocab-bar.above { background: #635bff; }
+.theme-paper .vocab-val { color: #a49fb8; }
+.theme-paper .vocab-val.above { color: #635bff; }
+.theme-paper .vocab-key { background: #d9d5fb; }
+.theme-paper .vocab-key.above { background: #635bff; }
+.theme-paper .vocab-word-list li.fresh { color: #4a43d6; background: var(--navy-bg); }
 
 /* ── 관계 지도 ───────────────────────────────────────────────────── */
-.theme-student .relation-map-wrap {
+.theme-paper .relation-map-wrap {
   background: #faf8ff;
   border-radius: 24px;
   border: 1px solid #f1edfd;
 }
 
 /* ── 기간 토글 ───────────────────────────────────────────────────── */
-.theme-student .rel-period { background: #f2eeff; }
-.theme-student .rel-period-btn.on {
+.theme-paper .rel-period { background: #f2eeff; }
+.theme-paper .rel-period-btn.on {
   background: #635bff;
   color: #ffffff;
   box-shadow: 0 2px 6px rgba(99, 91, 255, 0.3);
 }
 
 /* ── 달력 ────────────────────────────────────────────────────────── */
-.theme-student .cal-today {
+.theme-paper .cal-today {
   background: #635bff;
   border-color: #635bff;
   color: #ffffff;
 }
-.theme-student .cal-day.on { background: #635bff; }
-.theme-student .date-text em { background: var(--navy-bg); color: #4a43d6; }
+.theme-paper .cal-day.on { background: #635bff; }
+.theme-paper .date-text em { background: var(--navy-bg); color: #4a43d6; }
