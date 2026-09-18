@@ -2,6 +2,12 @@
 // TeacherAgentWidget의 대화 상태/전송 로직. layout에서 한 번만 마운트되므로
 // 탭을 넘나들어도 상태가 유지된다 (App Router layout 리마운트 없음 특성 활용).
 //
+// (2026-09-19) 그런데 F5로 새로고침하거나 탭을 닫았다가 다시 열면 React state는 그냥 사라진다 —
+// 데모 중에 심사위원이 새로고침 한 번 하면 대화가 초기화돼서 "버그인가?" 하는 인상을 줄 수 있다.
+// 서버(agent_threads)에 영구 저장하는 건 다음 단계(TODO, route.ts 참고)로 미뤄두고, 지금은
+// sessionStorage에만 저장해서 "새로고침해도 안 사라지는" 정도만 우선 해결한다 — Supabase도
+// 로그인도 필요 없는 가장 싼 수정. 탭을 완전히 닫으면(sessionStorage 특성상) 그때는 사라진다.
+//
 // 학생 범위 좁히기는 두 단계:
 //   1) 지금 보고 있는 페이지가 특정 학생 화면이면(아래 STUDENT_ID_PATTERNS) 그걸 우선 사용.
 //      "누적자료보기"(consultation/report/[id])는 새 탭으로 열리므로, 그 탭 안에서 물어볼 때만 잡힌다 —
@@ -12,7 +18,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export type DomainFinding = { domain: string; label: string; finding: string; evidence: string[] };
@@ -24,7 +30,21 @@ type AgentMessage = {
   domainFindings?: DomainFinding[];
 };
 
+const STORAGE_KEY = "salpim-teacher-agent-messages";
+
 let msgId = 0;
+
+/** sessionStorage는 서버에 없고, 다른 탭/오래된 형식이 들어있을 수도 있어 매번 방어적으로 읃는다. */
+function loadStoredMessages(): AgentMessage[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const STUDENT_ID_PATTERNS = [/^\/students\/([^/]+)$/, /^\/consultation\/report\/([^/]+)$/];
 
@@ -46,6 +66,31 @@ export function useAgentChat() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [scopedStudentName, setScopedStudentName] = useState<string | null>(null);
+
+  // 마운트 시 한 번만 sessionStorage에서 복원 — 서버 렌더에는 sessionStorage가 없어서
+  // useState 초기값으로는 못 넣고, 마운트 후 effect에서 채운다(하이드레이션 불일치 방지).
+  useEffect(() => {
+    const stored = loadStoredMessages();
+    if (stored.length === 0) return;
+    // 서버 렌더 시점엔 sessionStorage가 없어서 초기 state로는 못 넣고, 마운트 후에만
+    // 채울 수 있다 — 그래서 여기서 setState를 부르는 게 의도된 동작이다(하이드레이션
+    // 시점엔 서버와 똑같이 빈 배열이라 불일치 없음. 그 다음 프레임에 복원됨).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMessages(stored);
+    // 복원된 메시지보다 낮은 id를 새로 발급하면 React key가 겹친다.
+    msgId = Math.max(...stored.map((m) => m.id), -1) + 1;
+  }, []);
+
+  // 메시지가 바뀔 때마다 저장 — 빈 배열까지 저장해서, 다음에 열었을 때 지난 대화가
+  // 남아있게 한다(리셋 없음. 대화 지우기 버튼은 아직 없어서 필요해지면 그때 추가).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch {
+      // 저장 공간이 꽉 찼거나 프라이빗 모드 등 — 저장은 못 해도 화면은 그대로 동작해야 한다.
+    }
+  }, [messages]);
 
   async function send() {
     const text = input.trim();
