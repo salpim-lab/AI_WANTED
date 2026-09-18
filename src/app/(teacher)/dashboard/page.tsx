@@ -28,6 +28,8 @@ import ClassroomToday from "@/components/teacher/dashboard/ClassroomToday";
 import RelationBoard from "@/components/teacher/dashboard/RelationBoard";
 import VocabGrowthChart from "@/components/teacher/dashboard/VocabGrowthChart";
 import DateControl from "@/components/teacher/shared/DateControl";
+// 배경: 아이 상세·업무기록·학부모상담과 같은 교실 일러스트 (2026-09-18 김현우 추가 — 진승혜 님과 PR 협의)
+import SalpimBackdrop from "@/components/shared/SalpimBackdrop";
 import TimetableButton from "@/components/teacher/shared/TimetableButton";
 import {
   dashboardMinDate,
@@ -48,45 +50,47 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
   return (
-    <div className="page-dashboard">
-      <header className="dashboard-head">
-        <div>
-          <h1 className="dashboard-title">대시보드</h1>
-          <p className="dashboard-caption">
-            {isToday ? "오늘 우리 반은 어떤가요?" : "지난 기록을 보고 있어요"}
-          </p>
-        </div>
-        <div className="dashboard-head-controls">
-          <DateControl
-            dateKey={dateKey}
-            today={dashboardToday()}
-            basePath="/dashboard"
-            minDate={dashboardMinDate()}
-            maxDate={dashboardToday()}
-            label="대시보드 날짜 선택"
-          />
-          <TimetableButton dateKey={dateKey} />
-        </div>
-      </header>
+    <SalpimBackdrop>
+      <div className="page-dashboard">
+        <header className="dashboard-head">
+          <div>
+            <h1 className="dashboard-title">대시보드</h1>
+            <p className="dashboard-caption">
+              {isToday ? "오늘 우리 반은 어떤가요?" : "지난 기록을 보고 있어요"}
+            </p>
+          </div>
+          <div className="dashboard-head-controls">
+            <DateControl
+              dateKey={dateKey}
+              today={dashboardToday()}
+              basePath="/dashboard"
+              minDate={dashboardMinDate()}
+              maxDate={dashboardToday()}
+              label="대시보드 날짜 선택"
+            />
+            <TimetableButton dateKey={dateKey} />
+          </div>
+        </header>
 
-      <div className="dashboard-grid">
-        <div className="col-8">
-          <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
-        </div>
-        <div className="col-4">
-          <ClassroomToday
-            classroom={data.classroom}
-            participation={data.participation}
-            isToday={isToday}
-          />
-        </div>
+        <div className="dashboard-grid">
+          <div className="col-8">
+            <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
+          </div>
+          <div className="col-4">
+            <ClassroomToday
+              classroom={data.classroom}
+              participation={data.participation}
+              isToday={isToday}
+            />
+          </div>
 
-        <RelationBoard relation={data.relation} conflicts={data.conflicts} />
+          <RelationBoard relation={data.relation} conflicts={data.conflicts} />
 
-        <div className="col-12">
-          <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />
+          <div className="col-12">
+            <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />
+          </div>
         </div>
       </div>
-    </div>
+    </SalpimBackdrop>
   );
 }

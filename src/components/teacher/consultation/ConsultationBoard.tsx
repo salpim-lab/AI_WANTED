@@ -47,7 +47,7 @@ export default function ConsultationBoard({
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <div className="mb-3 flex flex-wrap items-center gap-2.5">
-            <h3 className="flex-1 text-sm font-extrabold text-gray-700">예정된 상담 · {scheduled.length}건</h3>
+            <h3 className="flex-1 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">예정된 상담 · {scheduled.length}건</h3>
             <ScheduleConsultationComposer students={students} />
           </div>
 
@@ -64,9 +64,9 @@ export default function ConsultationBoard({
           )}
         </section>
 
-        <section className="lg:border-l lg:border-gray-200 lg:pl-6">
+        <section className="lg:border-l lg:border-[#e6e2fb] lg:pl-6">
           <div className="mb-3 flex flex-wrap items-center gap-2.5">
-            <h3 className="flex-1 text-sm font-extrabold text-gray-700">완료한 상담</h3>
+            <h3 className="flex-1 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">완료한 상담</h3>
             <ConsultationComposer students={students} reportDays={reportDays} />
           </div>
 
@@ -97,7 +97,7 @@ export default function ConsultationBoard({
             )}
           </Form>
 
-          <p className="mb-2.5 text-xs text-gray-500">
+          <p className="mb-2.5 text-xs text-[#7d849b]">
             {hasFilter ? `검색 결과 ${entries.length}건` : `전체 ${entries.length}건`}
           </p>
 
@@ -124,7 +124,7 @@ function ScheduledConsultationCard({ consultation }: { consultation: ScheduledCo
       <header className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <Link
           href={`/students/${consultation.student.studentId}`}
-          className="rounded-full bg-green-50 px-[9px] py-0.5 text-xs font-bold text-green-700 transition-colors hover:bg-green-100"
+          className="rounded-full bg-[#ede9ff] px-[9px] py-0.5 text-xs font-bold text-[#3f37c9] transition-colors hover:bg-[#ded8ff]"
         >
           {consultation.student.name}
         </Link>
@@ -138,9 +138,9 @@ function ScheduledConsultationCard({ consultation }: { consultation: ScheduledCo
           href={`/consultation/report/${consultation.student.studentId}`}
           target="_blank"
           rel="noopener"
-          className="inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700 transition-colors hover:bg-green-100"
+          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ded8ff] bg-[#f5f3ff] px-3 py-1 text-[11px] font-semibold text-[#635bff] transition-colors hover:bg-[#ede9ff]"
         >
-          📄 {consultation.student.name} 누적 자료 보기
+          {consultation.student.name} 누적 자료 보기
         </Link>
         <EditScheduledConsultationButton consultation={consultation} />
         <CompleteConsultationButton consultation={consultation} />

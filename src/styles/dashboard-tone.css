@@ -11,9 +11,9 @@
    학생 화면에서 그대로 가져온 값:
      바탕   linear-gradient(180deg, #fbfbfe, #f4f5fb)   student-chat.css .chat-screen
      카드   #fff + rgba(60, 68, 110, .13) 그림자        student-chat.css .chat-bubble
-     강조   #4338ca / #eef2ff                            student-chat.css .chat-color-badge
+     강조   #3f37c9 / #eef2ff                            student-chat.css .chat-color-badge
      선     #dfe3ee                                      student-chat.css
-     글자   #2f3560 · #5b6478 · #8b92ad                  student-chat.css
+     글자   #102a56 · #7d849b · #7d849b                  student-chat.css
      모서리 999px pill                                    학생 화면 기본
 
    크림(#fdf9ef)은 쓰지 않는다. */
@@ -28,7 +28,7 @@
 
   --line: #eaedf5;
   --soft: #f6f7fc;
-  --faint: #8b92ad;
+  --faint: #7d849b;
   --ink-soft: #3d4468;
 
   --w-sun: #eab54b;
@@ -41,12 +41,13 @@
   --rel-ring-isolated: #d8dbe6;
   --rel-edge: #d3d8ea;
   --rel-edge-conflict: #f4a9a5;
-  --rel-text: #2f3560;
+  --rel-text: #102a56;
   --rel-text-conflict: #c96560;
-  --rel-text-muted: #8b92ad;
+  --rel-text-muted: #7d849b;
 
-  background: linear-gradient(180deg, #fbfbfe 0%, #f4f5fb 100%);
-  color: #2f3560;
+  /* 바탕은 SalpimBackdrop(교실 일러스트)이 깐다 — 여기서 칠하면 그림이 가려진다 (2026-09-18 김현우, PR 협의) */
+  background: transparent;
+  color: #102a56;
 }
 
 /* ── 카드 ────────────────────────────────────────────────────────────
@@ -58,13 +59,13 @@
   border: none;
   box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05), 0 8px 24px rgba(60, 68, 110, 0.09);
 }
-.page-dashboard .card-title { color: #2f3560; letter-spacing: -0.4px; }
+.page-dashboard .card-title { color: #102a56; letter-spacing: -0.4px; }
 .page-dashboard .card-sub,
 .page-dashboard .pane-title,
-.page-dashboard .pane-title .pane-sub { color: #8b92ad; }
+.page-dashboard .pane-title .pane-sub { color: #7d849b; }
 
-.page-dashboard .dashboard-title { color: #2f3560; letter-spacing: -0.6px; }
-.page-dashboard .dashboard-caption { color: #5b6478; }
+.page-dashboard .dashboard-title { color: #102a56; letter-spacing: -0.6px; }
+.page-dashboard .dashboard-caption { color: #7d849b; }
 
 /* ── 아침 브리핑 ─────────────────────────────────────────────────── */
 .page-dashboard .briefing-row {
@@ -73,8 +74,8 @@
   border: none;
 }
 .page-dashboard .briefing-row:hover { background: #eef1fa; }
-.page-dashboard .briefing-line .bname { color: #2f3560; }
-.page-dashboard .briefing-info .breason { color: #5b6478; }
+.page-dashboard .briefing-line .bname { color: #102a56; }
+.page-dashboard .briefing-info .breason { color: #7d849b; }
 
 /* ── pill ────────────────────────────────────────────────────────────
    학생 화면은 누를 수 있는 것과 라벨이 전부 999px 다 */
@@ -107,10 +108,10 @@
 .page-dashboard .vocab-bar { background: #dfe3f7; border-radius: 9px 9px 0 0; }
 .page-dashboard .vocab-bar.above { background: #6366f1; }
 .page-dashboard .vocab-val { color: #a3a9c4; }
-.page-dashboard .vocab-val.above { color: #4338ca; }
+.page-dashboard .vocab-val.above { color: #3f37c9; }
 .page-dashboard .vocab-key { background: #dfe3f7; }
 .page-dashboard .vocab-key.above { background: #6366f1; }
-.page-dashboard .vocab-word-list li.fresh { color: #4338ca; background: #eef2ff; }
+.page-dashboard .vocab-word-list li.fresh { color: #3f37c9; background: #eef2ff; }
 
 /* ── 관계 지도 ───────────────────────────────────────────────────── */
 .page-dashboard .relation-map-wrap { background: #f8f9fd; border-radius: 22px; }
@@ -119,13 +120,67 @@
 .page-dashboard .rel-period { background: #eef1fa; }
 .page-dashboard .rel-period-btn.on {
   background: #ffffff;
-  color: #4338ca;
+  color: #3f37c9;
   box-shadow: 0 1px 3px rgba(60, 68, 110, 0.14);
 }
 .page-dashboard .cal-today {
   background: #eef2ff;
   border-color: #c7cdfb;
-  color: #4338ca;
+  color: #3f37c9;
 }
 .page-dashboard .cal-day.on { background: #6366f1; }
-.page-dashboard .date-text em { background: #eef2ff; color: #4338ca; }
+.page-dashboard .date-text em { background: #eef2ff; color: #3f37c9; }
+
+/* ── 글꼴·글자 스타일: 아이 상세 · 업무기록 · 학부모상담 탭과 맞춘다 ─────────────
+   (2026-09-18 김현우 추가 — 진승혜 님과 PR 협의. 세 탭의 기준은 components/shared/ui.ts)
+   제목은 둥근 Jua(--font-cute), 본문은 Noto Sans KR(--font-sans-kr).
+   글자색 남색 #102a56 · 보조 #7d849b — 학생 홈(student-home.css)과 같은 값. */
+.page-dashboard {
+  --text: #102a56;
+  --muted: #7d849b;
+  --faint: #aab0c4;
+  --ink-soft: #33405f;
+  font-family: var(--font-sans-kr), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  color: #102a56;
+}
+
+/* 페이지 제목 — 업무기록·학부모상담 제목과 같은 크기 */
+.page-dashboard .dashboard-title {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: -0.3px;
+}
+.page-dashboard .dashboard-caption { font-size: 12.5px; }
+
+/* 카드 제목 */
+.page-dashboard .card-title {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: -0.2px;
+}
+
+/* 카드 안 소제목 — 아이 상세 "등교 마음 기록", 업무기록 섹션 제목과 같은 급 */
+.page-dashboard .pane-title,
+.page-dashboard .briefing-col-title,
+.page-dashboard .rd-section-title {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-weight: 400;
+  font-size: 16px;
+  color: #102a56;
+}
+/* 소제목 옆 작은 설명·개수는 본문 글꼴로 되돌린다 */
+.page-dashboard .pane-title .pane-sub,
+.page-dashboard .pane-title .cnt,
+.page-dashboard .briefing-col-title .briefing-col-hint {
+  font-family: var(--font-sans-kr), sans-serif;
+}
+
+/* 큰 숫자·이름 */
+.page-dashboard .classroom-headline,
+.page-dashboard .rd-name,
+.page-dashboard .classroom-legend .cl-count {
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-weight: 400;
+}

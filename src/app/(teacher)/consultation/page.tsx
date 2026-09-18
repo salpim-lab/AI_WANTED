@@ -8,6 +8,7 @@ import { firstParam } from "@/components/shared/params";
 import { listClassStudents, REPORT_DEFAULT_DAYS } from "@/lib/supabase/queries/teacherStudents";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listConsultationLogs, listScheduledConsultations } from "@/lib/supabase/raw/consultationLog";
+import SalpimBackdrop from "@/components/shared/SalpimBackdrop";
 import type { ConsultationFilter } from "@/lib/types/teacherRecord";
 
 export default async function ConsultationPage({ searchParams }: PageProps<"/consultation">) {
@@ -26,12 +27,14 @@ export default async function ConsultationPage({ searchParams }: PageProps<"/con
   ]);
 
   return (
-    <ConsultationBoard
-      entries={entries}
-      scheduled={scheduled}
-      students={students}
-      filter={filter}
-      reportDays={REPORT_DEFAULT_DAYS}
-    />
+    <SalpimBackdrop>
+      <ConsultationBoard
+        entries={entries}
+        scheduled={scheduled}
+        students={students}
+        filter={filter}
+        reportDays={REPORT_DEFAULT_DAYS}
+      />
+    </SalpimBackdrop>
   );
 }

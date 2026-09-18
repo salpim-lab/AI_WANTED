@@ -55,7 +55,7 @@ export default function CompleteConsultationButton({ consultation }: { consultat
           <input type="hidden" name="id" value={consultation.id} />
           <input type="hidden" name="studentId" value={consultation.student.studentId} />
 
-          <p className="text-[13px] leading-[1.6] text-gray-600">
+          <p className="text-[13px] leading-[1.6] text-[#5d6580]">
             {consultation.student.name} · {consultation.counterpart} · {METHOD_LABEL[consultation.method]} 상담
             <br />
             예정 {formatKstDateTime(consultation.scheduledAt).slice(0, 16)}
@@ -65,9 +65,9 @@ export default function CompleteConsultationButton({ consultation }: { consultat
             href={`/consultation/report/${consultation.student.studentId}`}
             target="_blank"
             rel="noopener"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700 transition-colors hover:bg-green-100"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ded8ff] bg-[#f5f3ff] px-3 py-1 text-[11px] font-semibold text-[#635bff] transition-colors hover:bg-[#ede9ff]"
           >
-            📄 {consultation.student.name} 누적 자료 보기
+            {consultation.student.name} 누적 자료 보기
           </Link>
 
           <label htmlFor="complete-occurred-at" className={fieldLabel}>
@@ -96,7 +96,7 @@ export default function CompleteConsultationButton({ consultation }: { consultat
             onChange={(e) => setBody(e.target.value)}
             className={textArea}
           />
-          <div className="mt-1 text-right text-[11px] text-gray-400">
+          <div className="mt-1 text-right text-[11px] text-[#aab0c4]">
             {body.length} / {MAX_BODY_LENGTH}
           </div>
 

@@ -16,13 +16,13 @@ const REPORT_ITEMS = [
 
 export default function DataExportBox({ student, days }: { student: TaggedStudent; days: number }) {
   return (
-    <div className="mt-2.5 rounded-[10px] border-[1.5px] border-green-200 bg-green-50 px-3.5 py-3">
-      <div className="mb-1.5 text-[11px] font-bold tracking-[0.5px] text-green-700">📄 {student.name} 상담 자료 리포트</div>
-      <p className="mb-2 text-[11px] text-green-800">
+    <div className="mt-2.5 rounded-2xl border border-[#ded8ff] bg-[#f5f3ff] px-4 py-3.5">
+      <div className="mb-1.5 font-[family-name:var(--font-cute)] text-[15px] text-[#635bff]">{student.name} 상담 자료 리포트</div>
+      <p className="mb-2 text-[11px] text-[#33405f]">
         최근 {days}일 원본 기록을 정리해서 보여줘요. 그대로 PDF로 뽑아 상담에 쓸 수 있어요(등하교 대화 전문은 빠져요 —
         필요하면 아이 상세 탭에서 확인하세요). 상담 기록을 저장하면 이 기간 근거 기록의 ID가 함께 남습니다.
       </p>
-      <ul className="ml-3.5 list-disc text-xs leading-[1.8] text-green-800">
+      <ul className="ml-3.5 list-disc text-xs leading-[1.8] text-[#33405f]">
         {REPORT_ITEMS.map((item) => (
           <li key={item}>{item}</li>
         ))}
@@ -33,9 +33,9 @@ export default function DataExportBox({ student, days }: { student: TaggedStuden
         rel="noopener"
         className="btn btn-primary btn-sm mt-3 block w-full text-center"
       >
-        📄 리포트 열기 · PDF로 저장
+        리포트 열기 · PDF로 저장
       </Link>
-      <p className="mt-1.5 text-[11px] text-green-700">리포트 화면에서 기간을 직접 바꿀 수 있어요.</p>
+      <p className="mt-1.5 text-[11px] text-[#7d849b]">리포트 화면에서 기간을 직접 바꿀 수 있어요.</p>
     </div>
   );
 }

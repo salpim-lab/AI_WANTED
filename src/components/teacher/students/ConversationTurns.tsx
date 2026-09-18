@@ -9,7 +9,7 @@ const SPEAKER_LABEL = { assistant: "AI", system: "안내" } as const;
 
 export default function ConversationTurns({ turns, studentName }: { turns: ConversationTurn[]; studentName: string }) {
   if (turns.length === 0) {
-    return <p className="text-xs text-gray-400">대화 없이 색만 기록했어요.</p>;
+    return <p className="text-xs text-[#aab0c4]">대화 없이 색만 기록했어요.</p>;
   }
 
   return (
@@ -18,14 +18,14 @@ export default function ConversationTurns({ turns, studentName }: { turns: Conve
         <li key={turn.messageId} className="flex gap-2 break-inside-avoid">
           <span
             className={`min-w-10 pt-[3px] text-[11px] font-bold ${
-              turn.speaker === "student" ? "text-gray-500" : "text-indigo-500"
+              turn.speaker === "student" ? "text-[#7d849b]" : "text-[#635bff]"
             }`}
           >
             {turn.speaker === "student" ? givenName(studentName) : SPEAKER_LABEL[turn.speaker]}
           </span>
           <p
-            className={`flex-1 rounded-lg px-3 py-2 text-[13px] leading-[1.6] ${
-              turn.speaker === "student" ? "bg-[#f8f7f4]" : "bg-indigo-50"
+            className={`flex-1 rounded-2xl px-3 py-2 text-[13px] leading-[1.6] ${
+              turn.speaker === "student" ? "border border-[#ece0c9] bg-[#fdf9ef]" : "bg-[#efedff]"
             }`}
           >
             {turn.content}

@@ -63,14 +63,14 @@ export default function DailyObservationWorkspace({
         <div className={`${card} flex h-full min-h-[280px] flex-col items-center justify-center px-4 py-8 text-center`}>
           <span
             aria-hidden
-            className="mb-2.5 flex size-8 items-center justify-center rounded-full bg-green-50 text-green-600"
+            className="mb-2.5 flex size-8 items-center justify-center rounded-full bg-[#ede9ff] text-[#635bff]"
           >
             <CheckIcon />
           </span>
-          <p className="text-[13px] font-bold text-gray-700">
+          <p className="text-[13px] font-bold text-[#33405f]">
             {formatKstDate(date)}, 학생 {students.length}명 모두 관찰 기록을 남겼어요
           </p>
-          <p className="mt-1 text-xs text-gray-500">명단에서 아이를 다시 누르면 내용을 더 적을 수 있어요.</p>
+          <p className="mt-1 text-xs text-[#7d849b]">명단에서 아이를 다시 누르면 내용을 더 적을 수 있어요.</p>
         </div>
       )}
     </div>

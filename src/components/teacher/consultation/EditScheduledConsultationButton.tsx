@@ -67,7 +67,7 @@ export default function EditScheduledConsultationButton({
           onClick={openModal}
           aria-label={label}
           title="일정 변경"
-          className={`grid size-7 place-items-center rounded-full text-[13px] text-gray-400 transition-colors hover:bg-white hover:text-gray-800 ${className ?? ""}`}
+          className={`grid size-7 place-items-center rounded-full text-[13px] text-[#aab0c4] transition-colors hover:bg-white hover:text-[#102a56] ${className ?? ""}`}
         >
           ✎
         </button>

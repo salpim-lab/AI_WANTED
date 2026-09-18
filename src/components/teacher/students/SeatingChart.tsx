@@ -15,7 +15,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatKstDate } from "@/components/shared/datetime";
 import { SIGNAL_DOT, SIGNAL_LABEL, SIGNAL_SEAT_FILL } from "@/components/shared/signalStyles";
-import { card, emptyState } from "@/components/shared/ui";
+import {
+  emptyState,
+  salpimCard,
+  salpimMuted,
+  salpimTitle,
+  salpimToggleOff,
+  salpimToggleOn,
+} from "@/components/shared/ui";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import type { SeatGrid, SeatingStudent } from "@/lib/types/teacherRecord";
 import type { SignalColor } from "@/lib/types/signal";
@@ -56,19 +63,19 @@ export default function SeatingChart({
   const cols = Array.from({ length: grid.cols }, (_, i) => i + 1);
 
   return (
-    <div className={`${card} ${compact ? "p-5" : "px-7 py-6"}`}>
+    <div className={`${salpimCard} ${compact ? "p-5" : "px-7 py-6"}`}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className={compact ? "text-base font-extrabold" : "text-lg font-extrabold tracking-[-0.3px]"}>
+          <h2 className={`${salpimTitle} ${compact ? "text-lg" : "text-[22px]"}`}>
             {isEditing ? "자리 바꾸기" : "우리 반"}
           </h2>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className={`mt-1 text-xs ${salpimMuted}`}>
             {isEditing ? (
               "바꾼 자리는 저장해야 반영돼요"
             ) : (
               <>
                 {formatKstDate(date)} {PERIOD_LABEL[period]} ·{" "}
-                <strong className="font-bold text-gray-700">
+                <strong className="font-bold text-[#102a56]">
                   {doneCount}/{seats.length}명
                 </strong>{" "}
                 했어요
@@ -79,16 +86,14 @@ export default function SeatingChart({
         </div>
         {!isEditing && (
           <div className="flex shrink-0 items-center gap-2">
-            <div role="group" aria-label="시간대" className="flex rounded-lg border border-gray-200 bg-white p-0.5">
+            <div role="group" aria-label="시간대" className="flex rounded-full border border-[#ded8ff] bg-white/80 p-0.5">
               {(Object.keys(PERIOD_LABEL) as Period[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPeriod(p)}
                   aria-pressed={period === p}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-                    period === p ? "bg-indigo-50 text-indigo-600" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`transition-colors ${period === p ? salpimToggleOn : salpimToggleOff}`}
                 >
                   {PERIOD_LABEL[p]}
                 </button>
@@ -115,7 +120,7 @@ export default function SeatingChart({
           onClose={() => setEditing(false)}
         />
       ) : (
-        <div className={`rounded-2xl bg-gray-50 ${compact ? "p-3" : "p-5"}`}>
+        <div className={`rounded-[22px] bg-[#f5f3ff]/80 ${compact ? "p-3" : "p-5"}`}>
           <ol
             className={`grid ${compact ? "gap-1.5" : "gap-2.5"}`}
             style={{ gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))` }}
@@ -129,7 +134,7 @@ export default function SeatingChart({
                     <li
                       key={seatKey(row, col)}
                       aria-hidden
-                      className={`${cellHeight} rounded-xl border border-dashed border-gray-200`}
+                      className={`${cellHeight} rounded-xl border border-dashed border-[#ded8ff]`}
                     />
                   );
                 }
@@ -152,7 +157,7 @@ export default function SeatingChart({
       )}
 
       {!isEditing && (
-        <div className="mt-4 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] text-gray-500">
+        <div className={`mt-4 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] ${salpimMuted}`}>
           {LEGEND_ORDER.map((color) => (
             <span key={color} className="flex items-center gap-1">
               <span aria-hidden className={`inline-block size-2.5 rounded-full ${SIGNAL_DOT[color]}`} />
@@ -160,7 +165,7 @@ export default function SeatingChart({
             </span>
           ))}
           <span className="flex items-center gap-1">
-            <span aria-hidden className="inline-block size-2.5 rounded-full border border-gray-300 bg-white" />
+            <span aria-hidden className="inline-block size-2.5 rounded-full border border-[#cfcafa] bg-white" />
             아직 안 했어요
           </span>
         </div>
@@ -187,10 +192,10 @@ function SeatCard({
   const pmLabel = seat.todayAfternoon ? SIGNAL_LABEL[seat.todayAfternoon] : "아직 안 함";
 
   const tone = selected
-    ? "bg-indigo-50 ring-2 ring-indigo-500 text-indigo-700"
+    ? "bg-[#ede9ff] ring-2 ring-[#635bff] text-[#3f37c9]"
     : mainColor
       ? `${SIGNAL_SEAT_FILL[mainColor]} shadow-[0_1px_2px_rgba(0,0,0,.06)]`
-      : "border border-gray-200 bg-white text-gray-700 shadow-[0_1px_2px_rgba(0,0,0,.04)]";
+      : "border border-[#e6e2fb] bg-white text-[#102a56] shadow-[0_1px_2px_rgba(16,42,86,.05)]";
 
   return (
     <Link
@@ -199,7 +204,7 @@ function SeatCard({
       aria-current={selected ? "page" : undefined}
       aria-label={`${seat.name} — 등교 ${amLabel}, 하교 ${pmLabel}`}
       title={`${seat.name} · 등교 ${amLabel} → 하교 ${pmLabel}`}
-      className={`flex items-center justify-center px-1.5 text-center transition hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,.1)] ${
+      className={`flex items-center justify-center px-1.5 text-center transition hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(99,91,255,.18)] ${
         compact ? "rounded-xl" : "rounded-2xl"
       } ${tone} ${className}`}
     >
