@@ -1,0 +1,195 @@
+/* 담당: 진승혜
+   교사 화면 공용 상단 컨트롤 — 날짜 선택(.date-*)과 시간표 버튼(.tt-*).
+   날짜 선택은 대시보드·아이 상세·학생관찰일지가 같이 쓴다 (원래 대시보드 CSS 에만 있던 것을 옮겨온 것).
+   시간표 버튼은 지금 대시보드에서만 쓴다 — 다른 화면에도 붙일 수 있게 여기 같이 둔다.
+
+   import 는 이 스타일을 쓰는 컴포넌트가 직접 한다
+   (components/teacher/shared/{DateControl,TimetableButton}.tsx)
+   — 공용 prototype-teacher-shared.css 는 건드리지 않는다.
+
+   색 토큰(--surface/--line/--muted/--navy*)은 prototype-teacher-shared.css 가 :root 에 깔아둔 값을 쓴다.
+   대시보드 안에서는 .page-dashboard 가 --navy 계열을 차분한 톤으로 재정의하므로,
+   같은 컴포넌트가 대시보드에서는 자동으로 그 톤을 따른다. */
+
+/* ══ 날짜 선택 ═══════════════════════════════════════════════════════
+   날짜 상태는 URL 쿼리(?date=)가 단일 출처다. 여기는 표시와 입력만 담당. */
+.date-control { display: flex; align-items: center; gap: 8px; }
+.date-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 50, 35, 0.04);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.date-field:hover { border-color: var(--navy-ring); background: #fdfcfa; }
+/* 마우스 클릭으로 포커스가 들어왔을 때는 테두리만, 키보드 포커스일 때만 링을 그린다 */
+.date-field:focus-within { border-color: var(--navy); }
+.date-field:has(.date-input:focus-visible) { box-shadow: 0 0 0 3px var(--navy-bg); }
+.date-field * { cursor: pointer; }
+.date-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.date-text { font-size: 12.5px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
+.date-text em {
+  font-style: normal;
+  margin-right: 7px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--navy-bg);
+  color: #5f679a;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+/* 브라우저 기본 date 입력을 투명하게 덮어 위 문구만 보이게 한다 (외부 패키지 없이) */
+.date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+/* input[type=date] 는 "달력 아이콘"을 눌러야만 네이티브 피커가 열린다.
+   그 아이콘을 입력 전체 크기로 늘려서, 박스 어디를 눌러도 피커가 열리게 한다.
+   (showPicker() 같은 JS API 에 기대지 않고 네이티브 클릭 영역 자체를 넓히는 방식) */
+.date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ══ 시간표 버튼 ═════════════════════════════════════════════════════
+   날짜 버튼과 같은 높이·모서리로 맞춰 한 덩어리로 읽히게 한다.
+   올리면 열리고(hover), 누르면 고정된다(.pinned) — 터치·키보드에서도 열 수 있게. */
+.tt-wrap { position: relative; display: inline-flex; }
+.tt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(60, 50, 35, 0.04);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.tt-btn:hover { border-color: var(--navy-ring); background: #fdfcfa; }
+.tt-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.tt-wrap.pinned .tt-btn { border-color: var(--navy); background: #fdfcfa; }
+.tt-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* 오른쪽 끝에 붙는 컨트롤이라 오른쪽 모서리를 기준으로 펼친다 (화면 밖으로 안 나가게). */
+.tt-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: max-content;
+  padding: 14px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 2px 6px rgba(60, 50, 35, 0.06), 0 14px 32px rgba(60, 50, 35, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+.tt-wrap:hover .tt-panel,
+.tt-wrap:focus-within .tt-panel,
+.tt-wrap.pinned .tt-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+.tt-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 11px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+.tt-panel-sub { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+.tt-table { border-collapse: collapse; font-size: 11.5px; }
+.tt-table th,
+.tt-table td {
+  padding: 7px 11px;
+  text-align: center;
+  white-space: nowrap;
+  border-radius: 7px;
+}
+.tt-table thead th { font-size: 11px; font-weight: 700; color: var(--muted); }
+.tt-corner { padding: 0; }
+.tt-period {
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.tt-period em {
+  display: block;
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--faint, #b3ada2);
+}
+.tt-table tbody td { font-weight: 600; background: var(--soft, #faf9f6); }
+
+/* 보고 있는 날짜의 요일만 세로로 도드라지게 — 표를 처음부터 읽지 않아도 오늘 칸이 먼저 보인다. */
+.tt-table thead th.tt-on { color: var(--text); }
+.tt-table tbody td.tt-on { background: var(--navy-bg); color: #4a5090; font-weight: 700; }
+
+/* 스크린리더 전용 텍스트 (표 좌상단 빈 칸 라벨) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-panel { transition: none; }
+}
