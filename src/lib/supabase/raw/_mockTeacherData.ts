@@ -33,7 +33,16 @@ export async function getActingTeacher() {
   return MOCK_TEACHER;
 }
 
-const mockUuid = (prefix: string, n: number) => `${prefix}-0000-4000-8000-${String(n).padStart(12, "0")}`;
+/**
+ * 현재 요청의 학생 (학생 화면 인증 연동 전 고정값 — 김민준).
+ * 학생 화면용 조회는 브라우저가 보낸 studentId를 믿지 않고 이 함수로 학생을 정한다 (다른 아이 편지를 못 보게).
+ * TODO(학생 인증 연동): Supabase Auth 세션 → students.auth_user_id → 현재 enrollment.
+ */
+export async function getActingStudent() {
+  return { studentId: "00000000-0000-4000-8000-000000000001", classId: MOCK_TEACHER.classId };
+}
+
+const mockUuid = (prefix: string, n: number) =>`${prefix}-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
 /**
  * 대시보드(진승혜)의 mock 데이터가 아직 1..N 번호를 studentId로 쓴다 — 실제 student_id(UUID)는 모르기 때문.

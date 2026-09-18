@@ -105,7 +105,7 @@ export default function ObservationBoard({
         </div>
       </div>
 
-      <h3 className="mb-2.5 text-sm font-extrabold text-gray-700">
+      <h3 className="mb-2.5 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">
         {searching ? `"${keyword}" 검색 결과` : `${formatKstDate(date)} 기록`} · {items.length}건
       </h3>
 
@@ -114,7 +114,7 @@ export default function ObservationBoard({
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           <section>
-            <h4 className="mb-2 text-xs font-bold text-gray-500">한 아이 기록 · {soloItems.length}건</h4>
+            <h4 className="mb-2 text-xs font-bold text-[#7d849b]">한 아이 기록 · {soloItems.length}건</h4>
             {soloItems.length === 0 ? (
               <div className={emptyState}>해당하는 기록이 없어요.</div>
             ) : (
@@ -127,8 +127,8 @@ export default function ObservationBoard({
               </ul>
             )}
           </section>
-          <section className="lg:border-l lg:border-gray-200 lg:pl-6">
-            <h4 className="mb-2 text-xs font-bold text-gray-500">여러 아이가 태그된 기록 · {multiItems.length}건</h4>
+          <section className="lg:border-l lg:border-[#e6e2fb] lg:pl-6">
+            <h4 className="mb-2 text-xs font-bold text-[#7d849b]">여러 아이가 태그된 기록 · {multiItems.length}건</h4>
             {multiItems.length === 0 ? (
               <div className={emptyState}>해당하는 기록이 없어요.</div>
             ) : (
@@ -176,7 +176,7 @@ function ObservationFeedCard({ entry, showDate }: { entry: ObservationLog; showD
             <Link
               key={tag.studentId}
               href={`/students/${tag.studentId}`}
-              className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 transition-colors hover:bg-indigo-100"
+              className="rounded-full bg-[#ede9ff] px-2 py-0.5 text-[11px] font-semibold text-[#3f37c9] transition-colors hover:bg-[#ded8ff]"
             >
               @{tag.name}
             </Link>

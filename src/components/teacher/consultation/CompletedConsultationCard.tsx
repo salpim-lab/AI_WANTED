@@ -28,7 +28,7 @@ export default function CompletedConsultationCard({ entry }: { entry: Consultati
       >
         <header className="mb-2 flex flex-wrap items-center gap-2">
           <span className={timestampText}>{formatKstDateTime(entry.createdAt).slice(0, 16)}</span>
-          <span className="rounded-full bg-green-50 px-[9px] py-0.5 text-xs font-bold text-green-700">
+          <span className="rounded-full bg-[#ede9ff] px-[9px] py-0.5 text-xs font-bold text-[#3f37c9]">
             {entry.student.name}
           </span>
           {entry.title && (
@@ -38,13 +38,13 @@ export default function CompletedConsultationCard({ entry }: { entry: Consultati
           )}
           <span className={immutableBadge}>🔒 수정 불가</span>
         </header>
-        <p className="line-clamp-3 text-[13px] leading-[1.7] whitespace-pre-wrap text-gray-700">{entry.body}</p>
-        <p className="mt-1.5 text-[11px] font-semibold text-indigo-600">상담 내용 전체 보기 →</p>
+        <p className="line-clamp-3 text-[13px] leading-[1.7] whitespace-pre-wrap text-[#33405f]">{entry.body}</p>
+        <p className="mt-1.5 text-[11px] font-semibold text-[#635bff]">상담 내용 전체 보기 →</p>
       </button>
 
       <Modal open={open} title={`${entry.student.name} 상담 내용`} onClose={() => setOpen(false)}>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-green-50 px-[9px] py-0.5 text-xs font-bold text-green-700">
+          <span className="rounded-full bg-[#ede9ff] px-[9px] py-0.5 text-xs font-bold text-[#3f37c9]">
             {entry.student.name}
           </span>
           {entry.title && (
@@ -58,19 +58,19 @@ export default function CompletedConsultationCard({ entry }: { entry: Consultati
         {showOccurredAt && (
           <p className={`${timestampText} mb-3`}>상담 일시 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
         )}
-        <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-gray-800">{entry.body}</p>
+        <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-[#102a56]">{entry.body}</p>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-3">
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#e6e2fb] pt-3">
           <Link
             href={`/consultation/report/${entry.student.studentId}`}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-lg border-[1.5px] border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700 transition-colors hover:bg-green-100"
+            className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ded8ff] bg-[#f5f3ff] px-3 py-1 text-[11px] font-semibold text-[#635bff] transition-colors hover:bg-[#ede9ff]"
           >
-            📄 {entry.student.name} 누적 자료 보기
+            {entry.student.name} 누적 자료 보기
           </Link>
           {entry.evidenceRefs.length > 0 && (
-            <span className="text-[11px] text-gray-500">저장 당시 근거 기록 {entry.evidenceRefs.length}건 연결</span>
+            <span className="text-[11px] text-[#7d849b]">저장 당시 근거 기록 {entry.evidenceRefs.length}건 연결</span>
           )}
         </div>
       </Modal>

@@ -135,7 +135,7 @@ export default function SeatLayoutEditor({
 
   return (
     <div>
-      <div className="rounded-2xl bg-gray-50 p-5">
+      <div className="rounded-[22px] bg-[#f5f3ff]/80 p-5">
         <div
           className="grid gap-2.5"
           style={{ gridTemplateColumns: `24px repeat(${draft.cols}, minmax(0, 1fr))` }}
@@ -191,10 +191,10 @@ export default function SeatLayoutEditor({
                         aria-label={`${names.get(seat.studentId)} — ${row}행 ${col}열`}
                         className={`flex size-full cursor-grab touch-none items-center justify-center rounded-2xl border px-2 select-none transition active:cursor-grabbing ${
                           picked === seat.studentId
-                            ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500"
-                            : "border-gray-200 bg-white text-gray-700 shadow-[0_1px_2px_rgba(0,0,0,.04)] hover:border-indigo-300"
+                            ? "border-[#635bff] bg-[#ede9ff] text-[#3f37c9] ring-2 ring-[#635bff]"
+                            : "border-[#e6e2fb] bg-white text-[#102a56] shadow-[0_1px_2px_rgba(16,42,86,.05)] hover:border-[#b9b2f5]"
                         } ${drag?.studentId === seat.studentId ? "opacity-30" : ""} ${
-                          isHover && drag?.studentId !== seat.studentId ? "ring-2 ring-indigo-300" : ""
+                          isHover && drag?.studentId !== seat.studentId ? "ring-2 ring-[#b9b2f5]" : ""
                         }`}
                       >
                         <span className="min-w-0 truncate text-[13px] font-bold">{names.get(seat.studentId)}</span>
@@ -207,10 +207,10 @@ export default function SeatLayoutEditor({
                         aria-label={`빈자리 — ${row}행 ${col}열`}
                         className={`size-full rounded-2xl border-2 border-dashed text-[11px] transition-colors ${
                           isHover
-                            ? "border-indigo-400 bg-indigo-50 text-indigo-500"
+                            ? "border-[#8b83ff] bg-[#ede9ff] text-[#635bff]"
                             : picked
-                              ? "border-indigo-200 text-indigo-400 hover:bg-indigo-50"
-                              : "border-gray-200 text-gray-300"
+                              ? "border-[#ded8ff] text-[#8b83ff] hover:bg-[#ede9ff]"
+                              : "border-[#e6e2fb] text-[#cfcafa]"
                         }`}
                       >
                         빈자리
@@ -244,13 +244,13 @@ export default function SeatLayoutEditor({
           >
             + 열 추가
           </button>
-          <span className="self-center text-[11px] text-gray-500">
+          <span className="self-center text-[11px] text-[#7d849b]">
             {draft.rows}행 × {draft.cols}열 · 최대 {SEAT_GRID_MAX}칸씩
           </span>
         </div>
       </div>
 
-      <p className="mt-3 text-[11px] text-gray-500" aria-live="polite">
+      <p className="mt-3 text-[11px] text-[#7d849b]" aria-live="polite">
         {pickedName
           ? `${pickedName}을(를) 골랐어요. 바꿀 아이나 빈자리를 눌러 주세요. (Esc로 취소)`
           : "아이를 끌어서 옮기거나, 두 아이를 차례로 눌러 자리를 바꿔요. 아이가 앉은 행·열은 지울 수 없어요."}
@@ -274,7 +274,7 @@ export default function SeatLayoutEditor({
       {drag && (
         <div
           aria-hidden
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-[13px] font-bold text-indigo-700 shadow-[0_8px_24px_rgba(0,0,0,.18)] ring-2 ring-indigo-400"
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-[13px] font-bold text-[#3f37c9] shadow-[0_8px_24px_rgba(99,91,255,.25)] ring-2 ring-[#8b83ff]"
           style={{ left: drag.x, top: drag.y }}
         >
           {names.get(drag.studentId)}

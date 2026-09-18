@@ -32,7 +32,7 @@ export default function DailyRoster({
                 aria-current={selected ? "true" : undefined}
                 aria-label={`${student.name} — ${recorded ? "오늘 기록 있음" : "아직 기록 없음"}`}
                 className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${
-                  selected ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-50"
+                  selected ? "bg-[#ede9ff] text-[#3f37c9]" : "text-[#33405f] hover:bg-[#f5f3ff]"
                 }`}
               >
                 <span
@@ -40,7 +40,7 @@ export default function DailyRoster({
                   className={
                     recorded
                       ? "inline-block size-2.5 shrink-0 rounded-full bg-green-500"
-                      : "inline-block size-2.5 shrink-0 rounded-full border-[1.5px] border-gray-300"
+                      : "inline-block size-2.5 shrink-0 rounded-full border-[1.5px] border-[#cfcafa]"
                   }
                 />
                 <span className="truncate">{student.name}</span>

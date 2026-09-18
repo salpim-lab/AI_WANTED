@@ -34,17 +34,18 @@ export default function ReportAiSummary({ studentId, from, to }: { studentId: st
   return (
     <div
       aria-live="polite"
-      className="mb-3 break-inside-avoid rounded-[10px] border-[1.5px] border-green-200 bg-green-50 px-3.5 py-3 text-[13px] leading-[1.7] text-green-800 print:border-gray-300 print:bg-white print:text-gray-900"
+      className="mb-3 break-inside-avoid rounded-2xl border border-[#ded8ff] bg-[#f5f3ff] px-4 py-3.5 text-[13px] leading-[1.7] text-[#102a56] print:border-[#cfcafa] print:bg-white print:text-[#102a56]"
     >
-      <div className="mb-1 text-[11px] font-extrabold tracking-[0.5px] text-green-600 print:text-gray-600">
+      <div className="mb-1.5 flex items-center gap-1.5 font-[family-name:var(--font-cute)] text-[15px] text-[#635bff] print:text-[#5d6580]">
+        <span aria-hidden>✨</span>
         기간 요약
       </div>
-      {state.status === "loading" && <p className="text-green-700/80">날짜별 분석을 모아 요약하는 중…</p>}
+      {state.status === "loading" && <p className="text-[#7d849b]">날짜별 분석을 모아 요약하는 중…</p>}
       {state.status === "ready" && <p>{state.summary}</p>}
       {state.status === "unavailable" && (
-        <p className="text-green-700/80">AI 연결 전이라 기간 요약을 만들 수 없어요. 아래 날짜별 분석을 참고하세요.</p>
+        <p className="text-[#7d849b]">AI 연결 전이라 기간 요약을 만들 수 없어요. 아래 날짜별 분석을 참고하세요.</p>
       )}
-      {state.status === "error" && <p className="text-green-700/80">기간 요약을 만들지 못했어요. 잠시 후 새로고침해 주세요.</p>}
+      {state.status === "error" && <p className="text-[#7d849b]">기간 요약을 만들지 못했어요. 잠시 후 새로고침해 주세요.</p>}
     </div>
   );
 }

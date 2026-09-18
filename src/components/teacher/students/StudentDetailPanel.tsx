@@ -13,7 +13,7 @@ import Link from "next/link";
 import { formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { SIGNAL_DOT, SIGNAL_LABEL } from "@/components/shared/signalStyles";
-import { card, timestampText } from "@/components/shared/ui";
+import { salpimCard, salpimMuted, salpimTitle, timestampText } from "@/components/shared/ui";
 import type { ClassStudent, ColorHistoryDay, DaySession } from "@/lib/types/teacherRecord";
 import AiAnalysisBox from "./AiAnalysisBox";
 import CommentComposer from "./CommentComposer";
@@ -58,17 +58,17 @@ export default function StudentDetailPanel({
 
   return (
     <div className="space-y-4">
-      <article className={`${card} px-6 py-5`}>
+      <article className={`${salpimCard} px-6 py-5`}>
         <header className="flex flex-wrap items-center gap-3.5">
           <div
             aria-hidden
-            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-lg font-bold text-indigo-500"
+            className="flex size-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#8b83ff] to-[#635bff] font-[family-name:var(--font-cute)] text-2xl text-white shadow-[0_6px_16px_rgba(99,91,255,.3)]"
           >
             {shortName.slice(0, 1)}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-extrabold">{shortName}의 하루</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
+            <h2 className={`${salpimTitle} text-[26px] leading-tight`}>{shortName}의 하루</h2>
+            <p className={`mt-0.5 text-xs ${salpimMuted}`}>
               {student.name} · {formatKstDate(date)}
               {isToday && " · 오늘"}
             </p>
@@ -84,7 +84,7 @@ export default function StudentDetailPanel({
             href="/students"
             scroll={false}
             aria-label="상세 닫기"
-            className="rounded-lg px-2 py-1 text-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-full px-2.5 py-1 text-lg text-[#7d849b] transition-colors hover:bg-[#ede9ff] hover:text-[#102a56]"
           >
             ✕
           </Link>
@@ -95,13 +95,13 @@ export default function StudentDetailPanel({
         </div>
 
         {sessions.length === 0 ? (
-          <div className="mt-4 border-t border-gray-200 py-10 text-center text-gray-500">
+          <div className={`mt-4 border-t border-[#e6e2fb] py-10 text-center ${salpimMuted}`}>
             <div className="mb-2.5 text-[32px]">🌱</div>
             <div>이 날은 쌓인 기록이 없어요.</div>
           </div>
         ) : (
           <>
-            <div className="mt-4 border-t border-gray-200 pt-4">
+            <div className="mt-4 border-t border-[#e6e2fb] pt-4">
               <PeriodSection
                 icon={<SunIcon />}
                 label="등교 마음 기록"
@@ -140,7 +140,7 @@ export default function StudentDetailPanel({
           fallbackDraft={preview.draft}
         />
       ) : (
-        <p className="px-1 text-xs text-gray-500">
+        <p className={`px-1 text-xs ${salpimMuted}`}>
           선생님의 한마디는 오늘 날짜에서 작성해요. 저장한 한마디는 다음날 등교 때 아이에게 전달돼요.
         </p>
       )}
@@ -170,37 +170,37 @@ function PeriodSection({
 
   return (
     <section className="relative flex gap-3 pb-5">
-      {!isLast && <span aria-hidden className="absolute top-9 bottom-0 left-[15px] w-px bg-gray-200" />}
+      {!isLast && <span aria-hidden className="absolute top-9 bottom-0 left-[15px] w-0.5 rounded-full bg-[#ded8ff]" />}
       <div
         aria-hidden
         className={`relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full ${
-          active ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"
+          active ? "bg-[#635bff] text-white shadow-[0_4px_12px_rgba(99,91,255,.35)]" : "bg-[#ede9ff] text-[#8b83ff]"
         }`}
       >
         {icon}
       </div>
-      <div className={`min-w-0 flex-1 rounded-xl ${active ? "bg-indigo-50/70 px-3.5 py-3" : "pt-0.5"}`}>
+      <div className={`min-w-0 flex-1 rounded-2xl ${active ? "bg-[#f5f3ff] px-3.5 py-3 ring-1 ring-[#ded8ff]" : "pt-0.5"}`}>
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold">{label}</h3>
+          <h3 className={`${salpimTitle} text-[17px]`}>{label}</h3>
           {latest ? (
-            <span className="ml-auto flex items-center gap-1.5 text-xs text-gray-600">
+            <span className="ml-auto flex items-center gap-1.5 text-xs text-[#7d849b]">
               <span className={timestampText}>{formatKstDateTime(latest.startedAt).slice(11, 16)}</span>
               <span className={`inline-block size-2 rounded-full ${SIGNAL_DOT[latest.color]}`} />
               {SIGNAL_LABEL[latest.color]}
             </span>
           ) : (
-            <span className="ml-auto text-xs text-gray-400">기록 없음</span>
+            <span className="ml-auto text-xs text-[#aab0c4]">기록 없음</span>
           )}
         </div>
 
         {sessions.length === 0 ? (
-          <p className="mt-2 rounded-xl bg-[#f8f7f4] px-4 py-3 text-[13px] text-gray-400">이 시간대에는 체크인하지 않았어요.</p>
+          <p className="mt-2 rounded-2xl border border-dashed border-[#ded8ff] bg-white/60 px-4 py-3 text-[13px] text-[#aab0c4]">이 시간대에는 체크인하지 않았어요.</p>
         ) : (
           <div className="mt-2 space-y-3">
             {sessions.map((session) => (
               <div key={session.sessionId}>
                 {(sessions.length > 1 || session.status === "stopped") && (
-                  <div className="mb-1.5 flex items-center gap-2 text-[11px] text-gray-500">
+                  <div className={`mb-1.5 flex items-center gap-2 text-[11px] ${salpimMuted}`}>
                     {sessions.length > 1 && <span>{session.attempt}회차</span>}
                     {session.status === "stopped" && (
                       <span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-gray-600">중단됨</span>
