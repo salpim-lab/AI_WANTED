@@ -17,6 +17,7 @@ import { dashboardToday, getDashboardSnapshot } from "@/components/teacher/dashb
 import { listObservationLogsForStudent } from "@/lib/supabase/raw/observationLog";
 import {
   MOCK_STUDENTS,
+  mockAnalysisRuns,
   mockBriefingBadge,
   mockCheckinsFor,
   mockCommentDraft,
@@ -28,6 +29,7 @@ import type {
   ClassStudent,
   ColorHistoryDay,
   ConsultationReport,
+  DailyAnalysisInput,
   DaySession,
   EvidenceRef,
   RelationInsight,
@@ -113,6 +115,64 @@ export async function getSeatingChart(classId: string, date: string): Promise<Se
 export async function getStudentDaySessions(classId: string, studentId: string, date: string): Promise<DaySession[]> {
   const row = findRow(classId, studentId);
   return row ? daySessions(row.enrollment_id, date) : [];
+}
+
+/**
+ * AI 하루 분석(/api/ai/daily-analysis)의 입력 — 그날 세션별 색·대화 전문·발화 측정값 + 이름 치환용 학급 명단.
+ * Supabase 연결 시: checkin_sessions(enrollment_id, session_date)의 mood_color·transcript(1060)·prosody(1080).
+ * prosody는 저장 전(이유민 파이프라인 미연결)이면 null로 온다 — 분석은 그 경우 전문과 색만 쓴다.
+ * 담당 학급 밖 학생이면 null.
+ */
+export async function getDailyAnalysisInput(
+  classId: string,
+  studentId: string,
+  date: string,
+): Promise<DailyAnalysisInput | null> {
+  const row = findRow(classId, studentId);
+  if (!row) return null;
+  const prosodyBySession = new Map(
+    mockCheckinsFor(row.enrollment_id, date).sessions.map((s) => [s.id, s.prosody]),
+  );
+  const pastDays = dateRange(addDays(date, -1), ANALYSIS_PAST_DAYS).map((day) => {
+    const sessions = daySessions(row.enrollment_id, day);
+    return {
+      date: day,
+      morning: latestColor(sessions, "morning"),
+      afternoon: latestColor(sessions, "afternoon"),
+      stateEstimate: latestStateEstimate(sessions.map((s) => s.sessionId)),
+    };
+  });
+  return {
+    student: toClassStudent(row),
+    classmates: classRows(classId).map(toClassStudent),
+    date,
+    sessions: daySessions(row.enrollment_id, date).map((s) => ({
+      ...s,
+      prosody: prosodyBySession.get(s.sessionId) ?? null,
+    })),
+    pastDays,
+  };
+}
+
+/** AI 하루 분석이 과거 흐름으로 함께 보는 일수 */
+const ANALYSIS_PAST_DAYS = 7;
+
+/**
+ * 그날 세션들에 대해 이미 만든 AI 분석 중 가장 최근 것의 추정 상태.
+ * Supabase 연결 시: analysis_runs where source_type='session' and source_id in (...) and status='completed'
+ *   order by created_at desc limit 1 → result->>'stateEstimate'
+ */
+function latestStateEstimate(sessionIds: string[]): string | null {
+  // 하루의 마지막 세션(하교)까지 본 분석을 우선 — 등교만 본 분석은 그게 없을 때만
+  const coversLast = (sourceId: string) => sessionIds.indexOf(sourceId) === sessionIds.length - 1;
+  const run = mockAnalysisRuns()
+    .filter((r) => r.status === "completed" && sessionIds.includes(r.source_id))
+    .sort(
+      (a, b) =>
+        Number(coversLast(b.source_id)) - Number(coversLast(a.source_id)) || b.created_at.localeCompare(a.created_at),
+    )[0];
+  const estimate = run?.result.stateEstimate;
+  return typeof estimate === "string" && estimate.trim() ? estimate : null;
 }
 
 /** to를 마지막 날로 하는 days일치 색 이력 (오래된 날 → 최근 날 순) */

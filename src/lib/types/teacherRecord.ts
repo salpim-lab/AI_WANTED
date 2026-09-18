@@ -44,6 +44,48 @@ export type DaySession = {
   turns: ConversationTurn[];
 };
 
+/**
+ * checkin_sessions.prosody 발화 1건 — 1080_session_prosody 마이그레이션의 형식 계약(jsonb) 그대로 snake_case.
+ * 감정 판정이 아니라 측정값이다. 발화 순서(index)는 그 세션의 학생 음성 발화 순서와 같다.
+ */
+export type StoredUtteranceProsody = {
+  index: number;
+  duration_sec: number;
+  response_delay_sec: number;
+  silence_count: number;
+  silence_total_sec: number;
+  syllables_per_sec?: number;
+  /** 본인 평균 대비 음량 (-1 ~ 1) */
+  loudness_rel?: number;
+};
+
+export type StoredSessionProsody = {
+  utterances: StoredUtteranceProsody[];
+  /** 이 비교에 쓰인 기준선 일수. 부족하면 해석하지 않는다 */
+  baseline_days: number;
+};
+
+/** AI 하루 분석 입력 — 세션(색·대화) + 그 세션의 발화 측정값 */
+export type AnalysisInputSession = DaySession & { prosody: StoredSessionProsody | null };
+
+/** 분석 날짜 이전 하루의 흐름 — 색과, 그날 이미 만든 AI 분석의 추정 상태(없으면 null) */
+export type AnalysisPastDay = {
+  date: string;
+  morning: SignalColor | null;
+  afternoon: SignalColor | null;
+  stateEstimate: string | null;
+};
+
+export type DailyAnalysisInput = {
+  student: ClassStudent;
+  /** 이름 치환용 학급 명단 (본인 포함) */
+  classmates: ClassStudent[];
+  date: string;
+  sessions: AnalysisInputSession[];
+  /** 분석 날짜 직전 며칠 (오래된 날 → 최근 날 순) */
+  pastDays: AnalysisPastDay[];
+};
+
 export type ColorHistoryDay = {
   date: string; // YYYY-MM-DD (한국 시각 기준)
   morning: SignalColor | null;

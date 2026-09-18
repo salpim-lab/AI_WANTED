@@ -3,14 +3,16 @@
 //   queries/teacherStudents.ts, 그리고 인증 대용 getActingTeacher를 쓰는 곳에서만 import한다.
 // - 행 모양은 DB 스키마 v0.3 컬럼(snake_case)을 그대로 흉내 낸다. 그래야 Supabase로 교체할 때
 //   repository의 "행 → 화면 타입" 변환 코드가 그대로 살아남는다.
-// - checkin_sessions / conversation_messages(이유민), analysis_runs(이지현) mock은 읽기 흉내용일 뿐이다.
-//   실제 데이터는 그 담당자들의 파이프라인이 만든다.
+// - checkin_sessions / conversation_messages(이유민) mock은 읽기 흉내용일 뿐이다. 실제 데이터는 그 담당자들의
+//   파이프라인이 만든다. checkin_sessions.prosody(발화 측정값)는 아직 저장 코드가 없어서 여기서 결정적으로 만든다.
+// - analysis_runs 중 AI 하루 분석(/api/ai/daily-analysis)이 새로 쓰는 행은 mockAnalysisRuns()에,
+//   교사 코멘트 AI 초안(/api/ai/comment-draft)은 mockFeedback()에 쌓는다.
 // - 등장인물은 전부 가상 인물이다 (실제 아동 데이터 사용 금지).
 // - 저장소는 globalThis에 둔다. dev 서버의 HMR이나 Server Action/Server Component 모듈 분리와 무관하게
 //   같은 데이터를 보게 하려는 것. 서버를 재시작하면 새로 쓴 기록은 사라진다.
 
 import type { SignalColor } from "@/lib/types/signal";
-import type { EvidenceRef, WorkRecordType } from "@/lib/types/teacherRecord";
+import type { EvidenceRef, StoredSessionProsody, WorkRecordType } from "@/lib/types/teacherRecord";
 import { addDays, todayKst, weekdayKst } from "@/components/shared/datetime";
 
 // ── 교사 (인증 연동 전 고정값) ──────────────────────────────
@@ -115,6 +117,7 @@ export type MockSessionRow = {
   stop_reason: string | null;
   started_at: string;
   completed_at: string | null;
+  prosody: StoredSessionProsody | null;
 };
 
 export type MockMessageRow = {
@@ -196,7 +199,7 @@ const TODAY_DETAIL: Record<string, { morning: Turn[]; afternoon: Turn[]; analysi
     analysis:
       "등교 때 아침에 가족과 다툰 일을 이야기했고, 하교 때는 피곤하다고 하면서도 급식 이야기를 먼저 꺼냈습니다. 오전보다 하교 무렵 대화가 조금 가벼워졌습니다.",
     draft:
-      "민준아, 오늘 힘든 하루였는데도 끝까지 잘 버텨줘서 선생님이 고마워. 내일은 더 좋은 아침으로 시작하자. 선생님은 항상 민준이 편이야 😊",
+      "민준아, 어제 힘든 하루였는데도 끝까지 잘 버텨줘서 선생님이 고마워. 오늘은 더 좋은 아침으로 시작하자. 선생님은 항상 민준이 편이야 😊",
   },
   이서연: {
     morning: [["assistant", "알겠어. 오늘은 그냥 둘게. 필요하면 언제든 눌러. 🔵"]],
@@ -207,7 +210,7 @@ const TODAY_DETAIL: Record<string, { morning: Turn[]; afternoon: Turn[]; analysi
     ],
     analysis:
       "등교 때 남색을 골라 대화 없이 지나갔고, 하교 때는 스스로 짧게 대화에 응했습니다. 혼자만의 시간을 가진 뒤 괜찮다고 표현했습니다.",
-    draft: "서연아, 오늘 필요한 시간을 가져서 다행이야. 언제든 선생님이랑 이야기하고 싶으면 찾아와도 돼 🙂",
+    draft: "서연아, 어제 필요한 시간을 가져서 다행이야. 오늘도 선생님이랑 이야기하고 싶으면 언제든 찾아와도 돼 🙂",
   },
   박예린: {
     morning: [
@@ -222,11 +225,25 @@ const TODAY_DETAIL: Record<string, { morning: Turn[]; afternoon: Turn[]; analysi
     ],
     analysis:
       "등교 때는 이야기하고 싶지 않다고 해서 대화를 짧게 마쳤습니다. 하교 때는 친구와 다툰 일을 스스로 꺼냈고, 지금은 괜찮다고 표현했습니다.",
-    draft: "예린아, 오늘 힘든 일이 있었는데도 선생님한테 말해줘서 고마워. 앞으로도 무슨 일 있으면 꼭 얘기해줘.",
+    draft: "예린아, 어제 힘든 일이 있었는데도 선생님한테 말해줘서 고마워. 오늘도 무슨 일 있으면 꼭 얘기해줘.",
   },
 };
 
 const COLOR_POOL: SignalColor[] = ["green", "green", "green", "green", "yellow", "yellow", "red", "navy"];
+
+/** 발화 측정값 기준선이 아직 2주가 안 된 아이 — "기준선 부족이면 해석하지 않는다" 확인용 */
+const SHORT_BASELINE_NAMES = new Set(["최은서", "정우진"]);
+
+/** 색별 측정값 범위 [최소, 최대] — 화면 확인용 가상 수치. 실제 값은 학생 화면 녹음(이유민)이 만든다 */
+const PROSODY_RANGE: Record<
+  SignalColor,
+  { delay: [number, number]; sps: [number, number]; silences: [number, number]; loudness: [number, number] }
+> = {
+  green: { delay: [0.8, 1.6], sps: [3.6, 4.6], silences: [0, 1], loudness: [0, 0.2] },
+  yellow: { delay: [1.5, 2.6], sps: [3.0, 3.8], silences: [1, 2], loudness: [-0.12, 0.05] },
+  red: { delay: [2.6, 4.2], sps: [2.2, 3.0], silences: [2, 3], loudness: [-0.38, -0.15] },
+  navy: { delay: [3.0, 4.5], sps: [2.0, 2.8], silences: [2, 3], loudness: [-0.4, -0.2] },
+};
 
 /** mock 기록을 보관하는 기간 (오늘 기준 과거 일수) */
 const HISTORY_DAYS = 120;
@@ -238,6 +255,51 @@ function hashString(value: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+/** 오늘 하교 세션 시작 시각 (한국 시각) */
+const AFTERNOON_START = "14:30:00";
+
+/**
+ * 오늘 하교 세션이 이미 있었는지 — 기본은 한국 시각 14:30 이후.
+ * 테스트용으로 .env.local의 MOCK_TODAY_AFTERNOON=done|pending 으로 고정할 수 있다.
+ */
+function todayAfternoonDone(today: string): boolean {
+  const override = process.env.MOCK_TODAY_AFTERNOON?.trim();
+  if (override === "done") return true;
+  if (override === "pending") return false;
+  return Date.now() >= new Date(kstToIso(`${today}T${AFTERNOON_START}`)).getTime();
+}
+
+/** 시드 문자열 → [min, max] 사이 결정적 값 */
+function seeded(seed: string, [min, max]: [number, number], digits = 2): number {
+  const unit = hashString(seed) / 0xffffffff;
+  return +(min + (max - min) * unit).toFixed(digits);
+}
+
+/** 학생 음성 발화마다 측정값 1건. 음성 발화가 없으면(남색 등) null — 실제로도 측정할 게 없다 */
+function mockProsody(sessionId: string, name: string, color: SignalColor, studentLines: string[]): StoredSessionProsody | null {
+  if (studentLines.length === 0) return null;
+  const range = PROSODY_RANGE[color];
+  return {
+    utterances: studentLines.map((line, index) => {
+      const seed = `${sessionId}|${index}`;
+      const syllables = (line.match(/[가-힣]/g) ?? []).length;
+      const sps = seeded(`${seed}|sps`, range.sps);
+      const silenceCount = Math.round(seeded(`${seed}|sc`, range.silences, 0));
+      const silenceTotal = silenceCount === 0 ? 0 : seeded(`${seed}|st`, [0.8 * silenceCount, 1.6 * silenceCount]);
+      return {
+        index,
+        duration_sec: +(syllables / sps + silenceTotal).toFixed(2),
+        response_delay_sec: seeded(`${seed}|delay`, range.delay),
+        silence_count: silenceCount,
+        silence_total_sec: silenceTotal,
+        syllables_per_sec: sps,
+        loudness_rel: seeded(`${seed}|loud`, range.loudness),
+      };
+    }),
+    baseline_days: SHORT_BASELINE_NAMES.has(name) ? 5 : 14 + (hashString(name) % 20),
+  };
 }
 
 /**
@@ -258,13 +320,15 @@ export function mockCheckinsFor(
   const detail = isToday ? TODAY_DETAIL[name] : undefined;
 
   for (const period of ["morning", "afternoon"] as const) {
+    // 오늘 하교 전이면 하교 세션은 아직 없다
+    if (isToday && period === "afternoon" && !todayAfternoonDone(today)) continue;
     const color = isToday
       ? period === "morning"
         ? todayMorning
         : todayAfternoon
       : COLOR_POOL[hashString(`${enrollmentId}|${date}|${period}`) % COLOR_POOL.length];
     const sessionId = `mock-session-${index + 1}-${date}-${period}`;
-    const startedAt = kstToIso(`${date}T${period === "morning" ? "08:40:00" : "14:30:00"}`);
+    const startedAt = kstToIso(`${date}T${period === "morning" ? "08:40:00" : AFTERNOON_START}`);
     const startedMs = new Date(startedAt).getTime();
     const turns = detail?.[period] ?? (period === "morning" ? MORNING_TURNS : AFTERNOON_TURNS)[color];
 
@@ -279,6 +343,12 @@ export function mockCheckinsFor(
       stop_reason: null,
       started_at: startedAt,
       completed_at: new Date(startedMs + 60_000).toISOString(),
+      prosody: mockProsody(
+        sessionId,
+        name,
+        color,
+        turns.filter(([speaker]) => speaker === "student").map(([, content]) => content),
+      ),
     });
 
     turns.forEach(([speaker, content], i) => {
@@ -526,4 +596,59 @@ const globalForMock = globalThis as typeof globalThis & { __salpimTeacherRecordS
 export function mockStore(): MockStore {
   globalForMock.__salpimTeacherRecordStore ??= seedStore();
   return globalForMock.__salpimTeacherRecordStore;
+}
+
+// ── analysis_runs (AI 하루 분석이 새로 쓰는 행) ──────────────
+
+export type AnalysisRunRow = {
+  id: string;
+  /** session_summary: 하루 분석(source=session) / consultation_period_summary: 상담 리포트 기간 요약(source=student) */
+  analysis_type: "session_summary" | "consultation_period_summary";
+  source_type: "session" | "student";
+  source_id: string;
+  provider: string;
+  model: string | null;
+  prompt_version: string;
+  schema_version: number;
+  category_tags: string[];
+  moderation_flag: boolean;
+  needs_followup: boolean;
+  result: Record<string, unknown>;
+  status: "pending" | "completed" | "failed";
+  error_message: string | null;
+  created_at: string;
+};
+
+const globalForAnalysis = globalThis as typeof globalThis & { __salpimAnalysisRuns?: AnalysisRunRow[] };
+
+export function mockAnalysisRuns(): AnalysisRunRow[] {
+  globalForAnalysis.__salpimAnalysisRuns ??= [];
+  return globalForAnalysis.__salpimAnalysisRuns;
+}
+
+// ── feedback_drafts + feedback_sources (교사 코멘트 AI 초안) ──────
+
+export type FeedbackDraftRow = {
+  id: string;
+  enrollment_id: string;
+  /** AI 초안. 불변 */
+  draft_text: string;
+  final_text: string | null;
+  status: "pending" | "dismissed" | "sent";
+  created_by: "ai" | "teacher";
+  created_at: string;
+  sent_at: string | null;
+  /** mock 전용 — 스키마에는 없다. 프롬프트를 고치는 동안 예전 초안을 재사용하지 않으려고 둔다 */
+  prompt_version: string;
+};
+
+export type FeedbackSourceRow = { feedback_id: string; session_id: string };
+
+const globalForFeedback = globalThis as typeof globalThis & {
+  __salpimFeedback?: { drafts: FeedbackDraftRow[]; sources: FeedbackSourceRow[] };
+};
+
+export function mockFeedback(): { drafts: FeedbackDraftRow[]; sources: FeedbackSourceRow[] } {
+  globalForFeedback.__salpimFeedback ??= { drafts: [], sources: [] };
+  return globalForFeedback.__salpimFeedback;
 }
