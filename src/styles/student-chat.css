@@ -37,7 +37,8 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 13cqh 3.4cqw 2cqh;
+  /* 위쪽 여백: 헤더(로고·마음 뱃지·프로필) 아래로 첫 말풍선이 붙어 보이지 않게 한 칸 더 띄운다 */
+  padding: 17cqh 3.4cqw 2cqh;
   display: flex;
   flex-direction: column;
   gap: 2.6cqh;
@@ -389,10 +390,9 @@
   border: 0;
   border-radius: 999px;
   padding: 1.2cqh 2.4cqh;
-  /* 상단 마음 뱃지(.chat-color-badge)와 같은 바탕색 — 화면 안의 "알려주는 표시" 를 한 색으로 묶는다.
-     글자는 뱃지처럼 진하게 하지 않는다. 힌트가 눈에 먼저 들어오면 안 된다. */
-  background: #eef2ff;
-  color: #5a5f86;
+  /* 연회색 — 화면의 보라 계열 사이에서 가장 조용한 색. 힌트가 눈에 먼저 들어오면 안 된다. */
+  background: #eff0f4;
+  color: #5f6478;
   font-weight: 500;
   cursor: default;
   user-select: none;
