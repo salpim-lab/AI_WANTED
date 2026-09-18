@@ -273,24 +273,11 @@
    기록이 몇 건이든 카드 높이는 그대로여야 한다 — 패널이 늘어나면 같은 행에 있는
    관계 지도까지 같이 늘어나서, 갈등이 많은 날에는 지도가 화면을 넘긴다.
 
-   스크롤은 덩어리마다 따로 건다: 대화 발췌(.rd-quotes)와 각 기록의 진술(.conflict-stmts).
-   덩어리별로 잘라두면 "갈등 기록 2건" 같은 제목이 늘 보여서, 스크롤해 내려가 보기 전에도
-   뭐가 있는지 알 수 있다. 그래도 넘치면 .rd-scroll 이 마지막으로 받아낸다. */
-.conflict-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: 470px;
-}
+   패널 자체에는 스크롤을 걸지 않는다. 대신 안쪽 덩어리(.rd-quotes, .conflict-stmts)를
+   각각 잘라서, 내용이 아무리 늘어도 패널 높이가 일정하게 유지되도록 한다.
+   그래야 제목이 늘 보이고, 스크롤 안에 또 스크롤이 생기지 않는다. */
+.conflict-pane { display: flex; flex-direction: column; min-height: 0; }
 .conflict-pane .pane-title { flex-shrink: 0; }
-.rd-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  /* 스크롤바가 기록 박스 테두리에 붙지 않게 */
-  padding-right: 4px;
-  margin-right: -4px;
-}
 .conflict-pane .pane-title .rd-clear {
   margin-left: auto;
   padding: 3px 9px;
@@ -320,8 +307,8 @@
   color: var(--muted);
 }
 /* 스크롤 영역 맨 위에 오면 위쪽 여백은 필요 없다 */
-.rd-scroll > .rd-section-title:first-child,
-.rd-scroll > .rd-head:first-child { margin-top: 0; }
+.rd-body > .rd-section-title:first-child,
+.rd-body > .rd-head:first-child { margin-top: 0; }
 
 /* 대화 발췌는 제 칸 안에서만 스크롤한다 — 길어져도 아래 갈등 기록을 밀어내지 않게 */
 .rd-quotes {

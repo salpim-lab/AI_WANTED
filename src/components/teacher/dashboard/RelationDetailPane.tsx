@@ -68,8 +68,8 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
   );
 }
 
-/** 제목은 고정하고 본문만 스크롤한다 — 갈등이 몇 건이든 카드 높이가 그대로여야
-    옆의 관계 지도가 같이 늘어나지 않는다. */
+/** 세 갈래(선택 없음 / 아이 / 선)가 같은 제목 줄을 쓴다.
+    패널에는 스크롤을 걸지 않는다 — 길어지는 덩어리는 각자 안에서 잘린다 (CSS 참고). */
 function Pane({
   action,
   children,
@@ -83,7 +83,7 @@ function Pane({
         관계 상세
         {action}
       </div>
-      <div className="rd-scroll">{children}</div>
+      <div className="rd-body">{children}</div>
     </div>
   );
 }
