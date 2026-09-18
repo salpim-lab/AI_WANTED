@@ -48,7 +48,7 @@ export default function ChatScreen({
   typing: boolean;
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
-  consultState: "hidden" | "choice" | "sending" | "sent";
+  consultState: "hidden" | "choice" | "sending" | "sent" | "failed";
   onReply: (reply: Reply) => void;
   onReply2: (r: { text: string; next2: string }) => void;
   onRequestConsult: () => void;
@@ -165,8 +165,14 @@ export default function ChatScreen({
         {consultState !== "hidden" && (
           <div className="chat-row chat-row--ai">
             <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
-            {consultState === "sent" ? (
-              <span className="chat-consult chat-consult--done">선생님께 전했어 ✓</span>
+            {consultState === "sent" || consultState === "failed" ? (
+              <span
+                className={`chat-consult chat-consult--done${consultState === "failed" ? " chat-consult--failed" : ""}`}
+              >
+                {consultState === "sent"
+                  ? "선생님께 전했어 ✓"
+                  : "지금은 전하지 못했어. 선생님께 직접 말해줄래?"}
+              </span>
             ) : (
               <div className="chat-ending">
                 <button

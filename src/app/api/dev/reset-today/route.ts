@@ -44,6 +44,24 @@ export async function GET(request: Request) {
   }
 
   // ① 전문이 없는 세션(시작만 하고 만 것)은 그냥 지운다.
+  //    면담 신청이 달려 있으면 외래키에 걸리므로 먼저 치운다. 개발 데이터라 지워도 된다.
+  const { data: todayIds } = await admin
+    .from("checkin_sessions")
+    .select("id")
+    .in("enrollment_id", ids)
+    .eq("session_date", today)
+    .is("transcript", null);
+  if (todayIds?.length) {
+    const { error: meetingError } = await admin
+      .from("meeting_requests")
+      .delete()
+      .in(
+        "source_session_id",
+        todayIds.map((r) => r.id),
+      );
+    if (meetingError) return NextResponse.json({ error: meetingError.message }, { status: 500 });
+  }
+
   const { data: deleted, error: deleteError } = await admin
     .from("checkin_sessions")
     .delete()
@@ -63,13 +81,28 @@ export async function GET(request: Request) {
     .not("transcript", "is", null);
   if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
 
+  // unique(enrollment_id, session_date, period, attempt) 에 걸리지 않는 날짜를 찾는다.
+  // 고정 오프셋을 쓰면 두 번째 초기화에서 앞서 옮겨둔 세션과 같은 날이 되어 실패한다.
   const moved: string[] = [];
-  for (const [i, row] of (saved ?? []).entries()) {
-    const { error: moveError } = await admin
-      .from("checkin_sessions")
-      .update({ session_date: seoulDate(-100 - i) })
-      .eq("id", row.id);
-    if (moveError) return NextResponse.json({ error: moveError.message, at: row.id }, { status: 500 });
+  for (const row of saved ?? []) {
+    let placed = false;
+    for (let offset = 100; offset < 400 && !placed; offset += 1) {
+      const { error: moveError } = await admin
+        .from("checkin_sessions")
+        .update({ session_date: seoulDate(-offset) })
+        .eq("id", row.id);
+      if (!moveError) {
+        placed = true;
+        break;
+      }
+      // 23505 = unique_violation. 그 날짜엔 이미 있으니 하루 더 밀어본다.
+      if (moveError.code !== "23505") {
+        return NextResponse.json({ error: moveError.message, at: row.id }, { status: 500 });
+      }
+    }
+    if (!placed) {
+      return NextResponse.json({ error: "옮길 날짜를 찾지 못했습니다.", at: row.id }, { status: 500 });
+    }
     moved.push(row.id);
   }
 
@@ -78,6 +111,8 @@ export async function GET(request: Request) {
     date: today,
     deleted: deleted?.length ?? 0,
     moved_to_past: moved.length,
-    note: "오늘 자리를 비웠습니다. 같은 학생으로 다시 테스트하세요.",
+    // 열려 있던 탭은 방금 지워진 세션 id 를 그대로 들고 있다.
+    // 그 상태로 저장이나 면담 신청을 하면 SESSION_NOT_FOUND 가 난다.
+    note: "오늘 자리를 비웠습니다. 열어둔 탭이 있으면 새로고침한 뒤 다시 시작하세요.",
   });
 }

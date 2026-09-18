@@ -60,8 +60,9 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   const [replies, setReplies] = useState<Reply[] | null>(null);
   const [replies2, setReplies2] = useState<{ text: string; next2: string }[] | null>(null);
   // choice = 마무리 인사 뒤 두 버튼, sending = 신청 중, sent = 신청 완료
+  // choice = 두 버튼, sending = 신청 중, sent = 전달됨, failed = 전달 못 함
   const [consultState, setConsultState] = useState<
-    "hidden" | "choice" | "sending" | "sent"
+    "hidden" | "choice" | "sending" | "sent" | "failed"
   >("hidden");
 
   // resetDemo 등에서 진행 중인 setTimeout 체인을 무시하기 위한 세대 카운터
@@ -377,15 +378,20 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   const requestConsult = useCallback(async () => {
     setConsultState("sending");
     const sessionId = sessionIdRef.current;
+    let delivered = false;
     if (sessionId) {
       try {
         await requestMeeting(sessionId, riskRef.current ? "high" : "normal");
+        delivered = true;
       } catch (error) {
-        // 신청이 실패해도 아이를 붙잡아 두지 않는다. 화면은 넘기고 로그만 남긴다.
-        console.error("[meeting] 면담 신청 실패", error);
+        // 실패해도 아이를 붙잡아 두지는 않는다. 다만 전해졌다고 말하지도 않는다.
+        // 도움을 청한 아이에게 "전했어"라고 하고 실제로 아무도 못 받는 것이
+        // 이 화면에서 할 수 있는 가장 나쁜 일이다.
+        // console.error 를 쓰지 않는 이유: 개발 화면에서 빨간 오류창이 아이 화면을 덮는다.
+        console.warn("[meeting] 면담 신청 실패", error);
       }
     }
-    setConsultState("sent");
+    setConsultState(delivered ? "sent" : "failed");
     await wait(900);
     goTo(4);
   }, [goTo]);

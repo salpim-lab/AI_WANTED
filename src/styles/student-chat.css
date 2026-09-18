@@ -228,6 +228,13 @@
 .chat-end:hover { background: #f1f5f9; }
 .chat-end:disabled { opacity: 0.5; cursor: default; }
 .chat-consult--done { opacity: 0.75; }
+/* 전달 실패. 아이가 헛기다리지 않도록 눈에 띄게 둔다 */
+.chat-consult--failed {
+  opacity: 1;
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
 
 /* 기록되지 않는 상태 안내. 오류가 아니므로 붉게 쓰지 않는다 */
 .chat-session-note {
