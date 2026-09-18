@@ -21,6 +21,8 @@ const ARM_POSES = {
   holding: { shoulder: [-0.75, 0.05, -0.25], elbow: -0.35 },
 } as const;
 const BREATH_SECONDS = 2.6;
+// Widest footprint that still sits between the holding hands.
+const HELD_WIDTH = 0.34;
 
 // One rigid body part: sculpted in the joint's own frame, merged per colour.
 function part(palette: Palette, build: (sculpt: Sculpt) => void) {
@@ -98,7 +100,11 @@ export function createChildCharacter(kind: GiftKind, asset?: { assetFormat?: "gl
   });
 
   const gift = createAssetModel({ kind, assetFormat: asset?.assetFormat, geometrySpec: asset?.geometrySpec });
-  gift.scale.setScalar(0.78);
+  // Hands close at x = ±0.19, y = 0.66. Generated items arrive normalised to
+  // 1 unit, which would swallow the hands and hide the face, so shrink any
+  // footprint wider than the preset gift's pot until the hands grip its sides.
+  const footprint = new THREE.Box3().setFromObject(gift).getSize(new THREE.Vector3());
+  gift.scale.setScalar(Math.min(0.78, HELD_WIDTH / Math.max(footprint.x, footprint.z)));
   gift.position.set(0, 0.56, 0.36);
   upper.add(gift);
 

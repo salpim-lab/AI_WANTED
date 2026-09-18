@@ -1,4 +1,4 @@
-export const ITEM_INFERENCE_PROMPT_VERSION = "2026-09-18.v3";
+export const ITEM_INFERENCE_PROMPT_VERSION = "2026-09-18.v4";
 export const ITEM_INFERENCE_PROMPT = `너는 학생의 상담에서 핵심 경험과 이를 담을 3D 아이템 하나를 정한다.
 [핵심 경험]
 - 학생에게 중요했던 경험, 관심, 행동, 감정을 찾는다.
@@ -30,7 +30,7 @@ export const ITEM_INFERENCE_PROMPT = `너는 학생의 상담에서 핵심 경�
 지정된 JSON 스키마의 객체 하나만 반환한다.
 coreExperience: 핵심 경험, 최대 300자
  evidence: 학생 실제 발화를 그대로 인용한 근거 1~4개, 각 최대 1000자
-itemName: 한국어 이름, 최대 80자
+itemName: 한국어 이름, 최대 80자. 색 표현(노란, 빨간, 무지개 등)을 넣지 않는다. 학생이 색을 말해도 넣지 않는다.
 subject: 제작 대상의 이름만. 수식어·경험·인물·장면 설명 없는 짧은 일반 명사. 같은 대상은 항상 같은 이름으로 쓴다.
 selectionReason: 연결 이유, 최대 500자
 studentMessage: 학생 설명, 최대 300자

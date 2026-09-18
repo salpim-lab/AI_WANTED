@@ -21,7 +21,9 @@ export async function POST(request: Request) {
     const admin = createAdminClient() as any;
     const now = new Date().toISOString();
     const { data: job, error } = await admin.from("item_generation_jobs")
-      .select("id")
+      .select("id, checkin_sessions!source_session_id!inner(status, transcript)")
+      .neq("checkin_sessions.status", "started")
+      .not("checkin_sessions.transcript", "is", null)
       .in("status", ["queued", "retry_wait", "fallback"])
       .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
       .order("created_at", { ascending: true })

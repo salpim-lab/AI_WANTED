@@ -31,7 +31,7 @@ async function main() {
   process.env = { OPENAI_API_KEY: '' };
   global.fetch = async () => { throw new Error('Network disabled in offline tests'); };
   const { ITEM_ASSEMBLY_SCHEMA, parseItemAssembly } = load('src/lib/items/itemAssembly.ts');
-  const { assembleItem, buildItemAssemblyRequest } = load('src/lib/openai/assembleItem.ts');
+  const { assembleItem, buildItemAssemblyRequest, pickClosestCatalogId } = load('src/lib/openai/assembleItem.ts');
   const { ITEM_SHAPE_CATALOG } = load('src/lib/openai/prompts/item-assembly.ts');
   const inference = { itemName: '나의 컵', subject: '머그컵', appearance: ['속이 빈 둥근 몸통', '옆 손잡이'], sizeClass: 'small', evidence: ['private quote'], coreExperience: 'private experience', selectionReason: 'private reason', studentMessage: 'private message' };
   const wire = JSON.parse(fs.readFileSync(path.join(root, 'docs/development/examples/mug.json'), 'utf8'));
@@ -65,9 +65,18 @@ async function main() {
   assert.equal(request.store, false);
   assert.equal(request.text.format.strict, true);
   assert.deepEqual(JSON.parse(request.input[0].content), { itemName: inference.itemName, subject: inference.subject, appearance: inference.appearance });
+  // Reviewed examples ride in the instructions: the fixed set plus the closest catalog item, once each.
+  const examples = r => r.instructions.split('[조립 예시 JSON]\n')[1].split('\n[API 출력 보충]')[0].split('\n').map(line => JSON.parse(line).name);
+  assert.deepEqual(examples(request).sort(), ['강아지', '사과', '새싹', '연필', '작은 집', '컵']);
+  assert.equal(examples(buildItemAssemblyRequest(inference, 'cat')).length, 7);
   await assert.rejects(assembleItem(inference), e => e.code === 'AI_NOT_CONFIGURED');
   process.env.OPENAI_API_KEY = 'test-only-not-a-real-key';
   const respond = output => { global.fetch = async () => new Response(JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(output) }] }] })); };
+  respond({ closest: '고양이' });
+  assert.equal(await pickClosestCatalogId(inference), 'cat');
+  respond({ closest: '없음' });
+  assert.equal(await pickClosestCatalogId(inference), 'none');
+  // The closest pick fails soft: assembly still runs (here it receives the assembly JSON as the pick answer).
   respond(wire);
   assert.deepEqual(await assembleItem(inference), valid);
   respond({ ...wire, name: 'changed' });
@@ -82,6 +91,10 @@ async function main() {
   const inferred = { coreExperience: '골', evidence: ['축구에서 골을 넣었어요'], itemName: '축구공', subject: '축구공', selectionReason: '이유', studentMessage: '설명', sizeClass: 'small', appearance: ['둥근 공', '오각형 패치'] };
   respond(inferred);
   assert.equal((await inferItem(transcript)).studentMessage, '설명');
+  respond({ ...inferred, itemName: '노란 하트 스티커', subject: '빨간색 풍선' });
+  assert.deepEqual(await inferItem(transcript).then(r => [r.itemName, r.subject]), ['하트 스티커', '풍선']);
+  const { withoutColor } = load('src/lib/items/itemInference.ts');
+  assert.deepEqual(['무지개빛 우산', '하늘색 연', '노란', '금메달', '은행잎', '초록 잎'].map(withoutColor), ['우산', '연', '노란', '금메달', '은행잎', '잎']);
   respond({ ...inferred, evidence: ['농구를 했어요'] });
   await assert.rejects(inferItem(transcript), e => e.code === 'EVIDENCE_MISMATCH' && e.detail.raw.includes('농구를 했어요'));
   respond({ ...inferred, coreExperience: 'x'.repeat(301) });

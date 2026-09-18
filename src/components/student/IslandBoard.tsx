@@ -3,6 +3,8 @@
 
 import IslandExperience from "./island/IslandExperience";
 import type { Item } from "./mockScenarios";
+import { FALLBACK_ITEM_SPEC } from "@/lib/items/fallbackItem";
+import { findCatalogItem } from "@/lib/items/itemCatalog";
 
 export default function IslandBoard({
   active = true,
@@ -18,7 +20,10 @@ export default function IslandBoard({
   onComplete?: () => void;
 }) {
   if (!active) return null;
+  // The mock item only carries a name; give the island the same catalog model
+  // the generation pipeline would pick, or its fallback gift box.
+  const incoming = item && { ...item, assetFormat: "procedural" as const, geometrySpec: findCatalogItem(item.name)?.spec ?? FALLBACK_ITEM_SPEC };
   return <div className="screen active" id="s5">
-    <IslandExperience compact incomingItem={item} studentName={studentName} baseItemCount={baseItemCount} onComplete={onComplete}/>
+    <IslandExperience compact incomingItem={incoming} studentName={studentName} baseItemCount={baseItemCount} onComplete={onComplete}/>
   </div>;
 }
