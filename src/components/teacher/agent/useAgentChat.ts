@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
-type AgentMessage = { id: number; role: "user" | "agent"; text: string };
+type AgentMessage = { id: number; role: "user" | "agent"; text: string; evidence?: string[] };
 
 let msgId = 0;
 
@@ -56,7 +56,8 @@ export function useAgentChat() {
       const data = await res.json();
       if (res.ok) {
         setScopedStudentName(data.studentName ?? null);
-        setMessages((prev) => [...prev, { id: msgId++, role: "agent", text: data.answer }]);
+        const evidence = Array.isArray(data.evidence) ? (data.evidence as string[]) : undefined;
+        setMessages((prev) => [...prev, { id: msgId++, role: "agent", text: data.answer, evidence }]);
       } else {
         setMessages((prev) => [
           ...prev,

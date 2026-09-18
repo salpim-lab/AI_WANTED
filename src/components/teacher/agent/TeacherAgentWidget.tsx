@@ -4,6 +4,8 @@
 // (전역 상태관리 라이브러리 불필요 — useAgentChat 훅 안에서 useState로 충분).
 // /api/ai/teacher-agent(이지현)로 실제 요청을 보낸다. OPENAI_API_KEY가 없는 로컬 환경에서도
 // 라우트가 컨텍스트 그대로 보여주는 개발용 응답을 주므로 화면은 끝까지 확인 가능하다.
+// 답변마다 어떤 기록을 근거로 했는지 "📎 근거" 칩으로 같이 보여준다(DB 스키마 v0.3 §9.2
+// agent_messages.evidence와 같은 취지 — 지금은 레코드 ID 대신 사람이 읽는 문자열로 표시).
 
 "use client";
 
@@ -72,15 +74,43 @@ export default function TeacherAgentWidget() {
                 key={m.id}
                 style={{
                   alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                  background: m.role === "user" ? "#6366f1" : "#f3f4f6",
-                  color: m.role === "user" ? "#fff" : "#111827",
-                  borderRadius: 12,
-                  padding: "8px 12px",
-                  fontSize: 13,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
                   maxWidth: "85%",
                 }}
               >
-                {m.text}
+                <div
+                  style={{
+                    background: m.role === "user" ? "#6366f1" : "#f3f4f6",
+                    color: m.role === "user" ? "#fff" : "#111827",
+                    borderRadius: 12,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    whiteSpace: "pre-line",
+                  }}
+                >
+                  {m.text}
+                </div>
+                {m.evidence && m.evidence.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {m.evidence.map((e, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: 10,
+                          color: "#4338ca",
+                          background: "#eef2ff",
+                          border: "1px solid #c7d2fe",
+                          borderRadius: 99,
+                          padding: "2px 8px",
+                        }}
+                      >
+                        📎 {e}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
