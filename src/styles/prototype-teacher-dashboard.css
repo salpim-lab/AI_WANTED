@@ -333,16 +333,18 @@
 }
 .rd-quotes li p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 .rd-quote-by { font-size: 10.5px; color: var(--faint); }
-/* 기록마다 제 박스 안에서 스크롤한다. 날짜·이름·요약은 위에 붙어 있어야
-   지금 누구 진술을 읽는 중인지 알 수 있으니, 스크롤은 진술 목록에만 건다. */
-.conflict-stmts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 152px;
+.conflict-stmts { display: flex; flex-direction: column; gap: 8px; }
+
+/* 기록이 여러 건이어도 한 건 높이만 쓴다 — 쌓으면 패널이 길어지고 옆의 지도까지 끌고 늘어난다.
+   기록 하나는 통째로 보여야 진술 둘이 "엇갈린 진술"로 읽히므로, 자르지 않고 칸 안에서 넘긴다.
+   snap 을 걸어 1건 → 2건이 중간에 걸치지 않고 딱딱 넘어가게 한다. */
+.rd-conflicts {
+  max-height: 272px;
   overflow-y: auto;
+  scroll-snap-type: y proximity;
   padding-right: 4px;
 }
+.rd-conflicts > .conflict-row { scroll-snap-align: start; }
 .conflict-stmt { background: var(--soft); border-radius: 12px; padding: 11px 13px; }
 .conflict-stmt .who { font-size: 11.5px; font-weight: 800; margin-bottom: 4px; }
 .conflict-stmt p { margin: 0; font-size: 12px; line-height: 1.65; color: var(--ink-soft); }

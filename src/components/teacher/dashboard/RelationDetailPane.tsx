@@ -53,6 +53,18 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
   );
 }
 
+/** 기록이 여러 건이면 아래로 쌓지 않고 한 칸 안에서 넘긴다 — 쌓으면 패널이 길어지고,
+    길어진 패널이 같은 행의 관계 지도까지 끌고 늘어난다. */
+function ConflictList({ rows }: { rows: ConflictRow[] }) {
+  return (
+    <div className="rd-conflicts">
+      {rows.map((row) => (
+        <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />
+      ))}
+    </div>
+  );
+}
+
 function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
   return (
     <ul className="rd-quotes">
@@ -137,7 +149,7 @@ export default function RelationDetailPane({
         {pair.conflicts.length === 0 ? (
           <p className="conflict-empty">두 아이 사이의 갈등 기록은 없어요.</p>
         ) : (
-          pair.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
+          <ConflictList rows={pair.conflicts} />
         )}
       </Pane>
     );
@@ -151,9 +163,7 @@ export default function RelationDetailPane({
         ) : (
           <>
             <div className="rd-section-title">최근 갈등 기록</div>
-            {fallbackConflicts.map((row) => (
-              <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />
-            ))}
+            <ConflictList rows={fallbackConflicts} />
           </>
         )}
       </Pane>
@@ -181,7 +191,7 @@ export default function RelationDetailPane({
       {detail.conflicts.length === 0 ? (
         <p className="conflict-empty">최근 2주 갈등 기록이 없어요.</p>
       ) : (
-        detail.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
+        <ConflictList rows={detail.conflicts} />
       )}
     </Pane>
   );
