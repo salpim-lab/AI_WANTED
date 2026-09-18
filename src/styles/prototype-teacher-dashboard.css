@@ -268,8 +268,26 @@
 .conflict-empty { margin: 0; font-size: 12px; color: var(--muted); }
 
 /* ── 관계 상세 (지도 옆 패널) ─────────────────────────────────────
-   아이를 누르면 여기만 바뀐다. 지도는 그 자리에 그대로 있다. */
-.conflict-pane { display: flex; flex-direction: column; }
+   아이를 누르면 여기만 바뀐다. 지도는 그 자리에 그대로 있다.
+
+   기록이 몇 건이든 카드 높이는 그대로여야 한다 — 패널이 늘어나면 같은 행에 있는
+   관계 지도까지 같이 늘어나서, 갈등이 많은 날에는 지도가 화면을 넘긴다.
+   그래서 제목은 고정하고 본문(.rd-scroll)만 안에서 스크롤한다. */
+.conflict-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 470px;
+}
+.conflict-pane .pane-title { flex-shrink: 0; }
+.rd-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 스크롤바가 기록 박스 테두리에 붙지 않게 */
+  padding-right: 4px;
+  margin-right: -4px;
+}
 .conflict-pane .pane-title .rd-clear {
   margin-left: auto;
   padding: 3px 9px;
@@ -298,6 +316,9 @@
   font-weight: 700;
   color: var(--muted);
 }
+/* 스크롤 영역 맨 위에 오면 위쪽 여백은 필요 없다 */
+.rd-scroll > .rd-section-title:first-child,
+.rd-scroll > .rd-head:first-child { margin-top: 0; }
 
 .rd-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .rd-quotes li {

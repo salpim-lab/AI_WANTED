@@ -68,6 +68,26 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
   );
 }
 
+/** 제목은 고정하고 본문만 스크롤한다 — 갈등이 몇 건이든 카드 높이가 그대로여야
+    옆의 관계 지도가 같이 늘어나지 않는다. */
+function Pane({
+  action,
+  children,
+}: {
+  action: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="conflict-pane">
+      <div className="pane-title">
+        관계 상세
+        {action}
+      </div>
+      <div className="rd-scroll">{children}</div>
+    </div>
+  );
+}
+
 export default function RelationDetailPane({
   detail,
   pair,
@@ -80,17 +100,16 @@ export default function RelationDetailPane({
   fallbackConflicts: ConflictRow[];
   onClear: () => void;
 }) {
+  const closeButton = (
+    <button type="button" className="rd-clear" onClick={onClear}>
+      닫기
+    </button>
+  );
+
   // 선을 눌렀을 때 — "이 선이 왜 생겼나"에만 답한다.
   if (pair) {
     return (
-      <div className="conflict-pane">
-        <div className="pane-title">
-          관계 상세
-          <button type="button" className="rd-clear" onClick={onClear}>
-            닫기
-          </button>
-        </div>
-
+      <Pane action={closeButton}>
         <div className="rd-head">
           <strong className="rd-name">
             {pair.a.name} ↔ {pair.b.name}
@@ -120,17 +139,13 @@ export default function RelationDetailPane({
         ) : (
           pair.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
         )}
-      </div>
+      </Pane>
     );
   }
 
   if (!detail) {
     return (
-      <div className="conflict-pane">
-        <div className="pane-title">
-          관계 상세
-          <span className="pane-sub">아이를 누르면 그 아이 이야기가 나와요</span>
-        </div>
+      <Pane action={<span className="pane-sub">아이나 선을 누르면 여기에 나와요</span>}>
         {fallbackConflicts.length === 0 ? (
           <p className="conflict-empty">이 날짜까지 기록된 갈등이 없어요.</p>
         ) : (
@@ -141,19 +156,12 @@ export default function RelationDetailPane({
             ))}
           </>
         )}
-      </div>
+      </Pane>
     );
   }
 
   return (
-    <div className="conflict-pane">
-      <div className="pane-title">
-        관계 상세
-        <button type="button" className="rd-clear" onClick={onClear}>
-          닫기
-        </button>
-      </div>
-
+    <Pane action={closeButton}>
       <div className="rd-head">
         <strong className="rd-name">{detail.name}</strong>
         <span className="rd-sub">최근 2주 · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
@@ -175,6 +183,6 @@ export default function RelationDetailPane({
       ) : (
         detail.conflicts.map((row) => <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />)
       )}
-    </div>
+    </Pane>
   );
 }
