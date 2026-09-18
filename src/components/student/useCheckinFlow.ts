@@ -287,6 +287,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         if (!isCurrent()) return true;
         setTyping(false);
         setThinking(false);
+        // AI_ENABLED=false 로 꺼둔 상태는 고장이 아니다. 조용히 칩으로 되돌린다.
+        if (error instanceof LiveChatError && error.isDisabled) return false;
         setVoiceError(
           error instanceof LiveChatError ? error.message : "지금은 듣기가 어려워. 아래에서 골라줄래?",
         );

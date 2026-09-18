@@ -81,9 +81,7 @@ export async function POST(request: Request) {
 
     const { error } = await createAdminClient()
       .from("checkin_sessions")
-      // prosody 는 마이그레이션 1080 으로 추가한 컬럼이다.
-      // database.types.ts 를 다시 생성하기 전까지 타입에 없어 캐스팅한다.
-      .update({ prosody } as never)
+      .update({ prosody })
       .eq("id", session.id)
       .eq("status", "started");
     if (error) {

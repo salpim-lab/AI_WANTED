@@ -33,6 +33,10 @@ export class LiveChatError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
   }
+  /** 서버가 AI 를 끈 상태. 오류로 보여주지 않고 칩으로 되돌린다 */
+  get isDisabled() {
+    return this.code === "AI_DISABLED";
+  }
 }
 
 /** 색을 고른 직후. 실패하면 null 을 돌려주고 화면은 목업으로 계속 간다. */

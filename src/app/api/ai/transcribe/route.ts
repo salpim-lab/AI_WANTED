@@ -13,6 +13,7 @@
 // 그래서 STT_MODEL 로 교체 가능하게 둔다.
 import { NextResponse } from "next/server";
 
+import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 
 export const runtime = "nodejs";
@@ -21,6 +22,32 @@ export const maxDuration = 60;
 /** useVoiceRecorder 의 MAX_RECORDING_MS(60초)에 webm 여유를 둔 상한 */
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const TIMEOUT_MS = 30_000;
+
+/**
+ * OpenAI 는 파일 이름의 확장자로 포맷을 판단한다. 내용이 아니라 이름을 본다.
+ * 그래서 확장자를 고정하면 안 된다 — MediaRecorder 가 만드는 타입이 브라우저마다 다르다.
+ * 크롬은 audio/webm, 사파리는 audio/mp4 를 낸다. webm 으로 못박으면 아이패드에서 전부 실패한다.
+ */
+const EXTENSIONS: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mp4": "mp4",
+  "audio/m4a": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/flac": "flac",
+};
+
+function fileName(audio: File) {
+  // "audio/webm;codecs=opus" 처럼 파라미터가 붙어 온다.
+  const mime = (audio.type || "").split(";")[0].trim().toLowerCase();
+  const fromName = audio.name?.includes(".") ? audio.name.split(".").pop()!.toLowerCase() : "";
+  const ext = EXTENSIONS[mime] ?? (fromName || "webm");
+  return `speech.${ext}`;
+}
 
 const fail = (code: string, message: string, status: number) =>
   NextResponse.json({ code, message }, { status, headers: { "Cache-Control": "no-store" } });
@@ -41,6 +68,9 @@ export async function POST(request: Request) {
     return fail("AUDIO_TOO_LARGE", "녹음이 너무 깁니다.", 413);
   }
 
+  // 스위치가 꺼져 있으면 키를 읽기도 전에 돌려보낸다.
+  if (!isAiEnabled()) return fail(AI_DISABLED.code, AI_DISABLED.message, 503);
+
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) return fail("AI_NOT_CONFIGURED", "OPENAI_API_KEY 설정이 필요합니다.", 503);
 
@@ -49,7 +79,7 @@ export async function POST(request: Request) {
     await requireOwnStartedSession(form.get("session_id"));
 
     const upstream = new FormData();
-    upstream.set("file", audio, "speech.webm");
+    upstream.set("file", audio, fileName(audio));
     upstream.set("model", process.env.STT_MODEL || "gpt-4o-mini-transcribe");
     // 한국어를 명시하면 짧은 발화에서 언어를 잘못 잡는 일이 없어진다.
     upstream.set("language", "ko");

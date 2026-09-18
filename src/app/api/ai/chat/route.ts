@@ -10,6 +10,7 @@
 // 규칙이 명시적이라 교사에게 설명할 수 있다.
 import { NextResponse } from "next/server";
 
+import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 import { buildChatTurnRequest, ChatTurnError, parseChatTurn } from "@/lib/chat/chatTurn";
 import { CLOSING_MESSAGES, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
@@ -58,6 +59,9 @@ export async function POST(request: Request) {
   if (!flow) return fail("INVALID_REQUEST", "flow는 checkin 또는 checkout이어야 합니다.", 400);
   const color = String(body.color);
   if (!(color in SIGNAL_COLORS)) return fail("INVALID_REQUEST", "color가 올바르지 않습니다.", 400);
+
+  // 스위치가 꺼져 있으면 키를 읽기도 전에 돌려보낸다.
+  if (!isAiEnabled()) return fail(AI_DISABLED.code, AI_DISABLED.message, 503);
 
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) return fail("AI_NOT_CONFIGURED", "OPENAI_API_KEY 설정이 필요합니다.", 503);
