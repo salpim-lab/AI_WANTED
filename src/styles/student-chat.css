@@ -389,8 +389,10 @@
   border: 0;
   border-radius: 999px;
   padding: 1.2cqh 2.4cqh;
-  background: rgba(233, 229, 252, 0.75);
-  color: #5b6285;
+  /* 상단 마음 뱃지(.chat-color-badge)와 같은 바탕색 — 화면 안의 "알려주는 표시" 를 한 색으로 묶는다.
+     글자는 뱃지처럼 진하게 하지 않는다. 힌트가 눈에 먼저 들어오면 안 된다. */
+  background: #eef2ff;
+  color: #5a5f86;
   font-weight: 500;
   cursor: default;
   user-select: none;
