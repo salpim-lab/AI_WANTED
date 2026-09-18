@@ -272,7 +272,10 @@
 
    기록이 몇 건이든 카드 높이는 그대로여야 한다 — 패널이 늘어나면 같은 행에 있는
    관계 지도까지 같이 늘어나서, 갈등이 많은 날에는 지도가 화면을 넘긴다.
-   그래서 제목은 고정하고 본문(.rd-scroll)만 안에서 스크롤한다. */
+
+   스크롤은 덩어리마다 따로 건다: 대화 발췌(.rd-quotes)와 각 기록의 진술(.conflict-stmts).
+   덩어리별로 잘라두면 "갈등 기록 2건" 같은 제목이 늘 보여서, 스크롤해 내려가 보기 전에도
+   뭐가 있는지 알 수 있다. 그래도 넘치면 .rd-scroll 이 마지막으로 받아낸다. */
 .conflict-pane {
   display: flex;
   flex-direction: column;
@@ -320,14 +323,34 @@
 .rd-scroll > .rd-section-title:first-child,
 .rd-scroll > .rd-head:first-child { margin-top: 0; }
 
-.rd-quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+/* 대화 발췌는 제 칸 안에서만 스크롤한다 — 길어져도 아래 갈등 기록을 밀어내지 않게 */
+.rd-quotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 108px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .rd-quotes li {
   border-left: 2px solid var(--line);
   padding: 2px 0 2px 11px;
 }
 .rd-quotes li p { margin: 0; font-size: 12.5px; line-height: 1.55; }
 .rd-quote-by { font-size: 10.5px; color: var(--faint); }
-.conflict-stmts { display: flex; flex-direction: column; gap: 8px; }
+/* 기록마다 제 박스 안에서 스크롤한다. 날짜·이름·요약은 위에 붙어 있어야
+   지금 누구 진술을 읽는 중인지 알 수 있으니, 스크롤은 진술 목록에만 건다. */
+.conflict-stmts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 104px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .conflict-stmt { background: var(--soft); border-radius: 12px; padding: 11px 13px; }
 .conflict-stmt .who { font-size: 11.5px; font-weight: 800; margin-bottom: 4px; }
 .conflict-stmt p { margin: 0; font-size: 12px; line-height: 1.65; color: var(--ink-soft); }
