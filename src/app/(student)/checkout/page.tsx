@@ -41,7 +41,6 @@ export default function CheckoutPage() {
       <ChatScreen
         active={flow.step === 3}
         badgeLabel={colorMeta ? colorMeta.label : ""}
-        badgeStyle={{ background: "#eef2ff", color: "#4338ca" }}
         messages={flow.messages}
         typing={flow.typing}
         replies={flow.replies}

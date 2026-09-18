@@ -45,7 +45,6 @@ export default function CheckinPage() {
       <ChatScreen
         active={flow.step === 3}
         badgeLabel={colorMeta ? colorMeta.label : ""}
-        badgeStyle={scenario?.badgeStyle ?? { background: "#eef2ff", color: "#4338ca" }}
         messages={flow.messages}
         typing={flow.typing}
         replies={flow.replies}

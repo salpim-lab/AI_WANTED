@@ -13,8 +13,11 @@
 }
 .chat-screen.active { display: flex; }
 
-/* 색 뱃지 — 어떤 마음으로 시작한 대화인지 상단에 남겨둔다 */
+/* 마음 뱃지 — 어떤 마음으로 시작한 대화인지 상단에 남겨둔다.
+   문구만 바뀌고 색은 등·하교 모두 한 가지로 고정한다 */
 .chat-color-badge {
+  background: #eef2ff;
+  color: #4338ca;
   position: absolute;
   left: 50%;
   top: 4.6cqh;
@@ -222,6 +225,39 @@
 }
 .talk-btn__mic { width: 3.4cqh; height: 3.4cqh; }
 .talk-btn__sub { font-size: 2.1cqh; font-weight: 600; opacity: 0.88; }
+
+/* 녹음 중 — 색을 바꿔 "지금 듣고 있다"를 한눈에 보이게 한다 */
+.talk-btn--recording {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ef4444 100%);
+  box-shadow: 0 1.2cqh 2.6cqh rgba(239, 68, 68, 0.32);
+}
+/* 마이크를 못 쓸 때 — 눈에 띄지 않게 낮춘다 */
+.talk-btn--muted {
+  background: linear-gradient(135deg, #9aa3b2 0%, #7b8493 100%);
+  box-shadow: 0 1cqh 2.2cqh rgba(80, 90, 105, 0.24);
+}
+
+/* 실시간 음량 막대. transform 만 바꿔 100ms 마다 리플로우가 나지 않게 한다 */
+.talk-wave {
+  display: flex;
+  align-items: center;
+  gap: 0.5cqh;
+  height: 3.4cqh;
+}
+/* 문구가 정확히 가운데 오도록 양옆 파형에 같은 폭을 준다 */
+.talk-btn--recording .talk-btn__row { justify-content: center; }
+.talk-wave span {
+  width: 0.7cqh;
+  height: 100%;
+  border-radius: 0.35cqh;
+  background: rgba(255, 255, 255, 0.92);
+  transform-origin: center;
+  transition: transform 0.09s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .talk-wave span { transition: none; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .guide-chips { animation: none; }

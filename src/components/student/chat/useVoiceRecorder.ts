@@ -32,11 +32,15 @@ export type RecordingResult = {
 };
 
 export function useVoiceRecorder({
-  /** 질문이 화면에 뜬 시각. 응답 지연(response_delay_sec) 계산의 기준 */
-  promptShownAt,
+  /**
+   * 질문이 화면에 뜬 시각을 돌려준다. 응답 지연(response_delay_sec) 의 기준.
+   * 값이 아니라 함수로 받는 이유: 녹음을 시작하는 순간의 값이 필요한데,
+   * 값으로 받으면 버튼을 누른 렌더의 낡은 값이 박힌다.
+   */
+  getPromptShownAt,
   onResult,
 }: {
-  promptShownAt: number | null;
+  getPromptShownAt: () => number | null;
   onResult: (result: RecordingResult) => void;
 }) {
   const [status, setStatus] = useState<RecorderStatus>("idle");
@@ -99,6 +103,7 @@ export function useVoiceRecorder({
     rec.ondataavailable = (e) => {
       if (e.data.size) chunks.push(e.data);
     };
+    const shownAt = getPromptShownAt();
     rec.onstop = () => {
       const durationSec = (Date.now() - startedAtRef.current) / 1000;
       const levels = levelsRef.current;
@@ -113,8 +118,8 @@ export function useVoiceRecorder({
         audio,
         prosody: {
           duration_sec: +durationSec.toFixed(2),
-          response_delay_sec: promptShownAt
-            ? +((startedAtRef.current - promptShownAt) / 1000).toFixed(2)
+          response_delay_sec: shownAt
+            ? +((startedAtRef.current - shownAt) / 1000).toFixed(2)
             : 0,
           silence_count,
           silence_total_sec,
@@ -145,7 +150,7 @@ export function useVoiceRecorder({
       // 상한은 지킨다 — 마이크를 켜둔 채 방치되는 것을 막는다.
       if (now - startedAtRef.current >= MAX_RECORDING_MS) stop();
     }, SAMPLE_MS);
-  }, [cleanup, onResult, promptShownAt, stop]);
+  }, [cleanup, getPromptShownAt, onResult, stop]);
 
   return { status, elapsedMs, level, askIfDone, start, stop };
 }

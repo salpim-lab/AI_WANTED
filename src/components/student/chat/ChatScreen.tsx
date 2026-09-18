@@ -9,7 +9,7 @@
 //   - 메신저 타임스탬프는 넣지 않는다
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SalpimHeader from "../home/SalpimHeader";
 import StudentProfile from "../home/StudentProfile";
 import type { ChatBubble as Bubble } from "../useCheckinFlow";
@@ -17,6 +17,7 @@ import type { Reply } from "../mockScenarios";
 import ChatBubble from "./ChatBubble";
 import GuideChips from "./GuideChips";
 import TalkButton from "./TalkButton";
+import { useVoiceRecorder, type RecordingResult } from "./useVoiceRecorder";
 
 /** AI 가 물어본 뒤 이만큼 조용하면 가이드 칩을 올린다 */
 const HESITATION_MS = 3500;
@@ -24,7 +25,6 @@ const HESITATION_MS = 3500;
 export default function ChatScreen({
   active,
   badgeLabel,
-  badgeStyle,
   messages,
   typing,
   replies,
@@ -37,7 +37,6 @@ export default function ChatScreen({
 }: {
   active: boolean;
   badgeLabel: string;
-  badgeStyle: { background: string; color: string };
   messages: Bubble[];
   typing: boolean;
   replies: Reply[] | null;
@@ -50,8 +49,24 @@ export default function ChatScreen({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState(false);
+  /** 질문이 화면에 뜬 시각. 녹음 훅이 응답 지연을 재는 기준이 된다 */
+  const promptShownAtRef = useRef<number | null>(null);
 
   const hasOptions = Boolean(replies?.length || replies2?.length);
+
+  const getPromptShownAt = useCallback(() => promptShownAtRef.current, []);
+
+  // STT 가 아직 없다. 녹음이 끝나면 전사 대신 칩을 펼쳐 흐름을 잇는다.
+  // 전사가 붙으면 이 자리에서 /api/ai/transcribe 를 부르고 결과를 말풍선으로 넣는다.
+  const handleRecorded = useCallback((result: RecordingResult) => {
+    // ⚠️ 오디오는 여기서 끝이다. state·DB 어디에도 넣지 않는다 (기획안 §8.1).
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[prosody]", result.prosody);
+    }
+    setShowGuide(true);
+  }, []);
+
+  const recorder = useVoiceRecorder({ getPromptShownAt, onResult: handleRecorded });
 
   // 답할 차례가 오면 잠시 기다렸다가 가이드를 올린다.
   // 아이가 먼저 말하면(선택지가 사라지면) 가이드도 같이 내려간다.
@@ -60,6 +75,7 @@ export default function ChatScreen({
   // 이펙트 본문에서 동기로 부르면 연쇄 렌더가 난다.
   useEffect(() => {
     if (!hasOptions) return;
+    promptShownAtRef.current = Date.now();
     const show = window.setTimeout(() => setShowGuide(true), HESITATION_MS);
     return () => {
       window.clearTimeout(show);
@@ -79,11 +95,9 @@ export default function ChatScreen({
       <SalpimHeader />
       <StudentProfile name={studentFullName} />
 
-      {badgeLabel && (
-        <div className="chat-color-badge" style={badgeStyle}>
-          {badgeLabel}
-        </div>
-      )}
+      {/* 색이 아니라 마음의 '말'을 남긴다. 뱃지 색은 고르는 색과 무관하게 한 가지로 통일 —
+          색까지 따라 바뀌면 이미 고른 색을 한 번 더 평가받는 느낌이 든다. */}
+      {badgeLabel && <div className="chat-color-badge">{badgeLabel}</div>}
 
       <div className="chat-scroll" ref={scrollRef}>
         {messages.map((m, i) => (
@@ -130,7 +144,16 @@ export default function ChatScreen({
             onReply2={onReply2}
           />
         )}
-        <TalkButton onClick={() => setShowGuide(true)} disabled={!hasOptions} />
+        <TalkButton
+          status={recorder.status}
+          elapsedMs={recorder.elapsedMs}
+          level={recorder.level}
+          askIfDone={recorder.askIfDone}
+          onStart={recorder.start}
+          onStop={recorder.stop}
+          onFallback={() => setShowGuide(true)}
+          disabled={!hasOptions}
+        />
       </div>
     </section>
   );
