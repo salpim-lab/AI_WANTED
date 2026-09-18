@@ -33,6 +33,9 @@ export default function ChatScreen({
   onReply,
   onReply2,
   onRequestConsult,
+  onSpoken,
+  thinking = false,
+  voiceError = null,
   studentFullName = "김민준",
 }: {
   active: boolean;
@@ -45,6 +48,12 @@ export default function ChatScreen({
   onReply: (reply: Reply) => void;
   onReply2: (r: { text: string; next2: string }) => void;
   onRequestConsult: () => void;
+  /** 녹음이 끝났다. true 를 돌려주면 실제 대화로 처리된 것이고, false 면 칩으로 되돌린다 */
+  onSpoken?: (audio: Blob, prosody: RecordingResult["prosody"]) => Promise<boolean>;
+  /** 전사·응답을 기다리는 중 */
+  thinking?: boolean;
+  /** 전사에 실패했을 때 아이에게 보여줄 한 줄 */
+  voiceError?: string | null;
   studentFullName?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -56,15 +65,23 @@ export default function ChatScreen({
 
   const getPromptShownAt = useCallback(() => promptShownAtRef.current, []);
 
-  // STT 가 아직 없다. 녹음이 끝나면 전사 대신 칩을 펼쳐 흐름을 잇는다.
-  // 전사가 붙으면 이 자리에서 /api/ai/transcribe 를 부르고 결과를 말풍선으로 넣는다.
-  const handleRecorded = useCallback((result: RecordingResult) => {
-    // ⚠️ 오디오는 여기서 끝이다. state·DB 어디에도 넣지 않는다 (기획안 §8.1).
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[prosody]", result.prosody);
-    }
-    setShowGuide(true);
-  }, []);
+  // 녹음이 끝났다. 로그인 세션이 있으면 전사→응답으로 이어지고,
+  // 없으면(데모) 칩을 펼쳐 기존 목업 흐름으로 되돌린다.
+  //
+  // ⚠️ 오디오는 onSpoken 안에서 전사 요청으로 한 번 쓰이고 끝이다.
+  //    state·DB 어디에도 넣지 않는다 (기획안 §8.1).
+  const handleRecorded = useCallback(
+    (result: RecordingResult) => {
+      if (!onSpoken) {
+        setShowGuide(true);
+        return;
+      }
+      void onSpoken(result.audio, result.prosody).then((handled) => {
+        if (!handled) setShowGuide(true);
+      });
+    },
+    [onSpoken],
+  );
 
   const recorder = useVoiceRecorder({ getPromptShownAt, onResult: handleRecorded });
 
@@ -109,7 +126,7 @@ export default function ChatScreen({
           />
         ))}
 
-        {typing && (
+        {(typing || thinking) && (
           <div className="chat-row chat-row--ai">
             <span className="chat-avatar chat-avatar--empty" aria-hidden="true" />
             <div className="chat-typing" aria-label="살핌이 입력 중">
@@ -136,6 +153,7 @@ export default function ChatScreen({
       </div>
 
       <div className="chat-bottom">
+        {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {showGuide && hasOptions && (
           <GuideChips
             replies={replies}

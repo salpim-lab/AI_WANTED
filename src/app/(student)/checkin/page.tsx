@@ -53,6 +53,9 @@ export default function CheckinPage() {
         onReply={(r) => scenario && flow.handleReply(r, scenario.followups)}
         onReply2={(r) => scenario && flow.handleReply2(r, scenario.followups)}
         onRequestConsult={flow.requestConsult}
+        onSpoken={flow.handleSpoken}
+        thinking={flow.thinking}
+        voiceError={flow.voiceError}
       />
       <ItemReveal active={flow.step === 4} item={flow.item} onNext={() => flow.goTo(5)} />
       <IslandBoard active={flow.step === 5} item={flow.item} onComplete={() => {}} />

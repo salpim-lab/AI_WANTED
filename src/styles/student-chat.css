@@ -155,6 +155,15 @@
   gap: 1.6cqh;
 }
 
+/* 전사 실패 안내. 아이를 탓하지 않는 한 줄만 둔다 */
+.chat-voice-error {
+  margin: 0 0 0.4cqh;
+  text-align: center;
+  font-size: 2.1cqh;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
 /* 가이드 칩 — 망설일 때만 올라온다 */
 .guide-chips {
   display: flex;

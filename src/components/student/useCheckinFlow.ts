@@ -9,6 +9,9 @@
 import { useCallback, useRef, useState } from "react";
 import type { SignalColor } from "@/lib/types/signal";
 import { pickOpener } from "@/lib/chat/openers";
+import { chatTurn, finishSession, LiveChatError, startSession, transcribe } from "@/lib/chat/liveChat";
+import { syllablesPerSec, type UtteranceProsody } from "@/lib/chat/prosody";
+import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
 import {
   CHECKOUT_SCENARIO,
   getCheckinScenario,
@@ -48,6 +51,21 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   // resetDemo 등에서 진행 중인 setTimeout 체인을 무시하기 위한 세대 카운터
   const genRef = useRef(0);
 
+  // ── 실제 대화(로그인 + API) 경로 ────────────────────────────────
+  // 로그인 없이 보는 데모에서는 sessionId 가 null 로 남고, 아래 경로는 전부 건너뛴다.
+  // 그때 화면은 기존 목업 칩 흐름 그대로 동작한다.
+  const sessionIdRef = useRef<string | null>(null);
+  /** color state 는 setColor 직후 아직 낡아 있다. 게이트 요청에는 이 ref 를 쓴다 */
+  const activeColorRef = useRef<SignalColor | null>(null);
+  /** 서버로 보낼 대화 기록. 말풍선(messages)과 달리 speaker/입력방식을 담는다 */
+  const transcriptRef = useRef<TranscriptMessage[]>([]);
+  /** 발화별 파생 수치. index 는 저장 직전에 서버가 매긴다 */
+  const prosodyRef = useRef<Omit<UtteranceProsody, "index">[]>([]);
+  const [thinking, setThinking] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  const isLive = useCallback(() => sessionIdRef.current !== null, []);
+
   const goTo = useCallback((next: number) => setStep(next), []);
 
   const addBubble = useCallback((type: ChatBubble["type"], text: string) => {
@@ -76,6 +94,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         await wait(first.delay);
         if (!isCurrent()) return;
         addBubble(first.isNavy ? "navy-msg" : "ai", opener);
+        // 고정 질문도 기록에 남긴다. 나중에 아이 답만 보면 무엇에 대한 답인지 알 수 없다.
+        transcriptRef.current.push({ speaker: "assistant", content: opener, input_method: "fixed" });
       }
       for (const msg of rest) {
         await wait(msg.delay);
@@ -105,6 +125,18 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     (c: SignalColor) => {
       setColor(c);
       const scenario = flow === "checkin" ? getCheckinScenario(c) : CHECKOUT_SCENARIO;
+
+      // 세션 생성은 기다리지 않는다. 첫 질문은 고정 문장이라 서버가 필요 없고,
+      // 기획안의 "색 3초" 예산이 네트워크에 묶이면 안 된다.
+      sessionIdRef.current = null;
+      activeColorRef.current = c;
+      transcriptRef.current = [];
+      prosodyRef.current = [];
+      setVoiceError(null);
+      void startSession(flow, c).then((id) => {
+        sessionIdRef.current = id;
+      });
+
       void runScenario(scenario, c);
     },
     [flow, runScenario],
@@ -117,6 +149,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
 
       setReplies(null);
       addBubble("user", reply.text);
+      transcriptRef.current.push({ speaker: "student", content: reply.text, input_method: "text" });
 
       const fu = followups[reply.next];
       if (!fu) {
@@ -160,6 +193,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
 
       setReplies2(null);
       addBubble("user", r.text);
+      transcriptRef.current.push({ speaker: "student", content: r.text, input_method: "text" });
 
       const fu = followups[r.next2];
       if (!fu) return;
@@ -178,6 +212,90 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     [addBubble, goTo],
   );
 
+  /**
+   * 아이가 말을 마쳤다. 전사 → 게이트 판단 → 다음 질문 또는 종료.
+   *
+   * 실패해도 대화를 끊지 않는다. 아이 입장에서 "내 말을 못 알아들었다"는 경험은
+   * 남지만, 화면이 멈춰 버리면 그 세션 자체가 사라진다. 그래서 오류는 칩으로 되돌린다.
+   */
+  const handleSpoken = useCallback(
+    async (audio: Blob, prosody: Omit<UtteranceProsody, "index">) => {
+      const sessionId = sessionIdRef.current;
+      if (!sessionId) return false;
+
+      const gen = ++genRef.current;
+      const isCurrent = () => genRef.current === gen;
+
+      setReplies(null);
+      setReplies2(null);
+      setVoiceError(null);
+      setThinking(true);
+
+      try {
+        const text = await transcribe(sessionId, audio);
+        if (!isCurrent()) return true;
+        if (!text.trim()) {
+          setThinking(false);
+          setVoiceError("잘 안 들렸어. 한 번만 더 말해줄래?");
+          return true;
+        }
+
+        addBubble("user", text);
+        transcriptRef.current.push({ speaker: "student", content: text, input_method: "voice" });
+        // 음절/초는 전사가 나와야 계산된다. 녹음 시점에는 글자 수를 모른다.
+        prosodyRef.current.push({
+          ...prosody,
+          syllables_per_sec: syllablesPerSec(text, prosody.duration_sec),
+        });
+
+        setTyping(true);
+        const result = await chatTurn({
+          sessionId,
+          flow,
+          color: activeColorRef.current ?? "green",
+          transcript: transcriptRef.current,
+        });
+        if (!isCurrent()) return true;
+
+        setTyping(false);
+        setThinking(false);
+        if (result.reply) {
+          addBubble("ai", result.reply);
+          transcriptRef.current.push({
+            speaker: "assistant",
+            content: result.reply,
+            input_method: "text",
+          });
+        }
+
+        if (result.action === "ask_followup") return true;
+
+        // 위험 신호면 면담 신청을 바로 띄운다. 캐묻지 않고 사람에게 넘긴다.
+        if (result.action === "handoff_to_teacher") setConsultState("shown");
+
+        await finishSession({
+          sessionId,
+          transcript: transcriptRef.current,
+          prosody: prosodyRef.current,
+        }).catch((error) => console.error("[finish] 전문 저장 실패", error));
+
+        await wait(1400);
+        if (!isCurrent()) return true;
+        goTo(4);
+        return true;
+      } catch (error) {
+        if (!isCurrent()) return true;
+        setTyping(false);
+        setThinking(false);
+        setVoiceError(
+          error instanceof LiveChatError ? error.message : "지금은 듣기가 어려워. 아래에서 골라줄래?",
+        );
+        return true;
+      }
+    },
+    [addBubble, flow, goTo],
+  );
+
   const requestConsult = useCallback(() => setConsultState("sent"), []);
 
   const reset = useCallback(() => {
@@ -190,6 +308,12 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     setReplies(null);
     setReplies2(null);
     setConsultState("hidden");
+    sessionIdRef.current = null;
+    activeColorRef.current = null;
+    transcriptRef.current = [];
+    prosodyRef.current = [];
+    setThinking(false);
+    setVoiceError(null);
   }, [startStep]);
 
   return {
@@ -202,6 +326,10 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     replies,
     replies2,
     consultState,
+    thinking,
+    voiceError,
+    isLive,
+    handleSpoken,
     goTo,
     selectColor,
     handleReply,
