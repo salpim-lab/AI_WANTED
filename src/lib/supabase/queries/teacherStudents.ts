@@ -5,11 +5,16 @@
 // 모든 함수가 classId를 받는다: 서버는 service_role로 RLS를 우회하므로 담당 학급 범위를 코드에서 직접 건다.
 //
 // 지금은 mock 구현(raw/_mockTeacherData.ts)이다. Supabase 연결 시 함수 본문만 교체하고 시그니처는 유지한다.
+// 예외 — 등하교 세션(색·대화 전문·발화 측정값)은 이미 실제 DB를 먼저 읽는다 (2026-09-19):
+//   학생 화면이 checkin_sessions에 실제로 쓰고 있어서, 그 아이·그 날짜에 실제 세션이 있으면 실제를, 없으면 mock을 쓴다.
+//   mock 명단 ↔ 시드 학급은 성 뺀 이름으로 잇는다(MOCK_DB_CLASS_ID). TEACHER_REAL_CHECKINS=off면 mock만 쓴다.
 //   학생·자리   v_students_current (UI는 student_id, enrollment_id 변환은 이 파일 안에서만)
 //   세션·대화   checkin_sessions(enrollment_id, session_date) ⨝ conversation_messages order by sequence
 //   AI 분석     analysis_runs where analysis_type='session_summary' and source_type='session' and status='completed'
 
 import { addDays } from "@/components/shared/datetime";
+import { givenName } from "@/components/shared/names";
+import { createAdminClient } from "@/lib/supabase/admin";
 // 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
 // mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
 // 바뀌면 buildInsights()도 그쪽을 부르도록 바꾸고, 이 import는 없앤다.
@@ -20,6 +25,7 @@ import {
 } from "@/components/teacher/dashboard/mockData";
 import { listObservationLogsForStudent } from "@/lib/supabase/raw/observationLog";
 import {
+  MOCK_DB_CLASS_ID,
   MOCK_STUDENTS,
   mockAnalysisRuns,
   mockBriefingBadge,
@@ -31,6 +37,7 @@ import {
 } from "@/lib/supabase/raw/_mockTeacherData";
 import type { SignalColor } from "@/lib/types/signal";
 import type {
+  AnalysisInputSession,
   ClassStudent,
   ColorHistoryDay,
   ConsultationReport,
@@ -39,6 +46,7 @@ import type {
   EvidenceRef,
   RelationInsight,
   SeatingStudent,
+  StoredSessionProsody,
   VocabInsight,
 } from "@/lib/types/teacherRecord";
 
@@ -65,7 +73,8 @@ function toClassStudent(row: MockStudentRow): ClassStudent {
   return { studentId: row.student_id, name: row.display_name, seatRow: row.seat_row, seatCol: row.seat_col };
 }
 
-function daySessions(enrollmentId: string, date: string): DaySession[] {
+/** mock 등하교 세션 (실제 세션이 없는 날) */
+function mockDaySessions(enrollmentId: string, date: string): AnalysisInputSession[] {
   const { sessions, messages } = mockCheckinsFor(enrollmentId, date);
   return sessions
     .map((s) => ({
@@ -79,8 +88,184 @@ function daySessions(enrollmentId: string, date: string): DaySession[] {
         .filter((m) => m.session_id === s.id)
         .sort((a, b) => a.sequence - b.sequence)
         .map((m) => ({ messageId: m.id, speaker: m.speaker, content: m.content })),
+      prosody: s.prosody,
     }))
     .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+}
+
+// ── 실제 등하교 세션 (Supabase checkin_sessions — 학생 화면이 쓴다, 여기서는 읽기만) ──────────────
+
+/** 발화 측정값 기준선을 잡을 때 거슬러 보는 일수 */
+const BASELINE_WINDOW_DAYS = 28;
+const SIGNAL_SET = new Set<string>(["green", "yellow", "red", "navy"]);
+const SPEAKERS = new Set<string>(["student", "assistant", "system"]);
+const STATUSES = new Set<string>(["started", "completed", "stopped"]);
+
+type RealRow = {
+  id: string;
+  enrollment_id: string;
+  session_date: string;
+  period: string;
+  attempt: number;
+  mood_color: string;
+  status: string;
+  started_at: string;
+  transcript: unknown;
+  prosody: unknown;
+};
+
+type RawUtterance = {
+  duration_sec: number;
+  response_delay_sec: number;
+  silence_count: number;
+  silence_total_sec: number;
+  syllables_per_sec?: number;
+  loudness_raw?: number;
+};
+
+const realCheckinsEnabled = () =>
+  process.env.TEACHER_REAL_CHECKINS !== "off" &&
+  Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
+
+function rawUtterances(prosody: unknown): RawUtterance[] {
+  const list = (prosody as { utterances?: unknown } | null)?.utterances;
+  return Array.isArray(list) ? (list.filter((u) => u && typeof u === "object") as RawUtterance[]) : [];
+}
+
+/** 대화 전문(jsonb) → 화면용 대화 줄. 아직 저장 전(진행 중·중단)이면 빈 배열 */
+function transcriptTurns(sessionId: string, transcript: unknown): DaySession["turns"] {
+  if (!Array.isArray(transcript)) return [];
+  const turns: DaySession["turns"] = [];
+  transcript.forEach((m, i) => {
+    const msg = m as { speaker?: unknown; content?: unknown };
+    if (!SPEAKERS.has(String(msg.speaker)) || typeof msg.content !== "string") return;
+    turns.push({
+      messageId: `${sessionId}-t${i + 1}`,
+      speaker: msg.speaker as DaySession["turns"][number]["speaker"],
+      content: msg.content,
+    });
+  });
+  return turns;
+}
+
+/**
+ * 저장된 측정값(절대 음량 loudness_raw, baseline_days 0)을 교사 화면 해석용으로 바꾼다.
+ * 학생 화면은 기준선을 모르므로(api/checkins/prosody) 여기서 그 아이의 이전 세션들로 채운다:
+ *   기준선 일수 = 이전 28일 중 측정값이 있는 날 수, 음량은 그 평균 대비(-1~1).
+ */
+function interpretProsody(row: RealRow, history: RealRow[]): StoredSessionProsody | null {
+  const utterances = rawUtterances(row.prosody);
+  if (utterances.length === 0) return null;
+  const windowStart = addDays(row.session_date, -BASELINE_WINDOW_DAYS);
+  const past = history.filter(
+    (h) =>
+      h.enrollment_id === row.enrollment_id &&
+      h.session_date < row.session_date &&
+      h.session_date >= windowStart &&
+      rawUtterances(h.prosody).length > 0,
+  );
+  const pastLoudness = past
+    .flatMap((h) => rawUtterances(h.prosody).map((u) => u.loudness_raw ?? NaN))
+    .filter(Number.isFinite);
+  const mean = pastLoudness.length ? pastLoudness.reduce((sum, v) => sum + v, 0) / pastLoudness.length : 0;
+  return {
+    baseline_days: new Set(past.map((h) => h.session_date)).size,
+    utterances: utterances.map((u, i) => ({
+      index: i,
+      duration_sec: u.duration_sec,
+      response_delay_sec: u.response_delay_sec,
+      silence_count: u.silence_count,
+      silence_total_sec: u.silence_total_sec,
+      ...(u.syllables_per_sec === undefined ? {} : { syllables_per_sec: u.syllables_per_sec }),
+      ...(mean > 0 && Number.isFinite(u.loudness_raw)
+        ? { loudness_rel: Math.max(-1, Math.min(1, +(((u.loudness_raw as number) - mean) / mean).toFixed(2))) }
+        : {}),
+    })),
+  };
+}
+
+let warnedRealCheckins = false;
+
+/**
+ * rows × [from, to]의 실제 세션을 한 번에 읽는다. 키: `${mock enrollment_id}|${날짜}`.
+ * 담당 학급 확인은 호출하는 쪽(findRow/classRows가 classId로 거른 행만 넘긴다)에서 끝난 상태다.
+ * DB에 못 붙으면 빈 결과 — 화면은 mock으로 계속 간다.
+ */
+async function loadRealSessions(
+  rows: MockStudentRow[],
+  from: string,
+  to: string,
+): Promise<Map<string, AnalysisInputSession[]>> {
+  const result = new Map<string, AnalysisInputSession[]>();
+  if (!realCheckinsEnabled() || rows.length === 0) return result;
+  try {
+    const client = createAdminClient();
+    const { data: enrollments, error: enrollmentError } = await client
+      .from("enrollments")
+      .select("id, students(display_name)")
+      .eq("class_id", MOCK_DB_CLASS_ID)
+      .is("ended_on", null);
+    if (enrollmentError) throw enrollmentError;
+
+    const dbIdByName = new Map<string, string>();
+    for (const e of enrollments ?? []) {
+      const name = (e.students as { display_name?: string } | null)?.display_name;
+      if (name) dbIdByName.set(name, e.id);
+    }
+    const rowByDbId = new Map<string, MockStudentRow>();
+    for (const row of rows) {
+      const dbId = dbIdByName.get(givenName(row.display_name));
+      if (dbId) rowByDbId.set(dbId, row);
+    }
+    if (rowByDbId.size === 0) return result;
+
+    const { data, error } = await client
+      .from("checkin_sessions")
+      .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript, prosody")
+      .in("enrollment_id", [...rowByDbId.keys()])
+      .gte("session_date", addDays(from, -BASELINE_WINDOW_DAYS))
+      .lte("session_date", to)
+      .order("started_at");
+    if (error) throw error;
+
+    const history = (data ?? []) as RealRow[];
+    for (const r of history) {
+      if (r.session_date < from) continue; // 기준선 계산용으로만 읽은 날
+      if (!SIGNAL_SET.has(r.mood_color) || (r.period !== "morning" && r.period !== "afternoon")) continue;
+      const row = rowByDbId.get(r.enrollment_id);
+      if (!row) continue;
+      const key = `${row.enrollment_id}|${r.session_date}`;
+      const list = result.get(key) ?? [];
+      list.push({
+        sessionId: r.id,
+        period: r.period,
+        attempt: r.attempt,
+        color: r.mood_color as SignalColor,
+        status: (STATUSES.has(r.status) ? r.status : "started") as DaySession["status"],
+        startedAt: r.started_at,
+        turns: transcriptTurns(r.id, r.transcript),
+        prosody: interpretProsody(r, history),
+      });
+      result.set(key, list);
+    }
+  } catch (error) {
+    if (!warnedRealCheckins) {
+      warnedRealCheckins = true;
+      console.warn(
+        "[teacherStudents] 실제 체크인 세션을 읽지 못해 mock으로 보여줍니다:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+  return result;
+}
+
+type SessionSource = (row: MockStudentRow, date: string) => AnalysisInputSession[];
+
+/** rows × [from, to] 세션 — 그 아이·그 날짜에 실제 세션이 하나라도 있으면 실제만, 없으면 mock (두 출처를 섞지 않는다) */
+async function loadSessions(rows: MockStudentRow[], from: string, to: string): Promise<SessionSource> {
+  const real = await loadRealSessions(rows, from, to);
+  return (row, date) => real.get(`${row.enrollment_id}|${date}`) ?? mockDaySessions(row.enrollment_id, date);
 }
 
 /** 같은 날 같은 시간대에 재시도(attempt)가 있으면 마지막 시도의 색을 대표값으로 쓴다 */
@@ -110,8 +295,10 @@ export async function findClassStudent(classId: string, studentId: string): Prom
 }
 
 export async function getSeatingChart(classId: string, date: string): Promise<SeatingStudent[]> {
-  return classRows(classId).map((row) => {
-    const sessions = daySessions(row.enrollment_id, date);
+  const rows = classRows(classId);
+  const sessionsOf = await loadSessions(rows, date, date);
+  return rows.map((row) => {
+    const sessions = sessionsOf(row, date);
     return {
       ...toClassStudent(row),
       todayMorning: latestColor(sessions, "morning"),
@@ -123,13 +310,14 @@ export async function getSeatingChart(classId: string, date: string): Promise<Se
 
 export async function getStudentDaySessions(classId: string, studentId: string, date: string): Promise<DaySession[]> {
   const row = findRow(classId, studentId);
-  return row ? daySessions(row.enrollment_id, date) : [];
+  if (!row) return [];
+  return (await loadSessions([row], date, date))(row, date);
 }
 
 /**
  * AI 하루 분석(/api/ai/daily-analysis)의 입력 — 그날 세션별 색·대화 전문·발화 측정값 + 이름 치환용 학급 명단.
- * Supabase 연결 시: checkin_sessions(enrollment_id, session_date)의 mood_color·transcript(1060)·prosody(1080).
- * prosody는 저장 전(이유민 파이프라인 미연결)이면 null로 온다 — 분석은 그 경우 전문과 색만 쓴다.
+ * 실제 세션(checkin_sessions의 mood_color·transcript(1060)·prosody(1080))이 있으면 그걸, 없으면 mock.
+ * prosody가 없으면 null — 분석은 그 경우 전문과 색만 쓴다.
  * 담당 학급 밖 학생이면 null.
  */
 export async function getDailyAnalysisInput(
@@ -139,11 +327,9 @@ export async function getDailyAnalysisInput(
 ): Promise<DailyAnalysisInput | null> {
   const row = findRow(classId, studentId);
   if (!row) return null;
-  const prosodyBySession = new Map(
-    mockCheckinsFor(row.enrollment_id, date).sessions.map((s) => [s.id, s.prosody]),
-  );
+  const sessionsOf = await loadSessions([row], addDays(date, -ANALYSIS_PAST_DAYS), date);
   const pastDays = dateRange(addDays(date, -1), ANALYSIS_PAST_DAYS).map((day) => {
-    const sessions = daySessions(row.enrollment_id, day);
+    const sessions = sessionsOf(row, day);
     return {
       date: day,
       morning: latestColor(sessions, "morning"),
@@ -155,10 +341,7 @@ export async function getDailyAnalysisInput(
     student: toClassStudent(row),
     classmates: classRows(classId).map(toClassStudent),
     date,
-    sessions: daySessions(row.enrollment_id, date).map((s) => ({
-      ...s,
-      prosody: prosodyBySession.get(s.sessionId) ?? null,
-    })),
+    sessions: sessionsOf(row, date),
     pastDays,
   };
 }
@@ -193,8 +376,10 @@ export async function getColorHistory(
 ): Promise<ColorHistoryDay[]> {
   const row = findRow(classId, studentId);
   if (!row) return [];
-  return dateRange(to, days).map((date) => {
-    const sessions = daySessions(row.enrollment_id, date);
+  const dates = dateRange(to, days);
+  const sessionsOf = await loadSessions([row], dates[0] ?? to, to);
+  return dates.map((date) => {
+    const sessions = sessionsOf(row, date);
     return { date, morning: latestColor(sessions, "morning"), afternoon: latestColor(sessions, "afternoon") };
   });
 }
@@ -279,7 +464,8 @@ function existingDayAnalysis(
   if (generated) {
     return { analysisId: generated.id, sessionId: generated.source_id, date, summary: String(generated.result.summary) };
   }
-  const seeded = mockCheckinsFor(enrollmentId, date).analyses.at(-1);
+  const isMockDay = sessions.every((s) => s.sessionId.startsWith("mock-"));
+  const seeded = isMockDay ? mockCheckinsFor(enrollmentId, date).analyses.at(-1) : undefined;
   return seeded ? { analysisId: seeded.id, sessionId: seeded.source_id, date, summary: seeded.result.summary } : null;
 }
 
@@ -298,8 +484,9 @@ export async function getConsultationReport(
   const sessions: ConsultationReport["sessions"] = [];
   const analyses: ConsultationReport["analyses"] = [];
 
+  const sessionsOf = await loadSessions([row], from, to);
   for (const date of dates) {
-    const daily = daySessions(row.enrollment_id, date);
+    const daily = sessionsOf(row, date);
     sessions.push(...daily.map((s) => ({ ...s, date })));
     const analysis = existingDayAnalysis(row.enrollment_id, date, daily);
     if (analysis) analyses.push(analysis);
