@@ -100,26 +100,18 @@
 }
 .mood-btn__face {
   position: absolute;
-  width: 7.2cqh;
-  height: 7.2cqh;
-  left: 5cqh;
-  top: 5.8cqh;
+  /* 17.2cqh 돔의 절반보다 작게 유지하며 이목구비 배치를 넓힌다. */
+  width: 8.2cqh;
+  height: 8.2cqh;
+  left: 4.5cqh;
+  top: 5.3cqh;
   color: var(--face-ink);
+  opacity: 0.52;
   z-index: 2;
-  filter: drop-shadow(0 0.12cqh 0 var(--face-reflection));
+  filter: drop-shadow(0 0.14cqh 0.035cqh var(--face-reflection));
   pointer-events: none;
 }
-/* 점등용 빛은 미리 그리고 opacity만 전환한다. 베젤 자체는 움직이지 않는다. */
-.mood-btn__bezel::after {
-  content: "";
-  position: absolute;
-  inset: 0.4cqh;
-  border-radius: 10cqh;
-  box-shadow: 0 0 0 0.35cqh var(--lamp-glow), 0 0 2.5cqh 0.7cqh var(--lamp-glow);
-  opacity: 0;
-  transition: opacity 0.16s ease-out;
-  pointer-events: none;
-}
+/* 돔 내부만 점등한다. 회색 베젤에는 빛을 추가하지 않는다. */
 .mood-btn__dome::before {
   content: "";
   position: absolute;
@@ -129,9 +121,7 @@
   opacity: 0;
   transition: opacity 0.16s ease-out;
 }
-.mood-btn:active:not([aria-disabled="true"]) .mood-btn__bezel::after,
 .mood-btn:active:not([aria-disabled="true"]) .mood-btn__dome::before,
-.mood-btn--selected .mood-btn__bezel::after,
 .mood-btn--selected .mood-btn__dome::before {
   opacity: 1;
   transition-duration: 0.08s;
@@ -167,9 +157,8 @@
 
 /* ── 색별 값 ───────────────────────────────────────────── */
 .mood-btn--green {
-  --face-ink: #07522c;
-  --face-reflection: #ffffff40;
-  --lamp-glow: #55e98a;
+  --face-ink: #168143;
+  --face-reflection: #ffffff80;
   --lamp-core: #b2ffb7b3;
   --dome-mid: #17bf57;
   --dome-wall: #0f9c45;
@@ -181,9 +170,8 @@
   --label-fg: #1a7f42;
 }
 .mood-btn--yellow {
-  --face-ink: #694700;
-  --face-reflection: #ffffff40;
-  --lamp-glow: #ffda55;
+  --face-ink: #9b780d;
+  --face-reflection: #ffffff80;
   --lamp-core: #fff4a5b3;
   --dome-mid: #eab308;
   --dome-wall: #c08c04;
@@ -195,9 +183,8 @@
   --label-fg: #97701a;
 }
 .mood-btn--red {
-  --face-ink: #6d1629;
-  --face-reflection: #ffffff40;
-  --lamp-glow: #ff7770;
+  --face-ink: #a52f34;
+  --face-reflection: #ffffff80;
   --lamp-core: #ffb39bb3;
   --dome-mid: #e63d3d;
   --dome-wall: #b81f1f;
@@ -209,9 +196,8 @@
   --label-fg: #c0392f;
 }
 .mood-btn--navy {
-  --face-ink: #c6d7ff;
+  --face-ink: #93a3d6;
   --face-reflection: #172b69;
-  --lamp-glow: #91a9ff;
   --lamp-core: #728ff280;
   --dome-mid: #22347e;
   --dome-wall: #16245c;
@@ -225,6 +211,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mood-btn__dome,
-  .mood-btn__dome::before,
-  .mood-btn__bezel::after { transition: none; }
+  .mood-btn__dome::before { transition: none; }
 }

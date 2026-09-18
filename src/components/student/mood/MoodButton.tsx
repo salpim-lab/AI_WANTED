@@ -31,24 +31,24 @@ export default function MoodButton({
     >
       <span className="mood-btn__bezel" aria-hidden="true">
         <span className="mood-btn__dome">
-          <svg className="mood-btn__face" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+          <svg className="mood-btn__face" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" focusable="false">
             {option.color === "green" && <>
-              <path d="M9 20 Q14 12 19 20 M29 20 Q34 12 39 20" />
-              <path d="M13 28 Q24 31 35 28 Q32 40 24 40 Q16 40 13 28 Z" fill="currentColor" stroke="none" />
+              <path d="M7 20 Q12 12 17 20 M31 20 Q36 12 41 20" />
+              <path d="M11 28 Q24 31 37 28 Q33 40 24 40 Q15 40 11 28 Z" fill="currentColor" stroke="none" />
             </>}
             {option.color === "yellow" && <>
-              <circle cx="14" cy="20" r="2.5" fill="currentColor" stroke="none" />
-              <circle cx="34" cy="20" r="2.5" fill="currentColor" stroke="none" />
-              <path d="M16 33 H32" />
+              <circle cx="12" cy="20" r="2.5" fill="currentColor" stroke="none" />
+              <circle cx="36" cy="20" r="2.5" fill="currentColor" stroke="none" />
+              <path d="M14 33 H34" />
             </>}
             {option.color === "red" && <>
-              <path d="M9 14 L19 11 M29 11 L39 14" />
-              <circle cx="14" cy="22" r="2" fill="currentColor" stroke="none" />
-              <circle cx="34" cy="22" r="2" fill="currentColor" stroke="none" />
-              <path d="M16 37 Q24 28 32 37" />
+              <path d="M7 14 L17 11 M31 11 L41 14" />
+              <circle cx="12" cy="22" r="2" fill="currentColor" stroke="none" />
+              <circle cx="36" cy="22" r="2" fill="currentColor" stroke="none" />
+              <path d="M14 37 Q24 28 34 37" />
             </>}
             {option.color === "navy" && <>
-              <path d="M9 21 Q14 24 19 21 M29 21 Q34 24 39 21 M21 33 H27" />
+              <path d="M7 21 Q12 24 17 21 M31 21 Q36 24 41 21 M19 33 H29" />
             </>}
           </svg>
         </span>
