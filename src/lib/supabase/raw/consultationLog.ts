@@ -77,6 +77,7 @@ export async function listConsultationLogs(classId: string, filter: Consultation
     .filter((log) => {
       if (filter.studentId && log.student.studentId !== filter.studentId) return false;
       if (filter.keyword && !matchesKeyword(log, filter.keyword)) return false;
+      if (filter.date && toKstDate(log.occurredAt) !== filter.date) return false;
       return true;
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -167,7 +168,7 @@ export async function completeScheduledConsultation(input: CompleteScheduledCons
     id: crypto.randomUUID(),
     class_id: input.classId,
     record_type: "consultation",
-    title: `${row.counterpart ?? "보호자"} · ${METHOD_LABEL[method]} 상담`,
+    title: `${row.counterpart ?? "보호자"} - ${METHOD_LABEL[method]} 상담`,
     body: input.body,
     occurred_at: input.occurredAt ?? now,
     created_by: input.createdBy,

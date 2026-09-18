@@ -36,7 +36,7 @@ export default function MiniCalendar({
             scroll={false}
             aria-current={selected ? "date" : undefined}
             aria-label={`${day.date} — 등교 ${labelOf(day.morning)}, 하교 ${labelOf(day.afternoon)}`}
-            title={`등교 ${labelOf(day.morning)} · 하교 ${labelOf(day.afternoon)}`}
+            title={`등교 ${labelOf(day.morning)} - 하교 ${labelOf(day.afternoon)}`}
             className={`min-w-10 flex-1 rounded-xl border-[1.5px] px-1 py-1.5 text-center transition-colors hover:border-[#8b83ff] ${
               selected ? "border-[#635bff] bg-[#ede9ff] text-[#635bff]" : "border-[#e6e2fb] bg-white/70"
             }`}

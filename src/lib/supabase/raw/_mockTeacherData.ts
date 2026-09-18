@@ -83,20 +83,20 @@ const ROSTER: [string, SignalColor, SignalColor, Badge][] = [
   ["최하준", "green", "green", "unicorn"],
   ["정지우", "green", "green", "unicorn"],
   ["이시아", "green", "yellow", "unicorn"],
-  ["김준혁", "yellow", "yellow", null],
-  ["박수빈", "green", "green", null],
-  ["최윤서", "yellow", "green", null],
-  ["이채원", "yellow", "yellow", null],
-  ["김다은", "green", "green", null],
-  ["오성민", "green", "green", null],
-  ["한지훈", "yellow", "red", null],
+  ["김준서", "yellow", "yellow", null],
+  ["박건우", "green", "green", null],
+  ["최윤아", "yellow", "green", null],
+  ["이은채", "yellow", "yellow", null],
+  ["김다올", "green", "green", null],
+  ["오서준", "green", "green", null],
+  ["한지호", "yellow", "red", null],
   ["정현우", "green", "green", null],
-  ["이아린", "green", "yellow", null],
-  ["김도현", "green", "green", null],
-  ["오지안", "navy", "green", null],
-  ["박민아", "yellow", "yellow", null],
-  ["최은서", "green", "green", null],
-  ["정우진", "green", "green", null],
+  ["이나윤", "green", "yellow", null],
+  ["김도윤", "green", "green", null],
+  ["오태연", "navy", "green", null],
+  ["박지민", "yellow", "yellow", null],
+  ["최수아", "green", "green", null],
+  ["정연우", "green", "green", null],
 ];
 
 const SEATS_PER_ROW = 4;
@@ -267,7 +267,7 @@ const TODAY_DETAIL: Record<string, { morning: Turn[]; afternoon: Turn[]; analysi
 const COLOR_POOL: SignalColor[] = ["green", "green", "green", "green", "yellow", "yellow", "red", "navy"];
 
 /** 발화 측정값 기준선이 아직 2주가 안 된 아이 — "기준선 부족이면 해석하지 않는다" 확인용 */
-const SHORT_BASELINE_NAMES = new Set(["최은서", "정우진"]);
+const SHORT_BASELINE_NAMES = new Set(["최수아", "정연우"]);
 
 /** 색별 측정값 범위 [최소, 최대] — 화면 확인용 가상 수치. 실제 값은 학생 화면 녹음(이유민)이 만든다 */
 const PROSODY_RANGE: Record<
@@ -451,7 +451,7 @@ export type ParentConsultationRow = {
   scheduled_at: string | null;
   status: "preparing" | "in_progress" | "completed";
   /** status='preparing'일 때만 쓴다 — work_record가 없어서 제목을 못 만드니 여기 따로 들고 있다가
-   *  완료 처리 시 work_records.title("{counterpart} · {method} 상담")을 만드는 데 쓴다 */
+   *  완료 처리 시 work_records.title("{counterpart} - {method} 상담")을 만드는 데 쓴다 */
   counterpart: string | null;
   method: "phone" | "visit" | "online" | null;
   notes: string | null;
@@ -485,19 +485,19 @@ function enrollmentIdByName(name: string): string {
 const SEED_OBSERVATIONS = [
   {
     at: "2026-09-12T14:03:22",
-    title: "점심시간 갈등 — 민준·서연 진술 청취",
+    title: "점심시간 갈등 - 민준·서연 진술 청취",
     body: '점심 배식 줄에서 민준이와 서연이가 부딪혔다는 보고를 받고 각각 진술을 들었음. 민준이는 서연이가 먼저 밀었다고 했고, 서연이는 민준이가 자기 자리를 안 비켜줬다고 함. 두 진술이 달라 추가 관찰이 필요. 오늘 하교 시 양측 모두 "이제 괜찮다"고 했으나 지켜볼 예정.',
     tags: ["김민준", "이서연"],
   },
   {
     at: "2026-09-10T10:21:07",
-    title: "체육 시간 관찰 — 민준 팀 구성 갈등",
-    body: "체육 수업 팀 구성 시 민준이가 소외감을 느꼈다는 내용을 하교 때 알게 됨. 지훈이는 의도 없었다고 하나 민준이의 감정은 실제였음. 체육 시간 팀 구성 방식을 바꾸는 것을 고려할 필요 있음. 민준이에게 다음날 따로 이야기 나눌 것.",
-    tags: ["김민준", "한지훈"],
+    title: "체육 시간 관찰 - 민준 팀 구성 갈등",
+    body: "체육 수업 팀 구성 시 민준이가 소외감을 느꼈다는 내용을 하교 때 알게 됨. 지호는 의도 없었다고 하나 민준이의 감정은 실제였음. 체육 시간 팀 구성 방식을 바꾸는 것을 고려할 필요 있음. 민준이에게 다음날 따로 이야기 나눌 것.",
+    tags: ["김민준", "한지호"],
   },
   {
     at: "2026-09-08T09:05:34",
-    title: "서연 — 남색 3일 연속, 개별 관찰 시작",
+    title: "서연 - 남색 3일 연속, 개별 관찰 시작",
     body: "서연이가 3일 연속 남색을 선택. 교실에서도 혼자 앉아있는 시간이 늘어난 것 같음. 억지로 말 걸지 않고 자연스럽게 관찰 중. 학부모 상담 시 가정 내 변화 여부 확인 필요.",
     tags: ["이서연"],
   },
@@ -508,13 +508,13 @@ const SEED_CONSULTATIONS = [
   {
     at: "2026-09-11T17:30:00",
     student: "김민준",
-    title: "어머니 · 전화 상담",
+    title: "어머니 - 전화 상담",
     body: "민준이가 최근 학교 이야기를 잘 안 한다고 걱정하심. 9월 초부터 빨강 선택 빈도가 늘었고 발화량도 줄었다는 내용 공유. 갈등 관련 사안은 학교에서 지속 관찰 중이며 큰 문제로 번지지 않도록 조치하고 있음을 안내. 다음 대면 상담 10/14 예약.",
   },
   {
     at: "2026-09-05T16:00:00",
     student: "이서연",
-    title: "아버지 · 방문 상담",
+    title: "아버지 - 방문 상담",
     body: "서연이가 최근 남색 선택이 잦아졌다는 내용 공유. 아버지는 집에서도 혼자 방에 있는 시간이 늘었다고 하심. 학교에서는 특별한 갈등보다는 내향적으로 자기 에너지를 충전하는 것으로 보임. 부모님도 억지로 말 걸지 않고 기다려 주시기로 함.",
   },
 ];
@@ -527,7 +527,7 @@ const SEED_SCHEDULED_CONSULTATIONS: {
   method: "phone" | "visit" | "online";
 }[] = [
   { at: "2026-09-19T16:30:00", student: "박예린", counterpart: "어머니", method: "visit" },
-  { at: "2026-09-22T18:00:00", student: "한지훈", counterpart: "아버지", method: "phone" },
+  { at: "2026-09-22T18:00:00", student: "한지호", counterpart: "아버지", method: "phone" },
 ];
 
 /** 가장 가까운 지난 평일(오늘이 평일이면 오늘) — 대시보드 기본 날짜와 맞춘다 */

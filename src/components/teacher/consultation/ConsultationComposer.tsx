@@ -1,8 +1,8 @@
 // 담당: 김현우
-// 학부모상담기록 "상담 바로 기록" 버튼과 글쓰기 모달 — 예약 없이 이미 끝난 상담을 바로 완료로 적을 때 쓴다.
+// 학부모상담기록 "상담 기록" 버튼과 글쓰기 모달 — 예약 없이 이미 끝난 상담을 바로 완료로 적을 때 쓴다.
 // 예약해 뒀다가 완료 처리하는 흐름은 ScheduleConsultationComposer/CompleteConsultationButton 쪽이다.
 // 저장은 Server Action(createConsultation)으로만 한다.
-// 학생을 고르면 <DataExportBox />로 상담 자료 리포트를 열 수 있다.
+// 학생은 @태그(TagInput, student_id로 제출)로 한 명 고른다. 고르면 <DataExportBox />로 상담 자료 리포트를 열 수 있다.
 // 입력값은 controlled state로 들고 있다 — 검증 실패 시 쓰던 내용이 사라지지 않게.
 // 참고: docs/prototype/prototype-teacher.html #modal-consult
 
@@ -11,25 +11,22 @@
 import { useActionState, useState } from "react";
 import { createConsultation } from "@/app/(teacher)/consultation/actions";
 import Modal from "@/components/shared/Modal";
-import { choicePill, errorText, fieldLabel, helperNote, textArea, textInput } from "@/components/shared/ui";
-import type { ClassStudent, FormActionState } from "@/lib/types/teacherRecord";
+import TagInput, { type TagOption } from "@/components/shared/TagInput";
+import { errorText, fieldLabel, helperNote, textArea, textInput } from "@/components/shared/ui";
+import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
 import DataExportBox from "./DataExportBox";
+import MethodPicker from "./MethodPicker";
 
 const INITIAL_STATE: FormActionState = { status: "idle", message: null, seq: 0 };
-const METHODS = [
-  { value: "phone", label: "전화" },
-  { value: "visit", label: "방문" },
-  { value: "online", label: "온라인" },
-] as const;
 const MAX_COUNTERPART_LENGTH = 30;
 const MAX_BODY_LENGTH = 5000;
 
 export default function ConsultationComposer({ students, reportDays }: { students: ClassStudent[]; reportDays: number }) {
   const [open, setOpen] = useState(false);
   const [openedAtSeq, setOpenedAtSeq] = useState(0);
-  const [studentId, setStudentId] = useState("");
+  const [tags, setTags] = useState<TagOption[]>([]);
   const [counterpart, setCounterpart] = useState("");
-  const [method, setMethod] = useState<(typeof METHODS)[number]["value"]>("phone");
+  const [method, setMethod] = useState<ConsultationMethod>("phone");
   const [occurredAt, setOccurredAt] = useState("");
   const [body, setBody] = useState("");
 
@@ -37,7 +34,7 @@ export default function ConsultationComposer({ students, reportDays }: { student
     const result = await createConsultation(formData);
     if (result.status === "success") {
       setOpen(false);
-      setStudentId("");
+      setTags([]);
       setCounterpart("");
       setMethod("phone");
       setOccurredAt("");
@@ -47,6 +44,7 @@ export default function ConsultationComposer({ students, reportDays }: { student
   }, INITIAL_STATE);
 
   const isFreshResult = state.seq > openedAtSeq;
+  const studentId = tags[0]?.id ?? "";
   const selectedStudent = students.find((s) => s.studentId === studentId);
 
   function openModal() {
@@ -66,29 +64,22 @@ export default function ConsultationComposer({ students, reportDays }: { student
         </span>
       )}
       <button type="button" className="btn btn-primary btn-sm" onClick={openModal}>
-        상담 바로 기록
+        상담 기록
       </button>
 
-      <Modal open={open} title="학부모 상담 바로 기록" onClose={closeModal}>
+      <Modal open={open} title="학부모 상담 기록" onClose={closeModal}>
         <form action={formAction}>
-          <fieldset>
-            <legend className={fieldLabel}>상담한 학생</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {students.map((s) => (
-                <label key={s.studentId}>
-                  <input
-                    type="radio"
-                    name="studentId"
-                    value={s.studentId}
-                    checked={studentId === s.studentId}
-                    onChange={() => setStudentId(s.studentId)}
-                    className="peer sr-only"
-                  />
-                  <span className={choicePill}>{s.name}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <label htmlFor="consultation-student" className={fieldLabel}>
+            상담한 학생
+          </label>
+          {/* 한 상담은 아이 한 명 — 새로 태그하면 앞의 아이를 바꾼다 */}
+          <TagInput
+            options={students.map((s) => ({ id: s.studentId, label: s.name }))}
+            value={tags}
+            onChange={(next) => setTags(next.slice(-1))}
+            name="studentId"
+            inputId="consultation-student"
+          />
           {selectedStudent && (
             <DataExportBox
               student={{ studentId: selectedStudent.studentId, name: selectedStudent.name }}
@@ -108,31 +99,14 @@ export default function ConsultationComposer({ students, reportDays }: { student
                 maxLength={MAX_COUNTERPART_LENGTH}
                 placeholder="예: 어머니"
                 onChange={(e) => setCounterpart(e.target.value)}
-                className={`${textInput} w-full`}
+                className={`${textInput} h-9 w-full`}
               />
             </div>
-            <fieldset>
-              <legend className={fieldLabel}>상담 방식</legend>
-              <div className="flex gap-1.5">
-                {METHODS.map((m) => (
-                  <label key={m.value}>
-                    <input
-                      type="radio"
-                      name="method"
-                      value={m.value}
-                      checked={method === m.value}
-                      onChange={() => setMethod(m.value)}
-                      className="peer sr-only"
-                    />
-                    <span className={choicePill}>{m.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <MethodPicker id="consultation-method" value={method} onChange={setMethod} />
           </div>
 
           <label htmlFor="consultation-occurred-at" className={fieldLabel}>
-            상담 일시 (선택 — 비워두면 저장 시각)
+            상담 일시 (선택)
           </label>
           <input
             id="consultation-occurred-at"
@@ -161,7 +135,7 @@ export default function ConsultationComposer({ students, reportDays }: { student
             {body.length} / {MAX_BODY_LENGTH}
           </div>
 
-          <p className={helperNote}>🔒 저장 후 수정할 수 없습니다. 기록 시각은 서버 시각으로 자동 기록됩니다.</p>
+          <p className={helperNote}>🔒 저장 후 수정할 수 없습니다.</p>
           {isFreshResult && state.status === "error" && (
             <p role="alert" className={errorText}>
               {state.message}

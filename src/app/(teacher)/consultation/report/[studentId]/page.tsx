@@ -7,27 +7,11 @@
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import ConsultationReportView from "@/components/teacher/consultation/ConsultationReportView";
-import { addDays, todayKst } from "@/components/shared/datetime";
 import { dateParam } from "@/components/shared/params";
-import { getConsultationReport, REPORT_DEFAULT_DAYS } from "@/lib/supabase/queries/teacherStudents";
+import { getConsultationReport } from "@/lib/supabase/queries/teacherStudents";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { recordView } from "@/lib/supabase/raw/viewLog";
-
-/** 최대로 한 번에 조회할 수 있는 기간(하루씩 순회하는 mock 조회가 너무 오래 걸리지 않게) */
-const MAX_RANGE_DAYS = 366;
-
-function parseDateRange(query: { from?: string | string[]; to?: string | string[] }): { from: string; to: string } {
-  const today = todayKst();
-  const defaultFrom = addDays(today, -(REPORT_DEFAULT_DAYS - 1));
-
-  const toParam = dateParam(query.to);
-  let to = toParam && toParam <= today ? toParam : today;
-  let from = dateParam(query.from) ?? defaultFrom;
-  if (from > to) [from, to] = [to, from];
-  if (addDays(from, MAX_RANGE_DAYS) < to) from = addDays(to, -MAX_RANGE_DAYS);
-
-  return { from, to };
-}
+import { resolveReportRange } from "../../_lib/reportRange";
 
 export default async function ConsultationReportPage({
   params,
@@ -35,7 +19,7 @@ export default async function ConsultationReportPage({
 }: PageProps<"/consultation/report/[studentId]">) {
   const [{ studentId }, query] = await Promise.all([params, searchParams]);
   const teacher = await getActingTeacher();
-  const { from, to } = parseDateRange(query);
+  const { from, to } = resolveReportRange(dateParam(query.from), dateParam(query.to));
 
   const report = await getConsultationReport(teacher.classId, studentId, from, to);
   if (!report) notFound();

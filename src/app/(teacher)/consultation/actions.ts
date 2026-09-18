@@ -9,6 +9,7 @@
 // raw/consultationLog.ts 상단 주석 참고. work_records용 수정·삭제 액션은 앞으로도 만들지 않는다.
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import {
   addDays,
   isDateString,
@@ -23,6 +24,7 @@ import {
   REPORT_DEFAULT_DAYS,
 } from "@/lib/supabase/queries/teacherStudents";
 import { getOrCreatePeriodSummary, PeriodSummaryUnavailableError } from "./_lib/periodSummary";
+import { resolveReportRange } from "./_lib/reportRange";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import {
   completeScheduledConsultation,
@@ -30,7 +32,8 @@ import {
   rescheduleConsultation,
   scheduleConsultation,
 } from "@/lib/supabase/raw/consultationLog";
-import type { ActionResult } from "@/lib/types/teacherRecord";
+import { recordView } from "@/lib/supabase/raw/viewLog";
+import type { ActionResult, ConsultationReport } from "@/lib/types/teacherRecord";
 
 const METHOD_LABEL = { phone: "전화", visit: "방문", online: "온라인" } as const;
 const MAX_COUNTERPART_LENGTH = 30;
@@ -73,7 +76,7 @@ export async function createConsultation(formData: FormData): Promise<ActionResu
       classId: teacher.classId,
       createdBy: teacher.id,
       studentId: student.studentId,
-      title: `${counterpart} · ${METHOD_LABEL[method]} 상담`,
+      title: `${counterpart} - ${METHOD_LABEL[method]} 상담`,
       body,
       occurredAt,
       evidenceRefs: report?.evidenceRefs ?? [],
@@ -206,7 +209,7 @@ export async function getReportAiSummaryAction(
 
   const report = await getConsultationReport(teacher.classId, studentId, from, to);
   if (!report) return { status: "error" };
-  if (report.analyses.length === 0) return { status: "empty" };
+  if (report.analyses.length === 0 && report.observations.length === 0) return { status: "empty" };
 
   // 테스트 중 토큰 절약 — /api/ai/daily-analysis와 같은 설정을 따른다
   const onlyIds = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean);
@@ -220,6 +223,7 @@ export async function getReportAiSummaryAction(
       to: report.to,
       analyses: report.analyses,
       sessions: report.sessions,
+      observations: report.observations,
     });
     return result ? { status: "ready", summary: result.summary } : { status: "empty" };
   } catch (error) {
@@ -227,4 +231,26 @@ export async function getReportAiSummaryAction(
     console.error("[getReportAiSummaryAction]", error);
     return { status: "error" };
   }
+}
+
+/**
+ * 예정된 상담 카드의 "누적 자료 보기" 팝업 — 인쇄용 페이지(report/[studentId])와 같은 리포트를 돌려준다.
+ * 담당 학급 학생이 아니면 null. 민감 데이터 열람이므로 페이지와 똑같이 view_log에 1행 남긴다.
+ */
+export async function getConsultationReportAction(
+  studentId: string,
+  from?: string,
+  to?: string,
+): Promise<ConsultationReport | null> {
+  const teacher = await getActingTeacher();
+  if (typeof studentId !== "string") return null;
+  const range = resolveReportRange(from, to);
+
+  const report = await getConsultationReport(teacher.classId, studentId, range.from, range.to);
+  if (!report) return null;
+
+  after(() =>
+    recordView({ viewerId: teacher.id, entityType: "consultation_report", entityId: report.student.studentId }),
+  );
+  return report;
 }

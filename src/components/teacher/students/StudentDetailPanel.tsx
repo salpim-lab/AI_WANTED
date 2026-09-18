@@ -1,6 +1,9 @@
 // 담당: 김현우
 // 아이 상세 본문 — Server Component. 자리 배치도 오른쪽 열(StudentsSplitView)에 열린다.
 //   카드 1: 아이 헤더(이름·날짜 선택·닫기) + 최근 날짜 칸 + 등교/하교 마음 기록(대화 전문) + AI 분석
+//     같은 시간대에 여러 번 체크인했으면 대화가 남은 회차 중 가장 최근 것 하나만 보여준다 (이전 회차는 DB에 그대로 남는다).
+//     색만 고르고 대화를 끝내지 않은 회차(대화 0턴)는 대화가 있는 회차가 하나도 없을 때만 보여준다.
+//     AI 분석은 대화가 있는 마음 기록이 있을 때만 — 없으면 분석하지 않는다.
 //   카드 2: 선생님의 한마디 (오늘 날짜에서만)
 // 참고: docs/planning/PLANNING.md "탭 2. 아이 상세 페이지"
 // AI 분석·코멘트 초안은 API route를 클라이언트 컴포넌트에서 fetch로만 호출한다 (서버 전용 코드라 직접 import 불가):
@@ -22,6 +25,12 @@ import MiniCalendar from "./MiniCalendar";
 import StudentAvatar from "./StudentAvatar";
 import DateControl from "@/components/teacher/shared/DateControl";
 
+/** 그 시간대에 보여줄 회차 — 대화가 남은 가장 최근 회차, 없으면 가장 최근 회차 */
+function shownSession(sessions: DaySession[]): DaySession | undefined {
+  const byLatest = [...sessions].sort((a, b) => b.attempt - a.attempt);
+  return byLatest.find((s) => s.turns.length > 0) ?? byLatest[0];
+}
+
 export default function StudentDetailPanel({
   student,
   date,
@@ -42,6 +51,8 @@ export default function StudentDetailPanel({
 
   const morningSessions = sessions.filter((s) => s.period === "morning");
   const afternoonSessions = sessions.filter((s) => s.period === "afternoon");
+  const morningShown = shownSession(morningSessions);
+  const afternoonShown = shownSession(afternoonSessions);
   const latestStart = (list: DaySession[]) =>
     [...list].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]?.startedAt;
   const morningStart = latestStart(morningSessions);
@@ -65,8 +76,8 @@ export default function StudentDetailPanel({
           <div className="min-w-0 flex-1">
             <h2 className={`${salpimTitle} text-[26px] leading-tight`}>{shortName}의 하루</h2>
             <p className={`mt-0.5 text-xs ${salpimMuted}`}>
-              {student.name} · {formatKstDate(date)}
-              {isToday && " · 오늘"}
+              {student.name} - {formatKstDate(date)}
+              {isToday && " - 오늘"}
             </p>
           </div>
           <DateControl
@@ -101,7 +112,7 @@ export default function StudentDetailPanel({
               <PeriodSection
                 icon={<SunIcon />}
                 label="등교 마음 기록"
-                sessions={morningSessions}
+                session={morningShown}
                 studentName={student.name}
                 active={activePeriod === "morning"}
                 isLast={false}
@@ -109,7 +120,7 @@ export default function StudentDetailPanel({
               <PeriodSection
                 icon={<MoonIcon />}
                 label="하교 마음 기록"
-                sessions={afternoonSessions}
+                session={afternoonShown}
                 studentName={student.name}
                 active={activePeriod === "afternoon"}
                 isLast
@@ -121,6 +132,8 @@ export default function StudentDetailPanel({
                 studentId={student.studentId}
                 date={date}
                 fallback={preview.analysis}
+                hasMorning={Boolean(morningShown?.turns.length)}
+                hasAfternoon={Boolean(afternoonShown?.turns.length)}
               />
             </div>
           </>
@@ -147,23 +160,21 @@ export default function StudentDetailPanel({
 function PeriodSection({
   icon,
   label,
-  sessions,
+  session: latest,
   studentName,
   active,
   isLast,
 }: {
   icon: React.ReactNode;
   label: string;
-  sessions: DaySession[];
+  /** shownSession이 고른 회차 — 없으면 그 시간대에 체크인하지 않은 것 */
+  session: DaySession | undefined;
   studentName: string;
   /** 두 시간대 중 가장 최근 기록이 있는 쪽 — ClassPlaybook류 타임라인처럼 강조 표시 */
   active: boolean;
   /** 마지막 항목이면 아래로 이어지는 연결선을 그리지 않는다 */
   isLast: boolean;
 }) {
-  // 같은 시간대에 재시도가 있으면 마지막 시도의 색을 대표로 보여준다
-  const latest = [...sessions].sort((a, b) => b.attempt - a.attempt)[0];
-
   return (
     <section className="relative flex gap-3 pb-5">
       {!isLast && <span aria-hidden className="absolute top-9 bottom-0 left-[15px] w-0.5 rounded-full bg-[#ded8ff]" />}
@@ -189,23 +200,16 @@ function PeriodSection({
           )}
         </div>
 
-        {sessions.length === 0 ? (
+        {!latest ? (
           <p className="mt-2 rounded-2xl border border-dashed border-[#ded8ff] bg-white/60 px-4 py-3 text-[13px] text-[#aab0c4]">이 시간대에는 체크인하지 않았어요.</p>
         ) : (
-          <div className="mt-2 space-y-3">
-            {sessions.map((session) => (
-              <div key={session.sessionId}>
-                {(sessions.length > 1 || session.status === "stopped") && (
-                  <div className={`mb-1.5 flex items-center gap-2 text-[11px] ${salpimMuted}`}>
-                    {sessions.length > 1 && <span>{session.attempt}회차</span>}
-                    {session.status === "stopped" && (
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-gray-600">중단됨</span>
-                    )}
-                  </div>
-                )}
-                <ConversationTurns turns={session.turns} studentName={studentName} />
+          <div className="mt-2">
+            {latest.status === "stopped" && (
+              <div className={`mb-1.5 text-[11px] ${salpimMuted}`}>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-gray-600">중단됨</span>
               </div>
-            ))}
+            )}
+            <ConversationTurns key={latest.sessionId} turns={latest.turns} studentName={studentName} />
           </div>
         )}
       </div>

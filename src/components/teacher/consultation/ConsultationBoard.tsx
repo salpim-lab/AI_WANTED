@@ -1,58 +1,62 @@
 // 담당: 김현우
 // 학부모상담기록 — 왼쪽 "예정된 상담"(아직 안 함, 누적 자료로 준비) / 오른쪽 "완료한 상담"(끝난 것,
-// 실제 나눈 이야기 열람) 두 칼럼. 검색은 GET 폼(next/form)으로 URL을 바꾸고 서버가 다시 조회한다 —
-// 완료한 상담에만 적용한다(예정은 보통 몇 건 안 돼서 검색이 필요 없다).
+// 실제 나눈 이야기 열람) 두 칼럼. 머리줄에 날짜(DateControl)·검색과 [상담 예약]·[상담 기록] 버튼을 같이 둔다.
+// 두 칼럼 모두 고른 날짜의 상담만 보여준다. 학생·키워드로 검색 중이면 완료한 상담은 전체 기간에서 찾는다.
+// 검색(RecordSearch)은 입력하는 대로 URL을 바꾸고 서버가 다시 조회한다 — 완료한 상담에만 적용한다
+// (예정은 보통 몇 건 안 돼서 검색이 필요 없다).
+// 예정 카드(ScheduledConsultationCard): 카드를 누르면 상담 내용 작성 팝업, ✎는 일정 변경.
 // 무결성 원칙: 수정·삭제 UI 없음. "기록" 시각은 서버가 찍은 시각만 표시한다.
 // 참고: docs/planning/PLANNING.md "탭 4. 학부모상담기록", docs/prototype/prototype-teacher.html #consultation-list
 
-import Form from "next/form";
-import Link from "next/link";
-import { formatKstDateTime } from "@/components/shared/datetime";
-import { card, emptyState, boardPageContainer, boardPageTitle, textInput, timestampText } from "@/components/shared/ui";
-import type {
-  ClassStudent,
-  ConsultationFilter,
-  ConsultationLog,
-  ConsultationMethod,
-  ScheduledConsultation,
-} from "@/lib/types/teacherRecord";
-import CompleteConsultationButton from "./CompleteConsultationButton";
-import EditScheduledConsultationButton from "./EditScheduledConsultationButton";
+import { emptyState, boardPageContainer, boardPageTitle } from "@/components/shared/ui";
+import DateControl from "@/components/teacher/shared/DateControl";
+import type { ClassStudent, ConsultationFilter, ConsultationLog, ScheduledConsultation } from "@/lib/types/teacherRecord";
 import CompletedConsultationCard from "./CompletedConsultationCard";
 import ConsultationComposer from "./ConsultationComposer";
+import RecordSearch from "@/components/shared/RecordSearch";
 import ScheduleConsultationComposer from "./ScheduleConsultationComposer";
-
-const METHOD_LABEL: Record<ConsultationMethod, string> = { phone: "전화", visit: "방문", online: "온라인" };
+import ScheduledConsultationCard from "./ScheduledConsultationCard";
 
 export default function ConsultationBoard({
   entries,
   scheduled,
   students,
   filter,
+  date,
+  today,
   reportDays,
 }: {
   entries: ConsultationLog[];
   scheduled: ScheduledConsultation[];
   students: ClassStudent[];
   filter: ConsultationFilter;
+  /** YYYY-MM-DD (KST) — 예정·완료 목록을 이 날짜로 거른다 (검색 중이면 완료 목록은 전체 기간) */
+  date: string;
+  today: string;
   reportDays: number;
 }) {
   const hasFilter = Boolean(filter.keyword || filter.studentId);
-  const filterKey = [filter.keyword, filter.studentId].join("|");
 
   return (
     <div className={boardPageContainer}>
-      <h2 className={`${boardPageTitle} mb-5`}>학부모상담기록</h2>
+      <div className="relative z-20 mb-5 flex flex-wrap items-center gap-2.5">
+        <h2 className={`${boardPageTitle} shrink-0`}>학부모상담기록</h2>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <DateControl dateKey={date} today={today} basePath="/consultation" />
+          <RecordSearch basePath="/consultation" students={students} filter={filter} />
+          <ScheduleConsultationComposer students={students} />
+          <ConsultationComposer students={students} reportDays={reportDays} />
+        </div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
-          <div className="mb-3 flex flex-wrap items-center gap-2.5">
-            <h3 className="flex-1 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">예정된 상담 · {scheduled.length}건</h3>
-            <ScheduleConsultationComposer students={students} />
-          </div>
+          <h3 className="mb-3 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">
+            예정된 상담 {scheduled.length}건
+          </h3>
 
           {scheduled.length === 0 ? (
-            <div className={emptyState}>예정된 상담이 없어요.</div>
+            <div className={emptyState}>이 날짜에 예정된 상담이 없어요.</div>
           ) : (
             <ul className="grid gap-2.5">
               {scheduled.map((item) => (
@@ -65,44 +69,12 @@ export default function ConsultationBoard({
         </section>
 
         <section className="lg:border-l lg:border-[#e6e2fb] lg:pl-6">
-          <div className="mb-3 flex flex-wrap items-center gap-2.5">
-            <h3 className="flex-1 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">완료한 상담</h3>
-            <ConsultationComposer students={students} reportDays={reportDays} />
-          </div>
-
-          <Form key={filterKey} action="/consultation" role="search" className="mb-3 flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              name="q"
-              defaultValue={filter.keyword ?? ""}
-              placeholder="키워드 검색…"
-              aria-label="키워드"
-              className={`${textInput} w-40`}
-            />
-            <select name="student" defaultValue={filter.studentId ?? ""} aria-label="학생" className={textInput}>
-              <option value="">전체 학생</option>
-              {students.map((s) => (
-                <option key={s.studentId} value={s.studentId}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="btn btn-primary btn-sm">
-              검색
-            </button>
-            {hasFilter && (
-              <Link href="/consultation" className="btn btn-ghost btn-sm inline-block">
-                초기화
-              </Link>
-            )}
-          </Form>
-
-          <p className="mb-2.5 text-xs text-[#7d849b]">
-            {hasFilter ? `검색 결과 ${entries.length}건` : `전체 ${entries.length}건`}
-          </p>
+          <h3 className="mb-3 font-[family-name:var(--font-cute)] text-[17px] font-normal text-[#102a56]">
+            완료한 상담 {hasFilter ? `검색 결과 ${entries.length}건` : `${entries.length}건`}
+          </h3>
 
           {entries.length === 0 ? (
-            <div className={emptyState}>{hasFilter ? "조건에 맞는 상담 기록이 없어요." : "아직 완료한 상담이 없어요."}</div>
+            <div className={emptyState}>{hasFilter ? "조건에 맞는 상담 기록이 없어요." : "이 날짜에 완료한 상담이 없어요."}</div>
           ) : (
             <ul className="grid gap-2.5">
               {entries.map((entry) => (
@@ -115,36 +87,5 @@ export default function ConsultationBoard({
         </section>
       </div>
     </div>
-  );
-}
-
-function ScheduledConsultationCard({ consultation }: { consultation: ScheduledConsultation }) {
-  return (
-    <article className={`${card} px-[18px] py-4`}>
-      <header className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Link
-          href={`/students/${consultation.student.studentId}`}
-          className="rounded-full bg-[#ede9ff] px-[9px] py-0.5 text-xs font-bold text-[#3f37c9] transition-colors hover:bg-[#ded8ff]"
-        >
-          {consultation.student.name}
-        </Link>
-        <span className="rounded-full bg-amber-100 px-[9px] py-0.5 text-xs font-bold text-amber-800">
-          {consultation.counterpart} · {METHOD_LABEL[consultation.method]}
-        </span>
-      </header>
-      <p className={timestampText}>예정 {formatKstDateTime(consultation.scheduledAt).slice(0, 16)}</p>
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <Link
-          href={`/consultation/report/${consultation.student.studentId}`}
-          target="_blank"
-          rel="noopener"
-          className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-[#ded8ff] bg-[#f5f3ff] px-3 py-1 text-[11px] font-semibold text-[#635bff] transition-colors hover:bg-[#ede9ff]"
-        >
-          {consultation.student.name} 누적 자료 보기
-        </Link>
-        <EditScheduledConsultationButton consultation={consultation} />
-        <CompleteConsultationButton consultation={consultation} />
-      </div>
-    </article>
   );
 }

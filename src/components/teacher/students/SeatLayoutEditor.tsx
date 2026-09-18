@@ -1,19 +1,26 @@
 // 담당: 김현우
-// 자리 배치도 "자리 바꾸기" 편집기. SeatingChart가 편집 모드일 때(넓은 화면)만 렌더한다.
+// 자리 배치도 "자리 바꾸기" 편집기. SeatingChart가 편집 모드일 때(넓은 화면)만 렌더한다 — 머리말(제목·안내)까지 여기서 그린다.
+// [취소]/[자리 저장]은 자리 판 오른쪽 아래, 행·열 추가 줄 끝에 둔다.
 // - 끌어서 놓기: Pointer Events로 직접 구현한다 (HTML5 drag는 태블릿 터치에서 동작하지 않고, 패키지 설치 금지).
 //   빈자리에 놓으면 옮기고, 다른 아이 위에 놓으면 서로 자리를 맞바꾼다.
+//   끄는 동안 손가락을 따라다니는 이름표는 document.body에 포털로 그린다 — 카드의 backdrop-blur가
+//   position: fixed의 기준을 카드로 바꿔서, 카드 안에 그리면 포인터보다 한참 아래에 보인다.
 // - 누르기로 바꾸기: 아이를 누르고 → 다른 아이나 빈자리를 누르면 같은 동작 (키보드·드래그가 불편할 때).
 // - 행·열: "+ 행/열 추가"는 맨 아래(교탁 쪽)/오른쪽에 붙이고, 아이가 없는 행·열은 머리의 ✕로 지운다.
+// 고르기·끌기 표시는 회색 톤이다 (보라·파랑은 저장 버튼 등 주요 동작에만).
 // 편집 중에는 초안만 바뀌고, 저장을 눌러야 Server Action(saveSeatLayoutAction)으로 한 번에 저장한다.
 
 "use client";
 
 import { Fragment, startTransition, useActionState, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import { saveSeatLayoutAction } from "@/app/(teacher)/students/actions";
-import { errorText } from "@/components/shared/ui";
+import { givenName } from "@/components/shared/names";
+import { errorText, salpimMuted, salpimTitle, seatBoard, seatCellHeight } from "@/components/shared/ui";
 import type { FormActionState, SeatLayout } from "@/lib/types/teacherRecord";
 import ClassroomFront from "./ClassroomFront";
+import StudentAvatar from "./StudentAvatar";
 import {
   SEAT_GRID_MAX,
   addCol,
@@ -135,7 +142,16 @@ export default function SeatLayoutEditor({
 
   return (
     <div>
-      <div className="rounded-[22px] bg-[#f5f3ff]/80 p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-baseline gap-x-2.5">
+        <h2 className={`${salpimTitle} text-[22px]`}>자리 바꾸기</h2>
+        <p className={`text-xs ${salpimMuted}`} aria-live="polite">
+          {pickedName
+            ? `${pickedName}을(를) 골랐어요. 바꿀 아이나 빈자리를 눌러 주세요. (Esc로 취소)`
+            : "아이를 끌어서 옮기거나, 두 아이를 차례로 눌러 자리를 바꿔요. 아이가 앉은 행·열은 지울 수 없어요."}
+        </p>
+      </div>
+
+      <div className={`${seatBoard} p-5`}>
         <div
           className="grid gap-2.5"
           style={{ gridTemplateColumns: `24px repeat(${draft.cols}, minmax(0, 1fr))` }}
@@ -177,8 +193,9 @@ export default function SeatLayoutEditor({
                 const key = seatKey(row, col);
                 const seat = seatAt(draft, row, col);
                 const isHover = hoverKey === key;
+                const name = seat ? (names.get(seat.studentId) ?? "") : "";
                 return (
-                  <div key={key} data-seat-row={row} data-seat-col={col} className="h-14">
+                  <div key={key} data-seat-row={row} data-seat-col={col} className={seatCellHeight}>
                     {seat ? (
                       <button
                         type="button"
@@ -188,16 +205,17 @@ export default function SeatLayoutEditor({
                         onPointerCancel={resetPointer}
                         onClick={() => handleStudentClick(seat.studentId, row, col)}
                         aria-pressed={picked === seat.studentId}
-                        aria-label={`${names.get(seat.studentId)} — ${row}행 ${col}열`}
-                        className={`flex size-full cursor-grab touch-none items-center justify-center rounded-2xl border px-2 select-none transition active:cursor-grabbing ${
+                        aria-label={`${name} — ${row}행 ${col}열`}
+                        className={`flex size-full cursor-grab touch-none [-webkit-tap-highlight-color:transparent] flex-col items-center justify-center gap-1 rounded-2xl border px-2 select-none transition active:cursor-grabbing ${
                           picked === seat.studentId
-                            ? "border-[#635bff] bg-[#ede9ff] text-[#3f37c9] ring-2 ring-[#635bff]"
-                            : "border-[#e6e2fb] bg-white text-[#102a56] shadow-[0_1px_2px_rgba(16,42,86,.05)] hover:border-[#b9b2f5]"
+                            ? "border-[#9aa0ae] bg-[#eef0f3] text-[#33405f] ring-2 ring-[#9aa0ae]"
+                            : "border-[#e6e2fb] bg-white text-[#102a56] shadow-[0_1px_2px_rgba(16,42,86,.05)] hover:border-[#c4c8d1]"
                         } ${drag?.studentId === seat.studentId ? "opacity-30" : ""} ${
-                          isHover && drag?.studentId !== seat.studentId ? "ring-2 ring-[#b9b2f5]" : ""
+                          isHover && drag?.studentId !== seat.studentId ? "ring-2 ring-[#c4c8d1]" : ""
                         }`}
                       >
-                        <span className="min-w-0 truncate text-[13px] font-bold">{names.get(seat.studentId)}</span>
+                        <StudentAvatar name={name} initial={givenName(name).slice(0, 1)} size="sm" />
+                        <span className="max-w-full min-w-0 truncate text-[13px] font-bold">{name}</span>
                       </button>
                     ) : (
                       <button
@@ -207,9 +225,9 @@ export default function SeatLayoutEditor({
                         aria-label={`빈자리 — ${row}행 ${col}열`}
                         className={`size-full rounded-2xl border-2 border-dashed text-[11px] transition-colors ${
                           isHover
-                            ? "border-[#8b83ff] bg-[#ede9ff] text-[#635bff]"
+                            ? "border-[#9aa0ae] bg-[#eef0f3] text-[#5d6580]"
                             : picked
-                              ? "border-[#ded8ff] text-[#8b83ff] hover:bg-[#ede9ff]"
+                              ? "border-[#d5d8e0] text-[#7d849b] hover:bg-[#f1f2f5]"
                               : "border-[#e6e2fb] text-[#cfcafa]"
                         }`}
                       >
@@ -245,42 +263,38 @@ export default function SeatLayoutEditor({
             + 열 추가
           </button>
           <span className="self-center text-[11px] text-[#7d849b]">
-            {draft.rows}행 × {draft.cols}열 · 최대 {SEAT_GRID_MAX}칸씩
+            {draft.rows}행 × {draft.cols}열 - 최대 {SEAT_GRID_MAX}칸씩
           </span>
+          {/* 자리 판 안쪽 오른쪽 끝 — 마지막 열 카드의 오른쪽 끝선에 맞춰진다 */}
+          <div className="ml-auto flex gap-2">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} disabled={pending}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => startTransition(() => save(draft))}
+              disabled={!dirty || pending}
+            >
+              {pending ? "저장 중…" : "자리 저장"}
+            </button>
+          </div>
         </div>
       </div>
 
-      <p className="mt-3 text-[11px] text-[#7d849b]" aria-live="polite">
-        {pickedName
-          ? `${pickedName}을(를) 골랐어요. 바꿀 아이나 빈자리를 눌러 주세요. (Esc로 취소)`
-          : "아이를 끌어서 옮기거나, 두 아이를 차례로 눌러 자리를 바꿔요. 아이가 앉은 행·열은 지울 수 없어요."}
-      </p>
       {state.status === "error" && <p className={errorText}>{state.message}</p>}
 
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} disabled={pending}>
-          취소
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={() => startTransition(() => save(draft))}
-          disabled={!dirty || pending}
-        >
-          {pending ? "저장 중…" : "자리 저장"}
-        </button>
-      </div>
-
-      {drag && (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-[13px] font-bold text-[#3f37c9] shadow-[0_8px_24px_rgba(99,91,255,.25)] ring-2 ring-[#8b83ff]"
-          style={{ left: drag.x, top: drag.y }}
-        >
-          {names.get(drag.studentId)}
-        </div>
-      )}
+      {drag &&
+        createPortal(
+          <div
+            aria-hidden
+            className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white px-4 py-3 text-[13px] font-bold text-[#33405f] shadow-[0_8px_24px_rgba(16,42,86,.18)] ring-2 ring-[#9aa0ae]"
+            style={{ left: drag.x, top: drag.y }}
+          >
+            {names.get(drag.studentId)}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
-

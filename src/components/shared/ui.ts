@@ -34,6 +34,16 @@ export const salpimSoftBox = "rounded-2xl border border-[#ded8ff] bg-[#f5f3ff]";
 export const salpimToggleOn = "rounded-full bg-[#635bff] px-3 py-1 text-xs font-bold text-white shadow-sm";
 export const salpimToggleOff = "rounded-full px-3 py-1 text-xs font-semibold text-[#7d849b] hover:text-[#102a56]";
 
+/** 자리 배치도 바깥 카드 — salpimCard와 같은 모양이지만 반투명·흐림 없이 흰색 (배경 일러스트가 비치지 않게) */
+export const seatChartCard =
+  "rounded-[26px] border border-white/80 bg-white shadow-[0_2px_6px_rgba(16,42,86,.05),0_14px_36px_rgba(99,91,255,.10)]";
+
+/** 자리 배치도 판(교실 바닥) — 보기·자리 바꾸기 편집기가 같이 쓴다 */
+export const seatBoard = "rounded-[22px] border border-[#ece9fb] bg-white";
+
+/** 넓은 화면 자리 칸 높이 — 얼굴 + 이름이 들어간다 */
+export const seatCellHeight = "h-[76px]";
+
 // ── 화면 공용 묶음 (위 톤으로) ────────────────────────────
 
 export const pageContainer = "mx-auto max-w-[900px] px-6 py-5";
@@ -48,6 +58,10 @@ export const boardPageTitle =
   "m-0 font-[family-name:var(--font-cute)] text-[26px] font-normal tracking-[-0.3px] text-[#102a56]";
 
 export const card = salpimCard;
+
+/** 눌러서 여는 카드 — 올리면 살짝 뜨고 보라 테두리·그림자, 누르면 가라앉는다 */
+export const clickableCard =
+  "cursor-pointer transition duration-150 hover:-translate-y-0.5 hover:border-[#b9b2f5] hover:shadow-[0_10px_24px_rgba(99,91,255,.18)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(99,91,255,.14)]";
 
 export const fieldLabel = "mt-3.5 mb-1.5 block text-xs font-bold tracking-[0.5px] text-[#7d849b]";
 
