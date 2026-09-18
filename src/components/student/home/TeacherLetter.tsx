@@ -56,6 +56,9 @@ export default function TeacherLetter({
         closing ? "sh-letter-leaving" : ""
       }`}
     >
+      {/* 봉투가 공중에 살짝 떠 있어 보이게 하는 바닥 그림자.
+          조립체는 봉투 바닥선에서 잘리므로 그 밖에 따로 둔다. */}
+      <div className="sh-envelope-floor" aria-hidden="true" />
       <div className="sh-letter-assembly">
       {/* 봉투 뒤판 — 편지지 "뒤"(z-1). 종이 좌우로 보라색이 비쳐 보인다. */}
       <div className="sh-envelope-depth absolute left-1/2 bottom-0 z-[1] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
@@ -138,24 +141,17 @@ export default function TeacherLetter({
       {/* 봉투 앞판 — 편지지 "앞"(z-3).
           윗변이 ∨ 모양이라 그 위로 편지지가 봉투 안에 담긴 채 비쳐 보인다.
           실제 봉투에서 종이를 반쯤 꺼냈을 때의 모습. */}
-      <div className="sh-envelope-depth sh-envelope-front pointer-events-none absolute left-1/2 bottom-0 z-[3] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
+      <div className="sh-envelope-depth pointer-events-none absolute left-1/2 bottom-0 z-[3] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
         <svg viewBox="0 0 600 366" className="block w-full" aria-hidden="true">
           <defs>
-            {/* ── 입체감용 음영. 색감은 그대로 두고 아주 옅게만 얹는다 ── */}
-            {/* 좌우 날개: 바깥 가장자리로 갈수록 어둡게 — 가운데가 볼록해 보인다 */}
-            <linearGradient id="envSideShade" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#7d72cf" stopOpacity="0.22" />
-              <stop offset="20%" stopColor="#7d72cf" stopOpacity="0" />
-              <stop offset="80%" stopColor="#7d72cf" stopOpacity="0" />
-              <stop offset="100%" stopColor="#7d72cf" stopOpacity="0.22" />
-            </linearGradient>
+            {/* ── 음영: 봉투 안쪽, 겹쳐진 접지만. 아주 얇고 옅게 ── */}
             {/* 봉투 안쪽(뒤판): 입구 쪽을 어둡게 — 봉투 속이 깊어 보인다 */}
             <linearGradient id="envInnerShade" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6f64c4" stopOpacity="0.2" />
-              <stop offset="35%" stopColor="#6f64c4" stopOpacity="0" />
+              <stop offset="0%" stopColor="#6f64c4" stopOpacity="0.16" />
+              <stop offset="30%" stopColor="#6f64c4" stopOpacity="0" />
             </linearGradient>
             <filter id="envSoftBlur" x="-10%" y="-10%" width="120%" height="120%">
-              <feGaussianBlur stdDeviation="5" />
+              <feGaussianBlur stdDeviation="2" />
             </filter>
             <linearGradient id="envFrontG" x1="0" y1="0" x2="0.9" y2="1">
               {/* 참고 이미지(편지봉투 사진)의 차가운 파스텔 라벤더. 크림·분홍을 섞지 않는다 */}
@@ -166,15 +162,14 @@ export default function TeacherLetter({
           {/* 좌우 접지는 아래 접지의 양 어깨까지 가파르게 내려온다. 가운데 입구는 넓고 평평하다. */}
           <g clipPath="url(#envClosedClip)">
             <path d="M3 23 L169 184 Q178 193 194 193 H406 Q422 193 431 184 L597 23 V366 H3 Z" fill="url(#envFoldShade)" />
-            <path d="M3 23 L169 184 Q178 193 194 193 H406 Q422 193 431 184 L597 23 V366 H3 Z" fill="url(#envSideShade)" />
             {/* 아래 접힘이 좌우 날개 위에 드리우는 그림자 — 겹쳐 접힌 두께 */}
             <path
               d="M4 352 C10 330 22 318 38 303 L166 191 Q177 180 193 180 H407 Q423 180 434 191 L562 303 C578 318 590 330 596 352"
-              transform="translate(0 7)"
+              transform="translate(0 3)"
               fill="none"
               stroke="#6f64c4"
-              strokeOpacity="0.2"
-              strokeWidth="12"
+              strokeOpacity="0.14"
+              strokeWidth="4"
               filter="url(#envSoftBlur)"
             />
             <use href="#envBottomFold" fill="url(#envFrontG)" />
