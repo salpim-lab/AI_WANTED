@@ -4,7 +4,7 @@
 //  - 편지를 X 로 닫으면: 하교 홈과 같은 구조의 인사 화면으로 바뀐다
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TeacherLetter, { type LetterData } from "./TeacherLetter";
 import HomeIntro from "./HomeIntro";
 import CtaButton from "./CtaButton";
@@ -22,9 +22,43 @@ export default function MorningHome({
   const [closing, setClosing] = useState(false);
   const [hidden, setHidden] = useState(false);
 
+  const closeStarted = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!closing) return;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    function finish() {
+      if (timer.current !== null) clearTimeout(timer.current);
+      timer.current = null;
+      setHidden(true);
+    }
+    function onMotionChange() { if (motion.matches) finish(); }
+    timer.current = setTimeout(finish, motion.matches ? 0 : 1150);
+    motion.addEventListener("change", onMotionChange);
+    return () => {
+      if (timer.current !== null) clearTimeout(timer.current);
+      timer.current = null;
+      motion.removeEventListener("change", onMotionChange);
+    };
+  }, [closing]);
+
   function close() {
+    if (closeStarted.current) return;
+    closeStarted.current = true;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setHidden(true);
+      return;
+    }
     setClosing(true);
-    window.setTimeout(() => setHidden(true), 240);
+  }
+
+  function next() {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    setClosing(false);
+    setHidden(true);
+    onNext();
   }
 
   return (
@@ -41,22 +75,24 @@ export default function MorningHome({
       </p>
 
       {hidden || !letter ? (
-        <HomeIntro
-          title={
-            <>
-              좋은 아침이야,
-              <br />
-              <span className="text-[var(--sh-violet-light)]">{studentName}</span>아!
-            </>
-          }
-          subtitle="오늘도 네 마음을 들려줘!"
-          onNext={onNext}
-        />
+        <div className={hidden ? "sh-morning-intro-entering" : undefined}>
+          <HomeIntro
+            title={
+              <>
+                좋은 아침이야,
+                <br />
+                <span className="text-[var(--sh-violet-light)]">{studentName}</span>아!
+              </>
+            }
+            subtitle="오늘도 네 마음을 들려줘!"
+            onNext={next}
+          />
+        </div>
       ) : (
         <>
           <TeacherLetter data={letter} closing={closing} onClose={close} />
           <div className="absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2">
-            <CtaButton onClick={onNext} />
+            <CtaButton onClick={next} />
           </div>
         </>
       )}

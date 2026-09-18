@@ -5,16 +5,22 @@
 //    오디오는 이 핸들러 안에서만 존재하고 응답과 함께 사라진다.
 //    DB·Storage 에 오디오를 쓰는 코드를 여기에 추가하면 안 된다.
 //
-// 모델 선택 근거(2026-09-18 실측, 합성 한국어 아동 발화 9건):
-//   gpt-4o-mini-transcribe  내용어 오류 0건, $0.003/분
-//   whisper-1               내용어 오류 2건("피구"→"피고"), $0.006/분
-// 회피 판정(gates.looksAvoidant)은 전사 텍스트를 그대로 읽으므로 내용어 정확도가
-// 곧 대화 종료 판정의 정확도다. 다만 실제 아동 음성으로는 아직 검증하지 않았다.
-// 그래서 STT_MODEL 로 교체 가능하게 둔다.
+// 모델 선택 근거 — 두 번 쟀고, 두 번째 결과로 뒤집었다.
+//
+// 1차(내용어 9건): mini-transcribe 오류 0건 / whisper-1 2건 → mini 선택
+// 2차(고유명사 18개): mini 11/18 · mini+힌트 14/18 · whisper 16/18 · whisper+힌트 18/18
+//
+// 1차에서 잰 것이 틀렸다. 이 제품에서 가장 중요한 전사 대상은 일반 내용어가 아니라
+// **반 친구 이름**이다. 교사 화면의 관계 지도와 갈등 기록이 전문에서 이름을 읽기 때문에,
+// 이름이 틀리면 그 기능이 통째로 어긋난다. 그래서 whisper-1 + 반 명단 힌트로 간다.
+// 비용은 분당 $0.003 → $0.006 이지만 세션당 1센트가 안 된다.
+//
+// 실제 아동 음성으로는 여전히 미검증이다. STT_MODEL 로 바꿀 수 있게 둔다.
 import { NextResponse } from "next/server";
 
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
+import { buildSttPrompt } from "@/lib/checkins/classRoster";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -76,14 +82,20 @@ export async function POST(request: Request) {
 
   try {
     // 남의 세션에 대고 전사를 돌려 과금시키지 못하게 막는다.
-    await requireOwnStartedSession(form.get("session_id"));
+    const session = await requireOwnStartedSession(form.get("session_id"));
 
     const upstream = new FormData();
     upstream.set("file", audio, fileName(audio));
-    upstream.set("model", process.env.STT_MODEL || "gpt-4o-mini-transcribe");
+    upstream.set("model", process.env.STT_MODEL || "whisper-1");
     // 한국어를 명시하면 짧은 발화에서 언어를 잘못 잡는 일이 없어진다.
     upstream.set("language", "ko");
     upstream.set("response_format", "json");
+
+    // 같은 반 아이 이름과 교실 어휘를 힌트로 넘긴다.
+    // ⚠️ 이건 인식을 돕는 것이지 결과를 고치는 것이 아니다.
+    //    전사 결과를 명단에 맞춰 바꿔 쓰면, 아이가 하지 않은 이름이 기록에 남는다.
+    const hint = await buildSttPrompt(session.enrollment_id);
+    if (hint) upstream.set("prompt", hint);
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",

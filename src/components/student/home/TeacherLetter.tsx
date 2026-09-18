@@ -53,10 +53,11 @@ export default function TeacherLetter({
     // 조금이라도 아래로 잡으면 그 틈으로 편지지가 삐져나와,
     // 봉투가 아니라 봉투 밖에서 올라오는 것처럼 보인다.
     <div
-      className={`absolute inset-x-0 top-0 h-[77.6cqh] overflow-hidden ${
+      className={`sh-letter-scene ${
         closing ? "sh-letter-leaving" : ""
       }`}
     >
+      <div className="sh-letter-assembly">
       {/* 봉투 뒤판 — 편지지 "뒤"(z-1). 종이 좌우로 보라색이 비쳐 보인다. */}
       <div className="absolute left-1/2 top-[56cqh] z-[1] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
         <svg viewBox="0 0 600 170" className="block w-full" aria-hidden="true">
@@ -70,6 +71,7 @@ export default function TeacherLetter({
         <button
           type="button"
           onClick={onClose}
+          disabled={closing}
           aria-label="편지 닫기"
           className="sh-letter-close right-[1.6cqh] top-[1.8cqh]"
           style={{ width: "4.4cqh", height: "4.4cqh" }}
@@ -151,6 +153,23 @@ export default function TeacherLetter({
             fill="#6a63ff"
           />
         </svg>
+      </div>
+      {/* 종이가 들어간 다음 윗덮개를 접는다. 앞/뒤판과 같은 조립체라 퇴장할 때 분리되지 않는다. */}
+      <div className="sh-envelope-lid pointer-events-none absolute left-1/2 top-[56cqh] z-[4] w-[78cqh] max-w-[64cqw] -translate-x-1/2" aria-hidden="true">
+        <svg viewBox="0 0 600 170" className="block w-full">
+          <defs>
+            <linearGradient id="envLidG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#edeaff" />
+              <stop offset="100%" stopColor="#c9c2fa" />
+            </linearGradient>
+          </defs>
+          <path d="M18 8 H582 Q596 8 598 24 L312 133 Q300 139 288 133 L2 24 Q4 8 18 8 Z" fill="url(#envLidG)" />
+          <path d="M2 24 L288 133 Q300 139 312 133 L598 24" fill="none" stroke="#a69ae5" strokeWidth="2.5" />
+          <path d="M22 157 L208 87 M578 157 L392 87" fill="none" stroke="#afa4e9" strokeWidth="2" />
+          <circle cx="300" cy="132" r="23" fill="#f5edff" />
+          <path d="M300 145 C294 139 286 135 286 128 C286 119 296 118 300 125 C304 118 314 119 314 128 C314 135 306 139 300 145 Z" fill="#8870dc" />
+        </svg>
+      </div>
       </div>
     </div>
   );

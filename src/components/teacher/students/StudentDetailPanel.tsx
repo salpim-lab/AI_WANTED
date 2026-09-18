@@ -3,9 +3,9 @@
 //   카드 1: 아이 헤더(이름·날짜 선택·닫기) + 최근 날짜 칸 + 등교/하교 마음 기록(대화 전문) + AI 분석
 //   카드 2: 선생님의 한마디 (오늘 날짜에서만)
 // 참고: docs/planning/PLANNING.md "탭 2. 아이 상세 페이지"
-// AI 분석·코멘트는 다른 담당자의 API route를 클라이언트 컴포넌트에서 fetch로만 호출한다:
-//   - 분석: POST /api/ai/daily-analysis (이지현 소유 — analysis_runs)   → AiAnalysisBox
-//   - 초안: POST /api/ai/comment-draft (이유민 소유 — feedback_drafts) → CommentComposer
+// AI 분석·코멘트 초안은 API route를 클라이언트 컴포넌트에서 fetch로만 호출한다 (서버 전용 코드라 직접 import 불가):
+//   - 분석: POST /api/ai/daily-analysis (analysis_runs, 원래 이지현 배정 — 김현우 구현, PR 협의)   → AiAnalysisBox
+//   - 초안: POST /api/ai/comment-draft (feedback_drafts, 원래 이유민 배정 — 김현우 구현, PR 협의) → CommentComposer
 // lib/supabase/interpretation/{teacherComment,dailyAnalysis}.ts는 직접 import하지 말 것.
 // (참고: docs/planning/살핌_DB_스키마_v0.3.md §13 담당자별 작업 경계)
 
