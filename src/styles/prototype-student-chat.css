@@ -107,7 +107,6 @@
    여기 남아 있던 font-size:14px 가 뒤에 로드되며 그쪽을 덮어써서,
    말풍선 크기를 두 번 키웠는데도 화면이 그대로였다.
    프로토타입 시절 규칙은 새 클래스와 이름이 겹치면 이렇게 조용히 이긴다. */
-}
 .typing-indicator {
   display: flex; gap: 4px; align-items: center; padding: 12px 15px;
   background: white; border-radius: 16px; border-bottom-left-radius: 4px;
