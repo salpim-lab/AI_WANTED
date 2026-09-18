@@ -27,13 +27,6 @@ function canonicalAssetKey(subject: string, catalogItem: CatalogItem | null) {
   return `item:${normalized}:${STYLE_VERSION}`;
 }
 
-// Catalog items keep their curated colours; only free-form assemblies get the shared palette.
-const DEFAULT_PALETTE = ["#D9E7DF", "#6E9A7C", "#E6B86A"];
-
-function applyDefaultPalette(spec: AssembledItemSpec): AssembledItemSpec {
-  return { ...spec, parts: spec.parts.map((part, index) => ({ ...part, color: DEFAULT_PALETTE[index % DEFAULT_PALETTE.length] })) };
-}
-
 async function findReadyAsset(dedupKey: string) {
   const { data, error } = await db().from("asset_catalog")
     .select("id")
@@ -107,7 +100,7 @@ export async function runItemGenerationJob(jobId: string) {
         stage = "save";
         const spec = parseLabItem(assembly);
         if ("shape" in spec) throw new Error("ASSEMBLY_NOT_COMPOSITE");
-        assetId = await saveProceduralAsset({ ...applyDefaultPalette(spec), sizeClass: inference.sizeClass }, job, "generated", dedupKey);
+        assetId = await saveProceduralAsset({ ...spec, sizeClass: inference.sizeClass }, job, "generated", dedupKey);
       }
     }
     const studentItem = await issueStudentItem({ enrollmentId: job.enrollment_id, sourceSessionId: job.source_session_id, assetId });

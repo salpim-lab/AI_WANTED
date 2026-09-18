@@ -1,0 +1,7 @@
+[
+  { "speaker": "assistant", "content": "오늘 하루는 어땠어?", "input_method": "fixed" },
+  { "speaker": "student", "content": "쉬는 시간에 화단에서 달팽이를 찾아서 친구들이랑 한참 봤어요.", "input_method": "text" },
+  { "speaker": "assistant", "content": "달팽이를 봤구나! 어떤 점이 기억에 남아?", "input_method": "text" },
+  { "speaker": "student", "content": "더듬이를 건드리면 쏙 들어갔다가 다시 나오는 게 신기했어요.", "input_method": "text" },
+  { "speaker": "assistant", "content": "자세히 관찰했네. 이야기해줘서 고마워.", "input_method": "text" }
+]
