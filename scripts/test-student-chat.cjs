@@ -60,11 +60,19 @@ t('요일이 다르면 문장이 돈다', () => {
   assert.ok(seen.size >= 2, '변주가 없다');
 });
 
+t('등교 첫 질문이 "어제" 로만 한정되지 않는다', () => {
+  // 오늘 아침 일이나 지금 마음도 말할 자리가 있어야 한다
+  const all = Object.values(openers.OPENERS.checkin).flat();
+  const yesterday = all.filter((s) => s.includes('어제')).length;
+  assert.ok(yesterday <= 2, `"어제" 로 묻는 첫 질문이 ${yesterday}개다`);
+});
+
 t('남색은 "왜 혼자 있고 싶은지" 를 묻지 않는다', () => {
   for (const flow of ['checkin', 'checkout']) {
     for (const s of openers.OPENERS[flow].navy) {
       assert.ok(!/왜.*혼자|혼자.*왜/.test(s), `남색 문구가 이유를 캐묻는다: ${s}`);
-      assert.ok(/어땠|어떤 하루/.test(s), `남색도 하루를 물어야 한다: ${s}`);
+      // 남색이 도피처가 되지 않게 하루나 지금 마음을 묻는지 본다("어제" 로 한정할 필요는 없다)
+      assert.ok(/어때|어땠|어떻게|어떤 하루/.test(s), `남색도 하루나 마음을 물어야 한다: ${s}`);
     }
   }
 });
@@ -174,6 +182,20 @@ t('sufficient 여도 질문은 남는다 — 첫 턴에 공감만 하고 끝나�
   assert.ok(out.reply.endsWith('?'));
 });
 
+t('받아주는 말에 질문이 섞이거나 선택지로 물으면 선택지 아닌 첫 질문 하나만 남긴다', () => {
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '그렇구나. 기분이 안 좋아진 일이 있었어?', question: '어떤 일이 있어서 그런 기분이 들었어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '그렇구나. 기분이 안 좋아진 일이 있었어?');
+  const b = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나! 그때 마음이 어땠어?', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '피구 했구나! 그때 마음이 어땠어?');
+  const c = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나!', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
+  assert.equal(c.reply, `피구 했구나! ${turn.FALLBACK_QUESTION}`);
+});
+
+t('질문을 두 번 하면 첫 질문만 남긴다', () => {
+  const out = turn.parseChatTurn({ missing: 'feeling', ack: '공기놀이 했구나!', question: '그때 마음이 어땠어? 공기놀이 할 때 기분이 어땠어?', sufficient: false, risk: 'none' });
+  assert.equal(out.reply, '공기놀이 했구나! 그때 마음이 어땠어?');
+});
+
 t('질문이 빠지거나 물음표가 없으면 기본 질문으로 바꾼다', () => {
   for (const q of ['', '정말 기분 좋았겠네.', '   ']) {
     const out = turn.parseChatTurn({ ack: '그랬구나.', question: q, sufficient: true, risk: 'none' });
@@ -199,11 +221,15 @@ t('잘못된 응답은 거부한다', () => {
   }
 });
 
-t('종료 문구가 모든 사유에 있다', () => {
-  for (const r of ['sufficient', 'max_turns', 'avoidance']) {
-    assert.ok(gates.CLOSING_MESSAGES[r]);
+t('종료 문구가 모든 사유·등하교에 있고, 아이템 안내가 아니다', () => {
+  for (const flow of ['checkin', 'checkout']) {
+    for (const r of ['sufficient', 'max_turns', 'avoidance']) {
+      const lines = gates.closingLines(r, flow);
+      assert.ok(lines.length >= 1);
+      // 마무리 인사는 안부·응원이어야 한다. "아이템을 만들고 있어" 는 인사로 들리지 않았다
+      assert.ok(lines.every((l) => !l.includes('아이템')), `${flow}/${r}: ${lines.join(' / ')}`);
+    }
   }
-  assert.ok(gates.HANDOFF_MESSAGE.includes('선생님'));
 });
 
 console.log(`PASS: ${n} checks — 첫 질문 변주, 게이트 우선순위, 파생 수치, 요청/응답 계약. 네트워크·키 사용 없음.`);

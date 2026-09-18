@@ -31,12 +31,17 @@ export type ChatTurnOutput = {
  * 썼고, 게이트가 첫 턴의 sufficient 를 무시하고 대화를 이어가면서 그 인사가 질문 자리에
  * 그대로 나갔다. 아이는 질문 없는 말을 받고 무엇을 해야 할지 몰랐다.
  * 이제 question 은 sufficient 와 상관없이 항상 쓴다. 쓸지 말지는 게이트가 정한다.
+ *
+ * missing: 아이 말에서 빠진 조각(무슨 일 / 마음 / 계기 / 다 있으면 detail).
+ * 후속 질문은 한 번뿐이라, 아무 질문이나 하지 않고 빠진 조각을 채우게 한다(prompt.ts).
  */
 export const CHAT_TURN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["ack", "question", "sufficient", "risk"],
+  // missing 을 맨 앞에 둔다 — 모델은 칸 순서대로 쓰므로, 무엇을 물을지 먼저 정하고 질문을 쓰게 된다
+  required: ["missing", "ack", "question", "sufficient", "risk"],
   properties: {
+    missing: { type: "string", enum: ["situation", "feeling", "cause", "detail"] },
     ack: { type: "string", maxLength: 60 },
     question: { type: "string", maxLength: 80 },
     sufficient: { type: "boolean" },
@@ -51,6 +56,9 @@ export const CHAT_TURN_SCHEMA = {
 export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
 
 const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
+
+/** "재미있었어, 아니면 다른 기분이었어?" 처럼 답을 골라 주는 질문. 아이 말이 아니라 우리 말이 된다 */
+const isChoiceQuestion = (text: string) => /아니면|[어야],\s*\S+[어야][?？]\s*$/.test(text);
 
 export type ChatTurnInput = {
   flow: "checkin" | "checkout";
@@ -180,8 +188,16 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
 
   // 질문이 없거나 물음표로 끝나지 않으면 기본 질문으로 바꾼다.
   // 후속 질문 자리에는 반드시 질문이 가야 한다.
-  const question = isQuestion(o.question) ? o.question.trim() : FALLBACK_QUESTION;
-  const ack = o.ack.trim();
+  // 질문은 하나만. 실측에서 모델이 ack 칸에도 질문을 넣어 "기분이 안 좋아진 일이 있었어?
+  // 어떤 일이 있어서 그런 기분이 들었어?" 처럼 두 번 묻거나, "재미있었어, 아니면 다른 기분이었어?"
+  // 처럼 감정 선택지를 줬다. 두 칸의 질문 문장을 모두 모아, 선택지가 아닌 첫 질문 하나만 쓴다.
+  const sentences = (text: string) => text.trim().split(/(?<=[.!?？])\s+/).filter(Boolean);
+  const all = [...sentences(o.ack), ...sentences(o.question)];
+  const asked = all.filter(isQuestion);
+  const question = asked.find((q) => !isChoiceQuestion(q)) ?? FALLBACK_QUESTION;
+  // 받아주는 말은 ack 칸의 서술문만. question 칸에 섞여 온 서술문("정말 기분 좋았겠네.")은 버린다 —
+  // 그건 대개 마무리 인사처럼 쓴 공감이라 질문 앞에 붙이면 말이 길어지고 끝맺는 느낌이 난다.
+  const ack = sentences(o.ack).filter((line) => !isQuestion(line)).join(" ");
   return {
     reply: ack ? `${ack} ${question}` : question,
     sufficient: o.sufficient,

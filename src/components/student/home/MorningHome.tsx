@@ -115,7 +115,19 @@ export default function MorningHome({
         <span className="text-[3cqh]">☺</span>
       </p>
 
-      {/* 인사를 편지보다 먼저 그려서, 겹치는 동안 봉투가 인사 위로 지나가게 한다 */}
+
+      {showLetter && (
+        <>
+          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} />
+          <div
+            className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2${closing ? " sh-letter-cta-away" : ""}`}
+          >
+            <CtaButton onClick={next} />
+          </div>
+        </>
+      )}
+
+      {/* 인사는 편지 뒤에 그려 봉투보다 위 층에 둔다 — 반투명해진 봉투 위로 인사가 겹쳐 떠오른다 */}
       {showIntro && (
         <div key={`intro-${run}`} className={closing || hidden ? "sh-morning-intro-entering" : undefined}>
           <HomeIntro
@@ -130,17 +142,6 @@ export default function MorningHome({
             onNext={next}
           />
         </div>
-      )}
-
-      {showLetter && (
-        <>
-          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} />
-          <div
-            className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2${closing ? " sh-letter-cta-away" : ""}`}
-          >
-            <CtaButton onClick={next} />
-          </div>
-        </>
       )}
 
       {tune && <LetterMotionTuner value={motionValues} onChange={setMotionValues} onReplay={replay} />}

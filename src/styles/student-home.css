@@ -322,19 +322,22 @@
   from { transform: scaleY(0); opacity: 0; }
   to { transform: scaleY(1); opacity: 1; }
 }
+/* 사라락 — 급하게 떨어지지 않고 부드럽게 미끄러지며, 투명도는 처음부터 끝까지 고르게 옅어진다.
+   멀리 떨어뜨리지 않고 조금만 내려가며 사라진다. */
 @keyframes shEnvelopeDrop {
-  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-  75% { opacity: 1; }
-  100% { transform: translateY(var(--lt-drop-dist, 72cqh)) rotate(var(--lt-tilt, 1.5deg)); opacity: 0; }
+  from { transform: translateY(0) rotate(0deg); opacity: 1; }
+  to { transform: translateY(var(--lt-drop-dist, 34cqh)) rotate(var(--lt-tilt, 1deg)); opacity: 0; }
 }
 @keyframes shLetterCtaAway { to { opacity: 0; transform: translateY(1cqh); } }
-@keyframes shMorningIntroIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes shMorningIntroRise {
-  from { transform: translateY(2.5cqh); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+/* 새싹 — 봉투 쪽(아래)에서 위로 자라난다. 아래를 축으로 세로로 조금 눌린 채 올라오고,
+   아래부터 위로 드러나며(clip-path), 다 자라면 살짝 기지개를 켰다가 자리 잡는다. */
+@keyframes shMorningSprout {
+  /* 옆·아래는 뒤의 빛 무리(sh-intro::before, 위아래 20cqh·좌우 30cqh 넘침)보다 넓게 열어 둔다.
+     inset(0) 으로 끝내면 빛 무리가 영구히 잘린다. */
+  0% { transform: translateY(9cqh) scale(0.92, 0.7); opacity: 0; clip-path: inset(100% -35cqh -25cqh -35cqh); }
+  45% { opacity: 1; }
+  80% { transform: translateY(-0.4cqh) scale(1, 1.02); clip-path: inset(-25cqh -35cqh -25cqh -35cqh); }
+  100% { transform: translateY(0) scale(1); opacity: 1; clip-path: inset(-25cqh -35cqh -25cqh -35cqh); }
 }
 .sh-letter-leaving .sh-letter-paper {
   animation: shLetterTuck 0.45s ease-in forwards;
@@ -354,8 +357,8 @@
 }
 .sh-letter-leaving .sh-letter-assembly {
   transform-origin: 50% 69%;
-  animation: shEnvelopeDrop var(--lt-drop-dur, 0.7s) var(--lt-drop-delay, 0.65s)
-    cubic-bezier(0.55, 0, 0.85, 0.35) forwards;
+  animation: shEnvelopeDrop var(--lt-drop-dur, 0.9s) var(--lt-drop-delay, 0.5s)
+    cubic-bezier(0.4, 0, 0.6, 1) forwards;
   pointer-events: none;
 }
 /* 아래 버튼은 편지와 함께 조용히 빠진다. 인사 화면에 자기 버튼이 있다. */
@@ -363,16 +366,20 @@
   animation: shLetterCtaAway 0.3s ease-out forwards;
   pointer-events: none;
 }
-/* 인사: 봉투가 내려가는 도중에 시작해, 제목 → 부제 → 버튼 순으로 떠오른다 */
+/* 인사: 봉투가 내려가는 도중에 시작해, 제목 → 부제 → 버튼 순으로 떠오른다.
+   봉투보다 위 층에 둔다 — 반투명해진 봉투 위로 인사가 겹쳐 떠올라야 장면이 이어진다.
+   겹친 층이 편지를 가리지 않게 틀은 클릭을 통과시키고, 인사 자체만 누를 수 있게 한다. */
+.sh-morning-intro-entering {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
 .sh-morning-intro-entering > .sh-intro {
-  animation: shMorningIntroIn 0.6s var(--lt-greet-delay, 0.95s) ease-out both;
+  pointer-events: auto;
+  transform-origin: 50% 100%;
+  animation: shMorningSprout 1s var(--lt-greet-delay, 0.7s) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.sh-morning-intro-entering > .sh-intro > * {
-  animation: shMorningIntroRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.05s); }
-.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.25s); }
-.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: calc(var(--lt-greet-delay, 0.95s) + 0.45s); }
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,

@@ -20,7 +20,7 @@ import {
   parseChatTurn,
   parseRiskCheck,
 } from "@/lib/chat/chatTurn";
-import { CLOSING_MESSAGES, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
+import { closingLines, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
 import type { SignalColor } from "@/lib/types/signal";
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
       decision.action === "handoff_to_teacher"
         ? [HANDOFF_MESSAGE]
         : decision.action === "close"
-          ? CLOSING_MESSAGES[decision.reason]
+          ? closingLines(decision.reason, flow)
           : turn.reply
             ? [turn.reply]
             : [];

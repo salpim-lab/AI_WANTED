@@ -40,8 +40,9 @@ export default function GuideChips({
       <div className="guide-chips">
         <p className="guide-chips__label">이런 이야기를 해도 좋아요</p>
         <ul className="guide-chips__row">
+          {/* 생각 풍선 — 누르는 게 아니라 떠 있는 생각이다. 버튼처럼 보이면 아이가 누르려 한다 */}
           {hints.map((text) => (
-            <li key={text} className="guide-chip">
+            <li key={text} className="guide-chip guide-chip--hint">
               {text}
             </li>
           ))}

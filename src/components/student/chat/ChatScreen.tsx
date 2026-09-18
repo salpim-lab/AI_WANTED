@@ -33,6 +33,7 @@ export default function ChatScreen({
   replies,
   replies2,
   consultState,
+  conversationOver = false,
   onReply,
   onReply2,
   onRequestConsult,
@@ -54,6 +55,8 @@ export default function ChatScreen({
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
   consultState: "hidden" | "choice" | "sending" | "sent" | "failed";
+  /** 대화가 끝났다고 정해진 뒤. 마지막 인사가 나오는 동안에도 true 다 */
+  conversationOver?: boolean;
   onReply: (reply: Reply) => void;
   onReply2: (r: { text: string; next2: string }) => void;
   onRequestConsult: () => void;
@@ -96,7 +99,8 @@ export default function ChatScreen({
   // 기준은 "말할 차례인가" 하나다.
   const waitingForAnswer = messages.some((m) => m.pending) || typing || thinking;
   const ended = consultState !== "hidden";
-  const canTalk = !ended && !waitingForAnswer && messages.length > 0;
+  // 마지막 인사가 뜨는 순간부터 끈다. 팝업이 뜰 때까지 기다리면 끝난 대화에 또 말하게 된다.
+  const canTalk = !ended && !conversationOver && !waitingForAnswer && messages.length > 0;
 
   const getPromptShownAt = useCallback(() => promptShownAtRef.current, []);
 
@@ -240,7 +244,7 @@ export default function ChatScreen({
                     onClick={onRequestConsult}
                     disabled={consultState === "sending"}
                   >
-                    {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어요"}
+                    {consultState === "sending" ? "전하는 중…" : "선생님과의 대화 신청하기"}
                   </button>
                   <button
                     type="button"

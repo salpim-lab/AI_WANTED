@@ -76,6 +76,7 @@ export default function CheckinPage() {
         replies={flow.replies}
         replies2={flow.replies2}
         consultState={flow.consultState}
+        conversationOver={flow.conversationOver}
         onReply={(r) => scenario && flow.handleReply(r, scenario.followups)}
         onReply2={(r) => scenario && flow.handleReply2(r, scenario.followups)}
         onRequestConsult={flow.requestConsult}

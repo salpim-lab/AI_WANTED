@@ -15,7 +15,7 @@ export type LetterMotion = {
   dropDelay: number;
   /** 내려가는 데 걸리는 시간(초) */
   dropDuration: number;
-  /** 내려가는 거리(cqh). 닫힌 봉투 윗변이 약 30cqh 라 70 이상이면 화면 밖까지 나간다 */
+  /** 내려가는 거리(cqh). 화면 밖까지 보내지 않고 조금 내려가며 사라지게 둔다(70 이상이면 화면 밖) */
   dropDistance: number;
   /** 내려가며 기우는 각도(도). 0 이면 똑바로 */
   tilt: number;
@@ -24,11 +24,11 @@ export type LetterMotion = {
 };
 
 export const DEFAULT_LETTER_MOTION: LetterMotion = {
-  dropDelay: 0.65,
-  dropDuration: 0.7,
-  dropDistance: 72,
-  tilt: 1.5,
-  greetDelay: 0.95,
+  dropDelay: 0.5,
+  dropDuration: 0.9,
+  dropDistance: 34,
+  tilt: 1,
+  greetDelay: 0.7,
 };
 
 /** 편지 장면을 치워도 되는 시각(ms) — 봉투가 다 내려간 뒤 */
