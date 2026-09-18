@@ -179,40 +179,6 @@ export default function ChatScreen({
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
-        {/* 대화가 끝나면 아이가 직접 고른다. 자동으로 넘어가지 않는다 —
-            "선생님과 이야기하고 싶다"는 선택지가 지나가 버리면 안 된다.
-            말풍선 사이가 아니라 말하기 버튼 바로 위에 둔다. 아이가 누를 것은
-            화면 아래 한곳에 모여 있어야 찾기 쉽다. */}
-        {consultState !== "hidden" &&
-          (consultState === "sent" || consultState === "failed" ? (
-            <p
-              className={`chat-ending__done${consultState === "failed" ? " chat-ending__done--failed" : ""}`}
-            >
-              {consultState === "sent"
-                ? "선생님께 전했어 ✓"
-                : "지금은 전하지 못했어. 선생님께 직접 말해줄래?"}
-            </p>
-          ) : (
-            <div className="chat-ending">
-              <button
-                type="button"
-                className="chat-consult"
-                onClick={onRequestConsult}
-                disabled={consultState === "sending"}
-              >
-                {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
-              </button>
-              <button
-                type="button"
-                className="chat-end"
-                onClick={onEndConversation}
-                disabled={consultState === "sending"}
-              >
-                오늘 대화 끝내기
-              </button>
-            </div>
-          ))}
-
         {showGuide && hasOptions && !ended && (
           <GuideChips
             hints={hints}
@@ -236,6 +202,49 @@ export default function ChatScreen({
           disabled={!canTalk}
         />
       </div>
+
+      {/* 대화가 끝나면 화면 가운데에 세운다.
+          말풍선 사이에 두면 인사에 묻혀 지나가 버리는데, 여기서 아이가 고르는 것은
+          "선생님과 이야기할지" 라서 지나가면 안 된다.
+          저장이 끝나기를 기다리지 않는다 — 저장이 늦거나 실패해도 아이를 붙잡아 두면 안 된다.
+          저장은 이미 뒤에서 돌고 있다. */}
+      {ended && (
+        <div className="chat-modal" role="dialog" aria-modal="true" aria-label="오늘 대화 마무리">
+          <div className="chat-modal__card">
+            {consultState === "sent" || consultState === "failed" ? (
+              <p
+                className={`chat-modal__done${consultState === "failed" ? " chat-modal__done--failed" : ""}`}
+              >
+                {consultState === "sent"
+                  ? "선생님께 전했어 ✓"
+                  : "지금은 전하지 못했어.\n선생님께 직접 말해줄래?"}
+              </p>
+            ) : (
+              <>
+                <p className="chat-modal__title">오늘 이야기 잘 들었어!</p>
+                <div className="chat-ending">
+                  <button
+                    type="button"
+                    className="chat-consult"
+                    onClick={onRequestConsult}
+                    disabled={consultState === "sending"}
+                  >
+                    {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어"}
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-end"
+                    onClick={onEndConversation}
+                    disabled={consultState === "sending"}
+                  >
+                    오늘 대화 끝내기
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
