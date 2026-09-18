@@ -37,10 +37,10 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 15cqh 3.4cqw 2cqh;
+  padding: 13cqh 3.4cqw 2cqh;
   display: flex;
   flex-direction: column;
-  gap: 2.4cqh;
+  gap: 2.8cqh;
   scrollbar-width: thin;
   scrollbar-color: #d8dbe6 transparent;
 }
@@ -53,8 +53,8 @@
    나머지 줄은 같은 크기의 빈 칸을 둬서 말풍선 시작 위치를 맞춘다. */
 .chat-avatar {
   flex: none;
-  width: 6cqh;
-  height: 6cqh;
+  width: 7cqh;
+  height: 7cqh;
 }
 /* 살핌 얼굴도 아이 사진과 같은 원·같은 테두리 안에 둔다.
    한쪽만 테두리가 있으면 두 사람이 다른 UI 를 쓰는 것처럼 보인다. */
@@ -101,11 +101,11 @@
 }
 
 .chat-bubble {
-  max-width: 66%;
-  padding: 2.6cqh 3.2cqh;
-  border-radius: 3.4cqh;
+  max-width: 72%;
+  padding: 3cqh 3.6cqh;
+  border-radius: 3.6cqh;
   /* 초3~4 가 태블릿을 팔 길이만큼 두고 읽는다. 어른 화면 기준으로 잡으면 작다 */
-  font-size: 3.1cqh;
+  font-size: 3.5cqh;
   line-height: 1.6;
   font-weight: 500;
   position: relative;
@@ -227,25 +227,38 @@
    두 버튼은 같은 모양이어야 한다. 한쪽만 더 둥글면 다른 종류의 버튼처럼 읽힌다. */
 .chat-ending {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   gap: 1.4cqh;
+  width: 100%;
 }
+/* 힌트 칩과 같은 모양이면 "고르는 것" 으로 읽힌다. 이건 대화를 끝내는 버튼이라
+   칠해진 면·굵은 글씨·꽉 찬 너비로 성격을 다르게 둔다. */
 .chat-ending .chat-consult,
 .chat-end {
-  padding: 1.7cqh 3cqh;
-  border-radius: 2.6cqh;
-  border: 0.25cqh solid #cbd5e1;
-  font-family: inherit;
-  font-size: 2.5cqh;
-  font-weight: 700;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 2.2cqh 2.4cqh;
+  border-radius: 2.2cqh;
+  border: none;
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 2.8cqh;
+  line-height: 1.2;
   cursor: pointer;
 }
-.chat-end {
-  background: #fff;
-  color: #475569;
+/* 면담 신청이 주된 선택. 채워서 앞에 둔다 */
+.chat-ending .chat-consult {
+  background: #eef0ff;
+  color: #3f3a9e;
+  box-shadow: inset 0 0 0 0.3cqh #c9cdf5;
 }
-.chat-end:hover { background: #f1f5f9; }
+.chat-ending .chat-consult:hover { background: #e6e9ff; }
+/* 끝내기는 물러선 선택. 같은 크기·같은 모서리, 색만 낮춘다 */
+.chat-end {
+  background: #f1f3f8;
+  color: #5b6478;
+  box-shadow: inset 0 0 0 0.3cqh #dfe3ee;
+}
+.chat-end:hover { background: #e8ebf3; }
 .chat-ending .chat-consult:disabled,
 .chat-end:disabled { opacity: 0.5; cursor: default; }
 

@@ -77,7 +77,10 @@ export default function ChatScreen({
 }) {
   // 사진을 명시하지 않으면 이름으로 찾는다. 없으면 화면이 이름 글자로 대신한다.
   const photo = studentPhotoSrc ?? studentPhotoPath(studentFullName);
-  const canShowHints = pickHints(flow, color).length > 0;
+  // 아이가 이미 말한 횟수. 턴마다 다른 힌트를 준다.
+  const spokenTurns = messages.filter((m) => m.type === "user" && !m.pending).length;
+  const hints = pickHints(flow, color, spokenTurns);
+  const canShowHints = hints.length > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -212,7 +215,7 @@ export default function ChatScreen({
 
         {showGuide && hasOptions && !ended && (
           <GuideChips
-            hints={pickHints(flow, color)}
+            hints={hints}
             replies={replies}
             replies2={replies2}
             // 음성이 실제로 동작하는 상황에서는 고를 수 없다. 아이가 직접 말해야

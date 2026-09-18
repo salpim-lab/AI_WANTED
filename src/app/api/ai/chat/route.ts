@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
+import { buildRecentContext } from "@/lib/checkins/recentContext";
 import { buildChatTurnRequest, ChatTurnError, parseChatTurn } from "@/lib/chat/chatTurn";
 import { CLOSING_MESSAGES, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
   if (!key) return fail("AI_NOT_CONFIGURED", "OPENAI_API_KEY 설정이 필요합니다.", 503);
 
   try {
-    await requireOwnStartedSession(body.session_id);
+    const session = await requireOwnStartedSession(body.session_id);
     const transcript = parseMessages(body.transcript);
 
     const studentTurns = transcript.filter((m) => m.speaker === "student");
@@ -87,7 +88,9 @@ export async function POST(request: Request) {
           color: color as SignalColor,
           transcript,
           turnCount,
-          recentContext: typeof body.recent_context === "string" ? body.recent_context : undefined,
+          // 서버에서 직접 읽는다. 클라이언트가 보낸 값은 쓰지 않는다 —
+          // 지난 세션 내용을 브라우저가 정할 수 있으면 안 된다.
+          recentContext: await buildRecentContext(session.enrollment_id, session.id),
         }),
       ),
       signal: AbortSignal.timeout(TIMEOUT_MS),

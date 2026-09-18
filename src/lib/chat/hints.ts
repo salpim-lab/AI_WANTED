@@ -34,7 +34,18 @@ const CHECKOUT: Record<SignalColor, string[]> = {
   navy: ["오늘 하루", "지금 마음", "하고 싶은 말"],
 };
 
-export function pickHints(flow: Flow, color: SignalColor | null): string[] {
+/**
+ * 두 번째 턴 힌트. 색과 무관하다.
+ *
+ * 첫 턴 힌트를 그대로 다시 보여주면 아이는 "아까 그거 또?" 가 된다.
+ * 이미 무슨 일이 있었는지는 말했으니, 두 번째는 그 일에 대한 마음과 지금 상태로 옮긴다.
+ * 이건 프롬프트가 허용한 후속 질문 형태(그때 기분 / 지금 / 더 말하기)와 같은 결이다.
+ */
+const SECOND_TURN = ["그때 어떤 기분이었는지", "지금은 어떤지", "더 하고 싶은 말"];
+
+/** turn 은 아이가 이미 말한 횟수. 0 이면 첫 질문에 답할 차례다. */
+export function pickHints(flow: Flow, color: SignalColor | null, turn = 0): string[] {
   if (!color) return [];
+  if (turn >= 1) return SECOND_TURN;
   return (flow === "checkin" ? CHECKIN : CHECKOUT)[color];
 }
