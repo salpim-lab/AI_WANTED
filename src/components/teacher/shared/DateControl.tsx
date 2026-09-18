@@ -84,8 +84,16 @@ export default function DateControl({
     };
   }, [open]);
 
+  // 주말은 고를 수 없다. 수업일에만 기록이 쌓이고, 대시보드도 주말을 직전 수업일로 되돌린다.
+  const isWeekend = (key: string) => {
+    const day = new Date(`${key}T00:00:00Z`).getUTCDay();
+    return day === 0 || day === 6;
+  };
+
   const outOfRange = (key: string) =>
-    (maxDate !== undefined && key > maxDate) || (minDate !== undefined && key < minDate);
+    isWeekend(key) ||
+    (maxDate !== undefined && key > maxDate) ||
+    (minDate !== undefined && key < minDate);
 
   function goTo(next: string) {
     setOpen(false);
@@ -167,7 +175,7 @@ export default function DateControl({
             {WEEKDAY_HEAD.map((w, i) => (
               <span
                 key={w}
-                className={"cal-wd" + (i === 0 ? " sun" : i === 6 ? " sat" : "")}
+                className={"cal-wd" + (i === 0 || i === 6 ? " weekend" : "")}
                 role="columnheader"
               >
                 {w}
@@ -186,7 +194,7 @@ export default function DateControl({
                 "cal-day",
                 key === dateKey ? "on" : "",
                 key === today ? "is-today" : "",
-                weekday === 0 ? "sun" : weekday === 6 ? "sat" : "",
+                weekday === 0 || weekday === 6 ? "weekend" : "",
               ].filter(Boolean);
               return (
                 <button

@@ -131,8 +131,8 @@
   font-weight: 700;
   color: var(--muted);
 }
-.cal-wd.sun { color: #c08272; }
-.cal-wd.sat { color: #7b83ad; }
+/* 주말은 고를 수 없다 — 색으로 강조하지 않고 회색으로 물러나 있게 한다 */
+.cal-wd.weekend { color: var(--faint, #b3ada2); font-weight: 400; }
 .cal-pad { height: 32px; }
 
 .cal-day {
@@ -147,11 +147,12 @@
   cursor: pointer;
   transition: background-color 0.12s;
 }
-.cal-day.sun { color: #c08272; }
-.cal-day.sat { color: #7b83ad; }
 .cal-day:hover:not(:disabled) { background: var(--soft, #faf9f6); }
 .cal-day:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+/* 범위 밖 날짜는 거의 지워둔다 */
 .cal-day:disabled { opacity: 0.22; cursor: default; }
+/* 주말은 "없는 날"이 아니라 "고를 수 없는 날"이라 읽히게, 흐리게 말고 회색으로 */
+.cal-day.weekend:disabled { opacity: 1; color: var(--faint, #b3ada2); font-weight: 400; }
 
 /* 오늘은 밑줄 점 하나로만 — 선택된 날과 헷갈리지 않게 */
 .cal-day.is-today { position: relative; }
@@ -166,9 +167,7 @@
   border-radius: 50%;
   background: var(--navy);
 }
-.cal-day.on,
-.cal-day.on.sun,
-.cal-day.on.sat {
+.cal-day.on {
   background: var(--navy);
   color: #fff;
   font-weight: 800;
