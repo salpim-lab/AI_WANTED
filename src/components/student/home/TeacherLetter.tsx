@@ -61,12 +61,15 @@ export default function TeacherLetter({
       <div className="sh-envelope-depth absolute left-1/2 bottom-0 z-[1] w-[78cqh] max-w-[64cqw] -translate-x-1/2">
         <svg viewBox="0 0 600 366" className="sh-envelope-rear block w-full" aria-hidden="true">
           {/* 같은 덮개를 접는 선 기준으로 뒤집는다. 열린 전용 윤곽을 따로 만들지 않는다. */}
+          {/* 열린 덮개와 몸통은 한 장의 종이처럼 붙어 있어야 한다.
+              닫힌 모양(envClosedFlap/envClosedBody)을 그대로 쓰면 둘 다 이음새 쪽 모서리가 둥글어서
+              만나는 양 끝에 V자 틈이 생겼다. 그래서 뒤판에서는 이음새 쪽 모서리만 각지게 다시 그린다. */}
           <g className="sh-envelope-open-flap">
             <g transform="translate(0 6) scale(1 -1)">
-              <use href="#envClosedFlap" fill="url(#envClosedLidG)" />
+              <path d="M3 3 H597 C592 36 583 49 565 62 L327 242 Q300 263 273 242 L35 62 C17 49 8 36 3 3 Z" fill="url(#envClosedLidG)" />
             </g>
           </g>
-          <use href="#envClosedBody" fill="url(#envFoldShade)" />
+          <path d="M3 3 H597 V345 Q597 365 578 365 H22 Q3 365 3 345 Z" fill="url(#envFoldShade)" />
         </svg>
       </div>
 
@@ -147,11 +150,10 @@ export default function TeacherLetter({
           <g clipPath="url(#envClosedClip)">
             <path d="M3 23 L169 184 Q178 193 194 193 H406 Q422 193 431 184 L597 23 V366 H3 Z" fill="url(#envFoldShade)" />
             <use href="#envBottomFold" fill="url(#envFrontG)" />
-            {/* 접힌 선의 가는 흰 하이라이트 — 참고 이미지처럼 종이 모서리가 빛을 받는 느낌 */}
-            <path d="M3 23 L169 184 M597 23 L431 184" fill="none" stroke="#fff" strokeOpacity="0.75" strokeWidth="2.4" strokeLinecap="round" />
-            <path d="M4 352 C10 330 22 318 38 303 L166 191 Q177 180 193 180 H407 Q423 180 434 191 L562 303 C578 318 590 330 596 352" fill="none" stroke="#fff" strokeOpacity="0.85" strokeWidth="2.4" strokeLinecap="round" />
-            {/* 앞면 아래 접힘 가운데의 하트 */}
-            <path d="M300 292 C288 282 276 273 276 262 C276 254 282 248 289 248 C294 248 298 251 300 255 C302 251 306 248 311 248 C318 248 324 254 324 262 C324 273 312 282 300 292 Z" fill="#7d71ee" />
+            {/* 접힌 선의 옅은 하이라이트. 흰색이면 테두리가 따로 노는 것처럼 보여서
+                봉투보다 한 톤 밝은 라벤더로 아주 옅게 둔다. */}
+            <path d="M3 23 L169 184 M597 23 L431 184" fill="none" stroke="#f4f2ff" strokeOpacity="0.5" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M4 352 C10 330 22 318 38 303 L166 191 Q177 180 193 180 H407 Q423 180 434 191 L562 303 C578 318 590 330 596 352" fill="none" stroke="#f4f2ff" strokeOpacity="0.6" strokeWidth="1.6" strokeLinecap="round" />
           </g>
         </svg>
       </div>
@@ -184,6 +186,13 @@ export default function TeacherLetter({
               <use href="#envClosedFlap" fill="url(#envClosedLidG)" />
             </g>
           </g>
+          {/* 하트 스티커 — 덮개가 닫히면 덮개 끝(300, 252)에 붙는다. 열려 있을 때는 없다.
+              참고 이미지의 납작한 보라 하트 그대로. 봉투 윤곽 밖에 둬서 잘리지 않게 한다. */}
+          <path
+            className="sh-envelope-heart"
+            d="M300 270 C288 260 276 251 276 240 C276 232 282 226 289 226 C294 226 298 229 300 233 C302 229 306 226 311 226 C318 226 324 232 324 240 C324 251 312 260 300 270 Z"
+            fill="#7d71ee"
+          />
         </svg>
       </div>
       </div>

@@ -28,7 +28,7 @@ export const DEFAULT_LETTER_MOTION: LetterMotion = {
   dropDuration: 0.9,
   dropDistance: 34,
   tilt: 1,
-  greetDelay: 0.7,
+  greetDelay: 1,
 };
 
 /** 편지 장면을 치워도 되는 시각(ms) — 봉투가 다 내려간 뒤 */
