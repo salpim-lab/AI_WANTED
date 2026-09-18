@@ -13,7 +13,7 @@ import { addDays } from "@/components/shared/datetime";
 // 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
 // mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
 // 바뀌면 buildInsights()도 그쪽을 부르도록 바꾸고, 이 import는 없앤다.
-import { DASHBOARD_TODAY, getDashboardSnapshot } from "@/components/teacher/dashboard/mockData";
+import { dashboardToday, getDashboardSnapshot } from "@/components/teacher/dashboard/mockData";
 import { listObservationLogsForStudent } from "@/lib/supabase/raw/observationLog";
 import {
   MOCK_STUDENTS,
@@ -155,7 +155,7 @@ export async function getMockAiPreview(
  */
 function buildInsights(studentId: string): { vocab: VocabInsight; relation: RelationInsight } {
   const dashboardId = MOCK_STUDENTS.findIndex((s) => s.student_id === studentId) + 1;
-  const snapshot = getDashboardSnapshot(DASHBOARD_TODAY);
+  const snapshot = getDashboardSnapshot(dashboardToday());
 
   const vocabStudent = snapshot.vocab.students.find((s) => s.studentId === dashboardId);
   const classAverage =

@@ -1,5 +1,7 @@
 // 담당: 진승혜
 // 대시보드 영역 3: 패턴 경고 — "빠르게 스캔하는 카드".
+// 축이 아침 브리핑과 겹치지 않게 한다: 감정 색 연속/변화는 전부 아침 브리핑이 맡고,
+// 여기에는 요일·시간표·활동처럼 다른 축과 교차했을 때만 보이는 반복만 올린다.
 // 한 줄에 [학생 이름 · 핵심 패턴 · 짧은 상태 라벨] 세 가지만 보여준다.
 // 근거 날짜(row.detail)는 화면에 펼치지 않고 title 툴팁으로만 숨겨둔다 — 데이터는 그대로 유지.
 // 카드 전체가 경고처럼 보이지 않게: 아이콘 없이 작은 점 하나, chip 대신 텍스트 라벨.
@@ -15,7 +17,7 @@ export default function PatternAlert({ rows }: { rows: PatternRow[] }) {
     <section className="card">
       <div className="card-title">
         패턴 경고
-        <span className="card-sub">반복해서 나타난 신호 · 최근 2주</span>
+        <span className="card-sub">요일·시간표와 겹쳐 반복된 기록 · 최근 2주</span>
       </div>
 
       <ul className="pattern-list">

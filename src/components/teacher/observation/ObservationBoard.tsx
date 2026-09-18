@@ -14,7 +14,7 @@ import { formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
 import { card, emptyState, immutableBadge, pageContainer, pageTitle, textInput, timestampText } from "@/components/shared/ui";
 import type { ClassStudent, ObservationLog, RecordTypeFilter } from "@/lib/types/teacherRecord";
 import DailyObservationButton from "./DailyObservationButton";
-import ObservationDatePicker from "./ObservationDatePicker";
+import DateControl from "@/components/teacher/shared/DateControl";
 import ObservationTypeTabs from "./ObservationTypeTabs";
 import StudentConsultationComposer from "./StudentConsultationComposer";
 
@@ -68,7 +68,7 @@ export default function ObservationBoard({
       <div className="mb-4 flex flex-nowrap items-center gap-1.5 overflow-x-auto">
         <h2 className={`${pageTitle} shrink-0`}>학생관찰일지</h2>
         <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-1.5">
-          <ObservationDatePicker date={date} today={today} />
+          <DateControl dateKey={date} today={today} basePath="/observation" maxDate={today} />
           <Form action="/observation" role="search" className="flex shrink-0 flex-nowrap items-center gap-1.5">
             <input type="hidden" name="date" value={date} />
             {type !== "all" && <input type="hidden" name="type" value={type} />}

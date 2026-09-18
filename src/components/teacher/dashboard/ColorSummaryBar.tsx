@@ -2,7 +2,7 @@
 // 대시보드 상단: 오늘의 색 현황 (등교 색 집계 + 하교 색 집계)
 // 참고: docs/prototype/prototype-teacher.html 색 현황 섹션
 
-import { COLOR_STATS } from "./mockData";
+import { colorStats } from "./mockData";
 
 const COLOR_HEX: Record<string, string> = {
   green: "var(--green)",
@@ -35,10 +35,11 @@ function StatCard({ label, stats }: { label: string; stats: readonly { color: st
 }
 
 export default function ColorSummaryBar() {
+  const stats = colorStats();
   return (
     <div className="color-stat-row">
-      <StatCard label="등교 색 현황 · 20명" stats={COLOR_STATS.morning} />
-      <StatCard label="하교 색 현황 · 20명" stats={COLOR_STATS.afternoon} />
+      <StatCard label="등교 색 현황 · 20명" stats={stats.morning} />
+      <StatCard label="하교 색 현황 · 20명" stats={stats.afternoon} />
     </div>
   );
 }

@@ -19,7 +19,7 @@ import AiAnalysisBox from "./AiAnalysisBox";
 import CommentComposer from "./CommentComposer";
 import ConversationTurns from "./ConversationTurns";
 import MiniCalendar from "./MiniCalendar";
-import StudentDatePicker from "./StudentDatePicker";
+import DateControl from "@/components/teacher/shared/DateControl";
 
 export default function StudentDetailPanel({
   student,
@@ -73,7 +73,13 @@ export default function StudentDetailPanel({
               {isToday && " · 오늘"}
             </p>
           </div>
-          <StudentDatePicker studentId={student.studentId} date={date} today={today} />
+          <DateControl
+            dateKey={date}
+            today={today}
+            basePath={`/students/${student.studentId}`}
+            maxDate={today}
+            label="기록 날짜 선택"
+          />
           <Link
             href="/students"
             scroll={false}
