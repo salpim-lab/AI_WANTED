@@ -1,8 +1,14 @@
 // 담당: 이지현 (단독 소유)
 // 협진 챗봇이 답하기 전에 참고할 컨텍스트를 모은다.
-// 데이터는 김현우가 이미 만들어둔 조회 함수(getConsultationReport/getSeatingChart/listObservationLogs)를
-// 그대로 가져다 쓴다 — 이 함수들은 "지금은 mock, Supabase 연결 시 시그니처 그대로 내부만 교체"라고
-// 그쪽 파일에 적혀 있어서, 여기는 고칠 일이 없다. 남의 파일은 절대 이 안에서 수정하지 않는다.
+// 데이터는 김현우가 이미 만들어둔 조회 함수(getConsultationReport/getSeatingChart/listObservationLogs/
+// listConsultationLogs)를 그대로 가져다 쓴다 — 이 함수들은 "지금은 mock, Supabase 연결 시 시그니처
+// 그대로 내부만 교체"라고 그쪽 파일에 적혀 있어서, 여기는 고칠 일이 없다. 남의 파일은 절대 이 안에서
+// 수정하지 않는다.
+//
+// (2026-09-18 수정) getConsultationReport는 이름과 달리 학부모상담기록(parent_consultations)을
+// 담지 않는다 — 이름은 "상담 자료 리포트"이고 실제로는 신호등/대화/관찰일지/어휘/관계만 모은다.
+// 학부모상담기록은 별도 함수(listConsultationLogs)라서 빠뜨렸었다. Supabase 연동 문제가 아니라
+// 이 파일에서 그 함수를 안 부르고 있었던 것 — 아래에서 직접 추가해서 가져온다.
 // 참고: docs/planning/살핌_DB_스키마_v0.3.md §9.3 get_student_context — 지금은 그 SQL 함수 대신
 // 이미 동작하는 mock 조회 함수 조합으로 같은 역할을 한다. Supabase 연결 후 get_student_context RPC로
 // 교체할 수 있지만, 급하지 않다 — 아래 3곳(신호등/관찰기록/어휘·관계)을 이미 한 번에 주는
@@ -13,6 +19,7 @@ import "server-only";
 import { addDays, todayKst } from "@/components/shared/datetime";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listObservationLogs } from "@/lib/supabase/raw/observationLog";
+import { listConsultationLogs } from "@/lib/supabase/raw/consultationLog";
 import { getConsultationReport, getSeatingChart, REPORT_DEFAULT_DAYS } from "@/lib/supabase/queries/teacherStudents";
 import type { SignalColor } from "@/lib/types/signal";
 
@@ -57,6 +64,12 @@ async function buildStudentContext(classId: string, studentId: string, today: st
     .map((o) => `- (${o.occurredAt.slice(0, 10)}) ${o.title ?? o.body.slice(0, 60)}`);
   if (recentObservations.length) lines.push(`[학생관찰일지]\n${recentObservations.join("\n")}`);
 
+  const consultations = await listConsultationLogs(classId, { studentId: report.student.studentId });
+  const recentConsultations = consultations
+    .slice(0, 3)
+    .map((c) => `- (${c.occurredAt.slice(0, 10)}) ${c.title}: ${c.body.slice(0, 80)}`);
+  if (recentConsultations.length) lines.push(`[학부모상담기록]\n${recentConsultations.join("\n")}`);
+
   lines.push(`[감정 어휘] 이 학생 ${report.vocabInsight.studentCount}개 · 학급 평균 ${report.vocabInsight.classAverage}개`);
 
   if (report.relationInsight.connections.length) {
@@ -92,10 +105,19 @@ async function buildClassContext(classId: string, today: string): Promise<AgentC
         }`,
     );
 
+  // listConsultationLogs는 날짜 필터가 없어서(ConsultationFilter에 from/to 없음) 전체를 받아
+  // occurredAt 기준으로 여기서 직접 최신순 정렬해 최근 것만 자른다.
+  const consultations = await listConsultationLogs(classId, {});
+  const consultLines = [...consultations]
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+    .slice(0, 3)
+    .map((c) => `- (${c.occurredAt.slice(0, 10)}) ${c.student.name} · ${c.title}: ${c.body.slice(0, 60)}`);
+
   const lines = [
     `[오늘(${today}) 등교 색 현황] ${colorLine || "기록 없음"}`,
     watchList.length ? `[오늘 살펴볼 아이] ${watchList.join(", ")}` : "",
     obsLines.length ? `[최근 7일 학생관찰일지]\n${obsLines.join("\n")}` : "",
+    consultLines.length ? `[최근 학부모상담기록]\n${consultLines.join("\n")}` : "",
   ].filter(Boolean);
 
   return { classId, studentName: null, contextText: lines.join("\n\n") };
