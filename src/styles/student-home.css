@@ -213,7 +213,21 @@
   overflow: hidden;
   pointer-events: auto;
 }
-.sh-envelope-lid { transform: scaleY(0); transform-origin: center 1cqh; opacity: 0; }
+/* 뒤판·앞판·닫힌 덮개는 같은 바닥을 축으로 깊어진다. 종이는 별도로 내려간다. */
+.sh-envelope-depth { transform-origin: center bottom; transform: scaleY(0.7104); }
+.sh-envelope-rear { overflow: visible; }
+.sh-envelope-open-flap { transform-origin: center 0; }
+.sh-envelope-closed {
+  opacity: 0;
+  transform-origin: center bottom;
+  transform: scaleY(0.7104);
+}
+.sh-envelope-closed-flap {
+  transform-box: view-box;
+  transform-origin: 50% 0%;
+  transform: scaleY(0);
+  opacity: 0;
+}
 .sh-letter-paper {
   background: var(--sh-paper);
   border-radius: 0.6cqh;
@@ -273,11 +287,28 @@
 .sh-letter-close:hover { background: rgba(105, 112, 150, 0.22); }
 .sh-letter-close:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
-/* 450ms 종이 → 200ms 덮개 → 100ms 닫힌 봉투 → 400ms 퇴장 → 300ms 인사.
-   전체 1.45초. 뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
+/* 450ms 종이 → 250ms 덮개(몸통 깊이 동시 변경) → 100ms 닫힌 봉투 → 300ms 퇴장 → 300ms 인사.
+   전체 1.4초. 뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
 @keyframes shLetterTuck {
   from { transform: translateY(0); }
   to { transform: translateY(66.2cqh); }
+}
+@keyframes shEnvelopeDeepen {
+  from { transform: scaleY(0.7104); }
+  to { transform: scaleY(1); }
+}
+@keyframes shEnvelopeFoldAway {
+  from { transform: scaleY(1); opacity: 1; }
+  to { transform: scaleY(0); opacity: 0; }
+}
+@keyframes shEnvelopeClosedIn {
+  0% { transform: scaleY(0.7104); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+@keyframes shEnvelopeDrawingOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 @keyframes shEnvelopeClose {
   from { transform: scaleY(0); opacity: 0; }
@@ -294,11 +325,21 @@
 .sh-letter-leaving .sh-letter-paper {
   animation: shLetterTuck 0.45s ease-in forwards;
 }
-.sh-letter-leaving .sh-envelope-lid {
-  animation: shEnvelopeClose 0.2s 0.45s ease-out forwards;
+.sh-letter-leaving .sh-envelope-depth {
+  animation: shEnvelopeDeepen 0.25s 0.45s ease-in-out forwards,
+    shEnvelopeDrawingOut 0.1s 0.6s linear forwards;
+}
+.sh-letter-leaving .sh-envelope-open-flap {
+  animation: shEnvelopeFoldAway 0.1s 0.45s ease-in forwards;
+}
+.sh-letter-leaving .sh-envelope-closed {
+  animation: shEnvelopeClosedIn 0.25s 0.45s ease-in-out forwards;
+}
+.sh-letter-leaving .sh-envelope-closed-flap {
+  animation: shEnvelopeClose 0.15s 0.55s ease-out forwards;
 }
 .sh-letter-leaving .sh-letter-assembly {
-  animation: shLetterOut 0.4s 0.75s ease-in forwards;
+  animation: shLetterOut 0.30s 0.8s ease-in forwards;
   pointer-events: none;
 }
 .sh-morning-intro-entering > .sh-intro {
@@ -307,7 +348,10 @@
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,
-  .sh-letter-leaving .sh-envelope-lid,
+  .sh-letter-leaving .sh-envelope-depth,
+  .sh-letter-leaving .sh-envelope-open-flap,
+  .sh-letter-leaving .sh-envelope-closed,
+  .sh-letter-leaving .sh-envelope-closed-flap,
   .sh-letter-leaving .sh-letter-paper,
   .sh-morning-intro-entering > .sh-intro { animation: none; }
 }
