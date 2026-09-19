@@ -18,18 +18,18 @@ import type { SignalColor } from "@/lib/types/signal";
 
 export type Flow = "checkin" | "checkout";
 
-/** 등교: 어제와 오늘을 잇는다 */
+/** 등교: 어제·오늘 아침·지금, 어디서 온 마음이든 고를 수 있게 섞는다 */
 const CHECKIN: Record<SignalColor, string[]> = {
-  green: ["어제 있었던 좋은 일", "자랑하고 싶은 것", "오늘 기대되는 일"],
-  yellow: ["어제 학교에서 있었던 일", "집에서 있었던 일", "그냥 드는 생각"],
-  red: ["속상했던 일", "어제 학교에서 있었던 일", "지금 마음"],
-  navy: ["어제 하루", "지금 마음", "하고 싶은 말"],
+  green: ["기분 좋았던 일", "자랑하고 싶은 것", "오늘 기대되는 일"],
+  yellow: ["오늘 아침에 있었던 일", "어제 있었던 일", "그냥 드는 생각"],
+  red: ["속상했던 일", "오늘 아침에 있었던 일", "지금 마음"],
+  navy: ["지금 마음", "요즘 있었던 일", "하고 싶은 말"],
 };
 
 /** 하교: 오늘 하루를 닫는다 */
 const CHECKOUT: Record<SignalColor, string[]> = {
   green: ["오늘 재밌었던 일", "친구랑 있었던 일", "칭찬받은 일"],
-  yellow: ["수업 시간에 있었던 일", "쉬는 시간에 있었던 일", "급식 시간"],
+  yellow: ["수업 시간에 있었던 일", "쉬는 시간에 있었던 일", "급식 시간에 생겼던 일"],
   red: ["오늘 속상했던 일", "학교에서 있었던 일", "지금 마음"],
   navy: ["오늘 하루", "지금 마음", "하고 싶은 말"],
 };
@@ -41,9 +41,40 @@ const CHECKOUT: Record<SignalColor, string[]> = {
  * 이미 무슨 일이 있었는지는 말했으니, 두 번째는 그 일에 대한 마음과 지금 상태로 옮긴다.
  * 이건 프롬프트가 허용한 후속 질문 형태(그때 기분 / 지금 / 더 말하기)와 같은 결이다.
  */
-const SECOND_TURN = ["그때 어떤 기분이었는지", "지금은 어떤지", "더 하고 싶은 말"];
+const SECOND_TURN = ["그때 들었던 기분", "지금 마음", "더 하고 싶은 말"];
 
 /** turn 은 아이가 이미 말한 횟수. 0 이면 첫 질문에 답할 차례다. */
+/** 받침이 있는가 — 조사(이나/나, 을/를)를 고르는 데 쓴다 */
+function hasBatchim(word: string): boolean {
+  const code = word.trim().charCodeAt(word.trim().length - 1);
+  if (code < 0xac00 || code > 0xd7a3) return false;
+  return (code - 0xac00) % 28 !== 0;
+}
+
+/**
+ * 힌트 주제를 한 문장으로 이어지는 줄들로 만든다. 화면은 이 줄을 하나씩 흘려 보여준다.
+ *   ["수업 시간에 있었던 일", "쉬는 시간에 있었던 일", "급식 시간에 생겼던 일"]
+ *   → ["수업 시간에 있었던 일이나", "쉬는 시간에 있었던 일이나", "급식 시간에 생겼던 일을 이야기해도 좋아"]
+ */
+export function hintLines(topics: string[]): string[] {
+  return topics.map((t, i) =>
+    i < topics.length - 1
+      ? `${t}${hasBatchim(t) ? "이나" : "나"}`
+      : `${t}${hasBatchim(t) ? "을" : "를"} 이야기해도 좋아`,
+  );
+}
+
+/**
+ * 말풍선에 넣을 글. 한 줄로 이어 읽히게 앞은 쉼표, 가운데는 "이나/나", 마지막은 그대로 둔다.
+ *   ["지금 마음", "요즘 있었던 일", "하고 싶은 말"] → ["지금 마음,", "요즘 있었던 일이나", "하고 싶은 말"]
+ */
+export function bubbleTexts(topics: string[]): string[] {
+  const last = topics.length - 1;
+  return topics.map((t, i) =>
+    i === last ? t : i === 0 && last >= 2 ? `${t},` : `${t}${hasBatchim(t) ? "이나" : "나"}`,
+  );
+}
+
 export function pickHints(flow: Flow, color: SignalColor | null, turn = 0): string[] {
   if (!color) return [];
   if (turn >= 1) return SECOND_TURN;

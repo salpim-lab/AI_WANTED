@@ -16,7 +16,10 @@ export default function StudentProfile({
   return (
     <div
       // 로고와 같은 기준(top 4.4cqh)을 쓴다.
-      className="sh-profile absolute right-[2.2cqw] top-[4.4cqh] z-[2] gap-[1.2cqw] py-[0.9cqh] pl-[0.9cqh] pr-[1.8cqw]"
+      // 누를 수 있는 것처럼 보이지 않게 꺾쇠(>)를 두지 않는다 — 이 pill 은 이름표일 뿐
+      // 상세 화면으로 가지 않는다. 오른쪽 여백은 사진 쪽(0.9cqh)보다 넓게 둔다:
+      // 둥근 사진은 가장자리에 붙어도 되지만 글자는 붙으면 답답해 보인다.
+      className="sh-profile absolute right-[2.2cqw] top-[4.4cqh] z-[2] gap-[1.4cqh] py-[0.9cqh] pl-[0.9cqh] pr-[2.6cqh]"
     >
       {src ? (
         <img
@@ -33,9 +36,6 @@ export default function StudentProfile({
         <span className="sh-avatar block" style={{ width: "5.4cqh", height: "5.4cqh" }} aria-hidden="true" />
       )}
       <span className="sh-cute text-[2.7cqh] text-[var(--sh-navy)]">{name}</span>
-      <svg viewBox="0 0 8 14" style={{ height: "2.2cqh" }} aria-hidden="true">
-        <path d="M1.5 1 6.5 7l-5 6" stroke="#9aa2ba" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
     </div>
   );
 }

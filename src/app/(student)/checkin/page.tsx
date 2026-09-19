@@ -7,7 +7,8 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import "@/styles/prototype-student-chat.css";
 import { useCallback } from "react";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
@@ -31,26 +32,42 @@ export default function CheckinPage() {
     const pick = ITEM_CATALOG[Math.floor(Math.random() * ITEM_CATALOG.length)];
     setTestItem({ emoji: "🎁", name: pick.displayName, reason: "섬 화면 테스트용 선물이야. ".repeat(3).trim(), geometrySpec: pick.spec });
   };
+
+  // 섬 배치를 마치면 잠시 안내를 띄우고 하교 화면으로 넘긴다.
+  // 공개 링크로 들어온 사람이 등교 → 섬 → 하교를 한 흐름으로 겪게 하려는 것이다(2026-09-19).
+  const router = useRouter();
+  const [toCheckout, setToCheckout] = useState(false);
+  const checkoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const goToCheckout = useCallback(() => {
+    if (checkoutTimer.current !== null) return;
+    setToCheckout(true);
+    checkoutTimer.current = setTimeout(() => router.push("/checkout"), 2800);
+  }, [router]);
+  useEffect(() => () => {
+    if (checkoutTimer.current !== null) clearTimeout(checkoutTimer.current);
+  }, []);
   const scenario = flow.color ? getCheckinScenario(flow.color) : null;
   // 뱃지는 색 이름이 아니라 마음 설명을 보여준다. 아이가 "내가 왜 이 기분이지?" 를
   // 떠올리며 말하도록 돕는 장치다. 하교 화면과 같은 출처(SIGNAL_COLORS)를 쓴다.
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
 
-  // 선생님 편지 — 교사가 아이 상세에서 보낸 최종본 (2026-09-18 김현우 연결, 이유민 님과 PR 협의).
-  // 불러오는 동안·실패·편지 없음은 모두 null → 편지 없이 인사 화면으로 시작한다 (데모 문장을 띄우지 않는다).
-  const [letter, setLetter] = useState<{ text: string; teacherName: string } | null>(null);
+  // 선생님 편지 — undefined는 불러오는 중, null은 확인했지만 오늘 편지가 없는 상태다.
+  // 둘을 구분해야 로딩 중 인사 문구가 잠깐 보였다가 편지로 바뀌는 깜빡임이 생기지 않는다.
+  const [letter, setLetter] = useState<{ text: string; teacherName: string } | null | undefined>(undefined);
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/student/letter", { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : { letter: null }))
       .then((data: { letter?: { text: string; teacherName: string } | null }) => setLetter(data.letter ?? null))
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         // 편지는 없어도 등교 흐름은 이어진다
+        setLetter(null);
       });
     return () => controller.abort();
   }, []);
 
-  if (testItem) return <IslandBoard item={testItem} />;
+  if (testItem) return <IslandBoard flow="checkin" item={testItem} onComplete={goToCheckout} />;
 
   return (
     <>
@@ -64,7 +81,7 @@ export default function CheckinPage() {
         active={flow.step === 1}
         onNext={() => flow.goTo(2)}
         bgSrc="/brand/checkin_home2.webp"
-        letterText={letter?.text ?? null}
+        {...(letter === undefined ? {} : { letterText: letter?.text ?? null })}
         {...(letter ? { teacherName: letter.teacherName } : {})}
       />
       <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />
@@ -76,6 +93,7 @@ export default function CheckinPage() {
         replies={flow.replies}
         replies2={flow.replies2}
         consultState={flow.consultState}
+        conversationOver={flow.conversationOver}
         onReply={(r) => scenario && flow.handleReply(r, scenario.followups)}
         onReply2={(r) => scenario && flow.handleReply2(r, scenario.followups)}
         onRequestConsult={flow.requestConsult}
@@ -88,7 +106,20 @@ export default function CheckinPage() {
         flow="checkin"
         color={flow.color}
       />
-      {(flow.step === 4 || flow.step === 5) && <ItemPreparation flow="checkin" sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
+      {(flow.step === 4 || flow.step === 5) && (
+        <ItemPreparation
+          flow="checkin"
+          sessionId={flow.sessionId}
+          item={flow.item}
+          onReady={enterIsland}
+          onIslandComplete={goToCheckout}
+        />
+      )}
+      {toCheckout && (
+        <div className="sh-to-checkout" role="status">
+          오늘 하루를 보내고, 하교 시간으로 넘어갈게요
+        </div>
+      )}
     </>
   );
 }

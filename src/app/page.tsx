@@ -1,4 +1,4 @@
-// 홈 화면 — 로그인 없이 "학생 등교" / "학생 하교" / "선생님 화면" 중 골라 들어간다.
+// 홈 화면 — 로그인 없이 "학생 화면" / "선생님 화면" 중 골라 들어간다.
 // (2026-09-19) 원래 임시 링크 목록이었던 걸 실제 진입 화면으로 교체.
 // 로그인 방식 자체(익명 인증 등)는 아직 팀 논의 중 — 이 화면은 그 결정과 무관하게
 // 지금 있는 라우트(/checkin, /checkout, /dashboard)로만 이동한다. 나중에 로그인이
@@ -10,9 +10,12 @@
 
 import Link from "next/link";
 
+// (2026-09-19 이유민) 공개 링크를 받은 사람의 흐름에 맞춰 둘로 줄였다.
+// 학생 화면은 등교에서 시작해, 섬 배치를 마치면 자동으로 하교 화면으로 넘어간다.
+// 하교 홈에는 "교사 시점으로 전환하기" 가 있어 같은 흐름을 교사 쪽에서 이어 볼 수 있다.
+// 그래서 등교/하교를 따로 고를 필요가 없다.
 const OPTIONS = [
-  { href: "/checkin", emoji: "🌞", label: "학생 등교" },
-  { href: "/checkout", emoji: "🌆", label: "학생 하교" },
+  { href: "/checkin", emoji: "🧒", label: "학생 화면" },
   { href: "/dashboard", emoji: "🧑‍🏫", label: "선생님 화면" },
 ] as const;
 
@@ -29,7 +32,7 @@ export default function Home() {
         <p className="text-sm text-gray-500">오늘도, 너의 마음을 들어요</p>
       </div>
 
-      <div className="flex w-full max-w-2xl flex-col gap-4 sm:flex-row">
+      <div className="flex w-full max-w-xl flex-col gap-4 sm:flex-row">
         {OPTIONS.map((o) => (
           <Link
             key={o.href}

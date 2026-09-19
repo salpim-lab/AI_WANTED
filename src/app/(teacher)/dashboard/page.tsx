@@ -35,8 +35,11 @@ import {
   dashboardMinDate,
   dashboardToday,
   getDashboardSnapshot,
+  mergeLiveVocab,
   resolveDateKey,
 } from "@/components/teacher/dashboard/mockData";
+// 감정 어휘 성장 — 민준이(개발 환경 체크인이 저장되는 학생)만 실제 대화에서 뽑은 표제어를 얹는다.
+import { getLiveVocabLemmas } from "@/lib/vocab/liveVocab";
 // 아침 브리핑의 "그날 예정된 상담" — 김현우 담당 상담 데이터(읽기만)
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listScheduledConsultationsOn } from "@/lib/supabase/raw/consultationLog";
@@ -48,6 +51,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const { isToday } = data;
   const teacher = await getActingTeacher();
   const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
+  // 실제로 말한 감정 어휘. DB·키가 없거나 그 달 세션이 없으면 빈 배열이라 카드는 하드코딩 값 그대로다.
+  const liveVocab = await getLiveVocabLemmas(dateKey);
+  const vocab = mergeLiveVocab(data.vocab, liveVocab.lemmas);
 
   return (
     <SalpimBackdrop>
@@ -85,10 +91,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
           </div>
 
-          <RelationBoard relation={data.relation} conflicts={data.conflicts} />
+          {/* 갈등 기록은 카드 안 기간 토글을 따라간다 (relation[period].conflicts) */}
+          <RelationBoard relation={data.relation} />
 
           <div className="col-12">
-            <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />
+            <VocabGrowthChart students={vocab.students} trend={vocab.trend} />
           </div>
         </div>
       </div>

@@ -40,6 +40,7 @@ export default function CheckoutPage() {
         replies={flow.replies}
         replies2={flow.replies2}
         consultState={flow.consultState}
+        conversationOver={flow.conversationOver}
         onReply={(r) => flow.handleReply(r, CHECKOUT_SCENARIO.followups)}
         onReply2={(r) => flow.handleReply2(r, CHECKOUT_SCENARIO.followups)}
         onRequestConsult={flow.requestConsult}
