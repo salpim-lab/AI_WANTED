@@ -344,8 +344,8 @@
 }
 
 /* 힌트 흐름 — 한 문장을 줄마다 나눠, 한 줄씩 아래에서 천천히 떠올랐다가 위로 사라진다.
-   한 번만 흐르고, 다 흐르면 주제마다 구름 말풍선(.guide-chip--hint)으로 흩어져 머문다.
-   살핌 로고 글꼴(Jua). 굵기가 하나뿐이라 font-weight 를 올리지 않는다 — 올리면 가짜 굵기가 입혀진다. */
+   한 번만 흐르고, 다 흐르면 주제마다 구름 말풍선(.guide-chip--hint)으로 정리돼 머문다.
+   글꼴은 가는 본문 글꼴(Noto Sans KR 400). */
 .guide-flow {
   display: flex;
   justify-content: center;
@@ -360,11 +360,12 @@
   inset: 0;
   margin: 0;
   text-align: center;
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  /* 가는 본문 글꼴. 로고 글꼴(Jua)은 굵기가 하나뿐이라 더 가늘게 할 수 없었다 */
+  font-family: var(--font-sans-kr), sans-serif;
   font-weight: 400;
-  font-size: 2.6cqh;
+  font-size: 2.5cqh;
   color: #8a8fa6;
-  animation: guideLine 2.6s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: guideLine 2.1s cubic-bezier(0.45, 0, 0.55, 1) both;
 }
 @keyframes guideLine {
   0% { opacity: 0; transform: translateY(1.2cqh); }
@@ -427,24 +428,21 @@
   /* 흰 구름 + 부드러운 그림자. 그림자(drop-shadow)는 풍선과 꼬리 점 모양을 그대로 따라가서
      테두리 없이도 생각 풍선 윤곽이 보인다. 회색 바탕만 두면 꼬리가 배경에 묻혀 버튼처럼 읽혔고,
      테두리를 두르면 딱딱했다. */
-  /* 연회색 구름 + 부드러운 그림자. 그림자가 풍선·꼬리 모양을 따라가서 회색 바탕에서도 윤곽이 보인다 */
-  background: #eceef3;
-  filter: drop-shadow(0 0.35cqh 0.7cqh rgba(60, 68, 110, 0.12));
-  /* 살핌 로고 글꼴. 굵기가 하나뿐이라 font-weight 를 올리지 않는다 */
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  /* 납작한 연회색. 그림자·높낮이·떠다님을 빼서 깔끔하게 둔다 — 요소가 많아 어수선했다.
+     꼬리가 배경에 묻히지 않을 만큼만 반 톤 진하게. */
+  background: #e7e9ef;
+  font-family: var(--font-sans-kr), sans-serif;
   color: #5f6478;
   font-weight: 400;
   cursor: default;
   user-select: none;
   pointer-events: none;
-  animation:
-    guideBubbleIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both,
-    guideFloat 5.4s ease-in-out 0.7s infinite alternate;
+  animation: guideBubbleIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* 구름이 하나씩 차례로 떠오른다 */
 @keyframes guideBubbleIn {
   from { opacity: 0; transform: translateY(1cqh); }
-  to { opacity: 1; transform: translateY(-0.2cqh); }
+  to { opacity: 1; transform: translateY(0); }
 }
 /* 생각 풍선 꼬리: 크고 작은 점 두 개 */
 .guide-chip--hint::before,
@@ -457,27 +455,9 @@
 /* 풍선에서 살짝 떨어져 대각선으로 작아지는 점 두 개 */
 .guide-chip--hint::before { width: 1.4cqh; height: 1.4cqh; left: 2.4cqh; bottom: -1.7cqh; }
 .guide-chip--hint::after { width: 0.8cqh; height: 0.8cqh; left: 1.4cqh; bottom: -2.7cqh; }
-/* 줄 맞춰 서 있지 않게 풍선마다 높낮이만 아주 조금씩 다르게 둔다. 기울이지 않는다(기울이면 어수선하다).
-   떠다니는 움직임은 transform 이 쓰므로, 제자리 어긋남은 translate·rotate 속성으로 따로 준다(겹쳐 적용된다). */
-.guide-chip--hint:nth-child(1) { translate: 0 -0.5cqh; }
-.guide-chip--hint:nth-child(2) {
-  translate: 0 0.5cqh;
-  animation-delay: 0.15s, 0.85s;
-  animation-duration: 0.7s, 6s;
-}
-.guide-chip--hint:nth-child(3) {
-  translate: 0 -0.2cqh;
-  animation-delay: 0.3s, 1s;
-  animation-duration: 0.7s, 5s;
-}
-/* 가운데 풍선은 꼬리를 오른쪽에 — 다 같은 쪽이면 줄 세운 것처럼 보인다 */
-.guide-chip--hint:nth-child(2)::before { left: auto; right: 2.4cqh; }
-.guide-chip--hint:nth-child(2)::after { left: auto; right: 1.2cqh; }
-/* 아주 살짝만 — 떠 있다는 느낌만 주고 눈길을 끌지 않는다 */
-@keyframes guideFloat {
-  from { transform: translateY(-0.2cqh); }
-  to { transform: translateY(0.2cqh); }
-}
+/* 세 풍선을 한 줄에 가지런히, 꼬리는 모두 같은 쪽. 차례로 나타나기만 한다 */
+.guide-chip--hint:nth-child(2) { animation-delay: 0.12s; }
+.guide-chip--hint:nth-child(3) { animation-delay: 0.24s; }
 .guide-chip--pick {
   background: #fff;
   cursor: pointer;

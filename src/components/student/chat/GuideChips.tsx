@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import { hintLines } from "@/lib/chat/hints";
 
 /** 한 줄이 떠올라 머물다 사라지는 시간 */
-const LINE_MS = 2600;
+const LINE_MS = 2100;
 
 /**
  * 힌트를 한 문장으로 이어 한 줄씩 **한 번만** 흘린 뒤, 주제마다 구름 말풍선으로 흩어 둔다.
