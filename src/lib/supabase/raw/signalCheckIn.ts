@@ -150,13 +150,14 @@ export async function startSignalCheckIn(
     );
   }
 
+  const attemptTried = (previous?.attempt ?? 0) + 1;
   const { data, error } = await supabase
     .from("checkin_sessions")
     .insert({
       enrollment_id: enrollmentId,
       session_date: sessionDate,
       period: input.period,
-      attempt: (previous?.attempt ?? 0) + 1,
+      attempt: attemptTried,
       mood_color: input.moodColor,
       status: "started",
       demo_owner_id: demoOwnerId,
@@ -165,19 +166,28 @@ export async function startSignalCheckIn(
     .single();
 
   // 동시 클릭 경합(2026-09-20 실측으로 확인·수정): 위 select와 이 insert 사이에 같은 방문자의 다른 요청이 먼저
-  // 세션을 만들면 DB의 부분 유니크 인덱스가 중복 행을 막는다(23505). 예전엔 그 실패가 그대로 500으로 나갔다 —
-  // 이제 승자의 세션을 다시 조회해 이어 쓰게 한다(진행 중이던 세션을 이어 쓰는 위 정책과 같다). 이미 끝난 세션이면
-  // 원래 규칙대로 거절한다.
+  // 세션을 만들면 DB의 부분 유니크 인덱스가 중복 행을 막는다(23505). 예전엔 그 실패가 그대로 500으로 나갔다.
+  // 이제 **충돌한 바로 그 슬롯**을 다시 조회한다 — 유니크 키 전체(소유자 · enrollment · 날짜 · 시간대 · attempt)가
+  // 정확히 일치하는 행만이다("내 최신 세션"이 아니다: 경합 뒤에 다른 시도가 끼어도 엉뚱한 attempt를 돌려주지 않고,
+  // 다른 방문자·공용 시드 세션은 owner 조건상 절대 반환되지 않는다).
+  //   - 승자가 진행 중(started)이면 그 세션을 이어 쓴다(위의 "진행 중이던 세션은 이어서 쓴다"와 같은 정책, 멱등).
+  //   - 그 밖(이미 끝남·재조회 실패)이면 500이 아니라 409(CHECKIN_ALREADY_EXISTS)로 명시적으로 거절한다.
   if (error) {
     if (error.code === "23505") {
-      const { data: winner } = await findLatest();
+      let slotQuery = supabase
+        .from("checkin_sessions")
+        .select("*")
+        .eq("enrollment_id", enrollmentId)
+        .eq("session_date", sessionDate)
+        .eq("period", input.period)
+        .eq("attempt", attemptTried);
+      slotQuery = demoOwnerId ? slotQuery.eq("demo_owner_id", demoOwnerId) : slotQuery.is("demo_owner_id", null);
+      const { data: winner } = await slotQuery.maybeSingle();
       if (winner?.status === "started") return winner;
-      if (winner && winner.status !== "stopped" && process.env.NODE_ENV === "production") {
-        throw new SignalCheckInRepositoryError(
-          "오늘 이 시간대의 마음은 이미 들었습니다.",
-          "CHECKIN_ALREADY_EXISTS",
-        );
-      }
+      throw new SignalCheckInRepositoryError(
+        "이미 시작된 체크인이에요. 잠시 후 다시 시도해 주세요.",
+        "CHECKIN_ALREADY_EXISTS",
+      );
     }
     dbError("체크인을 시작하지 못했습니다", error);
   }

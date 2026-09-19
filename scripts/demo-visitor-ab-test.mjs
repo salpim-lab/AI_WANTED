@@ -82,9 +82,14 @@ for (const [v, race] of [[A, raceA], [B, raceB]]) {
 const raceIdA = raceA[0].body.session_id, raceIdB = raceB[0].body.session_id;
 check("A와 B의 동시 요청은 서로 다른 세션", raceIdA !== raceIdB);
 // 반환된 세션이 "호출자 본인 소유"인지(공용 시드·타인 세션을 돌려주지 않음) — RLS 클라이언트로 본인 것만 읽힌다
-for (const [v, id, otherId] of [[A, raceIdA, raceIdB], [B, raceIdB, raceIdA]]) {
-  const own = await (await rest(v, `checkin_sessions?select=id,demo_owner_id&id=eq.${id}`)).json();
+const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(new Date());
+for (const [v, race, id, otherId] of [[A, raceA, raceIdA, raceIdB], [B, raceB, raceIdB, raceIdA]]) {
+  const own = await (await rest(v, `checkin_sessions?select=id,demo_owner_id,enrollment_id,session_date,period,attempt&id=eq.${id}`)).json();
   check(`${v.label}: 반환된 세션은 본인 소유(demo_owner_id = 내 uid)`, Array.isArray(own) && own.length === 1 && own[0].demo_owner_id === v.uid);
+  // 유니크 키(소유자·enrollment·날짜·시간대·attempt)가 요청한 슬롯과 정확히 일치 — "내 최신 세션"이 아니라 그 슬롯이어야 한다
+  const row = own?.[0] || {};
+  check(`${v.label}: 반환된 세션이 요청한 슬롯과 정확히 일치(날짜=${today}, 시간대=afternoon, attempt=1, 응답 attempt와 DB 일치)`,
+    row.session_date === today && row.period === "afternoon" && row.attempt === 1 && race.every((r) => r.body.attempt === row.attempt));
   const foreign = await (await rest(v, `checkin_sessions?select=id&id=eq.${otherId}`)).json();
   check(`${v.label}: 상대 세션은 조회되지 않음`, Array.isArray(foreign) && foreign.length === 0);
 }
