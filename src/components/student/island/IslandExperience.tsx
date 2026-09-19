@@ -54,7 +54,7 @@ const WAITING_MESSAGES = [
   "선물이 준비되면 놓기 버튼이 켜질 거야.",
   "화면을 움직여서 섬을 둘러봐!",
   "선물을 놓고 싶은 자리를 골라 볼까?",
-  "가까이 보고 싶으면 + 버튼을 눌러 봐.",
+  "멀리 보고 싶으면 - 버튼을 눌러 봐!",
   "바닷가와 나무 옆, 어디가 더 좋을까?",
   "위에서 보면 섬이 또 다르게 보여!",
 ] as const;
@@ -228,9 +228,10 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
         <p className="mt-2 text-[13px] leading-relaxed text-[#879182]">{mode === "island" ? "하루 두 개의 이야기가 쌓여도 넉넉한, 한 학기 동안의 섬이야." : "서로 다른 이야기가 모여, 하나의 커다란 우리 반 섬이 돼요."}</p>
       </div><span className="mb-1 hidden items-center gap-2 rounded-full border border-[#e1e6d7] bg-[#f0f3e8] px-4 py-2.5 text-[11px] text-[#7d8c6f] sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-[#96ac75]"/>{mode === "island" ? phase === "complete" ? "오늘의 배치 완료" : "오늘의 아이템 배치 중" : "학기말 모아 보기 · 미리 보기"}</span></div>}
 
-      <section className={`relative isolate overflow-hidden bg-[#dceee5] ${compact ? "min-h-0 flex-1" : "island-viewport-panel rounded-[26px] border border-[#d6e3d7]"}`} aria-label="3D 떠 있는 섬">
+      <section className={`relative isolate overflow-hidden ${flow === "checkout" ? "bg-[#f6a06b]" : "bg-[#dceee5]"} ${compact ? "min-h-0 flex-1" : "island-viewport-panel rounded-[26px] border border-[#d6e3d7]"}`} aria-label="3D 떠 있는 섬">
         <IslandScene
           mode={mode}
+          sunset={flow === "checkout"}
           gifts={sceneGifts}
           incomingAsset={{ name: acquired.name, assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec }}
           itemReady={!preparing && baseItemCount === 0}
@@ -274,7 +275,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
         {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
         {mode === "island" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && incomingItem && completionNoticeVisible)) && <div className={`pointer-events-none absolute inset-x-3 z-30 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center px-4 text-center text-black font-[family-name:var(--font-cute)] font-normal top-[22%]`} role="status" aria-live="polite">
-          <div className="relative min-w-0"><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : `${acquired.name} 생성 완료!`}</p><div className="absolute inset-x-0 top-full">{phase === "choosing" && placementNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] font-normal text-black">{placementNotice}</p>}{progressNotice?.[1] && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] text-black break-keep">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}</div></div>
+          <div className="relative min-w-0"><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : `${acquired.name} 생성 완료!`}</p><div className="absolute inset-x-0 top-full">{phase === "choosing" && placementNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] font-normal text-black">{placementNotice}</p>}{progressNotice?.[1] && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}</div></div>
         </div>}
 
         {phase !== "moving" && showSceneControls && <div className={`pointer-events-none [&>button]:pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col items-start gap-4 ${showBottomCard ? "max-[900px]:bottom-[76px]" : ""} ${compact ? "px-3 pb-3 pt-6" : "px-5 pb-5 pt-10"}`}>
