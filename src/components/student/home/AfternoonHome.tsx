@@ -38,7 +38,9 @@ export default function AfternoonHome({
                 교사 시점으로 전환하기
               </Link>
               <span id="sh-teacher-switch-tip" role="tooltip" className="sh-teacher-tip">
-                지금 교사 화면으로 가면 {studentName}이의 하교 마음이 기록되지 않는데 괜찮으시겠습니까?
+                지금 교사 화면으로 가면 {studentName}이의 하교 마음이
+                <br />
+                기록되지 않는데 괜찮으시겠습니까?
               </span>
             </span>
           }

@@ -649,12 +649,16 @@
   max-width: 50cqh;
   padding: 1.3cqh 2cqh;
   border-radius: 1.6cqh;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 0.8cqh 2.4cqh rgba(40, 48, 90, 0.16);
-  color: var(--sh-navy);
-  font-size: 2.1cqh;
-  font-weight: 600;
-  line-height: 1.5;
+  /* 반투명 흰 말풍선 + 가는 빨간 글씨 — 주의를 주되 버튼보다 튀지 않게 */
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(0.8cqh);
+  -webkit-backdrop-filter: blur(0.8cqh);
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.1);
+  color: #d64545;
+  font-family: var(--font-sans-kr), sans-serif;
+  font-size: 1.9cqh;
+  font-weight: 400;
+  line-height: 1.55;
   text-align: center;
   word-break: keep-all;
   opacity: 0;
@@ -673,6 +677,8 @@
   height: 1.6cqh;
   background: inherit;
   border-radius: 0.3cqh 0 0 0;
+  /* 반투명이라 말풍선과 겹치는 아래 절반을 잘라 낸다 — 겹치면 그 부분만 진해 보인다 */
+  clip-path: polygon(0 0, 100% 0, 0 100%);
   transform: translateX(-50%) rotate(45deg);
 }
 .sh-teacher-switch:hover .sh-teacher-tip,
