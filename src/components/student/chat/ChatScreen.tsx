@@ -194,7 +194,10 @@ export default function ChatScreen({
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
-        {showGuide && hasOptions && !ended && (
+        {/* 아이가 말하는 동안(녹음 요청·녹음·전사)과 살핌이 답을 준비하는 동안에는 힌트를 숨긴다.
+            말하는 중에 같은 문장이 계속 흘러가면 방해가 되고 피로했다. */}
+        {showGuide && hasOptions && !ended && !conversationOver && !waitingForAnswer &&
+          !["requesting", "recording", "processing"].includes(recorder.status) && (
           <GuideChips
             hints={hints}
             replies={replies}

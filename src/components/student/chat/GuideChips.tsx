@@ -12,7 +12,47 @@
 // 항상 떠 있으면 말하기 버튼과 비중이 같아져 주객이 바뀐다.
 // 그래서 AI 가 물어본 뒤 잠시 아무 반응이 없을 때만 올라온다.
 import type { Reply } from "../mockScenarios";
+import { useEffect, useState } from "react";
 import { hintLines } from "@/lib/chat/hints";
+
+/** 한 줄이 떠올라 머물다 사라지는 시간 */
+const LINE_MS = 4200;
+/** 문장을 다 흘린 뒤 다시 보여주기까지 쉬는 시간. 쉬지 않고 돌면 같은 말이 계속 떠서 피로했다 */
+const REST_MS = 14000;
+
+/**
+ * 힌트 문장을 한 줄씩 흘려 보여준다. 다 흘리면 한참 쉬었다가 다시 흘린다.
+ * CSS 무한 반복으로는 쉬는 시간을 줄 수 없어서 타이머로 차례를 넘긴다.
+ * 줄마다 key 를 바꿔 등장 애니메이션을 처음부터 다시 틀게 한다.
+ */
+function HintFlow({ lines }: { lines: string[] }) {
+  // index: 지금 보여줄 줄. -1 이면 쉬는 중
+  const [state, setState] = useState({ index: 0, round: 0 });
+  useEffect(() => {
+    const last = state.index === lines.length - 1;
+    const resting = state.index === -1;
+    const wait = resting ? REST_MS : LINE_MS;
+    const id = window.setTimeout(() => {
+      setState((s) =>
+        s.index === -1 ? { index: 0, round: s.round + 1 } : last ? { ...s, index: -1 } : { ...s, index: s.index + 1 },
+      );
+    }, wait);
+    return () => window.clearTimeout(id);
+  }, [state, lines.length]);
+
+  return (
+    <div className="guide-flow" role="note">
+      <span className="sr-only">{lines.join(" ")}</span>
+      <div className="guide-flow__stage" aria-hidden="true">
+        {state.index >= 0 && (
+          <p key={`${state.round}-${state.index}`} className="guide-flow__line">
+            {lines[state.index]}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function GuideChips({
   hints,
@@ -37,22 +77,7 @@ export default function GuideChips({
 }) {
   if (!selectable) {
     if (!hints.length) return null;
-    const lines = hintLines(hints);
-    // 말풍선·칩으로 두면 누르는 버튼처럼 읽혔다. 이제 문장 하나를 줄마다 나눠
-    // 아래에서 천천히 떠올랐다가 위로 사라지게 차례로 흘려 보여준다(누를 것이 없다).
-    // 화면 읽기 프로그램에는 문장 전체를 한 번에 준다.
-    return (
-      <div className="guide-flow" role="note">
-        <span className="sr-only">{lines.join(" ")}</span>
-        <div className="guide-flow__stage" aria-hidden="true" style={{ ["--n" as string]: lines.length }}>
-          {lines.map((line, i) => (
-            <p key={line} className="guide-flow__line" style={{ ["--i" as string]: i }}>
-              {line}
-            </p>
-          ))}
-        </div>
-      </div>
-    );
+    return <HintFlow lines={hintLines(hints)} />;
   }
 
   if (!replies?.length && !replies2?.length) return null;
