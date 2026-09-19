@@ -2,7 +2,7 @@
 // 공개 데모(Vercel) AI 호출 비용 제한 — 방문자(auth.uid())당/IP당 시간창 안 호출 횟수를
 // DB(원자적 Postgres 함수)로 센다. Vercel 서버리스는 인스턴스마다 메모리가 따로라 메모리
 // 카운터로는 막을 수 없다(계획 문서 cozy-mixing-scone.md F항 참고).
-// 마이그레이션: supabase/migrations/20260920020400_1091_ai_rate_limits.sql
+// 마이그레이션: supabase/migrations/20260919184555_1091_ai_rate_limits.sql
 
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";

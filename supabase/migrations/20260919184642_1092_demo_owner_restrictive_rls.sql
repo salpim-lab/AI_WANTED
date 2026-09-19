@@ -3,7 +3,7 @@
 --
 -- ## 발견한 문제
 -- is_class_teacher(), is_enrollment_teacher() 함수는 class_teachers.role을 전혀 안 가린다
--- ('assistant'든 'homeroom'이든 그 반에 등록만 돼 있으면 통과). 그런데 20260920013300_1090
+-- ('assistant'든 'homeroom'이든 그 반에 등록만 돼 있으면 통과). 그런데 20260919184444_1090
 -- 마이그레이션에서 데모 방문자를 class_teachers에 role='assistant'로 등록하기 시작했다
 -- (/api/demo/init). 그 결과 다음 기존 PERMISSIVE 정책들이 데모 방문자 전원에게 "같은 반이면
 -- 전체 열람 가능"을 그대로 허용해버린다:
@@ -62,6 +62,10 @@
 -- 추가 조건을 건다. 그래서 기존 팀원 정책(9010_rls.sql)을 하나도 안 고치고, "그 반 담당자면
 -- 열람 가능"이라는 원래 설계(진짜 다인원 교사·보조교사 협업 시나리오에서는 맞는 설계다) 위에
 -- "그런데 이게 데모 방문자가 새로 만든 행이면, 내가 만든 것만" 조건을 얹을 수 있다.
+
+-- 잠금 대기·실행 시간 제한 (한 번의 요청 = 암묵적 트랜잭션, 실패하면 전체 롤백)
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 
 create policy checkin_sessions_demo_owner_restrict on public.checkin_sessions
 as restrictive

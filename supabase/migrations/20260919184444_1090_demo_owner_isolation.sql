@@ -5,8 +5,8 @@
 -- (docs/데모_방문자_격리_쿠키_방식.md 및 관련 논의 — 워크스페이스 커스텀 쿠키 대신
 -- Supabase 익명 인증의 auth.uid()를 그대로 소유자 키로 쓰기로 함).
 --
--- NULL = 공용 시드 데이터(마이그레이션 시점 기준 기존 행 전부), 값이 있으면 그 값을
--- 만든 익명 방문자(auth.users.id)의 새 데이터. work_records.created_by /
+-- NULL = 검증된 공용 시드 데이터(기존 행 중 시드 스크립트 산출물로 확인된 것만 — 아래 backfill 참고),
+-- 값이 있으면 그 값을 만든 사용자(auth.users.id)의 데이터. work_records.created_by /
 -- parent_consultations.teacher_id처럼 이미 "누가 썼는지" 컬럼이 있는 테이블은 이 컬럼을
 -- 새로 안 만들고 그 컬럼을 그대로 재사용한다(별도 논의) — checkin_sessions만 그런 컬럼이
 -- 없어서(모든 방문자가 같은 enrollment_id를 공유하므로 기존 유일성만으로 구분 불가) 여기만
@@ -22,11 +22,38 @@
 -- sessions/work_records)의 demo_owner_id를 따라가고, student/class 소스만 이 컬럼을 직접 쓴다
 -- (1092 마이그레이션의 analysis_runs_demo_owner_restrict 정책 참고).
 
+-- 잠금 대기·실행 시간 제한 — 다른 세션이 이 테이블을 잡고 있으면 오래 기다리지 않고 실패한다
+-- (멀티 스테이트먼트 한 번의 요청 = 암묵적 트랜잭션이라 SET LOCAL이 끝까지 유효, 실패하면 전체 롤백).
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
 alter table public.checkin_sessions
   add column demo_owner_id uuid references auth.users(id);
 
 comment on column public.checkin_sessions.demo_owner_id is
-  '공개 데모 격리용. NULL=공용 시드, 값 있으면 그 익명 방문자(auth.uid())가 만든 데이터. 실 서비스 로그인 붙으면 제거 대상.';
+  '공개 데모 격리용. NULL=검증된 공용 시드, 값 있으면 그 사용자(익명 방문자 auth.uid() 또는 기존 개발 로그인 계정)가 만든 데이터. 실 서비스 로그인 붙으면 제거 대상.';
+
+-- ⚠️ 기존 행을 "NULL이니까 공용"으로 취급하지 않는다. 2026-09-20 실제 DB 조사 결과(779건):
+--   - id가 '70000000-0000-4000-8000-…' 결정적 UUID인 712건 = 시드 스크립트가 만든 공용 목업
+--     (고정 id + 규칙적 생성 시각, 앱 경로로는 만들어질 수 없는 형태) → NULL 유지(공용).
+--   - 그 외 67건(랜덤 UUID 65건 + '50000000-…' 수동 fixture 2건) = 앱/개발 중 만들어진 테스트 체크인
+--     (9/13~9/20, 같은 날 attempt 최대 26회, 실제 발화·음성 측정값 포함) → 공용으로 확인 안 됨.
+--     그 학생의 개발 로그인 계정(students.auth_user_id = dev-…@salpim.local)이 만든 것이므로
+--     그 계정 소유로 표시한다. 계정이 없는 1건은 담임 계정 소유로 격리한다.
+--     (소유자 값이 있으면 RESTRICTIVE 정책이 다른 방문자에게서 자동으로 숨긴다 — 연결된
+--      conversation_messages·meeting_requests·analysis_runs도 부모를 따라 같이 숨겨진다.)
+update public.checkin_sessions cs
+set demo_owner_id = coalesce(
+  s.auth_user_id,
+  (select ct.teacher_id from public.class_teachers ct
+   where ct.class_id = e.class_id and ct.role = 'homeroom'
+   order by ct.teacher_id limit 1)
+)
+from public.enrollments e
+join public.students s on s.id = e.student_id
+where e.id = cs.enrollment_id
+  and cs.demo_owner_id is null
+  and cs.id::text not like '70000000-0000-4000-8000-%';
 
 -- 기존 unique (enrollment_id, session_date, period, attempt)를 부분 인덱스 두 개로 교체한다.
 -- 단순 UNIQUE (demo_owner_id, ...)로는 안 된다 — PostgreSQL은 NULL끼리 서로 다르다고

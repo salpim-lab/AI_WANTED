@@ -3,6 +3,10 @@
 -- 메모리 카운터로는 막을 수 없다 — DB에 원자적으로 세고 한도를 넘으면 거부한다.
 -- 주체(subject)는 보통 익명 세션의 auth.uid() 문자열, 세션이 없으면 IP 등 호출부가 정한 값.
 
+-- 잠금 대기·실행 시간 제한 (한 번의 요청 = 암묵적 트랜잭션, 실패하면 전체 롤백)
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
+
 create table public.ai_rate_limits (
   subject text primary key,
   window_start timestamptz not null default now(),
@@ -50,3 +54,9 @@ $$;
 
 comment on function public.increment_ai_rate_limit is
   '주체별 시간창 안 호출 횟수를 원자적으로 증가시키고, 한도 이내면 true를 돌려준다.';
+
+-- ⚠️ security definer 함수는 기본적으로 PUBLIC(anon·authenticated 포함)이 실행할 수 있다 —
+-- 그러면 방문자가 REST/RPC로 이 함수를 직접 불러 p_window_seconds=0으로 자기 카운터를
+-- 리셋(호출 제한 우회)하거나 다른 주체의 카운터를 소모시킬 수 있다. 서버(service_role)만 쓴다.
+revoke all on function public.increment_ai_rate_limit(text, integer, integer) from public, anon, authenticated;
+grant execute on function public.increment_ai_rate_limit(text, integer, integer) to service_role;

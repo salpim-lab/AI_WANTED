@@ -261,7 +261,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           // 이지현 (제안, 2026-09-20): 공개 데모 방문자 격리용 — 마이그레이션
-          // 20260920013300_1090_demo_owner_isolation.sql 참고. 이 필드는 이 파일이
+          // 20260919184444_1090_demo_owner_isolation.sql 참고. 이 필드는 이 파일이
           // 원래 자동 생성(supabase gen types)되는 파일이라, 그 마이그레이션이 실제
           // DB에 적용된 뒤 다시 생성하면 자동으로 반영된다 — 그 전까지 리뷰/빌드가
           // 가능하도록 수동으로 추가해둔 것이다.
@@ -1429,7 +1429,7 @@ export type Database = {
     }
     Functions: {
       current_actor: { Args: never; Returns: string }
-      // 이지현 (제안, 2026-09-20): 마이그레이션 20260920020400_1091_ai_rate_limits.sql 참고.
+      // 이지현 (제안, 2026-09-20): 마이그레이션 20260919184555_1091_ai_rate_limits.sql 참고.
       // 이 파일은 원래 자동 생성 — 그 마이그레이션이 실제 DB에 적용된 뒤 다시 생성하면 자동 반영됨.
       increment_ai_rate_limit: {
         Args: { p_subject: string; p_window_seconds: number; p_max_calls: number }
