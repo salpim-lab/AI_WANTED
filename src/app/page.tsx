@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import "@/styles/landing.css";
+import SalpimLogo from "@/components/shared/SalpimLogo";
 
 const OPTIONS = [
   { href: "/checkin", label: "학생", description: "민준이가 되어 오늘의 마음 이야기하기", icon: "student" },

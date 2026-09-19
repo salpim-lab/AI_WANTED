@@ -9,11 +9,16 @@ import { isDateString, todayKst } from "@/components/shared/datetime";
 import { validateSeatLayout } from "@/components/teacher/students/seatGrid";
 import { sendFinalComment } from "@/lib/supabase/interpretation/teacherComment";
 import { getStudentDaySessions, listClassStudents } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { saveSeatLayout } from "@/lib/supabase/raw/seatLayout";
 import type { ActionResult, SeatLayout } from "@/lib/types/teacherRecord";
 
-export async function saveSeatLayoutAction(layout: SeatLayout): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function saveSeatLayoutAction(...args: Parameters<typeof saveSeatLayoutActionInMockScope>) {
+  return withTeacherMockFixture(() => saveSeatLayoutActionInMockScope(...args));
+}
+
+async function saveSeatLayoutActionInMockScope(layout: SeatLayout): Promise<ActionResult> {
   const teacher = await getActingTeacher();
   const classStudentIds = (await listClassStudents(teacher.classId)).map((s) => s.studentId);
 
@@ -43,7 +48,12 @@ const MAX_COMMENT_LENGTH = 500;
  * 선생님의 한마디를 보낸다 — 아이는 다음 날 등교 홈 "선생님 편지"로 본다.
  * 교사가 저장을 눌러야만 호출된다 (기획안 10장 AI 대필 금지: 자동 발송 없음).
  */
-export async function sendTeacherCommentAction(input: {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function sendTeacherCommentAction(...args: Parameters<typeof sendTeacherCommentActionInMockScope>) {
+  return withTeacherMockFixture(() => sendTeacherCommentActionInMockScope(...args));
+}
+
+async function sendTeacherCommentActionInMockScope(input: {
   studentId: string;
   date: string;
   text: string;

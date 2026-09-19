@@ -13,7 +13,7 @@ export default function SalpimBackdrop({ children }: { children: React.ReactNode
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden print:hidden">
         <div
           className="absolute inset-0 bg-cover bg-fixed bg-center opacity-45"
-          style={{ backgroundImage: "url('/brand/checkin_home-배경만.webp')" }}
+          style={{ backgroundImage: "url('/brand/checkin_home2.webp')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-white/55 via-[#f7f5ff]/75 to-[#f4f1ff]/90" />
       </div>

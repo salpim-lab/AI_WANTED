@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import "@/styles/prototype-student-chat.css";
 import { useCallback } from "react";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
+import { useStepUrl } from "@/components/student/useStepUrl";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
@@ -27,6 +28,17 @@ export default function CheckinPage() {
   const flow = useCheckinFlow("checkin");
   const { setItem, goTo } = flow;
   const enterIsland = useCallback((item: Item) => { setItem(item); goTo(5); }, [setItem, goTo]);
+
+  // 단계마다 주소를 준다(/checkin, /checkin/mood, /talk, /item, /island). 화면의 뒤로가기와
+  // 브라우저 뒤로가기가 같은 기록을 쓰게 해서 둘 다 바로 앞 단계로 간다.
+  // 대화·아이템·섬은 앞 단계의 데이터가 있어야 보여줄 수 있다 — 없으면(새로고침 등) 홈으로.
+  const canShowStep = useCallback(
+    (s: number) =>
+      s <= 2 ||
+      (s === 3 ? flow.messages.length > 0 : s === 4 ? Boolean(flow.sessionId || flow.item) : Boolean(flow.item)),
+    [flow.messages.length, flow.sessionId, flow.item],
+  );
+  const { back } = useStepUrl({ base: "/checkin", step: flow.step, goTo, canShow: canShowStep });
   // 섬 화면 테스트용 — 대화·선물 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
   const [testItem, setTestItem] = useState<Item | null>(null);
   const enterTestIsland = () => {
@@ -42,7 +54,8 @@ export default function CheckinPage() {
   const goToCheckout = useCallback(() => {
     if (checkoutTimer.current !== null) return;
     setToCheckout(true);
-    checkoutTimer.current = setTimeout(() => router.push("/checkout"), 2800);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    checkoutTimer.current = setTimeout(() => router.push("/checkout"), reducedMotion ? 0 : 2400);
   }, [router]);
   useEffect(() => () => {
     if (checkoutTimer.current !== null) clearTimeout(checkoutTimer.current);
@@ -117,17 +130,18 @@ export default function CheckinPage() {
         />
       )}
       {toCheckout && (
-        <div className="sh-to-checkout" role="status">
-          오늘 하루를 보내고, 하교 시간으로 넘어갈게요
+        <div className="sh-to-checkout" role="status" aria-live="polite">
+          <p className="sh-cute">오늘 아침 이야기 고마워!</p>
+          <span>즐거운 하루 보내고, 하교 시간에 다시 만나자</span>
         </div>
       )}
       {(
         flow.step === 2 ||
-        flow.step === 5 ||
+        (flow.step === 5 && !toCheckout) ||
         (flow.step === 3 && !flow.typing && !flow.thinking && !flow.conversationOver && flow.consultState === "hidden")
       ) && (
         <StudentBackButton
-          onBack={() => flow.goTo(flow.step - 1)}
+          onBack={back}
         />
       )}
     </>

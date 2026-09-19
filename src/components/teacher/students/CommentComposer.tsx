@@ -1,7 +1,7 @@
 // 담당: 김현우
 // 아이 상세 하단 "내일 전달할 코멘트".
 //   초안: POST /api/ai/comment-draft { studentId, date } → 200 { draft: string | null, sent: string | null }
-//         501(키 미설정·테스트 대상 아님)이면 서버가 넘겨준 mock 예시(fallbackDraft)를 "예시"로 쓴다.
+//         501(키 미설정·테스트 대상 아님)이면 서버가 넘겨준 mock 초안(fallbackDraft)을 그대로 쓴다 — 따로 "예시" 표시는 하지 않는다.
 //   초안은 입력창 안에 회색 글씨(고스트 텍스트)로 깔린다. 교사가 Tab을 누르면 남은 초안이 그대로 입력되고,
 //   초안과 같은 글자로 쓰기 시작하면 이어지는 부분만 회색으로 남는다. 다른 말을 쓰기 시작하면 사라진다.
 //   보내기: Server Action(sendTeacherCommentAction) → feedback_drafts.final_text, status='sent'.
@@ -24,7 +24,7 @@ const letterField =
 
 type DraftState =
   | { status: "loading" }
-  | { status: "ready"; draft: string; isExample: boolean }
+  | { status: "ready"; draft: string }
   | { status: "unavailable" };
 
 export default function CommentComposer({
@@ -62,11 +62,11 @@ export default function CommentComposer({
           setSaved(true);
         }
         if (response.status === 501) {
-          setDraftState(fallbackDraft ? { status: "ready", draft: fallbackDraft, isExample: true } : { status: "unavailable" });
+          setDraftState(fallbackDraft ? { status: "ready", draft: fallbackDraft } : { status: "unavailable" });
           return;
         }
         if (!response.ok) throw new Error(`comment-draft HTTP ${response.status}`);
-        setDraftState(data.draft ? { status: "ready", draft: data.draft, isExample: false } : { status: "unavailable" });
+        setDraftState(data.draft ? { status: "ready", draft: data.draft } : { status: "unavailable" });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -120,9 +120,6 @@ export default function CommentComposer({
           ) : (
             "AI 초안을 참고해 선생님의 말로 쓰고 있어요."
           ))}
-        {draftState.status === "ready" && draftState.isExample && (
-          <span className="rounded bg-amber-50 px-1.5 py-px font-semibold text-amber-700">API 연결 전 - 예시</span>
-        )}
       </p>
 
       <label htmlFor="teacher-comment" className="sr-only">

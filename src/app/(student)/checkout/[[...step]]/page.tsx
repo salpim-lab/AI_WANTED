@@ -10,6 +10,7 @@ import "@/styles/prototype-student-chat.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCheckinFlow } from "@/components/student/useCheckinFlow";
+import { useStepUrl } from "@/components/student/useStepUrl";
 import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
@@ -23,6 +24,17 @@ export default function CheckoutPage() {
   const flow = useCheckinFlow("checkout");
   const { setItem, goTo } = flow;
   const enterIsland = useCallback((item: Item) => { setItem(item); goTo(5); }, [setItem, goTo]);
+
+  // 단계마다 주소를 준다(/checkout, /checkout/mood, /talk, /item, /island). 화면의 뒤로가기와
+  // 브라우저 뒤로가기가 같은 기록을 쓰게 해서 둘 다 바로 앞 단계로 간다.
+  // 대화·아이템·섬은 앞 단계의 데이터가 있어야 보여줄 수 있다 — 없으면(새로고침 등) 홈으로.
+  const canShowStep = useCallback(
+    (s: number) =>
+      s <= 2 ||
+      (s === 3 ? flow.messages.length > 0 : s === 4 ? Boolean(flow.sessionId || flow.item) : Boolean(flow.item)),
+    [flow.messages.length, flow.sessionId, flow.item],
+  );
+  const { back } = useStepUrl({ base: "/checkout", step: flow.step, goTo, canShow: canShowStep });
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
   const router = useRouter();
   const [toTeacher, setToTeacher] = useState(false);
@@ -88,7 +100,7 @@ export default function CheckoutPage() {
         (flow.step === 3 && !flow.typing && !flow.thinking && !flow.conversationOver && flow.consultState === "hidden")
       ) && (
         <StudentBackButton
-          onBack={() => flow.goTo(flow.step - 1)}
+          onBack={back}
         />
       )}
     </>

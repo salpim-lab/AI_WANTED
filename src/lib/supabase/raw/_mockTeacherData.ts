@@ -10,9 +10,20 @@
 // - 등장인물은 전부 가상 인물이다 (실제 아동 데이터 사용 금지).
 // - 저장소는 globalThis에 둔다. dev 서버의 HMR이나 Server Action/Server Component 모듈 분리와 무관하게
 //   같은 데이터를 보게 하려는 것. 서버를 재시작하면 새로 쓴 기록은 사라진다.
+// - 배포 전 목업 데이터(루트 mock-data/out/*.json, 로컬 전용)는 "목업 범위" 안에서만 쓴다 — withTeacherMockFixture.
+//   김현우 화면(아이 상세·관찰일지·학부모상담)의 페이지·Server Action만 이 범위로 감싸서 조회한다.
+//   같은 조회 함수를 쓰는 에이전트·대시보드는 범위 밖이라 지금까지의 mock을 그대로 본다.
+//   파일이 없거나(다른 팀원 PC) TEACHER_MOCK_FIXTURE=off면 범위 안에서도 예전 mock을 쓴다.
+//   단 실제로 쓰는 아이(DAILY_ANALYSIS_ONLY_STUDENT_IDS, 지금은 김민준)는 범위 안에서도 목업을 쓰지 않는다 —
+//   실제 체크인만 보고, AI 분석·누적 자료 요약도 실제 AI로 만든다. 나머지 아이는 AI 결과까지 목업을 쓴다.
 
+import { givenName } from "@/components/shared/names";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 import type { EvidenceRef, StoredSessionProsody, WorkRecordType } from "@/lib/types/teacherRecord";
+import { AsyncLocalStorage } from "node:async_hooks";
+import fs from "node:fs";
+import path from "node:path";
 import { addDays, todayKst } from "@/components/shared/datetime";
 
 // ── 교사 (인증 연동 전 고정값) ──────────────────────────────
@@ -58,6 +69,75 @@ export const mockStudentIdFromNumber = (n: number) => mockUuid("00000000", n);
  * 교사 화면 명단까지 DB로 옮기면(v_students_current) 이 연결표는 삭제한다.
  */
 export const MOCK_DB_CLASS_ID = "20000000-0000-4000-8000-000000000001";
+
+/**
+ * 업무기록(관찰일지·상담)·열람 기록을 실제 DB에 읽고 쓸 때 쓰는 mock ↔ DB 연결표.
+ * 앱은 아직 mock 교사·mock 명단(student_id)을 쓰고, DB에는 시드 학급·시드 교사·시드 enrollment가 있다.
+ *   - 학급: MOCK_TEACHER.classId → MOCK_DB_CLASS_ID (그 외 학급은 null — 담당 학급이 아니다)
+ *   - 교사: MOCK_TEACHER.id → DB 학급의 담임(class_teachers.role='homeroom')
+ *   - 학생: mock 이름(성 포함) ↔ DB 이름(성 뺀 이름)
+ * 인증이 붙으면(getActingTeacher가 실제 교사를 돌려주면) 이 연결표는 삭제하고 v_students_current를 직접 쓴다.
+ */
+export type RecordDb = {
+  client: ReturnType<typeof createAdminClient>;
+  classId: string;
+  teacherId: string;
+  /** DB enrollment_id → mock 명단 행 */
+  studentByEnrollment: Map<string, MockStudentRow>;
+  /** mock student_id → DB enrollment_id / student_id */
+  enrollmentOf: Map<string, string>;
+  dbStudentOf: Map<string, string>;
+};
+
+const RECORD_DB_TTL_MS = 5 * 60 * 1000;
+const globalForRecordDb = globalThis as typeof globalThis & {
+  __salpimRecordDb?: { at: number; value: Promise<Omit<RecordDb, "client">> };
+};
+
+async function loadRecordDb(client: RecordDb["client"]): Promise<Omit<RecordDb, "client">> {
+  const [{ data: students, error: studentError }, { data: teachers, error: teacherError }] = await Promise.all([
+    client.from("v_students_current").select("student_id, enrollment_id, display_name").eq("class_id", MOCK_DB_CLASS_ID),
+    client.from("class_teachers").select("teacher_id").eq("class_id", MOCK_DB_CLASS_ID).eq("role", "homeroom").limit(1),
+  ]);
+  if (studentError) throw studentError;
+  if (teacherError) throw teacherError;
+  const teacherId = teachers?.[0]?.teacher_id;
+  if (!teacherId) throw new Error("DB 학급에 담임 교사가 없습니다 (class_teachers)");
+
+  const dbByName = new Map((students ?? []).map((s) => [s.display_name, s]));
+  const studentByEnrollment = new Map<string, MockStudentRow>();
+  const enrollmentOf = new Map<string, string>();
+  const dbStudentOf = new Map<string, string>();
+  for (const mock of MOCK_STUDENTS) {
+    const db = dbByName.get(givenName(mock.display_name));
+    if (!db?.enrollment_id || !db.student_id) continue;
+    studentByEnrollment.set(db.enrollment_id, mock);
+    enrollmentOf.set(mock.student_id, db.enrollment_id);
+    dbStudentOf.set(mock.student_id, db.student_id);
+  }
+  return { classId: MOCK_DB_CLASS_ID, teacherId, studentByEnrollment, enrollmentOf, dbStudentOf };
+}
+
+/** 앱 학급 id로 DB 연결표를 얻는다. 담당 학급이 아니면 null. 명단·담임은 5분 동안 재사용한다 */
+export async function recordDb(appClassId: string): Promise<RecordDb | null> {
+  if (appClassId !== MOCK_TEACHER.classId) return null;
+  const client = createAdminClient();
+  const cached = globalForRecordDb.__salpimRecordDb;
+  if (!cached || Date.now() - cached.at > RECORD_DB_TTL_MS) {
+    const value = loadRecordDb(client);
+    globalForRecordDb.__salpimRecordDb = { at: Date.now(), value };
+    // 실패한 조회는 캐시에 남기지 않는다 — 다음 요청에서 다시 시도
+    value.catch(() => {
+      if (globalForRecordDb.__salpimRecordDb?.value === value) globalForRecordDb.__salpimRecordDb = undefined;
+    });
+  }
+  return { client, ...(await globalForRecordDb.__salpimRecordDb!.value) };
+}
+
+/** 앱 교사 id → DB 교사 id. mock 교사만 DB 담임으로 바꾼다 (그 외는 그대로 — 인증 연동 후의 실제 교사 id) */
+export function dbTeacherId(db: RecordDb, appTeacherId: string): string {
+  return appTeacherId === MOCK_TEACHER.id ? db.teacherId : appTeacherId;
+}
 
 const kstToIso = (localDateTime: string) => new Date(`${localDateTime}+09:00`).toISOString();
 
@@ -345,6 +425,10 @@ export function mockCheckinsFor(
   enrollmentId: string,
   date: string,
 ): { sessions: MockSessionRow[]; messages: MockMessageRow[]; analyses: MockAnalysisRow[] } {
+  const fixture = activeFixture();
+  if (fixture && isLiveEnrollment(enrollmentId)) return { sessions: [], messages: [], analyses: [] };
+  if (fixture?.dates.has(date)) return fixture.checkinsFor(enrollmentId, date);
+
   const result = { sessions: [] as MockSessionRow[], messages: [] as MockMessageRow[], analyses: [] as MockAnalysisRow[] };
   const index = rosterIndexOf(enrollmentId);
   const today = todayKst();
@@ -624,6 +708,8 @@ function seedStore(): MockStore {
 const globalForMock = globalThis as typeof globalThis & { __salpimTeacherRecordStore?: MockStore };
 
 export function mockStore(): MockStore {
+  const fixture = activeFixture();
+  if (fixture) return fixture.store;
   globalForMock.__salpimTeacherRecordStore ??= seedStore();
   return globalForMock.__salpimTeacherRecordStore;
 }
@@ -681,4 +767,194 @@ const globalForFeedback = globalThis as typeof globalThis & {
 export function mockFeedback(): { drafts: FeedbackDraftRow[]; sources: FeedbackSourceRow[] } {
   globalForFeedback.__salpimFeedback ??= { drafts: [], sources: [] };
   return globalForFeedback.__salpimFeedback;
+}
+
+// ── 배포 전 목업 데이터 (mock-data/out/*.json) ─────────────────────
+// mock-data/build.mjs가 DB 스키마 v0.3 행 모양으로 만든 JSON을 읽는다. 행 id 규칙(학생·enrollment)은 이 파일과 같다.
+
+type FixtureSessionRow = Omit<MockSessionRow, "prosody"> & { transcript: unknown };
+type FixtureAnalysisRow = {
+  id: string;
+  source_id: string;
+  status: "completed";
+  /** scope가 있으면 아이 상세 "AI 분석"(등교 기준 morning / 등교·하교 기준 full), 없으면 하루 요약 */
+  analysis_type: string;
+  result: { summary: string; scope?: "morning" | "full" };
+  created_at: string;
+};
+type FixtureFeedbackRow = { enrollment_id: string; draft_text: string; final_text: string; created_at: string; sent_at: string };
+
+/** 목업에 미리 넣어 둔 그날 AI 결과 — 화면은 AI를 부르지 않고 이걸 보여준다 */
+export type FixtureDayAi = {
+  morning: string | null;
+  full: string | null;
+  /** 선생님이 그날 보낸 한마디 (아이는 다음 등교일 아침에 읽는다) */
+  letter: { draft: string; final: string; sentAt: string } | null;
+};
+
+type TeacherMockFixture = {
+  /** 목업에 들어 있는 날짜 — 이 날짜들은 자동 생성 대신 목업만 쓴다 (체크인이 없는 아이는 빈 날) */
+  dates: Set<string>;
+  checkinsFor: (enrollmentId: string, date: string) => ReturnType<typeof mockCheckinsFor>;
+  dayAi: (enrollmentId: string, date: string) => FixtureDayAi;
+  /** 누적 자료(상담 리포트) "AI 분석 요약" — 아이별로 미리 넣어 둔 기간 요약 (student_id → 요약) */
+  periodSummaries: Map<string, string>;
+  /** 목업 관찰일지·상담으로 시작하는 저장소. 범위 안에서 새로 쓴 기록도 여기에 쌓인다 */
+  store: MockStore;
+};
+
+const fixtureScope = new AsyncLocalStorage<boolean>();
+const FIXTURE_DIR = path.join(process.cwd(), "mock-data", "out");
+const globalForFixture = globalThis as typeof globalThis & {
+  __salpimTeacherFixture?: { fixture: TeacherMockFixture | null; version: string };
+};
+
+/** 실제로 쓰는 아이 — 실제 체크인·실제 AI로 돈다 (DAILY_ANALYSIS_ONLY_STUDENT_IDS와 같은 목록) */
+export function isLiveStudent(studentId: string): boolean {
+  const ids = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean) ?? [];
+  return ids.includes(studentId);
+}
+
+function isLiveEnrollment(enrollmentId: string): boolean {
+  const student = MOCK_STUDENTS.find((s) => s.enrollment_id === enrollmentId);
+  return student ? isLiveStudent(student.student_id) : false;
+}
+
+/** 목업 범위 안에서 이 아이·날짜를 목업으로 보여줄지 — 실제로 쓰는 아이는 아니고, 목업에 있는 날짜일 때 */
+export function usesMockFixture(enrollmentId: string, date: string): boolean {
+  const fixture = activeFixture();
+  return Boolean(fixture?.dates.has(date)) && !isLiveEnrollment(enrollmentId);
+}
+
+/** 목업 범위 안의 실제로 쓰는 아이 — 실제 체크인만 보고 목업·자동 생성 데이터로 채우지 않는다 */
+export function isLiveInMockScope(enrollmentId: string): boolean {
+  return activeFixture() !== null && isLiveEnrollment(enrollmentId);
+}
+
+/** 누적 자료 "AI 분석 요약" 목업 — 실제로 쓰는 아이거나 목업이 없으면 null (그때는 실제 AI를 부른다) */
+export function mockFixturePeriodSummary(studentId: string): string | null {
+  if (isLiveStudent(studentId)) return null;
+  return activeFixture()?.periodSummaries.get(studentId) ?? null;
+}
+
+/** 목업 범위 안이고 그 날짜가 목업에 있으면 미리 넣어 둔 AI 결과, 아니면 null (평소처럼 AI를 부른다) */
+export function mockFixtureDayAi(enrollmentId: string, date: string): FixtureDayAi | null {
+  const fixture = activeFixture();
+  return fixture && usesMockFixture(enrollmentId, date) ? fixture.dayAi(enrollmentId, date) : null;
+}
+
+/** 김현우 화면의 페이지·Server Action에서 조회를 이 안에서 한다 — 목업 데이터가 있으면 그걸 본다 */
+export function withTeacherMockFixture<T>(fn: () => Promise<T>): Promise<T> {
+  return fixtureScope.run(true, fn);
+}
+
+function activeFixture(): TeacherMockFixture | null {
+  if (!fixtureScope.getStore() || process.env.TEACHER_MOCK_FIXTURE === "off") return null;
+  // mock-data/build.mjs를 다시 돌리면 서버 재시작 없이 새 목업을 읽는다 (그동안 범위 안에서 새로 쓴 기록은 버려진다)
+  const version = fixtureVersion();
+  const cached = globalForFixture.__salpimTeacherFixture;
+  if (!cached || cached.version !== version) globalForFixture.__salpimTeacherFixture = { fixture: loadFixture(), version };
+  return globalForFixture.__salpimTeacherFixture!.fixture;
+}
+
+function fixtureVersion(): string {
+  try {
+    return String(fs.statSync(path.join(FIXTURE_DIR, "checkin_sessions.json")).mtimeMs);
+  } catch {
+    return "missing";
+  }
+}
+
+function loadFixture(): TeacherMockFixture | null {
+  const read = <T,>(table: string): T[] => JSON.parse(fs.readFileSync(path.join(FIXTURE_DIR, `${table}.json`), "utf8")) as T[];
+  try {
+    const sessions = read<FixtureSessionRow>("checkin_sessions");
+    const messages = read<MockMessageRow>("conversation_messages");
+    const analyses = read<FixtureAnalysisRow>("analysis_runs");
+
+    const feedback = read<FixtureFeedbackRow>("feedback_drafts");
+
+    const messagesBySession = Map.groupBy(messages, (m) => m.session_id);
+    // 하루 요약(scope 없음)만 세션 분석으로 붙인다 — AI 분석(scope 있음)은 dayAi로 따로 준다
+    const periodSummaryRows = analyses.filter((a) => a.analysis_type === "consultation_period_summary");
+    const dayRows = analyses.filter((a) => a.analysis_type !== "consultation_period_summary");
+    const analysisBySession = new Map(dayRows.filter((a) => !a.result.scope).map((a) => [a.source_id, a]));
+    const sessionById = new Map(sessions.map((s) => [s.id, s]));
+    const dayKey = (enrollmentId: string, date: string) => `${enrollmentId}|${date}`;
+    const dayAnalyses = new Map<string, { morning: string | null; full: string | null }>();
+    for (const a of dayRows) {
+      const session = a.result.scope ? sessionById.get(a.source_id) : undefined;
+      if (!session || !a.result.scope) continue;
+      const key = dayKey(session.enrollment_id, session.session_date);
+      const entry = dayAnalyses.get(key) ?? { morning: null, full: null };
+      entry[a.result.scope] = a.result.summary;
+      dayAnalyses.set(key, entry);
+    }
+    // 편지는 그날 하교 뒤에 쓴다 — created_at의 KST 날짜가 그날이다
+    const kstDateOf = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+    const letterByDay = new Map(
+      feedback.map((f) => [dayKey(f.enrollment_id, kstDateOf(f.created_at)), { draft: f.draft_text, final: f.final_text, sentAt: f.sent_at }]),
+    );
+    const sessionsByKey = Map.groupBy(sessions, (s) => `${s.enrollment_id}|${s.session_date}`);
+    const nameOf = new Map(MOCK_STUDENTS.map((s) => [s.enrollment_id, s.display_name]));
+
+    return {
+      dates: new Set(sessions.map((s) => s.session_date)),
+      checkinsFor(enrollmentId, date) {
+        const result = { sessions: [] as MockSessionRow[], messages: [] as MockMessageRow[], analyses: [] as MockAnalysisRow[] };
+        for (const row of sessionsByKey.get(`${enrollmentId}|${date}`) ?? []) {
+          const sessionMessages = (messagesBySession.get(row.id) ?? []).toSorted((a, b) => a.sequence - b.sequence);
+          const studentLines = sessionMessages.filter((m) => m.speaker === "student").map((m) => m.content);
+          result.sessions.push({
+            id: row.id,
+            enrollment_id: row.enrollment_id,
+            session_date: row.session_date,
+            period: row.period,
+            attempt: row.attempt,
+            mood_color: row.mood_color,
+            status: row.status,
+            stop_reason: row.stop_reason,
+            started_at: row.started_at,
+            completed_at: row.completed_at,
+            prosody: mockProsody(row.id, nameOf.get(enrollmentId) ?? "", row.mood_color, studentLines),
+          });
+          result.messages.push(...sessionMessages);
+          const analysis = analysisBySession.get(row.id);
+          if (analysis) {
+            result.analyses.push({
+              id: analysis.id,
+              analysis_type: "session_summary",
+              source_type: "session",
+              source_id: analysis.source_id,
+              status: "completed",
+              result: analysis.result,
+              created_at: analysis.created_at,
+            });
+          }
+        }
+        return result;
+      },
+      periodSummaries: new Map(periodSummaryRows.map((a) => [a.source_id, a.result.summary])),
+      dayAi(enrollmentId, date) {
+        const analysis = dayAnalyses.get(dayKey(enrollmentId, date));
+        return {
+          morning: analysis?.morning ?? null,
+          full: analysis?.full ?? null,
+          letter: letterByDay.get(dayKey(enrollmentId, date)) ?? null,
+        };
+      },
+      store: {
+        workRecords: read<WorkRecordRow>("work_records"),
+        workRecordStudents: read<WorkRecordStudentRow>("work_record_students"),
+        parentConsultations: read<ParentConsultationRow>("parent_consultations"),
+        viewLog: [],
+      },
+    };
+  } catch (error) {
+    console.warn(
+      "[mockTeacherData] mock-data/out 목업을 읽지 못해 예전 mock을 씁니다:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 }
