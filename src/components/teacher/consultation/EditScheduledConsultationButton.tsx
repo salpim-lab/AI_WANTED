@@ -10,6 +10,7 @@ import { useActionState, useState } from "react";
 import { rescheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import { toKstLocalInput } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
 import { errorText, fieldLabel, textInput } from "@/components/shared/ui";
 import type { ConsultationMethod, FormActionState, ScheduledConsultation } from "@/lib/types/teacherRecord";
 import MethodPicker from "./MethodPicker";
@@ -80,14 +81,11 @@ export default function EditScheduledConsultationButton({
           <label htmlFor={`reschedule-at-${consultation.id}`} className={fieldLabel}>
             예정 일시
           </label>
-          <input
+          <QuarterHourDateTimeInput
             id={`reschedule-at-${consultation.id}`}
-            type="datetime-local"
             name="scheduledAt"
-            required
             value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            className={textInput}
+            onChange={setScheduledAt}
           />
 
           <div className="grid gap-x-3 sm:grid-cols-2">

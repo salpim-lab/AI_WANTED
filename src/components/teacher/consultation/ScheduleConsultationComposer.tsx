@@ -8,6 +8,7 @@
 import { useActionState, useState } from "react";
 import { scheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import Modal from "@/components/shared/Modal";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
 import TagInput, { type TagOption } from "@/components/shared/TagInput";
 import { boardActionButton, errorText, fieldLabel, textInput } from "@/components/shared/ui";
 import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
@@ -94,15 +95,7 @@ export default function ScheduleConsultationComposer({ students }: { students: C
           <label htmlFor="schedule-at" className={fieldLabel}>
             예정 일시
           </label>
-          <input
-            id="schedule-at"
-            type="datetime-local"
-            name="scheduledAt"
-            required
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            className={textInput}
-          />
+          <QuarterHourDateTimeInput id="schedule-at" name="scheduledAt" value={scheduledAt} onChange={setScheduledAt} />
 
           {isFreshResult && state.status === "error" && (
             <p role="alert" className={errorText}>
