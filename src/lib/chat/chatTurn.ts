@@ -31,12 +31,17 @@ export type ChatTurnOutput = {
  * 썼고, 게이트가 첫 턴의 sufficient 를 무시하고 대화를 이어가면서 그 인사가 질문 자리에
  * 그대로 나갔다. 아이는 질문 없는 말을 받고 무엇을 해야 할지 몰랐다.
  * 이제 question 은 sufficient 와 상관없이 항상 쓴다. 쓸지 말지는 게이트가 정한다.
+ *
+ * missing: 아이 말에서 빠진 조각(무슨 일 / 마음 / 계기 / 다 있으면 detail).
+ * 후속 질문은 한 번뿐이라, 아무 질문이나 하지 않고 빠진 조각을 채우게 한다(prompt.ts).
  */
 export const CHAT_TURN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["ack", "question", "sufficient", "risk"],
+  // missing 을 맨 앞에 둔다 — 모델은 칸 순서대로 쓰므로, 무엇을 물을지 먼저 정하고 질문을 쓰게 된다
+  required: ["missing", "ack", "question", "sufficient", "risk"],
   properties: {
+    missing: { type: "string", enum: ["situation", "feeling", "cause", "detail"] },
     ack: { type: "string", maxLength: 60 },
     question: { type: "string", maxLength: 80 },
     sufficient: { type: "boolean" },
@@ -50,7 +55,31 @@ export const CHAT_TURN_SCHEMA = {
  */
 export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
 
+/**
+ * 빠진 조각에 맞춘 예비 질문. 한 문장으로 고정하면 "졸려서 기분이 안 좋아요" 에
+ * "그 얘기 조금만 더 해줄래?" 가 붙어 맥락이 어긋났다(실측 15번 중 3번).
+ */
+const FALLBACK_BY_MISSING: Record<string, string> = {
+  situation: "어떤 일이 있었는지 들려줄래?",
+  feeling: "그때 마음이 어땠어?",
+  cause: "어떤 일이 있어서 그런 마음이 들었어?",
+  detail: FALLBACK_QUESTION,
+};
+
 const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
+
+/**
+ * 이유를 따지는 질문. 프롬프트가 금지하지만 "졸린 이유가 뭐였어?" 가 실측에서 새어 나왔다.
+ * "왜" "이유가 뭐" "뭐 때문에" 처럼 따지는 모양만 막는다. "이유가 있었어?" 처럼 부드럽게 여는 질문과
+ * "어떤 일이 있어서 ~" 는 통과시킨다 — 너무 넓게 막으면 멀쩡한 질문까지 예비 질문으로 바뀌었다.
+ */
+const isWhyQuestion = (text: string) => /왜|이유가 뭐|이유는 뭐|뭐 때문에|무엇 때문에/.test(text);
+
+/** 내용 없이 끄덕이기만 하는 맞장구 */
+const isFiller = (line: string) => /^(그랬구나|그렇구나|그랬어|알겠어|응|그래)[.!~]*$/.test(line.trim());
+
+/** "재미있었어, 아니면 다른 기분이었어?" 처럼 답을 골라 주는 질문. 아이 말이 아니라 우리 말이 된다 */
+const isChoiceQuestion = (text: string) => /아니면|[어야],\s*\S+[어야][?？]\s*$/.test(text);
 
 export type ChatTurnInput = {
   flow: "checkin" | "checkout";
@@ -59,6 +88,8 @@ export type ChatTurnInput = {
   turnCount: number;
   /** 최근 며칠 맥락 요약. 유도 질문에만 쓴다 — 여기는 어차피 LLM 을 부르므로 추가 비용이 없다 */
   recentContext?: string;
+  /** 아이 이름(성 없이, 예: "민준"). 받아주는 말에서 이름을 불러 줄 때 쓴다 */
+  studentName?: string;
 };
 
 /**
@@ -77,6 +108,7 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
           color: input.color,
           turn_count: input.turnCount,
           recent_context: input.recentContext ?? null,
+          student_name: input.studentName ?? null,
           transcript: input.transcript,
         }),
       },
@@ -159,7 +191,23 @@ export class ChatTurnError extends Error {
 }
 
 /** 응답 검증. 스키마를 믿지 않고 한 번 더 확인한다 — strict 모드도 거부(refusal)가 올 수 있다. */
-export function parseChatTurn(raw: unknown): ChatTurnOutput {
+/**
+ * 바로 앞 살핌의 말이 "~구나" 로 끝났는데 받아주는 말도 "~구나" 로 끝나면 "~네" 로 바꾼다.
+ * "~구나" 자체는 괜찮지만 잇달아 오면 같은 말투가 겹쳐 우스워진다(지시문으로는 절반쯤만 지켜졌다).
+ *   했구나→했네  겠구나→겠네  이구나→이네  좋구나→좋네  먹는구나→먹네
+ * "구나" 와 "네" 는 뜻이 같은 감탄 어미라 바꿔도 말이 달라지지 않는다.
+ */
+export function avoidRepeatedGuna(ack: string, previousAssistant: string | undefined): string {
+  if (!previousAssistant) return ack;
+  const prevClauses = previousAssistant
+    .split(/[.!?\n,]+/)
+    .map((c) => c.replace(/[^가-힣]+$/g, "").trim())
+    .filter(Boolean);
+  if (!prevClauses.some((c) => c.endsWith("구나"))) return ack;
+  return ack.replace(/(는)?구나([.!]*)$/, (_m, _neun, tail: string) => `네${tail}`);
+}
+
+export function parseChatTurn(raw: unknown, previousAssistant?: string): ChatTurnOutput {
   if (!raw || typeof raw !== "object") {
     throw new ChatTurnError("INVALID_AI_OUTPUT", 502, "응답 형식이 잘못되었습니다.");
   }
@@ -180,8 +228,21 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
 
   // 질문이 없거나 물음표로 끝나지 않으면 기본 질문으로 바꾼다.
   // 후속 질문 자리에는 반드시 질문이 가야 한다.
-  const question = isQuestion(o.question) ? o.question.trim() : FALLBACK_QUESTION;
-  const ack = o.ack.trim();
+  // 질문은 하나만. 실측에서 모델이 ack 칸에도 질문을 넣어 "기분이 안 좋아진 일이 있었어?
+  // 어떤 일이 있어서 그런 기분이 들었어?" 처럼 두 번 묻거나, "재미있었어, 아니면 다른 기분이었어?"
+  // 처럼 감정 선택지를 줬다. 두 칸의 질문 문장을 모두 모아, 선택지가 아닌 첫 질문 하나만 쓴다.
+  const sentences = (text: string) => text.trim().split(/(?<=[.!?？])\s+/).filter(Boolean);
+  const all = [...sentences(o.ack), ...sentences(o.question)];
+  const asked = all.filter(isQuestion);
+  const fallback = (typeof o.missing === "string" && FALLBACK_BY_MISSING[o.missing]) || FALLBACK_QUESTION;
+  const question = asked.find((q) => !isChoiceQuestion(q) && !isWhyQuestion(q)) ?? fallback;
+  // 받아주는 말은 ack 칸의 서술문만. question 칸에 섞여 온 서술문("정말 기분 좋았겠네.")은 버린다 —
+  // 그건 대개 마무리 인사처럼 쓴 공감이라 질문 앞에 붙이면 말이 길어지고 끝맺는 느낌이 난다.
+  // 맞장구("그랬구나.")로 먼저 끄덕이고 아이 말을 또 "~구나" 로 받으면 두 번 끄덕이는 말투가 된다.
+  // 뒤에 내용 있는 문장이 이어질 때만 떼어낸다(맞장구 하나뿐이면 그대로 둔다).
+  const ackLines = sentences(o.ack).filter((line) => !isQuestion(line));
+  const trimmedAck = ackLines.length > 1 && isFiller(ackLines[0]) ? ackLines.slice(1) : ackLines;
+  const ack = avoidRepeatedGuna(trimmedAck.join(" "), previousAssistant);
   return {
     reply: ack ? `${ack} ${question}` : question,
     sufficient: o.sufficient,

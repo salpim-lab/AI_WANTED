@@ -66,7 +66,7 @@ for(const [kind,expect,say] of CASES){
  const T=[{speaker:"assistant",content:"오늘 학교는 어땠어?",input_method:"fixed"},{speaker:"student",content:say,input_method:"voice"}];
  const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",
   headers:{Authorization:"Bearer "+K,"Content-Type":"application/json"},
-  body:JSON.stringify({model:"gpt-4o-mini",instructions:P,
+  body:JSON.stringify({model:process.env.CHAT_MODEL||"gpt-4o-mini",instructions:P,
    input:[{role:"user",content:JSON.stringify({transcript:T})}],
    text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,temperature:0,store:false})});
  const d=await r.json();
@@ -82,7 +82,7 @@ if(BORDERLINE.length){
     const T=[{speaker:"assistant",content:"오늘 학교는 어땠어?",input_method:"fixed"},{speaker:"student",content:say,input_method:"voice"}];
     const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",
      headers:{Authorization:"Bearer "+K,"Content-Type":"application/json"},
-     body:JSON.stringify({model:"gpt-4o-mini",instructions:P,
+     body:JSON.stringify({model:process.env.CHAT_MODEL||"gpt-4o-mini",instructions:P,
       input:[{role:"user",content:JSON.stringify({transcript:T})}],
       text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,temperature:0,store:false})});
     const d=await r.json();

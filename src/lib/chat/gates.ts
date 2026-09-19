@@ -77,18 +77,33 @@ export function decideNext(state: TurnState): GateDecision {
 export const HANDOFF_MESSAGE = "그건 선생님한테 직접 얘기해줄래?";
 
 /**
- * 종료 인사. 사유에 따라 다르되 모두 "더 묻지 않는다"는 점은 같다.
+ * 종료 인사. 사유와 등하교에 따라 다르되 모두 "더 묻지 않는다"는 점은 같다.
  *
- * 한 줄이 아니라 여러 줄인 이유: 이 뒤에 아이템 추론(3~4초)이 돈다.
- * 빈 화면으로 기다리게 하는 대신 말풍선을 나눠 띄워 그 시간을 덮는다.
- * 다만 시간을 벌려고 빈말을 채우지는 않는다 — 두 번째 줄은 실제로 지금
- * 일어나는 일을 알려준다. 무슨 일이 벌어지는지 아는 기다림은 견딜 만하다.
+ * 첫 줄은 이야기를 들려준 데 대한 고마움, 둘째 줄은 안부·응원이다.
+ * 예전 둘째 줄은 "오늘 이야기로 아이템을 만들고 있어!" 였는데, 아이템을 만드는 시간을 덮으려는
+ * 안내라 마무리 인사처럼 들리지 않았다. 등교는 하루를 여는 응원, 하교는 수고했다는 인사로 닫는다.
+ *
+ * ⚠️ 대화 중 AI 는 위로·평가를 하지 않지만(prompt.ts), 여기는 이야기가 끝난 뒤의 고정 인사라
+ *    응원까지는 둔다. 다만 "괜찮아질 거야" 처럼 결과를 약속하는 말은 쓰지 않는다.
  */
-export const CLOSING_MESSAGES: Record<"sufficient" | "max_turns" | "avoidance", string[]> = {
-  sufficient: ["이야기해줘서 고마워.", "오늘 이야기로 아이템을 만들고 있어!"],
-  max_turns: ["이야기해줘서 고마워. 내일 또 들려줘!", "오늘 이야기로 아이템을 만들고 있어!"],
-  avoidance: ["괜찮아. 말하고 싶을 때 언제든 얘기해줘.", "오늘 마음도 아이템으로 남겨둘게."],
+export type CloseReason = "sufficient" | "max_turns" | "avoidance";
+
+const CLOSING: Record<"checkin" | "checkout", Record<CloseReason, string[]>> = {
+  checkin: {
+    sufficient: ["이야기해줘서 고마워.", "오늘 하루도 응원할게. 좋은 하루 보내!"],
+    max_turns: ["솔직하게 들려줘서 고마워.", "오늘 하루도 응원할게. 좋은 하루 보내!"],
+    avoidance: ["괜찮아. 말하고 싶을 때 언제든 얘기해줘.", "오늘도 좋은 하루 보내!"],
+  },
+  checkout: {
+    sufficient: ["오늘 이야기 들려줘서 고마워.", "오늘 하루도 정말 수고 많았어!"],
+    max_turns: ["솔직하게 들려줘서 고마워.", "오늘 하루도 정말 수고 많았어!"],
+    avoidance: ["괜찮아. 말하고 싶을 때 언제든 얘기해줘.", "오늘 하루 수고했어. 푹 쉬어!"],
+  },
 };
+
+export function closingLines(reason: CloseReason, flow: "checkin" | "checkout"): string[] {
+  return CLOSING[flow][reason];
+}
 
 /**
  * 회피 신호. 전사 텍스트에서 코드로 판단한다 — 기획안 §8.8 "지표는 코드로".

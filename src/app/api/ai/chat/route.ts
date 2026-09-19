@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 import { buildRecentContext } from "@/lib/checkins/recentContext";
+import { studentGivenName } from "@/lib/checkins/studentName";
 import {
   buildChatTurnRequest,
   buildRiskCheckRequest,
@@ -20,7 +21,7 @@ import {
   parseChatTurn,
   parseRiskCheck,
 } from "@/lib/chat/chatTurn";
-import { CLOSING_MESSAGES, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
+import { closingLines, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
 import type { SignalColor } from "@/lib/types/signal";
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
           // 서버에서 직접 읽는다. 클라이언트가 보낸 값은 쓰지 않는다 —
           // 지난 세션 내용을 브라우저가 정할 수 있으면 안 된다.
           recentContext: await buildRecentContext(session.enrollment_id, session.id),
+          studentName: await studentGivenName(session.enrollment_id),
         }),
       ),
       call(buildRiskCheckRequest({ transcript })),
@@ -138,7 +140,9 @@ export async function POST(request: Request) {
       .filter((c) => c.type === "output_text")
       .map((c) => c.text ?? "")
       .join("");
-    const turn = parseChatTurn(JSON.parse(raw));
+    // 바로 앞 살핌의 말 — 같은 어미("~구나")가 잇달아 오지 않게 받아주기를 다듬는 데 쓴다
+    const previousAssistant = [...transcript].reverse().find((m) => m.speaker === "assistant")?.content;
+    const turn = parseChatTurn(JSON.parse(raw), previousAssistant);
 
     // 위험은 오직 ② 호출이 정한다. ① 이 낸 risk 는 쓰지 않는다 —
     // 거기엔 며칠치 맥락이 들어가 있어서 판단이 부풀려진다.
@@ -173,7 +177,7 @@ export async function POST(request: Request) {
       decision.action === "handoff_to_teacher"
         ? [HANDOFF_MESSAGE]
         : decision.action === "close"
-          ? CLOSING_MESSAGES[decision.reason]
+          ? closingLines(decision.reason, flow)
           : turn.reply
             ? [turn.reply]
             : [];
