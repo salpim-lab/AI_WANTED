@@ -14,6 +14,7 @@ import { formatKstDate } from "@/components/shared/datetime";
 import RecordSearch from "@/components/shared/RecordSearch";
 import { emptyState, boardPageContainer, boardPageTitle } from "@/components/shared/ui";
 import type { ClassStudent, ObservationLog, RecordTypeFilter } from "@/lib/types/teacherRecord";
+import type { WritePrefill } from "./ObservationWriteForm";
 import DailyObservationButton from "./DailyObservationButton";
 import DateControl from "@/components/teacher/shared/DateControl";
 import ObservationFeedCard from "./ObservationFeedCard";
@@ -34,6 +35,7 @@ export default function ObservationBoard({
   keyword,
   studentId,
   observations,
+  consultPrefill,
 }: {
   students: ClassStudent[];
   date: string;
@@ -43,6 +45,8 @@ export default function ObservationBoard({
   keyword?: string;
   studentId?: string;
   observations: ObservationLog[];
+  /** 대시보드의 예정된 상담에서 넘어온 경우 — 학생 상담 팝업이 채워진 채로 바로 열린다 */
+  consultPrefill?: WritePrefill;
 }) {
   const items = observations.filter((entry) => matchesType(entry, type));
   const searching = Boolean(keyword || studentId);
@@ -66,7 +70,14 @@ export default function ObservationBoard({
           {type !== "consultation" && (
             <DailyObservationButton students={students} date={date} today={today} />
           )}
-          {type !== "observation" && <StudentConsultationComposer students={students} date={date} today={today} />}
+          {type !== "observation" && (
+            <StudentConsultationComposer
+              students={students}
+              date={date}
+              today={today}
+              prefill={consultPrefill}
+            />
+          )}
         </div>
       </div>
 
