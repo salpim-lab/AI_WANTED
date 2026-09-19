@@ -5,20 +5,29 @@
 //
 // (2026-09-19) "올빼미만 보면 챗봇인지 바로 안 와닿는다"는 피드백 — 헤드셋을 씌워서 "상담
 // 도우미"라는 신호를 더했다. 색은 새로 안 늘리고 눈동자와 같은 인디고를 그대로 써서 통일감 유지.
+//
+// (2026-09-19 수정) 처음엔 헤드셋을 몸통보다 먼저 그려서 "자연스럽게 가려지게" 했는데, 좌표를
+// 다시 재보니 헤드셋 전체가 몸통 원(반지름 13) 안쪽에 들어가 있었다 — 그래서 불투명한 몸통이
+// 그 위에 그대로 덮여 헤드셋이 통째로 안 보였다("올빼미가 안 바뀌었는데?" 피드백의 원인).
+// 몸통 → 헤드셋 → 눈 순서로 다시 그리고, 헤드셋 좌표도 눈(반지름 5.6인 흰 원)과 안 겹치도록
+// 일일이 거리 계산해서 다시 잡았다(밴드는 눈 위쪽으로, 마이크 봉은 오른쪽 눈 바깥으로 크게 돌아감).
+// 확인하던 김에 보니 귀깃(양쪽 삼각형)도 같은 이유로 몸통 원 안에 완전히 들어가 있어서 원래부터
+// 안 보이고 있었다 — 귀깃도 몸통 뒤에서 앞으로 옮겨서 이번에 같이 보이게 했다.
 export default function AgentOwlIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      {/* 헤드셋 밴드 + 이어컵 + 마이크 — 몸통보다 먼저 그려서 귀깃/몸통에 자연스럽게 가려지게 함 */}
-      <path d="M8 17 Q16 5 24 17" fill="none" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="7.6" cy="17.5" r="2.3" fill="#6366f1" />
-      <circle cx="24.4" cy="17.5" r="2.3" fill="#6366f1" />
-      <path d="M24.4 19 Q23.5 24 17.5 23.2" fill="none" stroke="#6366f1" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="17.3" cy="23.2" r="1.1" fill="#6366f1" />
-      {/* 귀깃 */}
-      <path d="M8 9 L12 6 L11 12 Z" fill="#D9A86C" />
-      <path d="M24 9 L20 6 L21 12 Z" fill="#D9A86C" />
       {/* 몸통 */}
       <circle cx="16" cy="18" r="13" fill="#EFCB9C" />
+      {/* 귀깃 — 몸통 위(눈보다는 아래)로 옮겨서 이제 보인다 */}
+      <path d="M8 9 L12 6 L11 12 Z" fill="#D9A86C" />
+      <path d="M24 9 L20 6 L21 12 Z" fill="#D9A86C" />
+      {/* 헤드셋 — 몸통 위, 눈 아래(눈이 위에 그려져 또렷하게 보임). 밴드는 눈 위쪽으로 지나가고,
+          마이크 봉은 오른쪽 눈을 크게 돌아 입가로 내려온다. */}
+      <path d="M9 10 Q16 2 23 10" fill="none" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="9" cy="10" r="1" fill="#6366f1" />
+      <circle cx="23" cy="10" r="1" fill="#6366f1" />
+      <path d="M23 10 C29 14, 29 22, 18.5 23.8" fill="none" stroke="#6366f1" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="18.5" cy="23.8" r="1" fill="#6366f1" />
       {/* 눈 */}
       <circle cx="11.2" cy="16.5" r="5.6" fill="#fff" />
       <circle cx="20.8" cy="16.5" r="5.6" fill="#fff" />
