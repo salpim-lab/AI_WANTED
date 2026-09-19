@@ -1,6 +1,6 @@
 // 담당: 김현우
 // 학부모상담기록 — 왼쪽 "예정된 상담"(아직 안 함, 누적 자료로 준비) / 오른쪽 "완료한 상담"(끝난 것,
-// 실제 나눈 이야기 열람) 두 칼럼. 머리줄에 날짜(DateControl)·검색과 [상담 예약]·[상담 기록] 버튼을 같이 둔다.
+// 실제 나눈 이야기 열람) 두 칼럼. 예정 카드는 가로 한 줄짜리 행이고, 완료한 상담 카드는 학생관찰일지 피드 카드와 같은 세로 모양이다. 머리줄에 날짜(DateControl)·검색과 [상담 예약]·[상담 기록] 버튼을 같이 둔다.
 // 두 칼럼 모두 고른 날짜의 상담만 보여준다. 학생·키워드로 검색 중이면 완료한 상담은 전체 기간에서 찾는다.
 // 검색(RecordSearch)은 입력하는 대로 URL을 바꾸고 서버가 다시 조회한다 — 완료한 상담에만 적용한다
 // (예정은 보통 몇 건 안 돼서 검색이 필요 없다).
@@ -79,7 +79,7 @@ export default function ConsultationBoard({
             <ul className="grid gap-2.5">
               {entries.map((entry) => (
                 <li key={entry.id}>
-                  <CompletedConsultationCard entry={entry} />
+                  <CompletedConsultationCard entry={entry} showDate={hasFilter} />
                 </li>
               ))}
             </ul>

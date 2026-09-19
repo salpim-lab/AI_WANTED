@@ -1,5 +1,6 @@
 // 담당: 김현우
 // 기록 게시판 머리줄의 검색 — [학생 ▾] [키워드] 순서. 학부모상담기록·학생관찰일지가 같이 쓴다.
+// 학생 드롭다운은 OS마다 모양이 다른 기본 <select> 대신 직접 그린 StudentSelect다.
 // 검색 버튼 없이 고르거나 입력하는 대로 basePath의 URL(q, student)을 바꾸고, 서버가 목록을 다시 그린다.
 // 다른 쿼리(date, type 등)는 그대로 둔다. 키워드는 입력이 잠깐 멈췄을 때(DEBOUNCE_MS)만 반영한다.
 // 입력값은 이 컴포넌트가 들고 있어서 서버가 다시 그려도 입력 중인 글자·커서가 사라지지 않는다.
@@ -8,7 +9,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { sortByKoreanName } from "@/components/shared/sortByKoreanName";
+import StudentSelect from "@/components/shared/StudentSelect";
 import { boardControl } from "@/components/shared/ui";
 import type { ClassStudent } from "@/lib/types/teacherRecord";
 
@@ -61,26 +62,15 @@ export default function RecordSearch({
 
   return (
     <div role="search" className="flex flex-wrap items-center gap-2" aria-busy={pending}>
-      <select
-        value={studentId}
-        onChange={(e) => handleStudent(e.target.value)}
-        aria-label="학생"
-        className={boardControl}
-      >
-        <option value="">전체 학생</option>
-        {sortByKoreanName(students, (s) => s.name).map((s) => (
-          <option key={s.studentId} value={s.studentId}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+      <StudentSelect students={students} value={studentId} onChange={handleStudent} />
+      {/* type="search"는 macOS에서 둥근 자체 모양과 ✕ 버튼이 붙는다 — appearance를 꺼서 다른 컨트롤과 같게 */}
       <input
         type="search"
         value={keyword}
         onChange={(e) => handleKeyword(e.target.value)}
         placeholder="키워드 검색…"
         aria-label="키워드"
-        className={`${boardControl} w-40`}
+        className={`${boardControl} w-40 appearance-none [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none`}
       />
     </div>
   );
