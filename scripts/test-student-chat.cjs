@@ -30,6 +30,7 @@ function load(file) {
 
 const openers = load('src/lib/chat/openers.ts');
 const hints = load('src/lib/chat/hints.ts');
+const stepUrl = load('src/components/student/useStepUrl.ts');
 const gates = load('src/lib/chat/gates.ts');
 const prosody = load('src/lib/chat/prosody.ts');
 const turn = load('src/lib/chat/chatTurn.ts');
@@ -100,6 +101,20 @@ t('첫 질문은 아이 하루를 짐작해 평가하지 않고, 초록은 힘�
 t('힌트 말풍선이 한 줄로 이어 읽히고, 흐르는 문장은 조사가 받침에 맞는다', () => {
   assert.deepEqual(hints.bubbleTexts(['지금 마음', '요즘 있었던 일', '하고 싶은 말']), ['지금 마음,', '요즘 있었던 일이나', '하고 싶은 말']);
   assert.deepEqual(hints.hintLines(['오늘 하루', '지금 마음', '하고 싶은 말']), ['오늘 하루나', '지금 마음이나', '하고 싶은 말을 이야기해도 좋아']);
+});
+
+t('학생 단계와 주소가 서로 맞는다', () => {
+  for (const base of ['/checkin', '/checkout']) {
+    for (let step = 1; step <= 5; step++) {
+      const path = stepUrl.pathForStep(base, step);
+      assert.equal(stepUrl.stepFromPath(base, path), step, `${base} ${step}단계 ↔ ${path}`);
+    }
+  }
+  assert.equal(stepUrl.pathForStep('/checkin', 1), '/checkin');
+  assert.equal(stepUrl.pathForStep('/checkin', 3), '/checkin/talk');
+  // 모르는 주소·끝 슬래시는 홈 / 제대로 읽는다
+  assert.equal(stepUrl.stepFromPath('/checkin', '/checkin/nope'), 1);
+  assert.equal(stepUrl.stepFromPath('/checkout', '/checkout/island/'), 5);
 });
 
 t('남색은 "왜 혼자 있고 싶은지" 를 묻지 않는다', () => {
