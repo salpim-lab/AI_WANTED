@@ -18,7 +18,8 @@
 //
 // (2026-09-19) 질문창 위에 도메인(정서/학교생활/가정) 선택 칩을 두고, 고른 만큼만 route.ts가
 // 호출한다 — 하나도 안 고르면 라이트 모드(1회 호출, 짧은 답 하나), 하나 고르면 그 도메인만,
-// 2~3개 고르면 예전처럼 병렬+합치기. 선택은 다음 질문에도 유지된다(매번 다시 고르지 않아도 됨).
+// 2~3개 고르면 예전처럼 병렬+합치기. 선택은 질문 보낼 때마다 초기화된다(다음 질문에 안 남음) —
+// 안 그러면 저번에 골라둔 도메인이 남아있어서 전혀 다른 질문을 보낼 때도 모르게 좁혀진 답을 받는다.
 
 "use client";
 
@@ -109,15 +110,19 @@ export function useAgentChat() {
   async function send() {
     const text = input.trim();
     if (!text) return;
+    const domainsForThisQuestion = selectedDomains;
     setMessages((prev) => [...prev, { id: msgId++, role: "user", text }]);
     setInput("");
     setSending(true);
+    // 이번 질문에만 쓰고 바로 비운다 — 안 비우면 다음에 완전히 다른 질문을 보낼 때
+    // 저번에 골라둔 도메인이 그대로 남아있어서 자기도 모르게 좁혀진 답을 받게 된다.
+    setSelectedDomains([]);
 
     try {
       const res = await fetch("/api/ai/teacher-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text, studentId, domains: selectedDomains }),
+        body: JSON.stringify({ question: text, studentId, domains: domainsForThisQuestion }),
       });
       const data = await res.json();
       if (res.ok) {
