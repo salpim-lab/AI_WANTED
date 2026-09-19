@@ -71,7 +71,13 @@ export function ownerVisible(scope: DemoScope, ownerId: string | null | undefine
  * 시드로 확인되면 여기(그리고 1093 마이그레이션의 같은 규칙)에 id를 명시적으로 추가한다.
  */
 const VERIFIED_SEED_RECORD_ID = /^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$/i;
-export const isVerifiedSeedRecordId = (id: string) => VERIFIED_SEED_RECORD_ID.test(id);
+/**
+ * 팀이 "데모용으로 확인했다"고 명시한 기록 id — 승격하려면 여기와 DB의 public.is_verified_demo_record()
+ * (1093 마이그레이션) 배열에 같은 id를 함께 추가한다. 기본은 비어 있다(확인 전에는 공용으로 보이지 않는다).
+ */
+export const VERIFIED_EXTRA_RECORD_IDS: ReadonlySet<string> = new Set<string>([]);
+export const isVerifiedSeedRecordId = (id: string) =>
+  VERIFIED_SEED_RECORD_ID.test(id) || VERIFIED_EXTRA_RECORD_IDS.has(id.toLowerCase());
 
 /** 작성자 기준 가시성: 내가 쓴 것이거나, (담임이 썼고 AND 시드로 확인된 것). */
 export function recordVisible(

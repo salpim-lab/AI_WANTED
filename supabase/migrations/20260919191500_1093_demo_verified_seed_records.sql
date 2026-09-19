@@ -16,6 +16,18 @@
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
 
+-- 방문자에게 공용으로 보여도 되는 "검증된 데모 기록"의 단일 판별 함수. 시드 스크립트가 만든 고정 UUID
+-- ('…-0000-4000-8000-…') 또는 아래 명시 목록의 id. 팀이 데모용으로 확인한 기록을 공용으로 승격하려면
+-- 이 함수의 배열에 id를 추가하는 마이그레이션 한 개면 된다(정책은 이 함수만 본다).
+-- 앱 쪽 src/lib/demo/scope.ts의 VERIFIED_EXTRA_RECORD_IDS와 반드시 같은 목록으로 유지한다.
+create or replace function public.is_verified_demo_record(p_id uuid)
+returns boolean
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $fn$
+  select p_id::text ~ '^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}
 drop policy if exists work_records_demo_owner_restrict on public.work_records;
 create policy work_records_demo_owner_restrict on public.work_records
 as restrictive
@@ -23,7 +35,7 @@ for select to authenticated
 using (
   created_by = (select auth.uid())
   or (
-    work_records.id::text ~ '^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$'
+    public.is_verified_demo_record(work_records.id)
     and exists (
       select 1 from public.class_teachers ct
       where ct.class_id = work_records.class_id
@@ -44,7 +56,7 @@ using (
       and (
         wr.created_by = (select auth.uid())
         or (
-          wr.id::text ~ '^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$'
+          public.is_verified_demo_record(wr.id)
           and exists (
             select 1 from public.class_teachers ct
             where ct.class_id = wr.class_id
@@ -67,7 +79,7 @@ using (
       and (
         wr.created_by = (select auth.uid())
         or (
-          wr.id::text ~ '^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$'
+          public.is_verified_demo_record(wr.id)
           and exists (
             select 1 from public.class_teachers ct
             where ct.class_id = wr.class_id
@@ -110,7 +122,193 @@ using (
         and (
           wr.created_by = (select auth.uid())
           or (
-            wr.id::text ~ '^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$'
+            public.is_verified_demo_record(wr.id)
+            and exists (
+              select 1 from public.class_teachers ct
+              where ct.class_id = wr.class_id
+                and ct.teacher_id = wr.created_by
+                and ct.role = 'homeroom'
+            )
+          )
+        )
+    )
+  )
+  or (
+    source_type in ('student', 'class')
+    and (analysis_runs.demo_owner_id is null or analysis_runs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+drop policy if exists meeting_requests_demo_owner_restrict on public.meeting_requests;
+create policy meeting_requests_demo_owner_restrict on public.meeting_requests
+as restrictive
+for select to authenticated
+using (
+  source_session_id is not null
+  and exists (
+    select 1 from public.checkin_sessions cs
+    where cs.id = meeting_requests.source_session_id
+      and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+-- ==== (2026-09-20 추가) 익명 사용자 점검으로 찾은 나머지 직접 접근 표면 ====
+-- 익명 로그인 사용자도 Postgres 역할은 `authenticated`라서 "그 반 교사/학생이면 읽기" 류 기존 정책이 그대로 적용된다.
+-- 실제 DB 전수 조회(pg_policies + 권한)에서 1092가 덮지 않은 테이블을 찾았다.
+
+-- (1) item_generation_jobs(44건)·student_items(42건): AI가 학생 대화에서 만든 추론 결과·학생 메시지가 들어 있고
+--     전부 테스트 체크인(현재 개발 계정 소유)에 붙은 것이다. 기존 정책은 enrollment 담당 교사면 전체 읽기라 방문자가
+--     REST로 전부 읽을 수 있었다. 다른 부모 연결 테이블과 같은 방식으로 부모 세션 소유자로 좁힌다.
+create policy item_generation_jobs_demo_owner_restrict on public.item_generation_jobs
+as restrictive
+for select to authenticated
+using (
+  source_session_id is not null
+  and exists (
+    select 1 from public.checkin_sessions cs
+    where cs.id = item_generation_jobs.source_session_id
+      and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+create policy student_items_demo_owner_restrict on public.student_items
+as restrictive
+for select to authenticated
+using (
+  source_session_id is not null
+  and exists (
+    select 1 from public.checkin_sessions cs
+    where cs.id = student_items.source_session_id
+      and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+-- (2) 방문자가 직접 읽을 이유가 없고 소유자 컬럼도 없는 테이블: 익명 사용자는 접근 자체를 막는다.
+--     JWT의 is_anonymous 클레임으로 구분(정식 로그인 사용자는 false, 클레임이 없어도 true가 아니면 통과).
+--     consents(보호자 동의 상태), feedback_drafts/sources(교사 코멘트 — 앱은 DB가 아니라 서버 메모리로 쓴다),
+--     islands/island_placements(학생 섬 배치). 앱 서버 경로는 service_role이라 영향 없다.
+create policy consents_no_anonymous on public.consents
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy feedback_drafts_no_anonymous on public.feedback_drafts
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy feedback_sources_no_anonymous on public.feedback_sources
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy islands_no_anonymous on public.islands
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy island_placements_no_anonymous on public.island_placements
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+-- (3) 1091이 만든 ai_rate_limits는 Supabase 기본값으로 anon/authenticated에 전체 DML 권한이 붙어 있다.
+--     RLS가 켜져 있고 정책이 없어 지금도 거부되지만, 권한 자체도 걷어낸다(서버는 service_role/security definer 함수 경유).
+revoke all on table public.ai_rate_limits from anon, authenticated;
+
+      or p_id = any (array[]::uuid[]);
+$fn$;
+
+drop policy if exists work_records_demo_owner_restrict on public.work_records;
+create policy work_records_demo_owner_restrict on public.work_records
+as restrictive
+for select to authenticated
+using (
+  created_by = (select auth.uid())
+  or (
+    public.is_verified_demo_record(work_records.id)
+    and exists (
+      select 1 from public.class_teachers ct
+      where ct.class_id = work_records.class_id
+        and ct.teacher_id = work_records.created_by
+        and ct.role = 'homeroom'
+    )
+  )
+);
+
+drop policy if exists work_record_students_demo_owner_restrict on public.work_record_students;
+create policy work_record_students_demo_owner_restrict on public.work_record_students
+as restrictive
+for select to authenticated
+using (
+  exists (
+    select 1 from public.work_records wr
+    where wr.id = work_record_students.work_record_id
+      and (
+        wr.created_by = (select auth.uid())
+        or (
+          public.is_verified_demo_record(wr.id)
+          and exists (
+            select 1 from public.class_teachers ct
+            where ct.class_id = wr.class_id
+              and ct.teacher_id = wr.created_by
+              and ct.role = 'homeroom'
+          )
+        )
+      )
+  )
+);
+
+drop policy if exists conflict_statements_demo_owner_restrict on public.conflict_statements;
+create policy conflict_statements_demo_owner_restrict on public.conflict_statements
+as restrictive
+for select to authenticated
+using (
+  exists (
+    select 1 from public.work_records wr
+    where wr.id = conflict_statements.work_record_id
+      and (
+        wr.created_by = (select auth.uid())
+        or (
+          public.is_verified_demo_record(wr.id)
+          and exists (
+            select 1 from public.class_teachers ct
+            where ct.class_id = wr.class_id
+              and ct.teacher_id = wr.created_by
+              and ct.role = 'homeroom'
+          )
+        )
+      )
+  )
+);
+
+drop policy if exists analysis_runs_demo_owner_restrict on public.analysis_runs;
+create policy analysis_runs_demo_owner_restrict on public.analysis_runs
+as restrictive
+for select to authenticated
+using (
+  (
+    source_type = 'session'
+    and exists (
+      select 1 from public.checkin_sessions cs
+      where cs.id = analysis_runs.source_id
+        and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+    )
+  )
+  or (
+    source_type = 'message'
+    and exists (
+      select 1
+      from public.conversation_messages cm
+      join public.checkin_sessions cs on cs.id = cm.session_id
+      where cm.id = analysis_runs.source_id
+        and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+    )
+  )
+  or (
+    source_type = 'record'
+    and exists (
+      select 1 from public.work_records wr
+      where wr.id = analysis_runs.source_id
+        and (
+          wr.created_by = (select auth.uid())
+          or (
+            public.is_verified_demo_record(wr.id)
             and exists (
               select 1 from public.class_teachers ct
               where ct.class_id = wr.class_id
