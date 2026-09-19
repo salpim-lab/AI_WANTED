@@ -13,7 +13,7 @@
 // 날짜 상태는 URL 쿼리(?date=YYYY-MM-DD)가 단일 출처다.
 // 이 서버 컴포넌트가 쿼리를 읽어 그 날짜의 데이터 한 벌을 조립하고 각 카드에 props 로 내려준다.
 // → 카드들은 전부 서버 컴포넌트로 남고, 클라이언트 컴포넌트는 날짜 선택 컨트롤 하나뿐이다.
-// 실데이터 연결 시에는 getDashboardSnapshot 자리를 lib/supabase/queries/*(date 인자) 호출로 바꾼다.
+// 데이터는 lib/supabase/queries/dashboardSnapshot.ts에서 실제 학급 명단과 체크인 기록으로 조립한다.
 //
 // ColorSummaryBar 는 "오늘의 교실" 카드가 같은 색 집계를 흡수하면서 대시보드에서 사용 중단 상태다.
 // 컴포넌트 파일(ColorSummaryBar.tsx)은 지우지 않고 그대로 남겨둔다 — 다시 쓸 수 있게.
@@ -34,19 +34,19 @@ import TimetableButton from "@/components/teacher/shared/TimetableButton";
 import {
   dashboardMinDate,
   dashboardToday,
-  getDashboardSnapshot,
-  resolveDateKey,
-} from "@/components/teacher/dashboard/mockData";
+  getDashboardDataFromSupabase,
+  resolveDashboardDate,
+} from "@/lib/supabase/queries/dashboardSnapshot";
 // 아침 브리핑의 "그날 예정된 상담" — 김현우 담당 상담 데이터(읽기만)
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listScheduledConsultationsOn } from "@/lib/supabase/raw/consultationLog";
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const { date } = await searchParams;
-  const dateKey = resolveDateKey(date);
-  const data = getDashboardSnapshot(dateKey);
-  const { isToday } = data;
+  const dateKey = resolveDashboardDate(date);
   const teacher = await getActingTeacher();
+  const data = await getDashboardDataFromSupabase(teacher.classId, dateKey);
+  const { isToday } = data;
   const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
   return (
@@ -85,7 +85,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             <MorningBriefing watch={data.briefing.watch} consultations={consultations} isToday={isToday} />
           </div>
 
-          <RelationBoard relation={data.relation} conflicts={data.conflicts} />
+          {/* 갈등 기록은 카드 안 기간 토글을 따라간다 (relation[period].conflicts) */}
+          <RelationBoard relation={data.relation} />
 
           <div className="col-12">
             <VocabGrowthChart students={data.vocab.students} trend={data.vocab.trend} />

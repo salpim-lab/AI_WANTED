@@ -49,7 +49,7 @@ let bubbleId = 0;
  * 인사와 동시에 팝업이 뜨면 아이가 인사를 읽기도 전에 화면이 덮인다.
  * 아이가 두 줄을 읽을 시간을 준다.
  */
-const CLOSING_PAUSE_MS = 4500;
+const CLOSING_PAUSE_MS = 1800;
 
 /** 마무리 인사 두 줄 사이 간격. 한 줄씩 읽을 틈을 준다 */
 const CLOSING_LINE_GAP_MS = 1400;
@@ -75,6 +75,9 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   const [replies2, setReplies2] = useState<{ text: string; next2: string }[] | null>(null);
   // choice = 마무리 인사 뒤 두 버튼, sending = 신청 중, sent = 신청 완료
   // choice = 두 버튼, sending = 신청 중, sent = 전달됨, failed = 전달 못 함
+  // 대화가 끝났다고 정해진 순간 true. 팝업(consultState)보다 먼저 켜진다 —
+  // 마지막 인사가 나오는 동안에도 말하기 버튼을 누를 수 있으면 끝난 대화에 또 말하게 된다.
+  const [conversationOver, setConversationOver] = useState(false);
   const [consultState, setConsultState] = useState<
     "hidden" | "choice" | "sending" | "sent" | "failed"
   >("hidden");
@@ -123,6 +126,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       setReplies(null);
       setReplies2(null);
       setConsultState("hidden");
+      setConversationOver(false);
       goTo(3);
 
       // 첫 질문은 openers.ts 가 만든다 — 색 + 등하교 + 요일로 정해지는 고정 문장이다.
@@ -144,6 +148,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       }
 
       if (scenario.autoEnd) {
+        setConversationOver(true);
         await wait(CLOSING_PAUSE_MS);
         if (!isCurrent()) return;
         setConsultState("choice");
@@ -233,6 +238,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       }
       if (fu.done) {
         // 음성 경로와 같은 종료 화면·같은 템포를 쓴다. 아이가 직접 끝낸다.
+        setConversationOver(true);
         await wait(CLOSING_PAUSE_MS);
         if (!isCurrent()) return;
         setConsultState("choice");
@@ -260,6 +266,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       if (!isCurrent()) return;
       if (fu.ai) addBubble("ai", fu.ai);
       if (fu.item) setItem(fu.item);
+      setConversationOver(true);
       await wait(CLOSING_PAUSE_MS);
       if (!isCurrent()) return;
       setConsultState("choice");
@@ -344,6 +351,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         // 여기서부터 종료다. 인사 문구는 게이트가 정하므로 화면에 띄우기 전에 이미 알고 있다.
         // 그래서 저장을 먼저 걸고, 기다리지 않고 인사를 띄운다.
         // 저장(0.2초)과 인사(2초 남짓)가 겹치는 만큼 아이템 추론을 일찍 시작할 수 있다.
+        setConversationOver(true);
         const lines = result.lines?.length ? result.lines : result.reply ? [result.reply] : [];
         for (const line of lines) {
           transcriptRef.current.push({ speaker: "assistant", content: line, input_method: "text" });
@@ -395,7 +403,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     [addBubble, flow],
   );
 
-  /** "선생님이랑 이야기하고 싶어" — 신청을 남기고 아이템 화면으로 넘어간다 */
+  /** "선생님과의 대화 신청하기" — 신청을 남기고 아이템 화면으로 넘어간다 */
   const requestConsult = useCallback(async () => {
     setConsultState("sending");
     const sessionId = sessionIdRef.current;
@@ -433,6 +441,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     setReplies(null);
     setReplies2(null);
     setConsultState("hidden");
+    setConversationOver(false);
     sessionIdRef.current = null;
     setItemSessionId(null);
     activeColorRef.current = null;
@@ -457,6 +466,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
     replies,
     replies2,
     consultState,
+    conversationOver,
     thinking,
     voiceError,
     sessionNote,

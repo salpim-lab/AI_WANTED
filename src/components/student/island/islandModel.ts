@@ -428,7 +428,7 @@ export function collectLandscapeProps(layout: IslandLayout, pieceIndices: number
 }
 
 function addLandscapeProps(group: THREE.Group, layout: IslandLayout, pieceIndices: number[], library?: ReadonlyMap<PropKey, THREE.BufferGeometry>) {
-  const props = createLandscapeProps(collectLandscapeProps(layout, pieceIndices), library);
+  const props = createLandscapeProps(collectLandscapeProps(layout, pieceIndices), library, pieceIndices.length === 1);
   group.add(props);
   return props;
 }
@@ -487,7 +487,7 @@ export function replaceLandscapeProps(group: THREE.Group, previous: THREE.Group,
   const parent = previous.parent ?? group;
   parent.remove(previous);
   disposeObject(previous);
-  const next = createLandscapeProps(collectLandscapeProps(layout, pieceIndices), library);
+  const next = createLandscapeProps(collectLandscapeProps(layout, pieceIndices), library, pieceIndices.length === 1);
   parent.add(next);
   return next;
 }

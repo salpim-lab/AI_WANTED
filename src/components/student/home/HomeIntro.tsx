@@ -13,11 +13,14 @@ export default function HomeIntro({
   title,
   subtitle,
   onNext,
+  secondary,
 }: {
   /** 제목. 강조할 이름 부분은 <span> 으로 감싸 넘긴다 */
   title: React.ReactNode;
   subtitle: string;
   onNext: () => void;
+  /** 주 버튼 옆에 같은 크기로 나란히 둘 버튼(하교의 "교사 시점으로 전환하기") */
+  secondary?: React.ReactNode;
 }) {
   return (
     <div className="sh-intro absolute left-1/2 top-[25cqh] z-[2] flex -translate-x-1/2 flex-col items-center text-center">
@@ -27,8 +30,10 @@ export default function HomeIntro({
       <p className="mt-[2cqh] text-[3.2cqh] font-bold text-[var(--sh-muted)]">
         {subtitle}
       </p>
-      <div className="mt-[5.5cqh]">
-        <CtaButton onClick={onNext} />
+      {/* 보조 버튼이 있으면 두 버튼을 같은 너비로 위아래에 둔다. 이때는 화살표를 뺀다 */}
+      <div className={secondary ? "sh-cta-stack mt-[5cqh]" : "mt-[5.5cqh]"}>
+        <CtaButton onClick={onNext} arrow={!secondary} />
+        {secondary}
       </div>
     </div>
   );

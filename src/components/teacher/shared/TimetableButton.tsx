@@ -62,7 +62,7 @@ export default function TimetableButton({ dateKey }: { dateKey?: string }) {
       <div className="tt-panel" role="group" aria-label="우리 반 시간표">
         <div className="tt-panel-head">
           우리 반 시간표
-          <span className="tt-panel-sub">3학년 2반 · 하루 4교시</span>
+          <span className="tt-panel-sub">3학년 2반 · 5교시(화요일만 6교시)</span>
         </div>
 
         <table className="tt-table">
@@ -85,11 +85,20 @@ export default function TimetableButton({ dateKey }: { dateKey?: string }) {
                   {row + 1}교시
                   <em>{time}</em>
                 </th>
-                {WEEKDAYS.map((w) => (
-                  <td key={w} className={w === activeWeekday ? "tt-on" : undefined}>
-                    {TIMETABLE[w][row]}
-                  </td>
-                ))}
+                {WEEKDAYS.map((w) => {
+                  // 5교시로 끝나는 날은 마지막 줄이 빈다 — 빈 칸은 과목 칸처럼 칠하지 않는다
+                  const subject = TIMETABLE[w][row];
+                  return (
+                    <td
+                      key={w}
+                      className={
+                        (subject ? "" : "tt-none ") + (w === activeWeekday ? "tt-on" : "")
+                      }
+                    >
+                      {subject ?? ""}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

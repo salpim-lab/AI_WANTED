@@ -41,10 +41,13 @@ function toItem(job: ItemGenerationJobState | null, demoItem: Item | null): Item
 }
 
 /** Shared by the actual checkin/checkout screens; null session uses a timed offline demo. */
-export default function ItemPreparation({ sessionId, item, onReady }: {
+export default function ItemPreparation({ sessionId, item, onReady, flow = "checkin", onIslandComplete }: {
+  flow?: "checkin" | "checkout";
   sessionId: string | null;
   item: Item | null;
   onReady: (item: Item) => void;
+  /** 섬에서 "배치 종료" 를 눌렀을 때. 등교 화면이 이걸 받아 하교 화면으로 넘긴다(이유민 2026-09-19 추가) */
+  onIslandComplete?: () => void;
 }) {
   const [messageIndex, setMessageIndex] = useState(0);
   const [job, setJob] = useState<ItemGenerationJobState | null>(null);
@@ -100,7 +103,7 @@ export default function ItemPreparation({ sessionId, item, onReady }: {
   // Keep the same island mounted when generation finishes so its intro and camera persist.
   if (browseIsland || readyItem) return <>
     {error && <div role="alert" className="item-prep__alert"><p className="chat-voice-error">선물 준비를 다시 해볼까?</p>{retryButton}</div>}
-    <IslandBoard item={readyItem ?? toItem(job, item)} preparing={!readyItem} />
+    <IslandBoard flow={flow} item={readyItem ?? toItem(job, item)} preparing={!readyItem} onComplete={onIslandComplete} />
   </>;
 
   // 대화 화면과 같은 배경·헤더·살핌 얼굴·입력 중 점을 써서 대화가 이어지는 것처럼 보이게 한다.

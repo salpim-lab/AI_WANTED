@@ -66,7 +66,7 @@ export default function VillageItemLab() {
     const starSize = new THREE.Box3().setFromObject(star).getSize(new THREE.Vector3());
     const starRadius = Math.hypot(starSize.x, starSize.z) / 2;
     const charScale = (metrics.W / 2.75) * 0.10 / CHARACTER_MODEL_HEIGHT;
-    const character = createChildCharacter("star");
+    const character = createChildCharacter();
     character.root.scale.setScalar(charScale);
     const charRadius = (metrics.W / 2.75) * 0.04;
     const polygon = landscape.polygon;

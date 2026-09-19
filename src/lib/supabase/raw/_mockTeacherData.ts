@@ -30,7 +30,7 @@ import { addDays, todayKst } from "@/components/shared/datetime";
 
 export const MOCK_TEACHER = {
   id: "20000000-0000-4000-8000-000000000001",
-  classId: "30000000-0000-4000-8000-000000000302",
+  classId: "20000000-0000-4000-8000-000000000001",
   displayName: "이선생님",
 } as const;
 
@@ -614,9 +614,11 @@ const SEED_SCHEDULED_CONSULTATIONS: {
   { at: "2026-09-22T18:00:00", student: "한지호", counterpart: "아버지", method: "phone" },
 ];
 
-// 대시보드 아침 브리핑 확인용 — "오늘"에 얹는 예정 상담. 학생 상담은 상담 대상을 "학생 본인"으로 둔다
+// 대시보드 아침 브리핑 확인용 — "오늘"에 얹는 예정 상담. 학생 상담은 상담 대상을 "학생 본인"으로 둔다.
+// 대시보드가 주말도 오늘로 세게 되면서(mockData.dashboardToday) 여기도 실제 오늘에 얹는다 —
+// 직전 수업일에 얹으면 토·일에는 브리핑의 상담 줄이 비어 버린다.
 function todayScheduledSeeds(): typeof SEED_SCHEDULED_CONSULTATIONS {
-  const day = todayKst(); // 주말도 등교일이다 (2026-09-19 결정)
+  const day = todayKst();
   return [
     { at: `${day}T12:40:00`, student: "이서연", counterpart: "학생 본인", method: "visit" },
     { at: `${day}T15:30:00`, student: "김민준", counterpart: "어머니", method: "phone" },

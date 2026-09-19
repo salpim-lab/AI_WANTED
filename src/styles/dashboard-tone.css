@@ -19,34 +19,43 @@
    크림(#fdf9ef)은 쓰지 않는다. */
 
 .page-dashboard {
-  /* 신호 4색 — 차가운 계열로 맞춘다. 학생 mood 버튼의 원색 그대로는 쓰지 않는다:
-     버튼 하나에 칠할 색과 아이 이름 스무 개 옆에 놓을 색은 달라야 한다. */
-  --green: #34c48a;  --green-bg: #e9f9f2;  --green-ring: #b3e8d2;
-  --yellow: #eab54b; --yellow-bg: #fdf6e7; --yellow-ring: #f2dfae;
-  --red: #f4837d;    --red-bg: #fdeeee;    --red-ring: #f8c8c6;
-  --navy: #6366f1;   --navy-bg: #eef2ff;   --navy-ring: #c7cdfb;
+  /* 신호 4색 — 아이가 등교 때 누르는 신호등 버튼(styles/student-mood.css)의 값 그대로다.
+     예전에는 여기서 채도를 낮춰 썼는데, 아이 화면과 교사 화면에서 같은 "초록"이
+     다른 초록으로 보이면 같은 신호를 말하고 있다는 게 읽히지 않는다.
+       -    = 램프 색   (mood-btn --dome)
+       -bg  = 라벨 바탕 (mood-btn --label-bg)
+       -ring= 밝은 쪽   (mood-btn --dome-light)
+       -ink = 글자      (mood-btn --label-fg) */
+  --green: #15c656;  --green-bg: #e7f8ec;  --green-ring: #62ee91;  --green-ink: #1a7f42;
+  --yellow: #f5c518; --yellow-bg: #fdf5da; --yellow-ring: #ffe066; --yellow-ink: #97701a;
+  --red: #f0403f;    --red-bg: #fdeaea;    --red-ring: #ff8080;    --red-ink: #c0392f;
+  --navy: #26398c;   --navy-bg: #e6e9f6;   --navy-ring: #4560bd;   --navy-ink: #22347e;
 
   --line: #eaedf5;
   --soft: #f6f7fc;
-  --faint: #7d849b;
-  --ink-soft: #3d4468;
 
-  --w-sun: #eab54b;
+  /* 날씨 아이콘 — 해는 노랑 신호와 같은 색이다 (같은 화면에 나란히 뜬다) */
+  --w-sun: var(--yellow);
   --w-cloud: #cdd3e4;
 
-  /* 관계 지도 */
-  --rel-node-fill: #ffffff;
-  /* 원은 색으로 구분하지 않는다 — 테두리도 글자도 한 가지 톤이다.
-     tone(normal·conflict·isolated)에 따라 달랐던 링 색은 원 크기가 대신한다. */
-  --rel-ring: #9aa3bd;
+  /* ── 관계 지도 ──
+     원은 색으로 구분하지 않는다 (tone 별 링 색은 원 크기가 대신한다).
+     대신 위→아래로 옅어지는 면과 그림자로 떠 있게 만든다 — 납작한 흰 동그라미에
+     회색 테두리만 두르니 지도 전체가 칙칙해 보였다. */
+  --rel-node-top: #ffffff;
+  --rel-node-bottom: #f2f5ff;
+  --rel-ring: #c9d0ee;      /* 평소 */
+  --rel-ring-dashed: #a9b3e2; /* 이름이 안 나온 아이 (점선) — 끊긴 선이 묻히지 않게 한 단 진하게 */
+  --rel-ring-lit: #a8b2e4;  /* 고른 아이와 이어진 이웃 */
+  --rel-ring-active: #3f37c9; /* 고른 아이 하나 — 지도에서 색이 들어가는 유일한 자리 */
   --rel-text: #102a56;
-  --rel-text-muted: #7d849b;
-  /* 선은 색을 남긴다 — 갈등선과 언급선은 성격이 달라서 점선만으로는 덜 구분된다 */
-  --rel-edge: #d3d8ea;
-  --rel-edge-conflict: #f4a9a5;
+  /* 선은 색을 남긴다 — 갈등선과 언급선은 성격이 달라서 점선만으로는 덜 구분된다.
+     갈등선은 신호 빨강(--red)을 옅게 푼 톤이다: 눈에는 띄되 "판정"처럼 보이지 않게. */
+  --rel-edge: #dde3f7;
+  --rel-edge-conflict: #f7a7a4;
   /* 고른 아이에 닿은 선을 진하게 내릴 때 쓰는 짙은 짝 */
-  --rel-edge-strong: #6b76a0;
-  --rel-edge-conflict-strong: #d9615a;
+  --rel-edge-strong: #7d88cf;
+  --rel-edge-conflict-strong: #ea6a66;
 
   /* 바탕은 SalpimBackdrop(교실 일러스트)이 깐다 — 여기서 칠하면 그림이 가려진다 (2026-09-18 김현우, PR 협의) */
   background: transparent;
@@ -62,13 +71,14 @@
   border: none;
   box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05), 0 8px 24px rgba(60, 68, 110, 0.09);
 }
-.page-dashboard .card-title { color: #102a56; letter-spacing: -0.4px; }
+.page-dashboard .card-title { color: var(--text); letter-spacing: -0.4px; }
 .page-dashboard .card-sub,
-.page-dashboard .pane-title,
-.page-dashboard .pane-title .pane-sub { color: #7d849b; }
+.page-dashboard .pane-title .pane-sub,
+.page-dashboard .pane-title .cnt,
+.page-dashboard .rd-section-title .cnt { color: var(--muted); }
 
-.page-dashboard .dashboard-title { color: #102a56; letter-spacing: -0.6px; }
-.page-dashboard .dashboard-caption { color: #7d849b; }
+.page-dashboard .dashboard-title { color: var(--text); letter-spacing: -0.6px; }
+.page-dashboard .dashboard-caption { color: var(--muted); }
 
 /* ── 아침 브리핑 ─────────────────────────────────────────────────── */
 .page-dashboard .briefing-row {
@@ -77,8 +87,8 @@
   border: none;
 }
 .page-dashboard .briefing-row:hover { background: #eef1fa; }
-.page-dashboard .briefing-line .bname { color: #102a56; }
-.page-dashboard .briefing-info .breason { color: #7d849b; }
+.page-dashboard .briefing-line .bname { color: var(--text); }
+.page-dashboard .briefing-info .breason { color: var(--muted); }
 
 /* ── pill ────────────────────────────────────────────────────────────
    학생 화면은 누를 수 있는 것과 라벨이 전부 999px 다 */
@@ -111,14 +121,20 @@
 /* ── 감정 어휘 ───────────────────────────────────────────────────── */
 .page-dashboard .vocab-bar { background: #dfe3f7; border-radius: 9px 9px 0 0; }
 .page-dashboard .vocab-bar.above { background: #6366f1; }
-.page-dashboard .vocab-val { color: #a3a9c4; }
+.page-dashboard .vocab-val { color: var(--faint); }
 .page-dashboard .vocab-val.above { color: #3f37c9; }
 .page-dashboard .vocab-key { background: #dfe3f7; }
 .page-dashboard .vocab-key.above { background: #6366f1; }
 .page-dashboard .vocab-word-list li.fresh { color: #3f37c9; background: #eef2ff; }
 
 /* ── 관계 지도 ───────────────────────────────────────────────────── */
-.page-dashboard .relation-map-wrap { background: #f8f9fd; border-radius: 22px; }
+/* 판을 평평한 회색 한 장으로 두면 그 위의 원도 같이 죽는다.
+   가운데가 밝고 가장자리로 갈수록 살짝 내려앉는 면을 깔아 원이 떠 보이게 한다. */
+.page-dashboard .relation-map-wrap {
+  background: radial-gradient(115% 85% at 50% 38%, #ffffff 0%, #f5f7ff 55%, #edf0fb 100%);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 2px rgba(60, 68, 110, 0.05);
+}
 
 /* ── 기간 토글 · 달력 ────────────────────────────────────────────── */
 .page-dashboard .rel-period { background: #eef1fa; }
@@ -135,55 +151,70 @@
 .page-dashboard .cal-day.on { background: #6366f1; }
 .page-dashboard .date-text em { background: #eef2ff; color: #3f37c9; }
 
-/* ── 글꼴·글자 스타일: 아이 상세 · 업무기록 · 학부모상담 탭과 맞춘다 ─────────────
+/* ── 글꼴·글자색 ────────────────────────────────────────────────────
    (2026-09-18 김현우 추가 — 진승혜 님과 PR 협의. 세 탭의 기준은 components/shared/ui.ts)
-   제목은 둥근 Jua(--font-cute), 본문은 Noto Sans KR(--font-sans-kr).
-   글자색 남색 #102a56 · 보조 #7d849b — 학생 홈(student-home.css)과 같은 값. */
+   크기·굵기 단계는 prototype-teacher-dashboard.css 맨 위의 :root 토큰이 정한다.
+   이 블록이 정하는 것은 둘뿐이다 — 어디에 어떤 글꼴을 쓰는가, 글자색 네 가지. */
 .page-dashboard {
-  --text: #102a56;
-  --muted: #7d849b;
-  --faint: #aab0c4;
-  --ink-soft: #33405f;
-  font-family: var(--font-sans-kr), "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  color: #102a56;
+  /* 글자색 네 가지. 이 밖의 색은 신호(초록·노랑·빨강·남색)와 강조(#3f37c9)뿐이다. */
+  --text: #102a56;      /* 제목 · 이름 · 강조 숫자 */
+  --ink-soft: #33405f;  /* 본문 */
+  --muted: #7d849b;     /* 라벨 · 보조 설명 */
+  --faint: #aab0c4;     /* 캡션 · 가장 약한 글자 */
+
+  font-family: var(--font-body);
+  color: var(--text);
 }
 
-/* 페이지 제목 — 업무기록·학부모상담 제목과 같은 크기 */
-.page-dashboard .dashboard-title {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-weight: 400;
-  font-size: 26px;
-  letter-spacing: -0.3px;
-}
-.page-dashboard .dashboard-caption { font-size: 12.5px; }
-
-/* 카드 제목 */
-.page-dashboard .card-title {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-weight: 400;
-  font-size: 20px;
-  letter-spacing: -0.2px;
-}
-
-/* 카드 안 소제목 — 아이 상세 "등교 마음 기록", 업무기록 섹션 제목과 같은 급 */
+/* Jua(둥근 제목체)는 이 여섯 자리에만 쓴다 — 페이지 제목, 카드 제목, 칸 제목,
+   큰 헤드라인, 큰 숫자. 전부 --fs-section(16px) 이상이다.
+   Jua 는 400 한 벌뿐이라 굵기는 토큰 쪽에서 --fw-regular 로 맞춰 뒀다. */
+.page-dashboard .dashboard-title,
+.page-dashboard .card-title,
 .page-dashboard .pane-title,
-.page-dashboard .rd-section-title {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-weight: 400;
-  font-size: 16px;
-  color: #102a56;
-}
-/* 소제목 옆 작은 설명·개수는 본문 글꼴로 되돌린다 */
-.page-dashboard .pane-title .pane-sub,
-.page-dashboard .pane-title .cnt,
-.page-dashboard .rd-section-title .cnt {
-  font-family: var(--font-sans-kr), sans-serif;
+.page-dashboard .rd-section-title,
+.page-dashboard .classroom-headline,
+.page-dashboard .classroom-legend .cl-count {
+  font-family: var(--font-title);
 }
 
-/* 큰 숫자·이름 */
-.page-dashboard .classroom-headline,
-.page-dashboard .rd-name,
-.page-dashboard .classroom-legend .cl-count {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-weight: 400;
+/* 제목 줄 안에 같이 서는 잔글씨(부제 · 건수 · 기간 토글 · 평균 표기 · 단위 "명")는
+   본문 글꼴로 되돌린다. 예전에는 되돌릴 selector 를 하나씩 적었는데, 제목 줄에 뭔가
+   새로 붙을 때마다 그 목록에서 빠져 11px 짜리 Jua 가 생겼다 (.card-sub 가 그랬다).
+   자식 전체를 한 번에 되돌려 구멍을 막는다 — 14px 이하에는 Jua 가 오지 않는다. */
+.page-dashboard .dashboard-title *,
+.page-dashboard .card-title *,
+.page-dashboard .pane-title *,
+.page-dashboard .rd-section-title *,
+.page-dashboard .classroom-headline *,
+.page-dashboard .classroom-legend .cl-count * {
+  font-family: var(--font-body);
 }
+
+/* 관계 지도의 아이 이름만 예외로 Jua 를 쓴다 (14px 이하 Jua 금지의 유일한 예외).
+   원 안에 든 이름은 본문이 아니라 그림의 일부라, 둥근 원에는 둥근 글자가 맞는다.
+   크기는 원 반지름을 따라 RelationshipMap 의 LABEL_STEPS 가 정한다. */
+.page-dashboard .relation-map text { font-family: var(--font-title); }
+
+/* 제목 글자색 — 크기는 토큰이, 색만 여기서 */
+.page-dashboard .pane-title,
+.page-dashboard .rd-section-title { color: var(--text); }
+
+/* ── 세 화면이 공유하는 부품(날짜 컨트롤 · 달력 · 시간표)을 대시보드 안에서만 단계에 맞춘다.
+   styles/teacher-date-control.css 는 업무기록·학부모상담도 쓰므로 건드리지 않는다.
+   12.5 / 15 / 11.5 / 9.5px 와 500·600·800 이 여기서만 걸러진다. */
+.page-dashboard .date-text,
+.page-dashboard .cal-month,
+.page-dashboard .tt-btn,
+.page-dashboard .tt-panel-head { font-size: var(--fs-body); font-weight: var(--fw-bold); }
+.page-dashboard .cal-nav { font-size: var(--fs-name); }
+.page-dashboard .cal-day { font-size: var(--fs-body); font-weight: var(--fw-regular); }
+.page-dashboard .cal-day.on { font-weight: var(--fw-bold); }
+.page-dashboard .tt-table { font-size: var(--fs-label); }
+.page-dashboard .tt-table tbody td { font-weight: var(--fw-regular); }
+/* 5교시로 끝나는 날의 빈 마지막 칸 — 과목 칸처럼 칠하지 않는다 */
+.page-dashboard .tt-table tbody td.tt-none { background: none; }
+.page-dashboard .tt-period em { font-size: var(--fs-caption); font-weight: var(--fw-regular); }
+
+/* 아이콘 버튼 두 개도 단계 안으로 — 목록 넘김 ‹ › 과 상담 일정 ✎ (Tailwind 쪽 크기) */
+.page-dashboard .briefing-edit { font-size: var(--fs-body); }

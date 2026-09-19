@@ -19,7 +19,7 @@
 import type { SignalColor } from "@/lib/types/signal";
 // 헤더의 "오늘 날짜"(components/teacher/CurrentDate.tsx)와 같은 기준을 써야
 // 상단 날짜와 대시보드의 "오늘"이 어긋나지 않는다. 둘 다 Asia/Seoul 기준이다.
-import { todayKst } from "@/components/shared/datetime";
+import { addDays, todayKst } from "@/components/shared/datetime";
 // 아침 브리핑 판정은 여기 없다 — 규칙과 문구는 lib/briefing, 조립은 queries/morningBriefing 이 갖는다.
 import type { StudentFacts } from "@/lib/briefing/triggers";
 import { isDistressWord } from "@/lib/vocab/lexicon";
@@ -77,19 +77,22 @@ function schoolDaysBetween(from: string, to: string): string[] {
 }
 
 /* ══ 선택 가능한 날짜 ════════════════════════════════════════════════
-   mock 스냅샷은 특정 날짜에 묶여 있지 않다. "이번 달 1일부터 오늘까지의 수업일" 전부에 얹는다.
-   상단 헤더가 실제 오늘을 그리므로 여기가 멈춰 있으면 두 날짜가 어긋난다.
+   mock 스냅샷은 특정 날짜에 묶여 있지 않다. "이번 달 1일부터 오늘까지" 전부에 얹는다.
+   주말도 포함한다 — 예전에는 수업일만 뒀는데, 오늘이 토요일이면 대시보드의 "오늘"이
+   금요일로 밀려서 상단 헤더(실제 오늘)와 날짜가 어긋났다. 주말에도 교사는 지난 한 주를 본다.
    자정을 넘겨도 맞아야 해서 상수가 아니라 함수다 — 서버 프로세스가 오래 떠 있어도 안전하다. */
 
 /** 대시보드가 보여줄 수 있는 날짜 (오래된 날 → 오늘) */
 export function dashboardDates(): string[] {
   const today = todayKst();
-  const days = schoolDaysBetween(`${today.slice(0, 8)}01`, today);
-  return days.length ? days : [schoolDayAgo(0)];
+  const out: string[] = [];
+  for (let cursor = `${today.slice(0, 8)}01`; cursor <= today; cursor = addDays(cursor, 1)) out.push(cursor);
+  return out;
 }
 
+/** 대시보드의 "오늘" — 달력·헤더가 말하는 오늘과 같은 날이다 (주말도 그대로) */
 export function dashboardToday(): string {
-  return schoolDayAgo(0);
+  return todayKst();
 }
 
 export function dashboardMinDate(): string {
@@ -147,8 +150,9 @@ export type RelationNode = {
       둘을 같은 값으로 두면 가운데 큰 원이 곧 인기 많은 아이가 되는데, 지도가 찾아야 하는
       아이는 그 반대편(아무도 이름을 안 부른 아이)이라 기준을 갈라 뒀다 — attentionOf 참고. */
   r: number;
+  /** 점선으로 그릴지(이름이 안 나온 아이) 여부. 원 아래 붙던 설명 한 줄은 뺐다 —
+      아래 범례가 점선 하나로 같은 말을 하고 있었다 (RelationshipMap 참고). */
   tone: "normal" | "conflict" | "isolated";
-  note?: string;
 };
 
 export type RelationEdge = {
@@ -224,6 +228,9 @@ export type RelationGraph = {
   edges: RelationEdge[];
   details: Record<number, RelationDetail>;
   pairs: Record<string, RelationPairDetail>;
+  /** 이 기간 안의 갈등 기록 — 아무도 고르지 않았을 때 옆 패널이 보여준다.
+      기간 토글과 따로 놀면 "누적"으로 넓혀도 건수가 그대로라 토글이 거짓말을 한다. */
+  conflicts: ConflictRow[];
 };
 
 /** 아이마다 자주 어울리는 무리. 교실은 스무 명이 골고루 섞이는 곳이 아니라 몇 덩어리로 나뉘고,
@@ -347,6 +354,8 @@ function conflictLedger(): ConflictRow[] {
 export type VocabStudent = {
   studentId: number;
   name: string;
+  /** 막대 아래에는 학생 명단의 이름만 쓴다. */
+  shortName?: string;
   count: number;
   delta: number;
   /** 그 아이가 쓴 표제어 (먼저 쓴 순). 길이는 항상 count 와 같다 — 숫자와 명단이 어긋날 수 없다. */
@@ -407,7 +416,7 @@ function vocabTrendBase(): VocabMonth[] {
 /* ══ 화면 타입 ═══════════════════════════════════════════════════════ */
 
 /** 화면에 이름을 띄우고 /students/[id] 로 보내기 위한 최소 참조 */
-export type StudentRef = { studentId: number; name: string };
+export type StudentRef = { studentId: string | number; name: string };
 
 /** 한 감정 색의 집계 — count 는 students.length 에서 파생되므로 숫자와 명단이 항상 일치한다 */
 export type MoodShare = {
@@ -756,16 +765,20 @@ const RECORD_WEIGHT = 3;
     기간을 늘렸는데 선이 줄면 지도를 믿을 수 없게 된다. 넓게 볼수록 선은 늘어야 한다. */
 const EDGE_MIN_MENTIONS = 2;
 
-/** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
-const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
+/** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다.
+    고리를 조금씩 좁혔다(288→268, 152→142): RelationshipMap 이 원을 1.8 배로 키우면서
+    바깥 고리 끝의 원이 지도 테두리를 넘어 잘렸다. */
+const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 148, ry: 82 }, { count: 13, rx: 268, ry: 142 }] };
 
-/* 원 크기. 16 이면 세 글자 이름이 들어가고, 32 를 넘으면 바깥 고리에서 이웃과 붙는다.
-   "살펴볼 일" 한 점마다 4px 씩 키운다 — 실제 데이터의 최댓값에 맞춰 늘리지 않고
-   점당 고정폭으로 둔다. 기간 토글(1주·2주·4주)을 오갈 때 같은 아이가 같은 크기로
-   남아야 크기가 뜻을 갖는다. 최댓값에 맞춰 늘리면 기간마다 기준이 달라져 비교가 안 된다. */
-const NODE_MIN_R = 16;
-const NODE_MAX_R = 32;
-const NODE_R_STEP = 4;
+/* 원 크기 (RelationshipMap 이 여기에 BASE_SCALE 1.8 을 곱해 그린다).
+   살펴볼 일이 없는 아이를 12 까지 내렸다 — 16 일 때는 한 점 차이가 눈에 안 띄어
+   "원이 클수록 살펴볼 일이 많다"는 규칙이 지도에서 읽히지 않았다.
+   대신 한 점당 5 씩 벌려, 가장 작은 원과 가장 큰 원이 두 배 넘게 차이 나게 한다.
+   점당 고정폭인 이유는 그대로다: 기간 토글(1주·2주·4주)을 오갈 때 같은 아이가
+   같은 크기로 남아야 크기가 뜻을 갖는다. 최댓값에 맞춰 늘리면 기준이 기간마다 달라진다. */
+const NODE_MIN_R = 12;
+const NODE_MAX_R = 28;
+const NODE_R_STEP = 5;
 /** 아무도 이름을 부르지 않은 아이에게 주는 점수 — 갈등 두 건과 같은 무게로 둔다.
     소외는 갈등처럼 기록으로 남지 않아서, 세지 않으면 지도에서 가장 작게 그려진 채 묻힌다. */
 const ISOLATED_ATTENTION = 2;
@@ -836,12 +849,6 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
       y,
       r: Math.min(NODE_MAX_R, NODE_MIN_R + attentionOf(studentId) * NODE_R_STEP),
       tone: weight === 0 ? "isolated" : conflictIds.has(studentId) ? "conflict" : "normal",
-      note:
-        weight > 0
-          ? undefined
-          : (mentioning.get(studentId) ?? 0) > 0
-            ? "먼저 이야기하지만 이름이 안 나와요"
-            : "오간 이야기 없음",
     };
   });
 
@@ -868,7 +875,9 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
     }
   }
 
-  return { nodes, edges, ...buildRelationDetails(ids, window, records) };
+  // 최근 것부터 — 옆 패널 카로셀이 첫 장에 가장 최근 건을 두게
+  const conflicts = [...records].sort((a, b) => (a.date < b.date ? 1 : -1));
+  return { nodes, edges, conflicts, ...buildRelationDetails(ids, window, records) };
 }
 
 /** 짝 키는 늘 작은 번호가 앞이다 — 방향이 달라도 같은 선을 가리키게 */
@@ -993,9 +1002,53 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
     relation: Object.fromEntries(
       RELATION_PERIODS.map((p) => [p.id, buildRelation(key, p.days)]),
     ) as Record<RelationPeriod, RelationGraph>,
-    conflicts: conflictLedger().filter((c) => c.date <= key).slice(0, 2),
+    /* 대시보드 밖(패턴 경고 등)에서 쓰는 전체 목록. 관계 카드의 옆 패널은
+       기간 토글을 따르는 relation[period].conflicts 를 본다. */
+    conflicts: conflictLedger().filter((c) => c.date <= key),
     vocab: buildVocab(snapshot),
   };
+}
+
+/** 실사용자로 잡아둔 아이 (mock 번호). 시드의 민준 = 개발 환경 체크인이 저장되는 학생이다.
+    uuid 쪽 짝은 lib/vocab/liveVocab.ts 의 LIVE_VOCAB_STUDENT_ID. */
+export const LIVE_VOCAB_STUDENT_NO = 1;
+
+/**
+ * 하드코딩된 감정 어휘에 "실제로 말한 표제어"를 얹는다 (민준이 한 칸만).
+ *
+ * 세는 규칙은 lib/vocab/aggregate.ts 의 정의를 그대로 따른다 —
+ *   count = 쓴 표제어의 종류 수 / delta = 그중 이번 달에 처음 쓴 것
+ * 그래서 이미 목록에 있는 말을 또 말해도 숫자는 늘지 않는다. 새 말만 목록 뒤에 붙는다.
+ * 뒤에 붙이는 것이 중요하다 — VocabGrowthChart 가 목록의 마지막 delta 개를
+ * "이번 달 새로 쓴 말"로 읽는다 (count - delta 부터).
+ *
+ * lemmas 가 비어 있으면(실데이터 없음·DB 미연결·추출 실패) 원본을 그대로 돌려준다.
+ */
+export function mergeLiveVocab(
+  vocab: DashboardData["vocab"],
+  lemmas: string[],
+): DashboardData["vocab"] {
+  if (!lemmas.length) return vocab;
+
+  let changed = false;
+  const students = vocab.students.map((student) => {
+    if (student.studentId !== LIVE_VOCAB_STUDENT_NO) return student;
+    const added = lemmas.filter((lemma) => !student.words.includes(lemma));
+    if (!added.length) return student;
+    changed = true;
+    const words = [...student.words, ...added];
+    return { ...student, count: words.length, delta: student.delta + added.length, words };
+  });
+  if (!changed) return vocab;
+
+  // 이번 달 학급 평균은 민준이 숫자가 바뀌면 같이 바뀐다 (지난 달들은 이미 지나간 값이라 그대로).
+  const average =
+    Math.round((students.reduce((sum, s) => sum + s.count, 0) / students.length) * 10) / 10;
+  const trend = vocab.trend.map((month, i) =>
+    i === vocab.trend.length - 1 ? { ...month, average } : month,
+  );
+
+  return { students, trend };
 }
 
 /* ── 사용 중단 (기존 ColorSummaryBar.tsx 가 아직 import 하고 있어 유지) ──

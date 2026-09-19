@@ -9,6 +9,11 @@
 // 3개 도메인 보조(정서/학교생활/가정)가 각자 낸 소견을 먼저 보여주고, 그 아래 "🧩 종합의견"으로
 // 최종 답변을 잇는다 — 토글로 접어두지 않고 항상 다 보이게 한다(route.ts가 domainFindings로 내려줌).
 //
+// (2026-09-19) 질문창 위에 도메인 선택 칩 3개를 둔다 — 하나도 안 고르면 라이트 모드(답 하나만,
+// 가벼운 질문용), 하나 고르면 그 도메인 답만(작은 라벨만 붙고 카드/종합의견은 안 나옴), 2~3개
+// 고르면 지금까지 하던 대로 카드+종합의견이 나온다. "모든 질문에 4개씩 나와서 방대하다"는
+// 피드백으로 추가.
+//
 // (2026-09-19) UI를 Tailwind로 다시 짬 — docs/ARCHITECTURE.md 원칙 6번(화면별 점진적 전환)에 따라
 // 제 담당 화면부터 시작. styles/prototype-teacher-shared.css의 .btn 계열은 더 안 쓴다(전부 Tailwind).
 // 응답이 3~8초 걸리는데 그동안 아무 표시가 없었던 것도 같이 고쳐서, 보내는 동안 타이핑 점 3개를 보여준다.
@@ -18,16 +23,40 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useAgentChat, type DomainFinding } from "./useAgentChat";
+import { useAgentChat, type AgentDomain, type DomainFinding } from "./useAgentChat";
 // 로봇 이모지(🤖)는 차갑다는 피드백 → 학생 쪽 브랜드 얼굴(SalpimFace)로 바꿔봤는데 그것도 안 예쁘다는
 // 피드백 → 올빼미로 교체 (AgentOwlIcon, 이 폴더 안에서 직접 만든 아이콘, 단독 소유).
 import AgentOwlIcon from "./AgentOwlIcon";
+// (2026-09-19) 도메인 카드 색깔바를 사이트 신호등 색과 통일해달라는 피드백. 처음엔 김현우 소유
+// shared/signalStyles.ts(SIGNAL_DOT)를 썼는데, 그건 "교사 화면" 신호등 색이고 담당자가 곧 학생
+// 화면 기준으로 다시 맞출 예정이라고 함 — 그러면 여기도 같이 틀어진다. 진짜 원본은
+// lib/constants/colors.ts(이유민 소유, SIGNAL_COLORS)의 hex 값 — "여기 값만 고치면 전체 앱에
+// 반영되도록 항상 이걸 참조할 것"이라고 파일에 명시돼 있는 SSOT라서, 교사 화면 쪽 색이 나중에
+// 바뀌어도 이 컴포넌트는 계속 학생 화면과 같은 색을 쓰게 된다. Tailwind 클래스 대신 hex를 인라인
+// style로 직접 적용한다(className으로 하려면 hex를 문자열로 박아 넣어야 해서 SSOT를 못 따라간다).
+import { SIGNAL_COLORS } from "@/lib/constants/colors";
 
-const DOMAIN_STYLE: Record<string, { icon: string; bar: string }> = {
-  emotion: { icon: "💚", bar: "bg-emerald-400" },
-  learning: { icon: "📔", bar: "bg-amber-400" },
-  home: { icon: "🏠", bar: "bg-sky-400" },
+// context.ts(server-only)의 DOMAIN_LABEL을 클라이언트에서 못 불러오니 여기서 아이콘·짧은 라벨을
+// 따로 정의한다 — 값("emotion"|"learning"|"home")만 서버와 맞으면 된다.
+// (DomainFinding.domain은 string이라 조회 키도 string으로 열어둔다 — AgentDomain으로 좁히면
+// f.domain 인덱싱에서 타입 에러가 난다.)
+// barColor는 신호등 색 순서(초록·노랑·남색)를 그대로 매긴 것 — 실제 정서/학교생활/가정 상태를
+// 나타내는 색은 아니고, 세 카드를 구분하는 용도로 사이트 색상 팔레트를 재사용한 것뿐이다.
+//
+// (2026-09-19) "이모지가 너무 AI티 난다"는 피드백 — 💚📔🏠🧩📎📌처럼 라벨마다 색색깔 이모지를
+// 붙였던 걸 다 뺐다. 이미 barColor(색깔바/점)로 도메인을 구분하고 있어서 이모지 없이도 식별은
+// 되고, 이모지를 빼니 타이포그래피 위주의 더 차분한 제품 느낌이 된다.
+const DOMAIN_STYLE: Record<string, { barColor: string; label: string }> = {
+  emotion: { barColor: SIGNAL_COLORS.green.hex, label: "정서" },
+  learning: { barColor: SIGNAL_COLORS.yellow.hex, label: "학교생활" },
+  home: { barColor: SIGNAL_COLORS.navy.hex, label: "가정 연계" },
 };
+const DOMAIN_ORDER: AgentDomain[] = ["emotion", "learning", "home"];
+
+/** 라벨 앞에 붙는 작은 색 점 — 이모지 대신 barColor로 도메인을 구분한다. */
+function Dot({ color }: { color: string }) {
+  return <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full align-middle" style={{ backgroundColor: color }} aria-hidden />;
+}
 
 function EvidenceChips({ evidence }: { evidence: string[] }) {
   if (evidence.length === 0) return null;
@@ -38,7 +67,7 @@ function EvidenceChips({ evidence }: { evidence: string[] }) {
           key={i}
           className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
         >
-          📎 {e}
+          {e}
         </span>
       ))}
     </div>
@@ -49,14 +78,13 @@ function DomainFindings({ findings }: { findings: DomainFinding[] }) {
   return (
     <div className="flex w-full flex-col gap-1.5">
       {findings.map((f) => {
-        const style = DOMAIN_STYLE[f.domain] ?? { icon: "🔹", bar: "bg-gray-300" };
+        const style = DOMAIN_STYLE[f.domain] ?? { barColor: "#d1d5db" };
         return (
           <div key={f.domain} className="flex gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
-            <span className={`w-1 shrink-0 rounded-full ${style.bar}`} aria-hidden />
+            <span className="w-1 shrink-0 rounded-full" style={{ backgroundColor: style.barColor }} aria-hidden />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="text-[11px] font-bold text-gray-600">
-                {style.icon} {f.label}
-              </div>
+              {/* 카드 왼쪽에 이미 색깔바가 있어서 라벨 옆에 점을 또 넣으면 중복이라 텍스트만 */}
+              <div className="text-[11px] font-bold text-gray-600">{f.label}</div>
               <div className="whitespace-pre-line text-xs text-gray-900">{f.finding}</div>
               <EvidenceChips evidence={f.evidence} />
             </div>
@@ -82,7 +110,19 @@ function TypingDots() {
 }
 
 export default function TeacherAgentWidget() {
-  const { messages, open, setOpen, input, setInput, send, sending, scopedStudentName, studentId } = useAgentChat();
+  const {
+    messages,
+    open,
+    setOpen,
+    input,
+    setInput,
+    send,
+    sending,
+    scopedStudentName,
+    studentId,
+    selectedDomains,
+    toggleDomain,
+  } = useAgentChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,7 +155,7 @@ export default function TeacherAgentWidget() {
 
         {studentId && (
           <div className="border-b border-indigo-100 bg-indigo-50 px-4 py-1.5 text-[11px] font-medium text-indigo-700">
-            📌 {scopedStudentName ?? "이 페이지의 학생"} 기준으로 답해요
+            {scopedStudentName ?? "이 페이지의 학생"} 기준으로 답해요
           </div>
         )}
 
@@ -135,8 +175,14 @@ export default function TeacherAgentWidget() {
               {m.domainFindings && m.domainFindings.length > 0 && (
                 <>
                   <DomainFindings findings={m.domainFindings} />
-                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">🧩 종합의견</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">종합의견</div>
                 </>
+              )}
+              {m.respondedDomain && (
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+                  <Dot color={DOMAIN_STYLE[m.respondedDomain]?.barColor ?? "#d1d5db"} />
+                  {DOMAIN_STYLE[m.respondedDomain]?.label} 관점
+                </div>
               )}
               <div
                 className={`whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
@@ -149,6 +195,33 @@ export default function TeacherAgentWidget() {
             </div>
           ))}
           {sending && <TypingDots />}
+        </div>
+
+        <div className="border-t border-gray-100 px-2.5 pt-2">
+          {/* 안내 문구를 칩 위에 둔다 — 행동(칩 선택)보다 먼저 읽혀야 하는 정보라 위가 자연스럽고,
+              가로 폭을 혼자 다 쓰니 줄바꿈 걱정도 없다. */}
+          <p className="mb-1 text-[10px] text-gray-400">관점을 선택하면 그 영역을 자세히 답해요!</p>
+          <div className="flex flex-wrap gap-1.5">
+            {DOMAIN_ORDER.map((domain) => {
+              const style = DOMAIN_STYLE[domain];
+              const active = selectedDomains.includes(domain);
+              return (
+                <button
+                  key={domain}
+                  type="button"
+                  onClick={() => toggleDomain(domain)}
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    active
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                  }`}
+                >
+                  <Dot color={style.barColor} />
+                  {style.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <form
@@ -177,15 +250,15 @@ export default function TeacherAgentWidget() {
       <button
         onClick={() => setOpen(!open)}
         aria-label={open ? "살핌 도우미 닫기" : "살핌 도우미 열기"}
-        className="pointer-events-auto grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-transform hover:scale-105 active:scale-95"
+        className={`pointer-events-auto grid h-14 w-14 place-items-center rounded-full shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-all duration-200 hover:scale-105 active:scale-95 ${
+          open
+            ? // 열린 상태(✕, 인디고~바이올렛 그라데이션 배경)에서는 흰색 글로우가 배경색과 안 어울려서
+              // 부자연스러워 보였다 — 버튼 색과 어울리는 바이올렛 톤 글로우로 맞춘다.
+              "bg-gradient-to-br from-indigo-500 to-violet-600 hover:shadow-[0_0_30px_8px_rgba(139,92,246,0.55)] hover:ring-2 hover:ring-violet-300/80"
+            : "bg-white hover:shadow-[0_0_30px_8px_rgba(255,255,255,0.9)] hover:ring-2 hover:ring-white/90"
+        }`}
       >
-        {open ? (
-          <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white">
-            ✕
-          </span>
-        ) : (
-          <AgentOwlIcon className="h-11 w-11" />
-        )}
+        {open ? <span className="text-xl text-white">✕</span> : <AgentOwlIcon className="h-11 w-11" />}
       </button>
     </div>
   );

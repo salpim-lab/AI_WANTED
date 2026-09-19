@@ -33,6 +33,7 @@ export default function ChatScreen({
   replies,
   replies2,
   consultState,
+  conversationOver = false,
   onReply,
   onReply2,
   onRequestConsult,
@@ -54,6 +55,8 @@ export default function ChatScreen({
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
   consultState: "hidden" | "choice" | "sending" | "sent" | "failed";
+  /** 대화가 끝났다고 정해진 뒤. 마지막 인사가 나오는 동안에도 true 다 */
+  conversationOver?: boolean;
   onReply: (reply: Reply) => void;
   onReply2: (r: { text: string; next2: string }) => void;
   onRequestConsult: () => void;
@@ -81,9 +84,14 @@ export default function ChatScreen({
   const spokenTurns = messages.filter((m) => m.type === "user" && !m.pending).length;
   const hints = pickHints(flow, color, spokenTurns);
   const canShowHints = hints.length > 0;
+  const latestPromptId = [...messages]
+    .reverse()
+    .find((message) => message.type === "ai" && !message.pending)?.id ?? null;
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [showGuide, setShowGuide] = useState(false);
+  /** 어느 질문을 충분히 기다린 뒤 가이드를 열었는지 기록한다. 새 질문에는 이전 가이드가 이어지지 않는다. */
+  const [guidePromptId, setGuidePromptId] = useState<number | null>(null);
+  const showGuide = latestPromptId !== null && guidePromptId === latestPromptId;
   /** 질문이 화면에 뜬 시각. 녹음 훅이 응답 지연을 재는 기준이 된다 */
   const promptShownAtRef = useRef<number | null>(null);
 
@@ -96,7 +104,8 @@ export default function ChatScreen({
   // 기준은 "말할 차례인가" 하나다.
   const waitingForAnswer = messages.some((m) => m.pending) || typing || thinking;
   const ended = consultState !== "hidden";
-  const canTalk = !ended && !waitingForAnswer && messages.length > 0;
+  // 마지막 인사가 뜨는 순간부터 끈다. 팝업이 뜰 때까지 기다리면 끝난 대화에 또 말하게 된다.
+  const canTalk = !ended && !conversationOver && !waitingForAnswer && messages.length > 0;
 
   const getPromptShownAt = useCallback(() => promptShownAtRef.current, []);
 
@@ -108,32 +117,27 @@ export default function ChatScreen({
   const handleRecorded = useCallback(
     (result: RecordingResult) => {
       if (!onSpoken) {
-        setShowGuide(true);
+        setGuidePromptId(latestPromptId);
         return;
       }
       void onSpoken(result.audio, result.prosody).then((handled) => {
-        if (!handled) setShowGuide(true);
+        if (!handled) setGuidePromptId(latestPromptId);
       });
     },
-    [onSpoken],
+    [latestPromptId, onSpoken],
   );
 
   const recorder = useVoiceRecorder({ getPromptShownAt, onResult: handleRecorded });
 
-  // 답할 차례가 오면 잠시 기다렸다가 가이드를 올린다.
-  // 아이가 먼저 말하면(선택지가 사라지면) 가이드도 같이 내려간다.
-  //
-  // setState 는 전부 타이머·정리 함수 안에서만 부른다.
-  // 이펙트 본문에서 동기로 부르면 연쇄 렌더가 난다.
+  // 질문마다 대기 시간을 새로 잰다. 이전 질문에서 열렸던 가이드는 prompt id가 달라
+  // 다음 턴에 이어지지 않으며, 두 번째 질문도 똑같이 망설임 시간이 지난 뒤에만 열린다.
   useEffect(() => {
-    if (!hasOptions || ended) return;
+    if (!active || !canTalk || !hasOptions || ended || conversationOver || latestPromptId === null) return;
     promptShownAtRef.current = Date.now();
-    const show = window.setTimeout(() => setShowGuide(true), HESITATION_MS);
-    return () => {
-      window.clearTimeout(show);
-      setShowGuide(false);
-    };
-  }, [hasOptions, ended, replies, replies2]);
+    const promptId = latestPromptId;
+    const show = window.setTimeout(() => setGuidePromptId(promptId), HESITATION_MS);
+    return () => window.clearTimeout(show);
+  }, [active, canTalk, conversationOver, ended, hasOptions, latestPromptId]);
 
   // 새 말풍선이 생기면 아래로 따라간다.
   // 순간이동하면 아이가 화면이 바뀐 걸 못 알아채므로 미끄러지듯 내린다.
@@ -190,9 +194,14 @@ export default function ChatScreen({
       <div className="chat-bottom">
         {voiceError && <p className="chat-voice-error">{voiceError}</p>}
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
-        {showGuide && hasOptions && !ended && (
+        {/* 한 번 나타난 가이드는 아이가 말하는 동안에도 참고할 수 있게 유지한다.
+            전사·AI 응답을 기다리는 동안에는 다음 질문이 아니므로 숨긴다. */}
+        {showGuide && hasOptions && !ended && !conversationOver && !waitingForAnswer && (
           <GuideChips
+            key={latestPromptId}
             hints={hints}
+            // 두 번째 턴부터는 문장을 흘리지 않고 말풍선만 바로 보여준다
+            flowFirst={spokenTurns === 0}
             replies={replies}
             replies2={replies2}
             // 음성이 실제로 동작하는 상황에서는 고를 수 없다. 아이가 직접 말해야
@@ -209,7 +218,7 @@ export default function ChatScreen({
           askIfDone={recorder.askIfDone}
           onStart={recorder.start}
           onStop={recorder.stop}
-          onFallback={() => setShowGuide(true)}
+          onFallback={() => setGuidePromptId(latestPromptId)}
           disabled={!canTalk}
         />
       </div>
@@ -240,7 +249,7 @@ export default function ChatScreen({
                     onClick={onRequestConsult}
                     disabled={consultState === "sending"}
                   >
-                    {consultState === "sending" ? "전하는 중…" : "선생님이랑 이야기하고 싶어요"}
+                    {consultState === "sending" ? "전하는 중…" : "선생님과의 대화 신청하기"}
                   </button>
                   <button
                     type="button"

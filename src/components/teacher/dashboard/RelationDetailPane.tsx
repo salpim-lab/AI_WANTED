@@ -138,20 +138,29 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
 }
 
 /** 세 갈래(선택 없음 / 아이 / 선)가 같은 제목 줄을 쓴다.
+    고른 것이 있으면 제목 자리가 곧 이름이다 — "관계 상세"라는 칸 이름 대신 "김민준"이 서고,
+    그 옆(안내 문구가 있던 자리·크기)에 "다른 아이 대화에 6번 나왔어요"가 붙는다.
+    아무것도 안 고른 동안에만 "관계 상세 · 아이나 선을 누르면 여기에 나와요"로 돌아간다.
+    본문에 따로 이름 줄을 두지 않는 이유: 제목 옆이 비고 본문만 한 단 내려가서,
+    고른 아이가 바뀐 게 눈에 늦게 들어왔다.
     패널에는 스크롤을 걸지 않는다 — 칸 높이가 고정이라 안쪽이 알아서 맞춰진다 (CSS 참고).
     고른 것을 푸는 "닫기"는 여기가 아니라 지도 안 오른쪽 위에 있다 (RelationshipMap). */
 function Pane({
-  action,
+  title = "관계 상세",
+  note,
   children,
 }: {
-  action?: React.ReactNode;
+  /** 고른 것이 있으면 그 이름이 칸 제목 자리에 선다 */
+  title?: string;
+  /** 제목 옆 한 줄 — 안내 문구와 같은 자리·같은 크기다 */
+  note?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="conflict-pane">
       <div className="pane-title">
-        관계 상세
-        {action}
+        {title}
+        {note && <span className="pane-sub">{note}</span>}
       </div>
       <div className="rd-body">{children}</div>
     </div>
@@ -173,18 +182,14 @@ export default function RelationDetailPane({
   // 선을 눌렀을 때 — "이 선이 왜 생겼나"에만 답한다.
   if (pair) {
     return (
-      <Pane>
-        <div className="rd-head">
-          <strong className="rd-name">
-            {pair.a.name} ↔ {pair.b.name}
-          </strong>
-          <span className="rd-sub">
-            {pair.mentionCount > 0
-              ? `${periodLabel} · 서로 ${pair.mentionCount}번 이야기에 나왔어요`
-              : `${periodLabel} · 서로 언급한 기록은 없어요`}
-          </span>
-        </div>
-
+      <Pane
+        title={`${pair.a.name} ↔ ${pair.b.name}`}
+        note={
+          pair.mentionCount > 0
+            ? `서로 ${pair.mentionCount}번 이야기에 나왔어요`
+            : "서로 언급한 기록은 없어요"
+        }
+      >
         <div className="rd-section-title">이 선이 생긴 이유</div>
         {pair.quotes.length > 0 ? (
           <QuoteList quotes={pair.quotes} />
@@ -213,13 +218,14 @@ export default function RelationDetailPane({
 
   if (!detail) {
     return (
-      <Pane action={<span className="pane-sub">아이나 선을 누르면 여기에 나와요</span>}>
+      <Pane note="아이나 선을 누르면 여기에 나와요">
         {fallbackConflicts.length === 0 ? (
           <p className="conflict-empty">이 날짜까지 기록된 갈등이 없어요.</p>
         ) : (
           <>
+            {/* 건수는 고른 기간 안의 것이다 — 제목에 기간을 붙여야 "누적 4건"이 읽힌다 */}
             <div className="rd-section-title">
-              최근 갈등 기록
+              {periodLabel} 갈등 기록
               <CountBadge n={fallbackConflicts.length} />
             </div>
             <ConflictCarousel key="recent" rows={fallbackConflicts} label="최근 갈등 기록" />
@@ -230,12 +236,7 @@ export default function RelationDetailPane({
   }
 
   return (
-    <Pane>
-      <div className="rd-head">
-        <strong className="rd-name">{detail.name}</strong>
-        <span className="rd-sub">{periodLabel} · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
-      </div>
-
+    <Pane title={detail.name} note={`다른 아이 대화에 ${detail.mentionCount}번 나왔어요`}>
       {detail.quotes.length > 0 && (
         <>
           <div className="rd-section-title">대화에서</div>

@@ -12,7 +12,6 @@ import RelationDetailPane from "./RelationDetailPane";
 import {
   DEFAULT_RELATION_PERIOD,
   RELATION_PERIODS,
-  type ConflictRow,
   type DashboardData,
   type RelationPeriod,
 } from "./mockData";
@@ -26,10 +25,8 @@ const sameFocus = (a: MapFocus, b: MapFocus) =>
 
 export default function RelationBoard({
   relation,
-  conflicts,
 }: {
   relation: DashboardData["relation"];
-  conflicts: ConflictRow[];
 }) {
   const [selected, setSelected] = useState<MapFocus>(null);
   const [period, setPeriod] = useState<RelationPeriod>(DEFAULT_RELATION_PERIOD);
@@ -64,7 +61,6 @@ export default function RelationBoard({
         <RelationshipMap
           nodes={graph.nodes}
           edges={graph.edges}
-          periodLabel={label}
           selected={selected}
           // 같은 걸 다시 누르면 닫힌다
           onSelect={(focus) => setSelected((current) => (sameFocus(current, focus) ? null : focus))}
@@ -74,7 +70,8 @@ export default function RelationBoard({
           detail={selected?.kind === "student" ? (graph.details[selected.id] ?? null) : null}
           pair={selected?.kind === "pair" ? (graph.pairs[selected.key] ?? null) : null}
           periodLabel={label}
-          fallbackConflicts={conflicts}
+          /* 고른 기간 안의 갈등만 — "누적"으로 넓히면 건수도 같이 늘어난다 */
+          fallbackConflicts={graph.conflicts}
         />
       </div>
     </section>
