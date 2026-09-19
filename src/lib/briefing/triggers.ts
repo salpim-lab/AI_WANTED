@@ -71,7 +71,8 @@ export type Trigger =
 
 /** 규칙이 읽는 아이 한 명의 사실 묶음. DB 조회 결과를 이 모양으로 옮겨 담는다. */
 export type StudentFacts = {
-  studentId: number;
+  /** 화면·DB 모두에서 students.id를 그대로 쓴다. */
+  studentId: string | number;
   name: string;
   /** 오늘 등교 때 고른 색. 체크인을 안 했으면 null */
   todayColor: SignalColor | null;

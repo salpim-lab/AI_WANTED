@@ -6,6 +6,8 @@ import type { WeatherKind } from "./mockData";
 
 const SUN = "var(--w-sun)";
 const CLOUD = "var(--w-cloud)";
+const RAIN_HEAVY = "var(--red)";
+const QUIET = "var(--faint)";
 
 function Rays({ cx, cy, inner, outer }: { cx: number; cy: number; inner: number; outer: number }) {
   return (
@@ -81,6 +83,44 @@ export default function WeatherIcon({ kind, size = 48 }: { kind: WeatherKind; si
               strokeLinecap="round"
             />
           ))}
+        </>
+      )}
+
+      {/* 비가 많이 와요 — 같은 구름에 빗줄기를 하나 더하고, 빨강으로 눈에 띄게 한다
+          ("비"와 눈으로 구분돼야 두 단계가 다르게 읽힌다). */}
+      {kind === "stormy" && (
+        <>
+          <g fill={CLOUD}>
+            <circle cx={24} cy={18} r={8.5} />
+            <circle cx={15} cy={23.5} r={6.2} />
+            <circle cx={33} cy={23.5} r={5.8} />
+            <rect x={15} y={23.5} width={18} height={6.5} rx={3.2} />
+          </g>
+          {[14, 20, 26, 32].map((x, i) => (
+            <line
+              key={x}
+              x1={x}
+              y1={33.5 + (i % 2 === 1 ? 1 : 0)}
+              x2={x - 2.6}
+              y2={41.5 + (i % 2 === 1 ? 1 : 0)}
+              stroke={RAIN_HEAVY}
+              strokeWidth={2.3}
+              strokeLinecap="round"
+            />
+          ))}
+        </>
+      )}
+
+      {/* 응답이 적어요 — 판정할 재료가 아직 없다는 뜻이라, 날씨 모양 대신
+          옅은 점선 원 안에 말줄임표를 둔다("기다리는 중"). */}
+      {kind === "quiet" && (
+        <>
+          <circle cx={24} cy={24} r={13} fill="none" stroke={QUIET} strokeWidth={2} strokeDasharray="3 4" />
+          <g fill={QUIET}>
+            <circle cx={18} cy={24} r={2} />
+            <circle cx={24} cy={24} r={2} />
+            <circle cx={30} cy={24} r={2} />
+          </g>
         </>
       )}
     </svg>
