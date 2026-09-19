@@ -5,31 +5,11 @@
   font-family: var(--font-sans-kr), "Apple SD Gothic Neo", sans-serif;
 }
 
-.landing-header {
-  height: 52px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #eaedf5;
-  background: #fff;
-}
-
-.landing-logo {
-  color: #2f3560;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-.landing-logo span { color: #6366f1; }
-.landing-header p { color: #8b92ad; font-size: 12px; }
-
 .landing-main {
   position: relative;
   isolation: isolate;
   display: grid;
-  min-height: calc(100vh - 52px);
+  min-height: 100vh;
   place-items: center;
   padding: 64px 24px;
 }
@@ -51,8 +31,9 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 245, 255, 0.75) 50%, rgba(244, 241, 255, 0.9));
 }
 
-.landing-content { width: min(100%, 740px); }
-.landing-intro { margin-bottom: 28px; text-align: center; }
+.landing-content { position: relative; width: min(100%, 740px); }
+/* 소개 문구는 카드 위에 띄워서 카드 두 개만 화면 정중앙에 오게 한다 */
+.landing-intro { position: absolute; right: 0; bottom: 100%; left: 0; margin-bottom: 28px; text-align: center; }
 
 .landing-intro h1 {
   font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
@@ -70,9 +51,11 @@
 .landing-card {
   display: flex;
   height: 100%;
-  min-height: 220px;
-  flex-direction: column;
-  align-items: flex-start;
+  min-height: 0;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  column-gap: 16px;
   position: relative;
   padding: 28px;
   border-radius: 24px;
@@ -95,7 +78,6 @@
   width: 52px;
   height: 52px;
   place-items: center;
-  margin-bottom: 19px;
   border-radius: 18px;
   background: #eef2ff;
   color: #6366f1;
@@ -115,8 +97,8 @@
   font-size: 23px;
 }
 
-.landing-card-description { margin-top: 5px; color: #7d849b; font-size: 13px; }
-.landing-card-arrow { position: absolute; right: 28px; bottom: 25px; color: #6366f1; font-size: 22px; }
+.landing-card-description { flex-basis: 100%; margin-top: 16px; color: #7d849b; font-size: 13px; }
+.landing-card-arrow { position: absolute; top: 10px; right: 12px; color: #9aa0b5; font-size: 16px; }
 
 .landing-card-character {
   position: absolute;
@@ -162,6 +144,44 @@
   animation: landing-minjun-sway 760ms ease-in-out 350ms 2;
 }
 
+/* 민준이 옆 말풍선 — 호버 때만 보인다 */
+.landing-card-bubble {
+  position: absolute;
+  z-index: 3;
+  right: calc(100% + 24px);
+  bottom: calc(100% + 60px);
+  width: max-content;
+  max-width: 200px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(60, 68, 110, 0.16);
+  color: #2f3560;
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px) scale(0.95);
+  transform-origin: right bottom;
+  transition: opacity 180ms ease 200ms, transform 300ms cubic-bezier(0.22, 1, 0.36, 1) 200ms;
+}
+
+.landing-card-bubble::before {
+  position: absolute;
+  right: -6px;
+  bottom: 12px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.landing-option--student:is(:hover, :focus-within) .landing-card-bubble {
+  opacity: 1;
+  transform: none;
+}
+
 @keyframes landing-minjun-wave {
   0%, 100% { opacity: 0; }
   50% { opacity: 1; }
@@ -174,18 +194,16 @@
 }
 
 @media (max-width: 560px) {
-  .landing-header { padding: 0 18px; }
-  .landing-header p { font-size: 11px; }
   .landing-main { padding: 48px 18px; }
   .landing-options { grid-template-columns: 1fr; gap: 14px; }
-  .landing-card { min-height: 170px; padding: 22px; }
-  .landing-card-icon { width: 46px; height: 46px; margin-bottom: 12px; }
+  .landing-card { padding: 22px; }
+  .landing-card-icon { width: 46px; height: 46px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing-card { transition: none; }
   .landing-card:hover { transform: none; }
-  .landing-card-character { transition: none; }
+  .landing-card-character, .landing-card-bubble { transition: none; }
   .landing-option--student:is(:hover, :focus-within) .landing-card-character-motion { animation: none; }
   .landing-option--student:is(:hover, :focus-within) .landing-card-character-frame--wave { animation: none; }
 }

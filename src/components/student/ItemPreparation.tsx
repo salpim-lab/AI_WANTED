@@ -116,7 +116,7 @@ export default function ItemPreparation({ sessionId, item, onReady, flow = "chec
         <h2 className="item-prep__title">{error ? "잠깐, 준비가 멈췄어" : PREPARATION_MESSAGES[messageIndex][0]}</h2>
         <p className="item-prep__sub">{error ? "한 번 더 준비해 볼까?" : PREPARATION_MESSAGES[messageIndex][1]}</p>
       </div>
-      {error ? retryButton : <div className="chat-typing" aria-hidden="true"><span /><span /><span /></div>}
+      {error && retryButton}
     </div>
   </section>;
 }

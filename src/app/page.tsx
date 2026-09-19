@@ -12,11 +12,6 @@ const OPTIONS = [
 export default function Home() {
   return (
     <div className="landing">
-      <header className="landing-header">
-        <div className="landing-logo">살<span>핌</span></div>
-        <p>오늘도, 너의 마음을 들어요</p>
-      </header>
-
       <main className="landing-main">
         <div className="landing-content">
           <div className="landing-intro">
@@ -52,6 +47,11 @@ export default function Home() {
                     </span>
                   </span>
                 )}
+                {option.icon === "student" && (
+                  <span className="landing-card-bubble" aria-hidden="true">
+                    여기에 서비스 설명이 들어가요
+                  </span>
+                )}
                 <Link href={option.href} className="landing-card">
                   <span className="landing-card-icon" aria-hidden="true">
                     {option.icon === "student" ? (
@@ -68,7 +68,7 @@ export default function Home() {
                   </span>
                   <span className="landing-card-title">{option.label}</span>
                   <span className="landing-card-description">{option.description}</span>
-                  <span className="landing-card-arrow" aria-hidden="true">→</span>
+                  <span className="landing-card-arrow" aria-hidden="true">↗</span>
                 </Link>
               </div>
             ))}

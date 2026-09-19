@@ -884,6 +884,16 @@ export default function IslandScene({
       bubble.style.display = anchor ? "" : "none";
       if (!anchor) return;
       const rect = projectedBoxRect(new THREE.Box3().setFromObject(anchor), camera, canvas.clientWidth, canvas.clientHeight);
+      // Confirming: centred above the character (tail down); otherwise left of the item (tail right).
+      const above = !onGround;
+      bubble.dataset.tail = above ? "" : "left";
+      bubble.style.translate = above ? "-50% -100%" : "";
+      if (above) {
+        const halfWidth = bubble.offsetWidth / 2;
+        bubble.style.left = `${THREE.MathUtils.clamp((rect.left + rect.right) / 2, halfWidth + 8, canvas.clientWidth - halfWidth - 8)}px`;
+        bubble.style.top = `${Math.max(rect.top - 12, bubble.offsetHeight + 8)}px`;
+        return;
+      }
       const halfHeight = bubble.offsetHeight / 2;
       bubble.style.left = `${THREE.MathUtils.clamp(rect.left - 10, bubble.offsetWidth + 8, canvas.clientWidth - 8)}px`;
       bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
