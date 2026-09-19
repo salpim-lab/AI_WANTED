@@ -35,6 +35,8 @@ export default function MorningHome({
   // 서버에서는 주소를 모르므로 false 로 그리고, 브라우저에서 주소를 읽어 다시 그린다.
   const tune = useSyncExternalStore(noopSubscribe, readTuneFlag, () => false);
   const [run, setRun] = useState(0);
+  // 덮개가 스륵 열리는 동작. 조절 패널에서 끄면 열린 봉투에서 바로 올라온다(두 방식 비교용)
+  const [opening, setOpening] = useState(true);
 
   const closeStarted = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,8 +97,8 @@ export default function MorningHome({
     setClosing(false);
     setHidden(false);
     setRun((r) => r + 1);
-    // 편지지가 다 올라온 다음(2.4s)에 닫는다
-    replayTimer.current = setTimeout(close, 2700);
+    // 덮개가 열리고(0.45s) 편지지가 다 올라온 다음(0.3s 뒤 2.4s)에 닫는다
+    replayTimer.current = setTimeout(close, 3000);
   }
 
   const showIntro = !view || closing || hidden;
@@ -119,7 +121,7 @@ export default function MorningHome({
 
       {showLetter && (
         <>
-          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} />
+          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} opening={opening} />
           <div
             className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2 ${closing ? "sh-letter-cta-away" : "sh-letter-cta-in"}`}
           >
@@ -145,7 +147,15 @@ export default function MorningHome({
         </div>
       )}
 
-      {tune && <LetterMotionTuner value={motionValues} onChange={setMotionValues} onReplay={replay} />}
+      {tune && (
+        <LetterMotionTuner
+          value={motionValues}
+          onChange={setMotionValues}
+          onReplay={replay}
+          opening={opening}
+          onOpeningChange={setOpening}
+        />
+      )}
     </div>
   );
 }
