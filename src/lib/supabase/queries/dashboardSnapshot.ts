@@ -1,5 +1,6 @@
 import { addDays, todayKst } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
+import { getDemoScope, ownerOrFilter } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 import { canonicalize } from "@/lib/vocab/lexicon";
@@ -227,15 +228,18 @@ async function loadSessions(roster: RosterStudent[], from: string, to: string): 
   if (!envReady() || roster.length === 0) return [];
 
   const client = createAdminClient();
-  const { data, error } = await client
+  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 이 세션 목록이 색 집계·최근 흐름·감정 어휘(analysis_runs를
+  // 이 세션 id로 조회)·관계 인용으로 전부 흘러가므로 여기서 한 번에 "공용 시드 + 현재 방문자 것"으로 좁힌다.
+  let sessionQuery = client
     .from("checkin_sessions")
     .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript")
     .in("enrollment_id", roster.map((student) => student.enrollmentId))
     .gte("session_date", from)
     .lte("session_date", to)
-    .eq("status", "completed")
-    .order("session_date")
-    .order("started_at");
+    .eq("status", "completed");
+  const scopeFilter = ownerOrFilter(await getDemoScope());
+  if (scopeFilter) sessionQuery = sessionQuery.or(scopeFilter);
+  const { data, error } = await sessionQuery.order("session_date").order("started_at");
 
   if (error) throw error;
   return (data ?? []) as DashboardSession[];
@@ -619,12 +623,18 @@ async function loadLatestMinjunLemmas(roster: RosterStudent[], dateKey: string):
   if (!envReady() || !minjun) return [];
 
   const client = createAdminClient();
-  const { data: latest, error: latestError } = await client
+  // (2026-09-20, 이지현 제안) "민준의 가장 최근 세션 하나"를 고르는 단계부터 방문자 스코프를 건다 — 안 그러면
+  // 다른 방문자가 방금 한 체크인의 어휘가 이 방문자 대시보드에 뜬다. 이어지는 analysis_runs 조회는 이렇게
+  // 고른 세션 id로만 하므로 같이 격리된다.
+  let latestQuery = client
     .from("checkin_sessions")
     .select("id")
     .eq("enrollment_id", minjun.enrollmentId)
     .eq("status", "completed")
-    .lte("session_date", dateKey)
+    .lte("session_date", dateKey);
+  const scopeFilter = ownerOrFilter(await getDemoScope());
+  if (scopeFilter) latestQuery = latestQuery.or(scopeFilter);
+  const { data: latest, error: latestError } = await latestQuery
     .order("session_date", { ascending: false })
     .order("started_at", { ascending: false })
     .order("attempt", { ascending: false })

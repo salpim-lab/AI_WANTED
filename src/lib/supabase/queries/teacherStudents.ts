@@ -14,6 +14,7 @@
 
 import { addDays } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
+import { getDemoScope, ownerOrFilter, scopedKey } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 // 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
 // mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
@@ -57,9 +58,9 @@ import type {
 /** 상담 리포트 기본 기간(교사가 시작~끝 날짜를 직접 고르지 않았을 때). 상담 기록 저장 시 evidence_refs도 이 기간으로 만든다 */
 export const REPORT_DEFAULT_DAYS = 30;
 
-function classRows(classId: string): MockStudentRow[] {
+async function classRows(classId: string): Promise<MockStudentRow[]> {
   // 교사가 자리 바꾸기로 저장한 자리가 있으면 그 자리를 쓴다 (Supabase 연결 시 v_students_current가 바로 최신 자리를 준다)
-  const savedSeats = mockSeatLayouts()[classId]?.seats ?? {};
+  const savedSeats = mockSeatLayouts()[scopedKey(await getDemoScope(), classId)]?.seats ?? {};
   return MOCK_STUDENTS.filter((s) => s.class_id === classId && s.status === "active")
     .map((s) => ({ ...s, ...savedSeats[s.enrollment_id] }))
     .sort(
@@ -67,10 +68,10 @@ function classRows(classId: string): MockStudentRow[] {
   );
 }
 
-function findRow(classId: string, studentId: string): MockStudentRow | null {
+async function findRow(classId: string, studentId: string): Promise<MockStudentRow | null> {
   // 대시보드(진승혜) mock이 아직 1..N 번호를 studentId로 넘긴다 — mock 단계 한정 브리지.
   const id = /^\d+$/.test(studentId) ? mockStudentIdFromNumber(Number(studentId)) : studentId;
-  return classRows(classId).find((s) => s.student_id === id) ?? null;
+  return (await classRows(classId)).find((s) => s.student_id === id) ?? null;
 }
 
 function toClassStudent(row: MockStudentRow): ClassStudent {
@@ -223,13 +224,17 @@ async function loadRealSessions(
     }
     if (rowByDbId.size === 0) return result;
 
-    const { data, error } = await client
+    // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 이 함수 결과가 학생 상세·AI 분석 입력·상담 리포트
+    // 근거(evidenceRefs)로 전부 흘러간다. 후보 단계에서 "공용 시드 + 현재 방문자 것"만 읽는다(lib/demo/scope.ts).
+    let sessionQuery = client
       .from("checkin_sessions")
       .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript, prosody")
       .in("enrollment_id", [...rowByDbId.keys()])
       .gte("session_date", addDays(from, -BASELINE_WINDOW_DAYS))
-      .lte("session_date", to)
-      .order("started_at");
+      .lte("session_date", to);
+    const scopeFilter = ownerOrFilter(await getDemoScope());
+    if (scopeFilter) sessionQuery = sessionQuery.or(scopeFilter);
+    const { data, error } = await sessionQuery.order("started_at");
     if (error) throw error;
 
     const history = (data ?? []) as RealRow[];
@@ -306,16 +311,16 @@ function dateRangeBetween(from: string, to: string): string[] {
 }
 
 export async function listClassStudents(classId: string): Promise<ClassStudent[]> {
-  return classRows(classId).map(toClassStudent);
+  return (await classRows(classId)).map(toClassStudent);
 }
 
 export async function findClassStudent(classId: string, studentId: string): Promise<ClassStudent | null> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   return row ? toClassStudent(row) : null;
 }
 
 export async function getSeatingChart(classId: string, date: string): Promise<SeatingStudent[]> {
-  const rows = classRows(classId);
+  const rows = await classRows(classId);
   const sessionsOf = await loadSessions(rows, date, date);
   return rows.map((row) => {
     const sessions = sessionsOf(row, date);
@@ -329,7 +334,7 @@ export async function getSeatingChart(classId: string, date: string): Promise<Se
 }
 
 export async function getStudentDaySessions(classId: string, studentId: string, date: string): Promise<DaySession[]> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   if (!row) return [];
   return (await loadSessions([row], date, date))(row, date);
 }
@@ -345,7 +350,7 @@ export async function getDailyAnalysisInput(
   studentId: string,
   date: string,
 ): Promise<DailyAnalysisInput | null> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   if (!row) return null;
   const sessionsOf = await loadSessions([row], addDays(date, -ANALYSIS_PAST_DAYS), date);
   const pastDays = dateRange(addDays(date, -1), ANALYSIS_PAST_DAYS).map((day) => {
@@ -359,7 +364,7 @@ export async function getDailyAnalysisInput(
   });
   return {
     student: toClassStudent(row),
-    classmates: classRows(classId).map(toClassStudent),
+    classmates: (await classRows(classId)).map(toClassStudent),
     date,
     sessions: sessionsOf(row, date),
     pastDays,
@@ -394,7 +399,7 @@ export async function getColorHistory(
   to: string,
   days: number,
 ): Promise<ColorHistoryDay[]> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   if (!row) return [];
   const dates = dateRange(to, days);
   const sessionsOf = await loadSessions([row], dates[0] ?? to, to);
@@ -413,7 +418,7 @@ export async function getMockAiPreview(
   studentId: string,
   date: string,
 ): Promise<{ analysis: string | null; draft: string | null }> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   if (!row) return { analysis: null, draft: null };
   const { analyses } = mockCheckinsFor(row.enrollment_id, date);
   return {
@@ -427,7 +432,7 @@ export async function getMockAiPreview(
  * 그때 화면은 지금처럼 /api/ai/daily-analysis·comment-draft를 부른다.
  */
 export async function getPrecomputedDayAi(classId: string, studentId: string, date: string): Promise<FixtureDayAi | null> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   return row ? mockFixtureDayAi(row.enrollment_id, date) : null;
 }
 
@@ -512,7 +517,7 @@ export async function getConsultationReport(
   to: string,
   viewerTeacherId?: string,
 ): Promise<ConsultationReport | null> {
-  const row = findRow(classId, studentId);
+  const row = await findRow(classId, studentId);
   if (!row) return null;
 
   const dates = dateRangeBetween(from, to);

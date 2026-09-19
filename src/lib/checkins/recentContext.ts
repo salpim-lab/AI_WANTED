@@ -9,6 +9,7 @@
 // 요약을 한 번 거치면 그 요약의 해석이 질문에 섞이고, LLM 호출도 한 번 더 든다.
 import "server-only";
 
+import { getDemoScope, ownerOrFilter } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseTranscript } from "@/lib/supabase/raw/wholeTranscript";
 
@@ -31,15 +32,19 @@ export async function buildRecentContext(
   since.setUTCDate(since.getUTCDate() - DAYS);
   const sinceDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(since);
 
-  const { data, error } = await createAdminClient()
+  // (2026-09-20, 이지현 제안) 공개 데모에서는 모든 방문자가 같은 학생(같은 enrollment)을 공유하므로,
+  // enrollment만으로 거르면 다른 방문자의 발화가 이 방문자의 챗 프롬프트(AI 입력)에 섞여 들어간다.
+  // 후보 단계에서부터 "공용으로 확인된 세션 + 현재 방문자의 세션"만 가져온다(lib/demo/scope.ts).
+  let query = createAdminClient()
     .from("checkin_sessions")
     .select("session_date, mood_color, transcript")
     .eq("enrollment_id", enrollmentId)
     .neq("id", excludeSessionId)
     .gte("session_date", sinceDate)
-    .not("transcript", "is", null)
-    .order("session_date", { ascending: false })
-    .limit(MAX_SESSIONS);
+    .not("transcript", "is", null);
+  const scopeFilter = ownerOrFilter(await getDemoScope());
+  if (scopeFilter) query = query.or(scopeFilter);
+  const { data, error } = await query.order("session_date", { ascending: false }).limit(MAX_SESSIONS);
   if (error) {
     // 맥락이 없다고 대화를 막지는 않는다. 오늘 말만으로도 질문은 만들 수 있다.
     console.warn("[recentContext] 조회 실패", error.message);

@@ -19,6 +19,7 @@ import {
   callOpenAIJson,
 } from "@/lib/supabase/interpretation/dailyAnalysis";
 import { addDays, todayKst } from "@/components/shared/datetime";
+import { getDemoScope, ownerToStore, ownerVisible } from "@/lib/demo/scope";
 import {
   MOCK_STUDENTS,
   MOCK_TEACHER,
@@ -35,10 +36,11 @@ const MAX_DRAFT_LENGTH = 200;
 
 async function findDraft(sourceSessionId: string): Promise<FeedbackDraftRow | null> {
   const { drafts, sources } = mockFeedback();
+  const scope = await getDemoScope();
   const ids = new Set(sources.filter((s) => s.session_id === sourceSessionId).map((s) => s.feedback_id));
   return (
     drafts
-      .filter((d) => ids.has(d.id) && d.created_by === "ai" && d.prompt_version === COMMENT_DRAFT_PROMPT_VERSION)
+      .filter((d) => ids.has(d.id) && ownerVisible(scope, d.demo_owner_id) && d.created_by === "ai" && d.prompt_version === COMMENT_DRAFT_PROMPT_VERSION)
       .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null
   );
 }
@@ -57,6 +59,7 @@ async function insertDraft(studentId: string, draftText: string, sessionIds: str
     created_at: new Date().toISOString(), // 서버 시각 (Supabase에서는 DB default now())
     sent_at: null,
     prompt_version: COMMENT_DRAFT_PROMPT_VERSION,
+    demo_owner_id: ownerToStore(await getDemoScope()),
   };
   const store = mockFeedback();
   store.drafts.push(row);
@@ -192,11 +195,12 @@ export async function getOrCreateCommentDraft(input: DailyAnalysisInput): Promis
 const enrollmentIdOf = (studentId: string) => MOCK_STUDENTS.find((s) => s.student_id === studentId)?.enrollment_id;
 
 /** 그날 세션에서 나온 feedback_drafts 행들 (최신순) */
-function draftsForSessions(enrollmentId: string, sessionIds: string[]): FeedbackDraftRow[] {
+async function draftsForSessions(enrollmentId: string, sessionIds: string[]): Promise<FeedbackDraftRow[]> {
   const { drafts, sources } = mockFeedback();
+  const scope = await getDemoScope();
   const ids = new Set(sources.filter((s) => sessionIds.includes(s.session_id)).map((s) => s.feedback_id));
   return drafts
-    .filter((d) => d.enrollment_id === enrollmentId && ids.has(d.id))
+    .filter((d) => d.enrollment_id === enrollmentId && ids.has(d.id) && ownerVisible(scope, d.demo_owner_id))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
@@ -204,7 +208,7 @@ function draftsForSessions(enrollmentId: string, sessionIds: string[]): Feedback
 export async function getSentComment(studentId: string, sessionIds: string[]): Promise<string | null> {
   const enrollmentId = enrollmentIdOf(studentId);
   if (!enrollmentId) return null;
-  const sent = draftsForSessions(enrollmentId, sessionIds)
+  const sent = (await draftsForSessions(enrollmentId, sessionIds))
     .filter((d) => d.status === "sent")
     .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))[0];
   return sent?.final_text ?? null;
@@ -220,7 +224,7 @@ export async function sendFinalComment(input: { studentId: string; sessionIds: s
   if (!enrollmentId) throw new Error("학생을 찾을 수 없습니다.");
   const now = new Date().toISOString(); // 서버 시각 (Supabase에서는 now())
 
-  const pending = draftsForSessions(enrollmentId, input.sessionIds).find(
+  const pending = (await draftsForSessions(enrollmentId, input.sessionIds)).find(
     (d) => d.created_by === "ai" && d.status === "pending",
   );
   if (pending) {
@@ -240,6 +244,7 @@ export async function sendFinalComment(input: { studentId: string; sessionIds: s
     created_at: now,
     sent_at: now,
     prompt_version: "teacher",
+    demo_owner_id: ownerToStore(await getDemoScope()),
   };
   const store = mockFeedback();
   store.drafts.push(row);
@@ -268,9 +273,15 @@ export async function getLetterForStudent(studentId: string): Promise<{ text: st
   const enrollmentId = enrollmentIdOf(studentId);
   if (!enrollmentId) return null;
   const since = lastMorningCheckinAt(enrollmentId) ?? "";
+  const scope = await getDemoScope();
   const letter = mockFeedback()
     .drafts.filter(
-      (d) => d.enrollment_id === enrollmentId && d.status === "sent" && d.final_text && (d.sent_at ?? "") > since,
+      (d) =>
+        d.enrollment_id === enrollmentId &&
+        ownerVisible(scope, d.demo_owner_id) &&
+        d.status === "sent" &&
+        d.final_text &&
+        (d.sent_at ?? "") > since,
     )
     .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? ""))[0];
   // 보낸 교사 기록이 스키마에 없어 담임 이름을 쓴다 (TEACHER_LETTER_LOGIC.md "교사 이름")

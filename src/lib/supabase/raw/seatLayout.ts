@@ -7,6 +7,7 @@
 //     한 트랜잭션(RPC)에서 처리해야 한다. enrollments는 공통 기반 테이블이라 쓰기 권한을 먼저 맞춘다.
 //   - 격자 크기(행·열 수): 스키마에 저장할 컬럼이 없다 (classes에 추가하는 안 등 협의).
 
+import { getDemoScope, scopedKey } from "@/lib/demo/scope";
 import type { SeatLayout } from "@/lib/types/teacherRecord";
 import { MOCK_STUDENTS, mockSeatLayouts } from "./_mockTeacherData";
 
@@ -16,7 +17,9 @@ function activeRows(classId: string) {
 
 /** 학급의 현재 자리 배치. 격자는 저장된 크기와 실제로 앉은 자리 중 큰 쪽으로 잡는다 */
 export async function getSeatLayout(classId: string): Promise<SeatLayout> {
-  const saved = mockSeatLayouts()[classId];
+  // (2026-09-20, 이지현 제안) 공개 데모: 저장소가 서버 메모리 전역이라 키에 방문자를 붙인다 — 한 방문자가 바꾼
+  // 자리 배치가 다른 방문자에게 보이면 안 된다(방문자가 저장한 적 없으면 공용 초기 배치).
+  const saved = mockSeatLayouts()[scopedKey(await getDemoScope(), classId)];
   const seats = activeRows(classId).map((row) => {
     const seat = saved?.seats[row.enrollment_id];
     return { studentId: row.student_id, row: seat?.seat_row ?? row.seat_row, col: seat?.seat_col ?? row.seat_col };
@@ -37,5 +40,5 @@ export async function saveSeatLayout(classId: string, layout: SeatLayout): Promi
     if (!enrollmentId) throw new Error(`학급에 없는 학생: ${seat.studentId}`);
     seats[enrollmentId] = { seat_row: seat.row, seat_col: seat.col };
   }
-  mockSeatLayouts()[classId] = { rows: layout.rows, cols: layout.cols, seats };
+  mockSeatLayouts()[scopedKey(await getDemoScope(), classId)] = { rows: layout.rows, cols: layout.cols, seats };
 }

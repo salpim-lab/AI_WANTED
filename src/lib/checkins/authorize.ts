@@ -71,7 +71,7 @@ export async function requireStudent() {
     const admin = createAdminClient();
     const { data: devStudent } = await admin
       .from("students")
-      .select("id, status")
+      .select("id, status, auth_user_id")
       .eq("id", devId)
       .maybeSingle();
     if (!devStudent || devStudent.status !== "active") {
@@ -79,7 +79,10 @@ export async function requireStudent() {
     }
     // 매 요청 남긴다. 조용히 동작하면 언젠가 이게 켜진 줄 모르고 배포한다.
     console.warn(`[auth] 개발 모드: 로그인 없이 학생 ${devId} 로 진행합니다.`);
-    return { client: admin, studentId: devStudent.id, authUserId: null, demoOwnerId: null };
+    // (2026-09-20, 이지현 제안) 새 체크인이 소유자 없는(NULL) 행으로 남지 않게 한다. NULL은 "검증된 공용 시드"라는
+    // 뜻인데(1090 마이그레이션), 개발 중 만든 체크인이 공유 DB에 NULL로 쌓이면 공개 데모 방문자에게 공용으로 보인다.
+    // 그 학생의 개발 로그인 계정이 있으면 그 계정 소유로 저장한다(1090이 기존 테스트 체크인을 그렇게 재분류함).
+    return { client: admin, studentId: devStudent.id, authUserId: null, demoOwnerId: devStudent.auth_user_id ?? null };
   }
 
   // 데모 모드 + 익명 세션이면 항상 고정된 학생(민준)으로 취급하되, 소유자는 이 방문자의
@@ -109,7 +112,8 @@ export async function requireStudent() {
   if (!student || student.status !== "active") {
     throw new CheckinAuthError("FORBIDDEN", 403, "활성 상태인 학생만 사용할 수 있습니다.");
   }
-  return { client, studentId: student.id, authUserId: user.id, demoOwnerId: null };
+  // 정식 로그인 학생도 새 체크인은 본인 소유로 저장한다(위 개발 경로와 같은 이유 — NULL=검증된 공용 시드 오염 방지).
+  return { client, studentId: student.id, authUserId: user.id, demoOwnerId: user.id };
 }
 
 /** 소유만 확인한다. 상태는 보지 않는다 — 면담 신청처럼 종료 뒤에 하는 동작용. */

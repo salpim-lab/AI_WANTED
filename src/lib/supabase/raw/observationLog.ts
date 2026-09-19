@@ -12,6 +12,7 @@
 // TODO(감사 로그): set_config('app.actor_id')를 심으려면 RPC가 필요하다 — 지금 audit_log.changed_by는 NULL로 남는다.
 
 import { addDays, toKstDate, todayKst } from "@/components/shared/datetime";
+import { getDemoScope, recordVisible } from "@/lib/demo/scope";
 import type { NewObservationLog, ObservationFilter, ObservationLog, WorkRecordType } from "@/lib/types/teacherRecord";
 import { dbTeacherId, recordDb, type RecordDb } from "./_mockTeacherData";
 
@@ -26,10 +27,11 @@ type WorkRecordWithStudents = {
   occurred_at: string;
   created_at: string;
   supersedes_id: string | null;
+  created_by: string;
   work_record_students: { enrollment_id: string }[];
 };
 
-const SELECT = "id, record_type, title, body, occurred_at, created_at, supersedes_id, work_record_students(enrollment_id)";
+const SELECT = "id, record_type, title, body, occurred_at, created_at, supersedes_id, created_by, work_record_students(enrollment_id)";
 
 function toObservationLog(db: RecordDb, row: WorkRecordWithStudents): ObservationLog {
   const taggedStudents = row.work_record_students.flatMap((link) => {
@@ -81,7 +83,13 @@ export async function listObservationLogs(
   const db = await recordDb(classId);
   if (!db) return [];
 
-  const visibleAuthors = [db.teacherId, ...(viewerTeacherId && viewerTeacherId !== db.teacherId ? [viewerTeacherId] : [])];
+  // (2026-09-20, 이지현 제안) DEMO_MODE에서는 현재 방문자를 인자가 아니라 lib/demo/scope.ts가 요청 쿠키에서 직접
+  // 읽는다(호출부가 빠뜨려도 필터가 생략되지 않게). 그리고 "담임이 썼다"는 것만으로 공용 취급하지 않는다 —
+  // 담임 작성분은 시드로 확인된 것(고정 id)만 공용이고, 시드로 확인 안 된 것(랜덤 id conflict 8건 등)은 방문자의
+  // 조회·검색·AI 입력에서 제외한다(삭제는 안 한다).
+  const scope = await getDemoScope();
+  const viewer = scope.active ? (scope.viewerId ?? undefined) : viewerTeacherId;
+  const visibleAuthors = [db.teacherId, ...(viewer && viewer !== db.teacherId ? [viewer] : [])];
 
   const { data, error } = await db.client
     .from("work_records")
@@ -94,6 +102,7 @@ export async function listObservationLogs(
   if (error) throw error;
 
   return ((data ?? []) as WorkRecordWithStudents[])
+    .filter((row) => recordVisible(scope, row, db.teacherId))
     .map((row) => toObservationLog(db, row))
     .filter((log) => {
       if (filter.studentId && !log.taggedStudents.some((t) => t.studentId === filter.studentId)) return false;

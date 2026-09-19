@@ -786,6 +786,12 @@ export type FeedbackDraftRow = {
   sent_at: string | null;
   /** mock 전용 — 스키마에는 없다. 프롬프트를 고치는 동안 예전 초안을 재사용하지 않으려고 둔다 */
   prompt_version: string;
+  /**
+   * mock 전용 (2026-09-20, 이지현 제안) — 공개 데모 방문자 격리. 이 저장소는 서버 메모리 전역이라 방문자가 쓴 초안·
+   * 보낸 편지가 다른 방문자 화면(특히 학생 "선생님 편지")에 그대로 보인다. DEMO_MODE에서는 쓴 방문자 id를 남기고
+   * 읽을 때 "공용(null) + 현재 방문자" 것만 본다. Supabase로 옮길 때는 feedback_drafts에 owner 컬럼이 필요하다.
+   */
+  demo_owner_id?: string | null;
 };
 
 export type FeedbackSourceRow = { feedback_id: string; session_id: string };

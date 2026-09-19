@@ -11,6 +11,7 @@
 // 내가 컬럼을 바꿔도 이 모양만 유지하면 화면이 깨지지 않는다.
 import "server-only";
 
+import { getDemoScope, ownerOrFilter } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 
@@ -52,15 +53,26 @@ export async function listOpenMeetingRequests(classIds: string[], limit = 20) {
   if (!classIds.length) return [];
   const admin = createAdminClient();
 
-  const { data, error } = await admin
+  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 방문자는 전원이 담임 반 class_teachers(assistant)라서
+  // 이 함수가 "그 반의 모든 신청"을 돌려주면 다른 방문자의 신청이 그대로 보이고(POST로 확인 처리까지 가능).
+  // 신청은 source_session_id의 부모 세션 소유자로 구분한다: "공용 시드 세션 + 현재 방문자 세션"에 붙은 것만.
+  // limit 뒤에 후처리로 거르면 다른 방문자 행이 자리를 채워 내 신청이 밀려나므로 쿼리 단계에서 좁힌다.
+  // 세션이 없는(source_session_id NULL) 신청은 소유자를 못 가려서 방문자에게는 보이지 않는다(fail-closed).
+  const scope = await getDemoScope();
+  const scopeFilter = ownerOrFilter(scope);
+  const sessionEmbed = scopeFilter ? "checkin_sessions!inner ( session_date, mood_color )" : "checkin_sessions ( session_date, mood_color )";
+
+  let query = admin
     .from("meeting_requests")
     .select(
       `id, requested_at, priority, status, source_session_id,
        enrollments!inner ( class_id, student_id, students!inner ( id, display_name ) ),
-       checkin_sessions ( session_date, mood_color )`,
+       ${sessionEmbed}`,
     )
     .in("enrollments.class_id", classIds)
-    .eq("status", "requested")
+    .eq("status", "requested");
+  if (scopeFilter) query = query.or(scopeFilter, { referencedTable: "checkin_sessions" });
+  const { data, error } = await query
     // priority 는 text 라 DB 정렬로는 순서를 못 잡는다("normal" > "high").
     // 최신순으로만 받아 오고, high 를 앞으로 올리는 건 아래에서 한다.
     .order("requested_at", { ascending: false })

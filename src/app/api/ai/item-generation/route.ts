@@ -1,6 +1,8 @@
 // 전문 저장과 병렬로 작업을 접수한다. 실행은 전문 저장 완료 후 워커가 담당한다.
 // 응답은 바로 돌려준다. 학생 화면이 조회하는 동안 실행 가능한 작업은 응답 뒤(after)에 실행한다.
 import { after, NextResponse } from "next/server";
+import { CheckinAuthError, requireOwnSession } from "@/lib/checkins/authorize";
+import { isDemoModeEnabled } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runItemGenerationJob } from "@/lib/items/runItemGenerationJob";
 
@@ -15,6 +17,10 @@ const fail = (code: string, message: string, status: number) => NextResponse.jso
 const MINJUN_ENROLLMENT_ID = "40000000-0000-4000-8000-000000000001";
 
 async function sessionForMvp(sessionId: string) {
+  // (2026-09-20, 이지현 제안) 이 라우트는 원래 소유권 확인이 없었다(MVP 단일 학생 가정) — 공개 데모에서는 모든
+  // 방문자가 같은 학생이라, session_id만 알면 남의 세션으로 아이템 생성 작업(AI 비용)을 접수하고 그 결과(아이템·
+  // 학생 메시지)를 읽을 수 있었다. DEMO_MODE에서는 현재 방문자 소유 세션만 허용한다.
+  if (isDemoModeEnabled()) await requireOwnSession(sessionId);
   const client = createAdminClient();
   const { data: session, error } = await client.from("checkin_sessions").select("id, enrollment_id, status, transcript").eq("id", sessionId).maybeSingle();
   if (error) throw new Error("DATABASE_ERROR");
@@ -23,6 +29,7 @@ async function sessionForMvp(sessionId: string) {
 }
 
 function errorResponse(error: unknown) {
+  if (error instanceof CheckinAuthError) return fail(error.code, error.message, error.httpStatus);
   const code = error instanceof Error ? error.message : "GENERATION_REQUEST_FAILED";
   const statuses: Record<string, number> = { SESSION_NOT_FOUND: 404, DATABASE_ERROR: 500 };
   return fail(code, "생성 작업을 처리하지 못했습니다.", statuses[code] ?? 500);

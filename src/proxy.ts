@@ -27,10 +27,52 @@ function requireEnv(name: "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_PUB
 }
 
 export function proxy(request: NextRequest) {
-  if (process.env.DEMO_MODE !== "true") return NextResponse.next();
+  // 비상 정지 — 이 값이 켜지면 아래 모든 데이터 경로가 세션과 무관하게 503이다. `DEMO_MODE=false`는 "안전한
+  // 복구"가 아니다: 플래그를 끄면 방문자 격리(lib/demo/scope.ts)도 같이 꺼져서 교사 화면(세션 없이도 열려 있는
+  // 기존 상태)에 방문자들의 체크인 대화가 그대로 노출된다. 방문자 데이터를 즉시 닫아야 하면 이걸 쓴다.
+  if (process.env.DEMO_LOCKDOWN === "true") return lockdown(request);
+  if (process.env.DEMO_MODE !== "true") return blockAnonymousWhenDemoOff(request);
   if (INIT_PATHS.some((p) => request.nextUrl.pathname.startsWith(p))) return NextResponse.next();
 
   return refreshSessionAndGate(request);
+}
+
+function deny(request: NextRequest, status: number, code: string, message: string) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ code, message }, { status, headers: { "Cache-Control": "no-store" } });
+  }
+  return new NextResponse(message, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+function lockdown(request: NextRequest) {
+  return deny(request, 503, "DEMO_LOCKDOWN", "지금은 점검 중이에요. 잠시 후 다시 시도해 주세요.");
+}
+
+/**
+ * DEMO_MODE가 꺼져 있어도, 이미 발급된 익명(데모) 세션 쿠키를 들고 온 요청은 데이터 경로에서 막는다 —
+ * 데모가 끝났는데 옛 방문자 세션이 계속 통한다면 안 된다. 세션 쿠키가 없거나 정식 로그인 사용자면 기존
+ * 동작 그대로 통과(로컬 개발 흐름 유지). 인증 조회에 실패하면 이 경우에 한해 닫는다.
+ */
+async function blockAnonymousWhenDemoOff(request: NextRequest) {
+  const hasSessionCookie = request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  if (!hasSessionCookie) return NextResponse.next();
+
+  try {
+    const supabase = createServerClient(
+      requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+      requireEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+      { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } },
+    );
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user?.is_anonymous) {
+      return deny(request, 403, "DEMO_ENDED", "체험이 종료되었어요.");
+    }
+    return NextResponse.next();
+  } catch {
+    return deny(request, 503, "SESSION_CHECK_FAILED", "세션을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+  }
 }
 
 async function refreshSessionAndGate(request: NextRequest) {

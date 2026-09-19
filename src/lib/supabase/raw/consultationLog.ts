@@ -26,6 +26,7 @@ import type {
   ScheduledConsultation,
 } from "@/lib/types/teacherRecord";
 import { toKstDate, todayKst } from "@/components/shared/datetime";
+import { getDemoScope, recordVisible } from "@/lib/demo/scope";
 import { dbTeacherId, recordDb, type RecordDb } from "./_mockTeacherData";
 
 const METHOD_LABEL: Record<ConsultationMethod, string> = { phone: "전화", visit: "방문", online: "온라인" };
@@ -98,7 +99,11 @@ async function listByStatus(
   status: "preparing" | "completed",
   viewerTeacherId?: string,
 ): Promise<ConsultationRow[]> {
-  const visibleAuthors = [db.teacherId, ...(viewerTeacherId && viewerTeacherId !== db.teacherId ? [viewerTeacherId] : [])];
+  // DEMO_MODE에서는 방문자를 lib/demo/scope.ts가 요청 쿠키에서 직접 읽고(인자를 빠뜨려도 생략 안 됨),
+  // 담임이 예약·기록했다는 사실만으로 공용 취급하지 않는다 — 시드로 확인된 것(고정 id)만 공용.
+  const scope = await getDemoScope();
+  const viewer = scope.active ? (scope.viewerId ?? undefined) : viewerTeacherId;
+  const visibleAuthors = [db.teacherId, ...(viewer && viewer !== db.teacherId ? [viewer] : [])];
   const { data, error } = await db.client
     .from("parent_consultations")
     .select(SELECT)
@@ -106,7 +111,9 @@ async function listByStatus(
     .in("teacher_id", visibleAuthors)
     .in("enrollment_id", [...db.studentByEnrollment.keys()]);
   if (error) throw error;
-  return (data ?? []) as ConsultationRow[];
+  return ((data ?? []) as ConsultationRow[]).filter((row) =>
+    recordVisible(scope, { id: row.id, created_by: row.teacher_id }, db.teacherId),
+  );
 }
 
 /**
@@ -124,6 +131,10 @@ async function findClassConsultation(db: RecordDb, id: string, viewerTeacherId: 
   if (error) throw error;
   const row = data as ConsultationRow | null;
   if (!row || !db.studentByEnrollment.has(row.enrollment_id)) return null;
+  // 공개 데모(DEMO_MODE)에서는 "공용 목업은 변경 금지" — 시드 상담을 한 방문자가 일정 변경·완료(봉인)하면 모든
+  // 방문자의 공용 데이터가 바뀌므로, 방문자는 자기가 만든 상담만 바꿀 수 있다. 방문자를 못 찾으면 거부(fail-closed).
+  const scope = await getDemoScope();
+  if (scope.active) return scope.viewerId && row.teacher_id === scope.viewerId ? row : null;
   if (row.teacher_id !== viewerTeacherId && row.teacher_id !== db.teacherId) return null;
   return row;
 }
