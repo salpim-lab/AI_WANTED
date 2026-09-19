@@ -15,15 +15,7 @@
   background: #fff;
 }
 
-.landing-logo {
-  color: #2f3560;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-.landing-logo span { color: #6366f1; }
-.landing-header p { color: #8b92ad; font-size: 12px; }
+/* 로고는 components/shared/SalpimLogo (학생 화면과 같은 구성·비율) */
 
 .landing-main {
   position: relative;
@@ -175,7 +167,6 @@
 
 @media (max-width: 560px) {
   .landing-header { padding: 0 18px; }
-  .landing-header p { font-size: 11px; }
   .landing-main { padding: 48px 18px; }
   .landing-options { grid-template-columns: 1fr; gap: 14px; }
   .landing-card { min-height: 170px; padding: 22px; }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import "@/styles/landing.css";
+import SalpimLogo from "@/components/shared/SalpimLogo";
 
 const OPTIONS = [
   { href: "/checkin", label: "학생", description: "민준이가 되어 오늘의 마음 이야기하기", icon: "student" },
@@ -13,8 +14,8 @@ export default function Home() {
   return (
     <div className="landing">
       <header className="landing-header">
-        <div className="landing-logo">살<span>핌</span></div>
-        <p>오늘도, 너의 마음을 들어요</p>
+        {/* 학생 화면과 같은 로고(글자·얼굴·문구 구성과 비율). components/shared/SalpimLogo */}
+        <SalpimLogo />
       </header>
 
       <main className="landing-main">
