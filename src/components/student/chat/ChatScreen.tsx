@@ -198,6 +198,7 @@ export default function ChatScreen({
             전사·AI 응답을 기다리는 동안에는 다음 질문이 아니므로 숨긴다. */}
         {showGuide && hasOptions && !ended && !conversationOver && !waitingForAnswer && (
           <GuideChips
+            key={latestPromptId}
             hints={hints}
             // 두 번째 턴부터는 문장을 흘리지 않고 말풍선만 바로 보여준다
             flowFirst={spokenTurns === 0}
