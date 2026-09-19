@@ -1,1 +1,92 @@
-[]
+[
+  {
+    "itemId": "television",
+    "x": 5.798,
+    "z": 10.995
+  },
+  {
+    "itemId": "school_desk",
+    "x": 5.643,
+    "z": 12.386
+  },
+  {
+    "itemId": "slide",
+    "x": -3.203,
+    "z": 10.188
+  },
+  {
+    "itemId": "ice_cube",
+    "x": 6.634,
+    "z": 15.299
+  },
+  {
+    "itemId": "dodgeball",
+    "x": -2.356,
+    "z": 9.169
+  },
+  {
+    "itemId": "heart",
+    "x": 3.594,
+    "z": 19.418
+  },
+  {
+    "itemId": "soccer_cleats",
+    "x": -2.529,
+    "z": 8.869
+  },
+  {
+    "itemId": "tteokbokki",
+    "x": 5.052,
+    "z": 15.492
+  },
+  {
+    "itemId": "soccer_ball",
+    "x": -2.756,
+    "z": 9.51
+  },
+  {
+    "itemId": "wishing_well",
+    "x": -8.556,
+    "z": 12.749
+  },
+  {
+    "itemId": "well_bucket",
+    "x": -8.622,
+    "z": 13.32
+  },
+  {
+    "itemId": "microphone",
+    "x": 4.949,
+    "z": 10.697
+  },
+  {
+    "itemId": "trophy",
+    "x": 4.036,
+    "z": 8.376
+  },
+  {
+    "itemId": "soccer_goal",
+    "x": -1.289,
+    "z": 5.125
+  },
+  {
+    "itemId": "notebook",
+    "x": 4.898,
+    "z": 13.3
+  },
+  {
+    "itemId": "drying_rack",
+    "x": -7.47,
+    "z": 11.725
+  },
+  {
+    "itemId": "cookies",
+    "x": 5.067,
+    "z": 14.974
+  },
+  {
+    "itemId": "model_rocket",
+    "x": 4.592,
+    "z": 7.976
+  }
+]

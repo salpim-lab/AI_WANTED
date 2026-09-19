@@ -20,7 +20,6 @@ import StudentBackButton from "@/components/student/home/StudentBackButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
-import IslandBoard from "@/components/student/IslandBoard";
 import { ITEM_CATALOG } from "@/lib/items/itemCatalog";
 import type { Item } from "@/components/student/mockScenarios";
 
@@ -39,11 +38,11 @@ export default function CheckinPage() {
     [flow.messages.length, flow.sessionId, flow.item],
   );
   const { back } = useStepUrl({ base: "/checkin", step: flow.step, goTo, canShow: canShowStep });
-  // 섬 화면 테스트용 — 대화·선물 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
+  // 섬 화면 테스트용 — 대화·아이템 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
   const [testItem, setTestItem] = useState<Item | null>(null);
   const enterTestIsland = () => {
     const pick = ITEM_CATALOG[Math.floor(Math.random() * ITEM_CATALOG.length)];
-    setTestItem({ emoji: "🎁", name: pick.displayName, reason: "섬 화면 테스트용 선물이야. ".repeat(3).trim(), geometrySpec: pick.spec });
+    setTestItem({ emoji: "🎁", name: pick.displayName, reason: "섬 화면 테스트용 아이템이야. ".repeat(3).trim(), geometrySpec: pick.spec });
   };
 
   // 섬 배치를 마치면 잠시 안내를 띄우고 하교 화면으로 넘긴다.
@@ -81,7 +80,8 @@ export default function CheckinPage() {
     return () => controller.abort();
   }, []);
 
-  if (testItem) return <IslandBoard flow="checkin" item={testItem} onComplete={goToCheckout} />;
+  // 대기(아이템 준비) 화면을 먼저 보여 준 뒤 섬으로 넘어간다. sessionId가 없으면 시간만 흐르는 시연 모드다.
+  if (testItem) return <ItemPreparation flow="checkin" sessionId={null} item={testItem} onReady={() => {}} onIslandComplete={goToCheckout} />;
 
   return (
     <>

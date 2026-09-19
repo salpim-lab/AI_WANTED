@@ -36,6 +36,6 @@ export default function IslandBoard({
   return <div className={`screen active island-screen${preparing ? " island-screen--preparing" : ""}`} id="s5">
     <SalpimHeader />
     <StudentProfile name={studentFullName} />
-    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={studentName === "민준" ? MINJUN_DEMO_GIFTS : undefined} baseItemCount={baseItemCount} preparing={preparing} onComplete={onComplete}/>
+    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={studentName === "민준" || studentName === "김민준" ? MINJUN_DEMO_GIFTS : undefined} baseItemCount={baseItemCount} preparing={preparing} onComplete={onComplete}/>
   </div>;
 }
