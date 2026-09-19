@@ -1,5 +1,6 @@
 .landing {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: #f4f5fb;
   color: #102a56;
   font-family: var(--font-sans-kr), "Apple SD Gothic Neo", sans-serif;
@@ -9,9 +10,9 @@
   position: relative;
   isolation: isolate;
   display: grid;
-  min-height: 100vh;
+  height: 100%;
   place-items: center;
-  padding: 64px 24px;
+  padding: clamp(18px, 5dvh, 48px) 24px;
 }
 
 .landing-main::before,
@@ -31,179 +32,343 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(247, 245, 255, 0.75) 50%, rgba(244, 241, 255, 0.9));
 }
 
-.landing-content { position: relative; width: min(100%, 740px); }
-/* 소개 문구는 카드 위에 띄워서 카드 두 개만 화면 정중앙에 오게 한다 */
-.landing-intro { position: absolute; right: 0; bottom: 100%; left: 0; margin-bottom: 28px; text-align: center; }
+.landing-content { position: relative; width: min(100%, 900px); }
+.landing-intro { margin-bottom: clamp(18px, 4dvh, 36px); text-align: center; position: relative; top: clamp(-40px, -4.5dvh, -20px); }
+.landing-logo { display: flex; justify-content: center; }
 
 .landing-intro h1 {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-size: clamp(26px, 4vw, 34px);
-  font-weight: 400;
-  letter-spacing: -0.3px;
+  margin-top: clamp(8px, 1.8dvh, 18px);
+  color: #7d849b;
+  font-family: var(--font-sans-kr), "Apple SD Gothic Neo", sans-serif;
+  font-size: clamp(13px, 1.5vw, 15px);
+  font-weight: 300;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
 }
 
-.landing-intro p { margin-top: 8px; color: #7d849b; font-size: 14px; }
-.landing-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.landing-intro p { margin-top: 10px; color: #6b7290; font-size: 15px; line-height: 1.6; }
 
-.landing-option { position: relative; min-width: 0; }
-.landing-option--student:is(:hover, :focus-within) { z-index: 2; }
+/* 카드 두 장. 말풍선이 바깥으로 열릴 자리를 양옆에 둔다 */
+.landing-options { display: flex; justify-content: center; gap: 32px; }
+.landing-option { position: relative; display: flex; width: 420px; flex: none; flex-direction: column; align-items: center; --accent: #5b6fe0; }
+.landing-option--student { --accent: #f0a92e; }
+.landing-option.is-active { z-index: 2; }
 
+/* 카드 자체가 창틀·칠판 프레임이다. 안쪽 여백 없이 장면이 카드를 가득 채운다 */
 .landing-card {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  align-items: center;
-  column-gap: 16px;
   position: relative;
-  padding: 28px;
-  border-radius: 24px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05), 0 8px 24px rgba(60, 68, 110, 0.09);
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 20px;
   color: #102a56;
   text-decoration: none;
+  box-shadow: 0 1px 2px rgba(60, 68, 110, 0.05), 0 12px 28px rgba(60, 68, 110, 0.16);
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
-
-.landing-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 2px 5px rgba(60, 68, 110, 0.07), 0 14px 32px rgba(60, 68, 110, 0.14);
-}
-
 .landing-card:focus-visible { outline: 3px solid #6366f1; outline-offset: 4px; }
 
-.landing-card-icon {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: 18px;
-  background: #eef2ff;
-  color: #6366f1;
-}
+.landing-option.is-active .landing-card,
+.landing-card:hover { transform: translateY(-4px); box-shadow: 0 2px 5px rgba(60, 68, 110, 0.07), 0 20px 36px rgba(60, 68, 110, 0.22); }
 
-.landing-card-icon svg {
-  width: 30px;
-  height: 30px;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+.landing-scene { position: relative; display: block; aspect-ratio: 1586 / 992; overflow: hidden; border-radius: 20px 20px 0 0; }
 
-.landing-card-title {
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-size: 23px;
-}
-
-.landing-card-description { flex-basis: 100%; margin-top: 16px; color: #7d849b; font-size: 13px; }
-.landing-card-arrow { position: absolute; top: 10px; right: 12px; color: #9aa0b5; font-size: 16px; }
-
-.landing-card-character {
-  position: absolute;
-  z-index: 0;
-  left: -45px;
-  bottom: -4px;
-  width: 180px;
-  height: 270px;
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(62px, 10px) rotate(1deg) scale(0.94);
-  transform-origin: bottom center;
-  transition: opacity 180ms ease, transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 57%, transparent 82%);
-}
-
-.landing-card-character-motion {
-  position: absolute;
-  inset: 0;
-  transform-origin: 55% 75%;
-}
-
-.landing-card-character-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
+.landing-card-character-frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .landing-card-character-frame--wave { opacity: 0; }
 
-.landing-option--student:is(:hover, :focus-within) .landing-card-character {
-  opacity: 1;
-  transform: translate(0, 0) rotate(-13deg) scale(1);
+/* ── 학생: 학급 게시판. 둥근 은색 철 테두리에 아이보리 면, 마음 신호등 색 동그라미 스티커가 붙어 있다.
+   민준이는 처음엔 게시판 왼쪽 위에 매달려 빼꼼, 호버하면 폴짝 내려와 게시판 왼쪽에 서서 인사한다.
+   장면 안 크기는 모두 장면 높이(cqh) 기준이라 카드가 작아져도 그대로 축소된다. ── */
+.landing-option--student .landing-card { container-type: inline-size; }
+
+.landing-scene--notice {
+  z-index: 1;
+  container-type: size;
+  overflow: visible;
+  border-radius: 20px 20px 0 0;
+  background: #fbfaf5;
 }
 
-.landing-option--student:is(:hover, :focus-within) .landing-card-character-frame--wave {
-  animation: landing-minjun-wave 760ms ease-in-out 350ms 2;
+.landing-notice-title {
+  position: absolute;
+  top: 11cqh;
+  left: 50%;
+  color: #4a4f6a;
+  font-family: var(--font-hand), var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 8cqh;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateX(-50%) rotate(-1deg);
 }
 
-.landing-option--student:is(:hover, :focus-within) .landing-card-character-motion {
-  animation: landing-minjun-sway 760ms ease-in-out 350ms 2;
+.landing-notice-cards { position: absolute; top: 37cqh; left: 10cqh; display: flex; gap: 4cqh; align-items: flex-start; }
+
+.landing-sticker { display: flex; flex-direction: column; align-items: center; gap: 1.8cqh; transform: translateY(var(--dy, 0)) rotate(var(--tilt, 0deg)); }
+.landing-sticker:nth-child(1) { --tilt: -4deg; --dy: 0cqh; }
+.landing-sticker:nth-child(2) { --tilt: 3deg; --dy: 6cqh; }
+.landing-sticker:nth-child(3) { --tilt: -2deg; --dy: -2cqh; }
+.landing-sticker:nth-child(4) { --tilt: 4deg; --dy: 7cqh; }
+
+/* 흰 테두리가 둘러진 동그라미 스티커 */
+.landing-sticker-disc {
+  display: grid;
+  width: 32cqh;
+  height: 32cqh;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.5) 0 10%, transparent 38%), var(--sig);
+  box-shadow: inset 0 -1.4cqh 0 rgba(0, 0, 0, 0.14), 0 0.9cqh 1.8cqh rgba(60, 50, 30, 0.26);
+}
+/* 마음 신호등 화면과 같은 표정 색 — 바탕에 묻히는 진한/옅은 톤 */
+.landing-sticker--green { --ink: #168143; }
+.landing-sticker--yellow { --ink: #9b780d; }
+.landing-sticker--red { --ink: #a52f34; }
+.landing-sticker--navy { --ink: #93a3d6; }
+.landing-sticker-face { width: 19cqh; height: 19cqh; }
+.landing-sticker-face circle { fill: var(--ink); }
+.landing-sticker-face path { fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.landing-option--student.is-active .landing-sticker { animation: landing-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.landing-option--student.is-active .landing-sticker:nth-child(1) { animation-delay: 700ms; }
+.landing-option--student.is-active .landing-sticker:nth-child(2) { animation-delay: 1000ms; }
+.landing-option--student.is-active .landing-sticker:nth-child(3) { animation-delay: 1300ms; }
+.landing-option--student.is-active .landing-sticker:nth-child(4) { animation-delay: 1600ms; }
+
+/* 학생: 게시판 윗변에 매달린 민준이. 평소엔 눈만 빼꼼, 호버하면 같은 자리에서 얼굴과 어깨가 더 나와 손을 흔든다.
+   호버 때 솟아오르는 높이는 눈만 보일 때보다 조금만 더 높게 제한한다(선생님과 균형을 맞추려고). */
+.landing-hanger { position: absolute; z-index: 2; bottom: calc(100% - 4cqw); left: 2cqw; width: 43cqw; transition: opacity 200ms ease; pointer-events: none; }
+.landing-hanger img { display: block; width: 100%; height: auto; }
+.landing-option--student.is-active .landing-hanger { opacity: 0; }
+
+.landing-riser {
+  position: absolute;
+  z-index: 0;
+  bottom: calc(100% - 2cqw);
+  left: 2cqw;
+  width: 44cqw;
+  height: 28cqw;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(115%);
+  transition: transform 650ms cubic-bezier(0.34, 1.25, 0.64, 1) 100ms;
+}
+.landing-minjun-body { position: absolute; top: 0; left: 0; width: 100%; height: 66cqw; }
+.landing-minjun-frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
+.landing-minjun-frame--wave-a, .landing-minjun-frame--wave-b { opacity: 0; }
+
+.landing-option--student.is-active .landing-riser { transform: translateY(0); }
+/* 올라오면 손을 흔든다(2·3컷 교대) */
+.landing-option--student.is-active .landing-minjun-frame--wave-a { animation: landing-flip-a 600ms steps(1, end) 800ms 5; }
+.landing-option--student.is-active .landing-minjun-frame--wave-b { animation: landing-flip-b 600ms steps(1, end) 800ms 5; }
+.landing-option--student.is-active .landing-minjun-frame--base { animation: landing-base-wave 3800ms steps(1, end); }
+
+@keyframes landing-base-wave { 0% { opacity: 1; } 21% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes landing-arm-a { 0% { opacity: 1; } 25% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes landing-arm-b { 0% { opacity: 0; } 25% { opacity: 1; } 50% { opacity: 0; } 75% { opacity: 1; } 100% { opacity: 1; } }
+@keyframes landing-arm-c { 0% { opacity: 0; } 50% { opacity: 1; } 75% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes landing-flip-a { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes landing-flip-b { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 1; } }
+
+@keyframes landing-pop {
+  0% { transform: translateY(var(--dy, 0)) rotate(var(--tilt, 0deg)) scale(1); }
+  45% { transform: translateY(calc(var(--dy, 0) - 1cqh)) rotate(var(--tilt, 0deg)) scale(1.12); }
+  100% { transform: translateY(var(--dy, 0)) rotate(var(--tilt, 0deg)) scale(1); }
 }
 
-/* 민준이 옆 말풍선 — 호버 때만 보인다 */
+/* 카드 밖 아래 시작 버튼 — 스프링으로 카드에 매달려 있고, 이름과 설명이 버튼 안에 들어 있다.
+   학생은 게시판과 같은 아이보리, 선생님은 칠판과 같은 초록 */
+/* 카드 아래 띠 — 이름·설명·꺾쇠. 카드 전체가 링크라서 이 띠도 같이 눌린다 */
+.landing-start {
+  display: grid;
+  height: 84px;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "title arrow" "desc arrow";
+  align-items: center;
+  column-gap: 12px;
+  padding: 0 26px;
+  border-radius: 0 0 20px 20px;
+  text-align: left;
+}
+.landing-option--student .landing-start { background: #fbfaf5; border-top: 1px solid #ebe6d6; color: #2f3560; }
+.landing-option--teacher .landing-start { background: #37604e; color: #fff; }
+
+.landing-card-title { grid-area: title; align-self: end; font-family: var(--font-cute), var(--font-sans-kr), sans-serif; font-size: 18px; line-height: 1.15; }
+.landing-card-description { grid-area: desc; align-self: start; margin-top: 2px; font-size: 12px; opacity: 0.88; }
+.landing-card-arrow { grid-area: arrow; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform 180ms ease; }
+.landing-option.is-active .landing-card-arrow, .landing-card:hover .landing-card-arrow { transform: translateX(4px); }
+
+/* ── 선생님: 칠판. 카드 테두리가 칠판 프레임. 호버하면 옆에 서 있던 선생님이 다가와 필기한다 ── */
+.landing-scene--board {
+  border-radius: 20px 20px 0 0;
+  background: radial-gradient(ellipse at 28% 18%, rgba(255, 255, 255, 0.12), transparent 62%), #3f6b58;
+  box-shadow: inset 0 0 40px rgba(20, 50, 38, 0.28);
+  overflow: hidden;
+}
+
+.landing-chalk-title {
+  position: absolute;
+  top: 20px;
+  left: 26px;
+  color: rgba(255, 255, 255, 0.95);
+  font-family: var(--font-hand), var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.landing-board-text { position: absolute; top: 72px; left: 26px; display: flex; flex-direction: column; gap: 8px; }
+.landing-chalk {
+  display: block;
+  color: rgba(255, 255, 255, 0.94);
+  font-family: var(--font-hand), var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-size: 18px;
+  line-height: 1.3;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  clip-path: inset(0 100% 0 0);
+}
+
+.landing-option--teacher.is-active .landing-chalk--1 { animation: landing-write 800ms steps(14) 500ms forwards; }
+.landing-option--teacher.is-active .landing-chalk--2 { animation: landing-write 800ms steps(14) 1300ms forwards; }
+.landing-option--teacher.is-active .landing-chalk--3 { animation: landing-write 800ms steps(14) 2100ms forwards; }
+
+.landing-board-teacher { position: absolute; z-index: 2; right: -10px; bottom: -156px; width: 247px; height: 370px; transition: transform 650ms cubic-bezier(0.34, 1.2, 0.64, 1); }
+.landing-option--teacher.is-active .landing-board-teacher { transform: translateX(46px); }
+.landing-teacher-image { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; transform-origin: 50% 100%; }
+/* 평소: 옆모습이 칠판 오른쪽 가장자리에서 살짝 보인다 */
+.landing-teacher-image--side { transform: translateX(22%); transition: opacity 250ms ease, transform 600ms ease; }
+.landing-teacher-front { position: absolute; inset: 0; opacity: 0; transform: translateX(10%); transition: opacity 300ms ease 200ms, transform 650ms cubic-bezier(0.34, 1.2, 0.64, 1) 200ms; }
+.landing-teacher-arm { position: absolute; inset: 0; display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; opacity: 0; }
+.landing-teacher-arm--2 { opacity: 1; }
+/* 호버: 옆모습은 물러가고 정면으로 서서 필기한다 */
+.landing-option--teacher.is-active .landing-teacher-image--side { opacity: 0; transform: translateX(45%); }
+.landing-option--teacher.is-active .landing-teacher-front { opacity: 1; transform: none; }
+/* 팔 세 컷을 1 → 2 → 3 → 2 순서로 돌려 분필로 쓰는 팔 동작을 만든다 */
+.landing-option--teacher.is-active .landing-teacher-arm--1 { animation: landing-arm-a 1400ms steps(1, end) 900ms infinite; }
+.landing-option--teacher.is-active .landing-teacher-arm--2 { animation: landing-arm-b 1400ms steps(1, end) 900ms infinite; }
+.landing-option--teacher.is-active .landing-teacher-arm--3 { animation: landing-arm-c 1400ms steps(1, end) 900ms infinite; }
+
+/* ── 말풍선: 캐릭터가 서 있는 쪽 카드 바깥(학생은 왼쪽, 선생님은 오른쪽)에서 카드를 가리지 않고 열린다.
+   머리 부분에 캐릭터 얼굴 아바타와 이름, 아래에 강조 문장과 보조 문장. 꼬리는 카드 쪽을 가리킨다. ── */
+.landing-option--student { --bubble-tint: #f2f0ff; --bubble-edge: #d9d5ff; --bubble-glow: rgba(99, 91, 255, 0.2); --bubble-accent: #635bff; }
+.landing-option--teacher { --bubble-tint: #f2f0ff; --bubble-edge: #d9d5ff; --bubble-glow: rgba(99, 91, 255, 0.2); --bubble-accent: #635bff; }
+
 .landing-card-bubble {
   position: absolute;
-  z-index: 3;
-  right: calc(100% + 24px);
-  bottom: calc(100% + 60px);
-  width: max-content;
-  max-width: 200px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(60, 68, 110, 0.16);
+  z-index: 5;
+  top: 18px;
+  display: flex;
+  width: 250px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 17px 19px 19px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, var(--bubble-tint) 0%, #ffffff 46%);
+  /* 테두리 대신 바깥 음영으로 떠 보이게 한다. filter라서 꼬리까지 하나의 모양으로 그림자가 진다 */
+  filter: drop-shadow(0 2px 3px rgba(60, 68, 110, 0.07)) drop-shadow(0 14px 22px var(--bubble-glow));
   color: #2f3560;
-  font-size: 13px;
-  line-height: 1.45;
+  word-break: keep-all;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(6px) scale(0.95);
-  transform-origin: right bottom;
-  transition: opacity 180ms ease 200ms, transform 300ms cubic-bezier(0.22, 1, 0.36, 1) 200ms;
+  transition: opacity 180ms ease, transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.landing-card-bubble::before {
+.landing-bubble-head { display: flex; align-items: center; }
+.landing-bubble-name { color: #8b92ad; font-family: var(--font-cute), var(--font-sans-kr), sans-serif; font-size: 15px; }
+
+/* 카드 제목과 같은 둥근 글꼴(Jua)을 강조 문장에, 보조 문장은 카드 설명과 같은 본문 글꼴에 쓴다 */
+.landing-bubble-lead { color: #102a56; font-family: var(--font-cute), var(--font-sans-kr), sans-serif; font-size: 16px; font-weight: 400; line-height: 1.55; }
+.landing-bubble-sub { padding-top: 10px; border-top: 1px solid #eceffa; color: #6b7290; font-size: 13px; line-height: 1.55; }
+
+/* 꼬리 — 카드 쪽 옆면에서 아바타 높이쯤을 가리킨다 */
+.landing-card-bubble::after {
   position: absolute;
-  right: -6px;
-  bottom: 12px;
-  width: 12px;
-  height: 12px;
-  background: #fff;
+  top: 26px;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  /* 말풍선 그라데이션의 그 높이 색과 같게 맞춰 몸통과 이음선이 안 보이게 한다 */
+  background: color-mix(in srgb, var(--bubble-tint) 60%, #ffffff);
   content: "";
   transform: rotate(45deg);
 }
+.landing-option--student .landing-card-bubble::after { right: -6px; top: 34px; }
+.landing-option--teacher .landing-card-bubble::after { left: -6px; top: 30px; }
 
-.landing-option--student:is(:hover, :focus-within) .landing-card-bubble {
-  opacity: 1;
-  transform: none;
-}
+.landing-option--student .landing-card-bubble { top: -50px; right: calc(100% + 12px); transform: translateX(16px) scale(0.92); transform-origin: right top; }
+.landing-option--teacher .landing-card-bubble { left: calc(100% + 14px); transform: translateX(-16px) scale(0.9); transform-origin: left top; }
+.landing-option.is-active .landing-card-bubble { opacity: 1; transform: none; transition-delay: 400ms; }
+
+.landing-hint { margin-top: clamp(12px, 2.5dvh, 24px); color: #8a90a8; font-size: 13px; text-align: center; transition: opacity 300ms ease; }
+.landing-hint.is-hidden { opacity: 0; }
 
 @keyframes landing-minjun-wave {
   0%, 100% { opacity: 0; }
   50% { opacity: 1; }
 }
 
-@keyframes landing-minjun-sway {
+@keyframes landing-write { to { clip-path: inset(0 0 0 0); } }
+
+@keyframes landing-greet {
   0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-2deg); }
-  75% { transform: rotate(2deg); }
+  30% { transform: rotate(-3deg) translateY(-4px); }
+  70% { transform: rotate(3deg) translateY(-4px); }
 }
 
-@media (max-width: 560px) {
-  .landing-main { padding: 48px 18px; }
-  .landing-options { grid-template-columns: 1fr; gap: 14px; }
-  .landing-card { padding: 22px; }
-  .landing-card-icon { width: 46px; height: 46px; }
+@keyframes landing-scribble {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(10deg); }
+}
+
+@keyframes landing-teacher-write {
+  from { transform: rotate(-1deg); }
+  to { transform: translateY(-2px) rotate(1deg); }
+}
+
+/* 화면이 좁으면 말풍선이 옆 대신 카드 위로 올라와 카드 윗부분과 겹친다 */
+@media (max-width: 1400px) {
+  /* 좁은 화면: 말풍선을 옆이나 위가 아니라 시작 버튼 아래에 열어 로고·캐치프레이즈·다른 카드를 가리지 않는다 */
+  .landing-card-bubble { top: calc(100% + 16px); bottom: auto; width: 100%; }
+  .landing-option--student .landing-card-bubble,
+  .landing-option--teacher .landing-card-bubble { top: calc(100% + 16px); right: auto; left: 0; transform: translateY(-10px) scale(0.96); transform-origin: top center; }
+  .landing-option .landing-card-bubble::after { top: -6px; bottom: auto; right: auto; left: 56px; }
+}
+
+@media (max-width: 920px) {
+  .landing-content { width: min(100%, 760px); }
+  .landing-options { gap: 20px; }
+  .landing-option { width: calc(50% - 10px); }
+  .landing-start { padding-inline: 18px; }
+  .landing-card-description { font-size: 11px; }
+  .landing-card-title { font-size: 16px; }
+  .landing-hint { display: none; }
+}
+
+@media (max-width: 600px) {
+  .landing-main { padding: 12px 16px; }
+  .landing-content { height: 100%; display: flex; flex-direction: column; justify-content: center; }
+  .landing-logo svg { max-height: 48px; }
+  .landing-intro { margin-bottom: 44px; }
+  .landing-intro h1 { margin-top: 4px; font-size: 13px; line-height: 1.45; }
+  .landing-options { flex-direction: column; align-items: center; gap: 10px; }
+  .landing-option { width: 100%; max-width: 420px; }
+  .landing-scene { aspect-ratio: 1586 / 900; }
+  .landing-start { height: 60px; padding-inline: 18px; }
+  .landing-card-title { font-size: 15px; }
+  .landing-card-description { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-chalk-title { top: 12px; left: 15px; font-size: 16px; }
+  .landing-board-text { top: 42px; left: 15px; gap: 7px; }
+  .landing-chalk { font-size: 13px; }
+  .landing-board-teacher { right: -8px; bottom: -126px; width: 200px; height: 300px; }
+  .landing-option--student .landing-card-bubble,
+  .landing-option--teacher .landing-card-bubble { top: auto; bottom: 62px; right: 10px; left: 10px; width: auto; gap: 4px; padding: 10px 12px; border-radius: 18px; transform: translateY(6px) scale(0.96); transform-origin: bottom center; }
+  .landing-bubble-head, .landing-bubble-sub { display: none; }
+  .landing-bubble-lead { font-size: 11.5px; line-height: 1.4; }
+  .landing-bubble-sub { padding-top: 6px; font-size: 10.5px; line-height: 1.4; }
+  .landing-card-bubble::after { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-card { transition: none; }
-  .landing-card:hover { transform: none; }
-  .landing-card-character, .landing-card-bubble { transition: none; }
-  .landing-option--student:is(:hover, :focus-within) .landing-card-character-motion { animation: none; }
-  .landing-option--student:is(:hover, :focus-within) .landing-card-character-frame--wave { animation: none; }
+  .landing-card, .landing-start, .landing-card-bubble, .landing-riser, .landing-hanger, .landing-board-teacher { transition: none; }
+  .landing-sticker, .landing-teacher-arm, .landing-minjun-frame { animation: none !important; }
+  .landing-option--teacher.is-active .landing-chalk { animation-duration: 1ms; animation-delay: 0s; }
 }
