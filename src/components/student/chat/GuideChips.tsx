@@ -23,10 +23,11 @@ const LINE_MS = 2100;
  * 계속 흘리면 같은 말이 반복돼 피로했다. 다 흐른 뒤에는 말풍선들이 조용히 떠 있다.
  * 줄마다 key 를 바꿔 등장 애니메이션을 처음부터 다시 틀게 한다.
  */
-function HintFlow({ topics }: { topics: string[] }) {
+function HintFlow({ topics, flowFirst }: { topics: string[]; flowFirst: boolean }) {
   const lines = hintLines(topics);
-  // index: 지금 흘리는 줄. lines.length 에 닿으면 말풍선으로 정리된 상태
-  const [index, setIndex] = useState(0);
+  // index: 지금 흘리는 줄. lines.length 에 닿으면 말풍선으로 정리된 상태.
+  // flowFirst 가 false 면(두 번째 턴) 흘리지 않고 곧바로 말풍선이다.
+  const [index, setIndex] = useState(flowFirst ? 0 : lines.length);
   const settled = index >= lines.length;
   useEffect(() => {
     if (settled) return;
@@ -63,6 +64,7 @@ function HintFlow({ topics }: { topics: string[] }) {
 
 export default function GuideChips({
   hints,
+  flowFirst = true,
   replies,
   replies2,
   /**
@@ -76,6 +78,8 @@ export default function GuideChips({
 }: {
   /** 주제 힌트. 답변 문장이 아니다 */
   hints: string[];
+  /** 첫 턴에는 문장을 한 줄씩 흘린 뒤 말풍선으로. 두 번째 턴부터는 말풍선만 */
+  flowFirst?: boolean;
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
   selectable?: boolean;
@@ -84,7 +88,7 @@ export default function GuideChips({
 }) {
   if (!selectable) {
     if (!hints.length) return null;
-    return <HintFlow topics={hints} />;
+    return <HintFlow topics={hints} flowFirst={flowFirst} />;
   }
 
   if (!replies?.length && !replies2?.length) return null;

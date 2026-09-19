@@ -200,6 +200,8 @@ export default function ChatScreen({
           !["requesting", "recording", "processing"].includes(recorder.status) && (
           <GuideChips
             hints={hints}
+            // 두 번째 턴부터는 문장을 흘리지 않고 말풍선만 바로 보여준다
+            flowFirst={spokenTurns === 0}
             replies={replies}
             replies2={replies2}
             // 음성이 실제로 동작하는 상황에서는 고를 수 없다. 아이가 직접 말해야

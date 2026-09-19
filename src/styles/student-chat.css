@@ -416,8 +416,8 @@
    버튼 모양(테두리·흰 카드·또렷한 윤곽)을 모두 빼고, 옅은 바탕에 생각 풍선 꼬리를 달아
    "머릿속에 떠오른 생각" 으로 보이게 한다. 풍선마다 박자를 달리해 둥실 떠다닌다.
    음성을 못 쓸 때만 --pick 이 붙어 진짜 버튼이 된다(아래). */
-/* 말하기 버튼 바로 위에 붙게 — 꼬리 끝(2.7cqh)이 버튼 조금 위에 오도록 아래 여백을 맞춘다 */
-.guide-chips__row:has(.guide-chip--hint) { gap: 2cqh 2.4cqh; padding: 0.6cqh 0 2.4cqh; }
+/* 말하기 버튼 바로 위에 붙게 — 꼬리 끝(약 1.4cqh)이 버튼 조금 위에 오도록 아래 여백을 맞춘다 */
+.guide-chips__row:has(.guide-chip--hint) { gap: 2cqh 2.4cqh; padding: 0.6cqh 0 1.8cqh; }
 .guide-chips:has(.guide-chip--hint) { margin-bottom: -0.8cqh; }
 .guide-chip--hint {
   position: relative;
@@ -428,9 +428,8 @@
   /* 흰 구름 + 부드러운 그림자. 그림자(drop-shadow)는 풍선과 꼬리 점 모양을 그대로 따라가서
      테두리 없이도 생각 풍선 윤곽이 보인다. 회색 바탕만 두면 꼬리가 배경에 묻혀 버튼처럼 읽혔고,
      테두리를 두르면 딱딱했다. */
-  /* 납작한 연회색. 그림자·높낮이·떠다님을 빼서 깔끔하게 둔다 — 요소가 많아 어수선했다.
-     꼬리가 배경에 묻히지 않을 만큼만 반 톤 진하게. */
-  background: #e7e9ef;
+  /* 납작한 연회색. 그림자·높낮이·떠다님을 빼서 깔끔하게 둔다 — 요소가 많아 어수선했다. */
+  background: #f0f1f5;
   font-family: var(--font-sans-kr), sans-serif;
   color: #5f6478;
   font-weight: 400;
@@ -445,16 +444,19 @@
   to { opacity: 1; transform: translateY(0); }
 }
 /* 생각 풍선 꼬리: 크고 작은 점 두 개 */
-.guide-chip--hint::before,
-.guide-chip--hint::after {
+/* 꼬리: 풍선에 붙은 작은 뾰족 꼬리 하나. 떨어진 동그라미 두 개(생각 풍선)는 어색했다.
+   풍선과 같은 색의 작은 마름모를 반쯤 걸쳐 두면 한 덩어리로 보인다. */
+.guide-chip--hint::before {
   content: "";
   position: absolute;
-  border-radius: 50%;
+  left: 2.6cqh;
+  bottom: -0.7cqh;
+  width: 1.5cqh;
+  height: 1.5cqh;
   background: inherit;
+  border-radius: 0 0 0.3cqh 0;
+  transform: rotate(45deg);
 }
-/* 풍선에서 살짝 떨어져 대각선으로 작아지는 점 두 개 */
-.guide-chip--hint::before { width: 1.4cqh; height: 1.4cqh; left: 2.4cqh; bottom: -1.7cqh; }
-.guide-chip--hint::after { width: 0.8cqh; height: 0.8cqh; left: 1.4cqh; bottom: -2.7cqh; }
 /* 세 풍선을 한 줄에 가지런히, 꼬리는 모두 같은 쪽. 차례로 나타나기만 한다 */
 .guide-chip--hint:nth-child(2) { animation-delay: 0.12s; }
 .guide-chip--hint:nth-child(3) { animation-delay: 0.24s; }
