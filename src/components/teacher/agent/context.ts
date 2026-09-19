@@ -102,7 +102,11 @@ async function buildStudentContext(classId: string, studentId: string, today: st
     };
   }
 
-  const header = `[학생] ${report.student.name} (자리 ${report.student.seatRow}행 ${report.student.seatCol}열)`;
+  // "오늘은 어때?"처럼 질문에 시점이 있으면 도메인 에이전트가 "오늘"이 어느 날짜인지 알아야
+  // 최근 며칠치 기록 중에서 그 시점에 맞는 것만 골라 답할 수 있다 — 없으면 그냥 전체를 뭉뚱그려
+  // 요약해버린다(2026-09-19 확인된 버그: 종합의견은 시점에 맞게 답했지만 각 도메인 소견은
+  // "오늘"을 무시하고 최근 며칠을 통째로 요약했다).
+  const header = `[학생] ${report.student.name} (자리 ${report.student.seatRow}행 ${report.student.seatCol}열)\n[오늘] ${today}`;
 
   // ── 정서: 신호등 색 + AI 대화 요약 + 감정 어휘 ─────────────────────
   const recentColors = report.sessions
@@ -185,7 +189,7 @@ async function buildClassContext(classId: string, today: string): Promise<AgentC
           o.taggedStudents.length ? ` [${o.taggedStudents.map((t) => t.name).join(", ")}]` : ""
         }`,
     );
-  const learningLines = obsLines.length ? [`[최근 7일 학생관찰일지]\n${obsLines.join("\n")}`] : [];
+  const learningLines = obsLines.length ? [`[오늘] ${today}`, `[최근 7일 학생관찰일지]\n${obsLines.join("\n")}`] : [];
   const learningEvidence = recentObservations.slice(0, 5).map((o) => `학생관찰일지 · ${o.occurredAt.slice(0, 10)}`);
 
   // ── 가정 연계: 최근 학부모상담기록 ────────────────────────────
@@ -196,7 +200,7 @@ async function buildClassContext(classId: string, today: string): Promise<AgentC
   const consultLines = sortedConsultations.map(
     (c) => `- (${c.occurredAt.slice(0, 10)}) ${c.student.name} · ${c.title}: ${c.body.slice(0, 60)}`,
   );
-  const homeLines = consultLines.length ? [`[최근 학부모상담기록]\n${consultLines.join("\n")}`] : [];
+  const homeLines = consultLines.length ? [`[오늘] ${today}`, `[최근 학부모상담기록]\n${consultLines.join("\n")}`] : [];
   const homeEvidence = sortedConsultations.map((c) => `학부모상담기록 · ${c.occurredAt.slice(0, 10)} (${c.student.name})`);
 
   return {

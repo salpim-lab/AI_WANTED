@@ -30,6 +30,7 @@ export function buildDomainSystemPrompt(domain: AgentDomain, studentName: string
     persona[domain],
     `지금 보고 있는 컨텍스트는 [${DOMAIN_LABEL[domain]}] 영역 자료뿐입니다 — 다른 영역 판단은 하지 마세요.`,
     ...COMMON_RULES,
+    "컨텍스트의 [오늘] 날짜를 확인하세요. [교사 질문]에 '오늘', '어제', '이번 주'처럼 시점이 있으면 전체 기간을 뭉뚱그리지 말고 그 시점에 해당하는 날짜의 기록 위주로 답하세요. 그 시점에 해당하는 기록이 없으면 '오늘 기록은 없고, 최근(날짜)에는 ~'처럼 시점 차이를 명확히 알려주세요.",
     "2~3문장 이내로, 이 영역에서 참고할 만한 사실만 짧게 답하세요. 참고할 게 없으면 '이 영역에는 참고할 기록이 없습니다'라고만 답하세요.",
     studentName ? `지금은 "${studentName}" 학생 한 명에 대한 자료입니다.` : "지금은 학급 전체에 대한 자료입니다.",
   ].join("\n");
