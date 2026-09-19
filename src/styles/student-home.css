@@ -216,25 +216,6 @@
 }
 .sh-letter-cta-in { animation: shSoftAppear 0.8s ease-out 2.1s both; }
 
-/* 여는 동작(.sh-letter-opening) — 닫을 때와 대칭으로, 제자리에 닫혀 있던 봉투의 덮개가 스륵 열린다.
-   날아와 커지는 등장은 넣지 않는다(길고 어수선했다). 여는 동작 전체 0.45초.
-   0.00~0.12 하트 봉인이 살짝 떼어지며 사라진다
-   0.05~0.25 닫힌 덮개가 접혀 올라간다
-   0.20~0.40 위로 넘어간 덮개가 펴진다. 열린 몸통이 겹쳐 나타나고(0.20~0.45) 닫힌 몸통이 물러난다(0.30~0.45)
-   0.30      편지지가 올라오기 시작한다(열린 봉투만 있을 때와 같은 속도감)
-   닫기를 시작하면 이 클래스가 떨어지고 .sh-letter-leaving 만 남는다. */
-@keyframes shOpenHeartOff { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.15); } }
-@keyframes shOpenClosedFlap { from { opacity: 1; transform: scaleY(1); } to { opacity: 1; transform: scaleY(0); } }
-@keyframes shOpenUnfold { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-@keyframes shOpenBodyIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes shOpenClosedOut { from { opacity: 1; transform: scaleY(1); } to { opacity: 0; transform: scaleY(1); } }
-.sh-letter-opening .sh-envelope-heart { animation: shOpenHeartOff 0.12s ease-out both; }
-.sh-letter-opening .sh-envelope-closed-flap { animation: shOpenClosedFlap 0.2s cubic-bezier(0.45, 0, 0.55, 1) 0.05s both; }
-.sh-letter-opening .sh-envelope-open-flap { animation: shOpenUnfold 0.2s cubic-bezier(0.25, 0.8, 0.4, 1) 0.2s both; }
-.sh-letter-opening .sh-envelope-depth { animation: shOpenBodyIn 0.25s ease-out 0.2s both; }
-.sh-letter-opening .sh-envelope-closed { animation: shOpenClosedOut 0.15s ease-in 0.3s both; }
-.sh-letter-opening .sh-letter-entering { animation-delay: 0.3s; }
-
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
 .sh-letter-scene { position: absolute; inset: 0; pointer-events: none; }
 .sh-letter-assembly {
@@ -456,11 +437,6 @@
   .sh-letter-leaving .sh-envelope-heart,
   .sh-envelope-floor,
   .sh-letter-cta-in,
-  .sh-letter-opening .sh-envelope-heart,
-  .sh-letter-opening .sh-envelope-closed-flap,
-  .sh-letter-opening .sh-envelope-open-flap,
-  .sh-letter-opening .sh-envelope-depth,
-  .sh-letter-opening .sh-envelope-closed,
   .sh-letter-leaving .sh-envelope-floor,
   .sh-letter-cta-away,
   .sh-morning-intro-entering > .sh-intro,

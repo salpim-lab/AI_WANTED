@@ -62,21 +62,17 @@ export default function TeacherLetter({
   data,
   closing,
   onClose,
-  opening = true,
 }: {
   data: LetterData;
   closing: boolean;
   onClose: () => void;
-  /** 처음에 닫힌 봉투의 덮개가 스륵 열리고 편지지가 올라온다. false 면 열린 봉투에서 바로 올라온다 */
-  opening?: boolean;
 }) {
   return (
     // 클립 바닥 77.6cqh는 유지한다. 봉투 높이를 늘리되 bottom:0으로 바닥을 맞춘다.
     // 열린 몸통: 78cqh × 260/600 = 33.8cqh. 닫힐 때는 바닥을 고정해 참고 봉투 비율(600:366)로 깊어진다.
     <div
-      // 닫는 중에는 여는 동작 클래스를 떼어 닫기 동작만 남긴다(둘 다 붙으면 서로 덮어쓴다)
       className={`sh-letter-scene ${
-        closing ? "sh-letter-leaving" : opening ? "sh-letter-opening" : ""
+        closing ? "sh-letter-leaving" : ""
       }`}
     >
       {/* 봉투가 공중에 살짝 떠 있어 보이게 하는 바닥 그림자.

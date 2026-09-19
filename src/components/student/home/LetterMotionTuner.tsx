@@ -21,18 +21,13 @@ export default function LetterMotionTuner({
   value,
   onChange,
   onReplay,
-  opening,
-  onOpeningChange,
 }: {
   value: LetterMotion;
   onChange: (next: LetterMotion) => void;
   onReplay: () => void;
-  /** 처음에 덮개가 스륵 열리는 동작을 켤지 */
-  opening: boolean;
-  onOpeningChange: (next: boolean) => void;
 }) {
   if (typeof document === "undefined") return null;
-  const summary = [`opening: ${opening}`, ...FIELDS.map((f) => `${f.key}: ${value[f.key]}`)].join(", ");
+  const summary = FIELDS.map((f) => `${f.key}: ${value[f.key]}`).join(", ");
 
   return createPortal(
     <div
@@ -50,11 +45,7 @@ export default function LetterMotionTuner({
         color: "#23284a",
       }}
     >
-      <strong style={{ display: "block", marginBottom: 8 }}>편지 동작 조절 (개발 전용)</strong>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <input type="checkbox" checked={opening} onChange={(e) => onOpeningChange(e.target.checked)} />
-        <span>처음에 덮개가 스륵 열리기</span>
-      </label>
+      <strong style={{ display: "block", marginBottom: 8 }}>편지 닫기 조절 (개발 전용)</strong>
       {FIELDS.map((f) => (
         <label key={f.key} style={{ display: "block", marginBottom: 8 }}>
           <span style={{ display: "flex", justifyContent: "space-between" }}>
