@@ -240,7 +240,7 @@ export default function TeacherAgentWidget() {
       <button
         onClick={() => setOpen(!open)}
         aria-label={open ? "살핌 도우미 닫기" : "살핌 도우미 열기"}
-        className="pointer-events-auto grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-transform hover:scale-105 active:scale-95"
+        className="pointer-events-auto grid h-14 w-14 place-items-center rounded-full bg-white shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-all duration-200 hover:scale-105 hover:shadow-[0_0_28px_6px_rgba(99,102,241,0.45)] hover:ring-2 hover:ring-indigo-400/70 active:scale-95"
       >
         {open ? (
           <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xl text-white">
