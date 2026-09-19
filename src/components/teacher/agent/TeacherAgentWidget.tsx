@@ -139,18 +139,10 @@ export default function TeacherAgentWidget() {
           open ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none translate-y-2 scale-95 opacity-0"
         }`}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <AgentOwlIcon className="h-7 w-7" />
-            <span className="text-sm font-bold text-gray-900">살핌 도우미</span>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            aria-label="닫기"
-            className="grid h-6 w-6 place-items-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-          >
-            ✕
-          </button>
+        {/* (2026-09-20) 헤더의 ✕ 제거 — 닫기는 오른쪽 아래 플로팅 버튼(✕로 바뀜) 하나로 통일 */}
+        <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
+          <AgentOwlIcon className="h-7 w-7" />
+          <span className="text-sm font-bold text-gray-900">살핌 도우미</span>
         </div>
 
         {studentId && (
@@ -178,19 +170,29 @@ export default function TeacherAgentWidget() {
                   <div className="mt-0.5 text-[11px] font-bold text-gray-500">종합의견</div>
                 </>
               )}
-              {m.respondedDomain && (
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
-                  <Dot color={DOMAIN_STYLE[m.respondedDomain]?.barColor ?? "#d1d5db"} />
-                  {DOMAIN_STYLE[m.respondedDomain]?.label} 관점
+              {m.respondedDomain ? (
+                // (2026-09-20) 도메인을 하나만 골랐을 때도 여러 개 골랐을 때의 카드(DomainFindings)와
+                // 같은 색깔바를 붙인다 — 어느 관점의 답인지 작은 점 하나보다 바로 보이게.
+                <div className="flex gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
+                  <span
+                    className="w-1 shrink-0 rounded-full"
+                    style={{ backgroundColor: DOMAIN_STYLE[m.respondedDomain]?.barColor ?? "#d1d5db" }}
+                    aria-hidden
+                  />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="text-[11px] font-bold text-gray-600">{DOMAIN_STYLE[m.respondedDomain]?.label} 관점</div>
+                    <div className="whitespace-pre-line text-[13px] leading-relaxed text-gray-900">{m.text}</div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                    m.role === "user" ? "rounded-br-sm bg-indigo-600 text-white" : "rounded-bl-sm bg-gray-100 text-gray-900"
+                  }`}
+                >
+                  {m.text}
                 </div>
               )}
-              <div
-                className={`whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                  m.role === "user" ? "rounded-br-sm bg-indigo-600 text-white" : "rounded-bl-sm bg-gray-100 text-gray-900"
-                }`}
-              >
-                {m.text}
-              </div>
               {!m.domainFindings && m.evidence && <EvidenceChips evidence={m.evidence} />}
             </div>
           ))}
