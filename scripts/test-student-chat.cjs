@@ -67,6 +67,23 @@ t('등교 첫 질문이 "어제" 로만 한정되지 않는다', () => {
   assert.ok(yesterday <= 2, `"어제" 로 묻는 첫 질문이 ${yesterday}개다`);
 });
 
+t('첫 질문 안에서 같은 어미가 잇달아 나오지 않는다', () => {
+  // "빨강이구나. 오늘 하루가 힘들었구나." 는 끄덕임을 두 번 하는 말투라 우스웠다
+  const ending = (x) => (x.match(/(구나|네|보네|싶네|봐|같아|있지)$/) || [''])[0];
+  for (const flow of ['checkin', 'checkout']) {
+    for (const list of Object.values(openers.OPENERS[flow])) {
+      for (const s of list) {
+        const parts = s.split(/[.!?\n,]+/).map((x) => x.replace(/[^가-힣 ]/g, '').trim()).filter(Boolean);
+        for (let i = 1; i < parts.length; i++) {
+          const a = ending(parts[i - 1]), b = ending(parts[i]);
+          const nod = (e) => e === '구나' || e === '네';
+          assert.ok(!(a && b && nod(a) && nod(b)), `어미가 겹친다: ${s}`);
+        }
+      }
+    }
+  }
+});
+
 t('남색은 "왜 혼자 있고 싶은지" 를 묻지 않는다', () => {
   for (const flow of ['checkin', 'checkout']) {
     for (const s of openers.OPENERS[flow].navy) {
@@ -198,6 +215,23 @@ t('맞장구 뒤에 내용 있는 받아주기가 오면 맞장구를 뗀다', (
   // 맞장구 하나뿐이면 그대로 둔다
   const b = turn.parseChatTurn({ missing: 'situation', ack: '그랬구나.', question: '어떤 일이 있었어?', sufficient: false, risk: 'none' });
   assert.equal(b.reply, '그랬구나. 어떤 일이 있었어?');
+});
+
+t('이유를 따지는 질문은 걸러낸다', () => {
+  const a = turn.parseChatTurn({ missing: 'cause', ack: '졸렸나 봐.', question: '졸린 이유가 뭐였어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, `졸렸나 봐. ${turn.FALLBACK_QUESTION}`);
+  // 마음의 계기를 여는 모양은 통과한다
+  const b = turn.parseChatTurn({ missing: 'cause', ack: '화났나 봐.', question: '어떤 일이 있어서 화가 났어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '화났나 봐. 어떤 일이 있어서 화가 났어?');
+});
+
+t('앞 말이 "구나" 로 끝났으면 받아주기의 "구나" 를 "네" 로 바꾼다', () => {
+  const prev = '빨강이구나, 오늘 하루가 힘들었나 싶네.\n학교에서 털어놓고 싶은 일 있어?';
+  assert.equal(turn.avoidRepeatedGuna('친구랑 싸웠구나.', prev), '친구랑 싸웠네.');
+  assert.equal(turn.avoidRepeatedGuna('급식을 맛있게 먹는구나!', prev), '급식을 맛있게 먹네!');
+  assert.equal(turn.avoidRepeatedGuna('마음이 무거웠겠구나.', prev), '마음이 무거웠겠네.');
+  // "구나" 자체는 괜찮다 — 앞 말이 "구나" 가 아니면 그대로 둔다
+  assert.equal(turn.avoidRepeatedGuna('친구랑 싸웠구나.', '그래, 오늘은 그냥 둘게.\n어땠어?'), '친구랑 싸웠구나.');
 });
 
 t('질문을 두 번 하면 첫 질문만 남긴다', () => {

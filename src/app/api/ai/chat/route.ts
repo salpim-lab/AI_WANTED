@@ -140,7 +140,9 @@ export async function POST(request: Request) {
       .filter((c) => c.type === "output_text")
       .map((c) => c.text ?? "")
       .join("");
-    const turn = parseChatTurn(JSON.parse(raw));
+    // 바로 앞 살핌의 말 — 같은 어미("~구나")가 잇달아 오지 않게 받아주기를 다듬는 데 쓴다
+    const previousAssistant = [...transcript].reverse().find((m) => m.speaker === "assistant")?.content;
+    const turn = parseChatTurn(JSON.parse(raw), previousAssistant);
 
     // 위험은 오직 ② 호출이 정한다. ① 이 낸 risk 는 쓰지 않는다 —
     // 거기엔 며칠치 맥락이 들어가 있어서 판단이 부풀려진다.

@@ -57,6 +57,12 @@ export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
 
 const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
 
+/**
+ * 이유를 따지는 질문. 프롬프트가 금지하지만 "졸린 이유가 뭐였어?" 가 실측에서 새어 나왔다.
+ * 마음의 계기는 "어떤 일이 있어서 ~" 모양으로만 묻는다(그건 여기 걸리지 않는다).
+ */
+const isWhyQuestion = (text: string) => /왜|이유가|이유는|뭐 때문에|무엇 때문에/.test(text);
+
 /** 내용 없이 끄덕이기만 하는 맞장구 */
 const isFiller = (line: string) => /^(그랬구나|그렇구나|그랬어|알겠어|응|그래)[.!~]*$/.test(line.trim());
 
@@ -173,7 +179,23 @@ export class ChatTurnError extends Error {
 }
 
 /** 응답 검증. 스키마를 믿지 않고 한 번 더 확인한다 — strict 모드도 거부(refusal)가 올 수 있다. */
-export function parseChatTurn(raw: unknown): ChatTurnOutput {
+/**
+ * 바로 앞 살핌의 말이 "~구나" 로 끝났는데 받아주는 말도 "~구나" 로 끝나면 "~네" 로 바꾼다.
+ * "~구나" 자체는 괜찮지만 잇달아 오면 같은 말투가 겹쳐 우스워진다(지시문으로는 절반쯤만 지켜졌다).
+ *   했구나→했네  겠구나→겠네  이구나→이네  좋구나→좋네  먹는구나→먹네
+ * "구나" 와 "네" 는 뜻이 같은 감탄 어미라 바꿔도 말이 달라지지 않는다.
+ */
+export function avoidRepeatedGuna(ack: string, previousAssistant: string | undefined): string {
+  if (!previousAssistant) return ack;
+  const prevClauses = previousAssistant
+    .split(/[.!?\n,]+/)
+    .map((c) => c.replace(/[^가-힣]+$/g, "").trim())
+    .filter(Boolean);
+  if (!prevClauses.some((c) => c.endsWith("구나"))) return ack;
+  return ack.replace(/(는)?구나([.!]*)$/, (_m, _neun, tail: string) => `네${tail}`);
+}
+
+export function parseChatTurn(raw: unknown, previousAssistant?: string): ChatTurnOutput {
   if (!raw || typeof raw !== "object") {
     throw new ChatTurnError("INVALID_AI_OUTPUT", 502, "응답 형식이 잘못되었습니다.");
   }
@@ -200,14 +222,14 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
   const sentences = (text: string) => text.trim().split(/(?<=[.!?？])\s+/).filter(Boolean);
   const all = [...sentences(o.ack), ...sentences(o.question)];
   const asked = all.filter(isQuestion);
-  const question = asked.find((q) => !isChoiceQuestion(q)) ?? FALLBACK_QUESTION;
+  const question = asked.find((q) => !isChoiceQuestion(q) && !isWhyQuestion(q)) ?? FALLBACK_QUESTION;
   // 받아주는 말은 ack 칸의 서술문만. question 칸에 섞여 온 서술문("정말 기분 좋았겠네.")은 버린다 —
   // 그건 대개 마무리 인사처럼 쓴 공감이라 질문 앞에 붙이면 말이 길어지고 끝맺는 느낌이 난다.
   // 맞장구("그랬구나.")로 먼저 끄덕이고 아이 말을 또 "~구나" 로 받으면 두 번 끄덕이는 말투가 된다.
   // 뒤에 내용 있는 문장이 이어질 때만 떼어낸다(맞장구 하나뿐이면 그대로 둔다).
   const ackLines = sentences(o.ack).filter((line) => !isQuestion(line));
   const trimmedAck = ackLines.length > 1 && isFiller(ackLines[0]) ? ackLines.slice(1) : ackLines;
-  const ack = trimmedAck.join(" ");
+  const ack = avoidRepeatedGuna(trimmedAck.join(" "), previousAssistant);
   return {
     reply: ack ? `${ack} ${question}` : question,
     sufficient: o.sufficient,
