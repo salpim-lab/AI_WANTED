@@ -9,6 +9,11 @@
 // 3개 도메인 보조(정서/학교생활/가정)가 각자 낸 소견을 먼저 보여주고, 그 아래 "🧩 종합의견"으로
 // 최종 답변을 잇는다 — 토글로 접어두지 않고 항상 다 보이게 한다(route.ts가 domainFindings로 내려줌).
 //
+// (2026-09-19) 질문창 위에 도메인 선택 칩 3개를 둔다 — 하나도 안 고르면 라이트 모드(답 하나만,
+// 가벼운 질문용), 하나 고르면 그 도메인 답만(작은 라벨만 붙고 카드/종합의견은 안 나옴), 2~3개
+// 고르면 지금까지 하던 대로 카드+종합의견이 나온다. "모든 질문에 4개씩 나와서 방대하다"는
+// 피드백으로 추가.
+//
 // (2026-09-19) UI를 Tailwind로 다시 짬 — docs/ARCHITECTURE.md 원칙 6번(화면별 점진적 전환)에 따라
 // 제 담당 화면부터 시작. styles/prototype-teacher-shared.css의 .btn 계열은 더 안 쓴다(전부 Tailwind).
 // 응답이 3~8초 걸리는데 그동안 아무 표시가 없었던 것도 같이 고쳐서, 보내는 동안 타이핑 점 3개를 보여준다.
@@ -18,16 +23,21 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useAgentChat, type DomainFinding } from "./useAgentChat";
+import { useAgentChat, type AgentDomain, type DomainFinding } from "./useAgentChat";
 // 로봇 이모지(🤖)는 차갑다는 피드백 → 학생 쪽 브랜드 얼굴(SalpimFace)로 바꿔봤는데 그것도 안 예쁘다는
 // 피드백 → 올빼미로 교체 (AgentOwlIcon, 이 폴더 안에서 직접 만든 아이콘, 단독 소유).
 import AgentOwlIcon from "./AgentOwlIcon";
 
-const DOMAIN_STYLE: Record<string, { icon: string; bar: string }> = {
-  emotion: { icon: "💚", bar: "bg-emerald-400" },
-  learning: { icon: "📔", bar: "bg-amber-400" },
-  home: { icon: "🏠", bar: "bg-sky-400" },
+// context.ts(server-only)의 DOMAIN_LABEL을 클라이언트에서 못 불러오니 여기서 아이콘·짧은 라벨을
+// 따로 정의한다 — 값("emotion"|"learning"|"home")만 서버와 맞으면 된다.
+// (DomainFinding.domain은 string이라 조회 키도 string으로 열어둔다 — AgentDomain으로 좁히면
+// f.domain 인덱싱에서 타입 에러가 난다.)
+const DOMAIN_STYLE: Record<string, { icon: string; bar: string; label: string }> = {
+  emotion: { icon: "💚", bar: "bg-emerald-400", label: "정서" },
+  learning: { icon: "📔", bar: "bg-amber-400", label: "학교생활" },
+  home: { icon: "🏠", bar: "bg-sky-400", label: "가정 연계" },
 };
+const DOMAIN_ORDER: AgentDomain[] = ["emotion", "learning", "home"];
 
 function EvidenceChips({ evidence }: { evidence: string[] }) {
   if (evidence.length === 0) return null;
@@ -82,7 +92,19 @@ function TypingDots() {
 }
 
 export default function TeacherAgentWidget() {
-  const { messages, open, setOpen, input, setInput, send, sending, scopedStudentName, studentId } = useAgentChat();
+  const {
+    messages,
+    open,
+    setOpen,
+    input,
+    setInput,
+    send,
+    sending,
+    scopedStudentName,
+    studentId,
+    selectedDomains,
+    toggleDomain,
+  } = useAgentChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,6 +160,11 @@ export default function TeacherAgentWidget() {
                   <div className="mt-0.5 text-[11px] font-bold text-gray-500">🧩 종합의견</div>
                 </>
               )}
+              {m.respondedDomain && (
+                <div className="text-[11px] font-bold text-gray-500">
+                  {DOMAIN_STYLE[m.respondedDomain]?.icon} {DOMAIN_STYLE[m.respondedDomain]?.label} 관점
+                </div>
+              )}
               <div
                 className={`whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
                   m.role === "user" ? "rounded-br-sm bg-indigo-600 text-white" : "rounded-bl-sm bg-gray-100 text-gray-900"
@@ -149,6 +176,31 @@ export default function TeacherAgentWidget() {
             </div>
           ))}
           {sending && <TypingDots />}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-2.5 pt-2">
+          <span className="text-[10px] text-gray-400">관점 선택</span>
+          {DOMAIN_ORDER.map((domain) => {
+            const style = DOMAIN_STYLE[domain];
+            const active = selectedDomains.includes(domain);
+            return (
+              <button
+                key={domain}
+                type="button"
+                onClick={() => toggleDomain(domain)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  active
+                    ? "border-indigo-500 bg-indigo-600 text-white"
+                    : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                }`}
+              >
+                {style.icon} {style.label}
+              </button>
+            );
+          })}
+          <span className="ml-auto text-[10px] text-gray-400">
+            {selectedDomains.length === 0 ? "안 고르면 짧게 답해요" : `${selectedDomains.length}개 관점`}
+          </span>
         </div>
 
         <form
