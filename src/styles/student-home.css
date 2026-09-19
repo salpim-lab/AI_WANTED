@@ -187,10 +187,35 @@
   cursor: pointer;
   transition: color 0.15s, transform 0.15s;
 }
-.mood-screen.active .sh-header,
-.chat-screen.active:not(.item-prep) .sh-header,
-.island-screen.active:not(.island-screen--preparing) .sh-header {
-  left: 5.2cqw;
+/* 홈으로 가는 버튼 — 뒤로가기의 짝. 오른쪽 모서리, 프로필 바깥쪽에 둔다. */
+.student-home-btn {
+  position: absolute;
+  right: 1.2cqw;
+  top: 4.4cqh;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  padding: 1cqh 0.8cqh;
+  border: 0;
+  background: transparent;
+  color: #b3bacb;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.student-home-btn:hover { color: var(--sh-navy); }
+.student-home-btn:active { transform: translateY(0.2cqh) scale(0.98); }
+.student-home-btn:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+
+/* 로고·프로필은 버튼이 실제로 떠 있을 때만 안쪽으로 비켜 선다.
+   버튼이 없는 순간(로딩·AI 응답 대기·장면 전환)에는 모서리에 그대로 붙어 빈자리가 생기지 않는다.
+   버튼은 페이지가 스테이지 바로 아래에 그리므로 스테이지의 :has 로 판단한다. */
+.sh-header,
+.sh-profile { transition: left 0.25s ease, right 0.25s ease; }
+.tablet-stage:has(> .student-back) .sh-header { left: 5.2cqw; }
+.tablet-stage:has(> .student-home-btn) .sh-profile { right: 5.4cqw; }
+@media (prefers-reduced-motion: reduce) {
+  .sh-header,
+  .sh-profile { transition: none; }
 }
 .student-back__icon {
   width: 3.8cqh;
@@ -599,6 +624,58 @@
 @media (prefers-reduced-motion: reduce) {
   .sh-to-checkout,
   .sh-to-teacher { animation: none; }
+}
+
+/* 하교 홈 "교사 시점으로 전환하기" — 올리면 아래에 안내 말풍선 */
+.sh-teacher-switch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.sh-teacher-tip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 1.6cqh);
+  z-index: 5;
+  width: max-content;
+  max-width: 50cqh;
+  padding: 1.3cqh 2cqh;
+  border-radius: 1.6cqh;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 0.8cqh 2.4cqh rgba(40, 48, 90, 0.16);
+  color: var(--sh-navy);
+  font-size: 2.1cqh;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  word-break: keep-all;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -0.6cqh);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+/* 위쪽 꼬리 */
+.sh-teacher-tip::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -0.8cqh;
+  width: 1.6cqh;
+  height: 1.6cqh;
+  background: inherit;
+  border-radius: 0.3cqh 0 0 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+.sh-teacher-switch:hover .sh-teacher-tip,
+.sh-teacher-switch:focus-within .sh-teacher-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-teacher-tip { transition: none; }
 }
 
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */

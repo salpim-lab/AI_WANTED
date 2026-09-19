@@ -30,6 +30,9 @@ export function stepFromPath(base: string, pathname: string): number {
   return i <= 0 ? 1 : i + 1;
 }
 
+/** 주소를 바꿔도 뒤의 ?tune=1 같은 조건은 그대로 둔다 — 빠지면 개발용 편지 조절 패널이 안 떴다 */
+const withQuery = (path: string) => path + window.location.search;
+
 const readState = (): StepState => (typeof window === "undefined" ? {} : (window.history.state ?? {}));
 
 export function useStepUrl({
@@ -51,6 +54,8 @@ export function useStepUrl({
   const canShowRef = useRef(canShow);
   const prevStepRef = useRef(step);
   const mountedRef = useRef(false);
+  // 홈 버튼으로 기록을 여러 칸 되감는 중. 되감기가 끝나기(popstate) 전에 단계가 1로 바뀌어도 기록을 쌓지 않는다.
+  const homingRef = useRef(false);
 
   useEffect(() => {
     canShowRef.current = canShow;
@@ -60,10 +65,10 @@ export function useStepUrl({
   useEffect(() => {
     const target = stepFromPath(base, window.location.pathname);
     if (target > 1 && canShowRef.current(target)) {
-      window.history.replaceState({ salpimStep: target, salpimDepth: 0 } satisfies StepState, "", pathForStep(base, target));
+      window.history.replaceState({ salpimStep: target, salpimDepth: 0 } satisfies StepState, "", withQuery(pathForStep(base, target)));
       goTo(target);
     } else {
-      window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", base);
+      window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", withQuery(base));
     }
     // 처음 한 번만
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,27 +82,29 @@ export function useStepUrl({
       mountedRef.current = true;
       return;
     }
+    if (homingRef.current) return;
     const want = pathForStep(base, step);
     if (window.location.pathname === want) return;
     const depth = (readState().salpimDepth ?? 0) + 1;
     // 끝난 대화로는 돌아가지 않는다: 대화 → 아이템은 기록을 쌓지 않고 바꿔치기한다.
     // 그래서 아이템 화면에서 뒤로 가면 마음 신호등으로 간다(화면의 뒤로가기도 끝난 대화로는 못 간다).
     if (prev === 3 && step === 4) {
-      window.history.replaceState({ salpimStep: step, salpimDepth: depth - 1 } satisfies StepState, "", want);
+      window.history.replaceState({ salpimStep: step, salpimDepth: depth - 1 } satisfies StepState, "", withQuery(want));
     } else {
-      window.history.pushState({ salpimStep: step, salpimDepth: depth } satisfies StepState, "", want);
+      window.history.pushState({ salpimStep: step, salpimDepth: depth } satisfies StepState, "", withQuery(want));
     }
   }, [base, step]);
 
   // 브라우저 뒤로·앞으로: 주소의 단계로 맞춘다. 보여줄 수 없는 단계면 홈으로.
   useEffect(() => {
     const onPop = () => {
+      homingRef.current = false;
       const target = stepFromPath(base, window.location.pathname);
       if (canShowRef.current(target)) {
         prevStepRef.current = target;
         goTo(target);
       } else {
-        window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", base);
+        window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", withQuery(base));
         prevStepRef.current = 1;
         goTo(1);
       }
@@ -114,9 +121,25 @@ export function useStepUrl({
     }
     // 이 흐름 안의 앞 기록이 없다(주소로 바로 들어온 경우). 페이지를 벗어나지 않게 직접 한 단계 앞으로.
     const prev = Math.max(1, step - 1);
-    window.history.replaceState({ salpimStep: prev, salpimDepth: 0 } satisfies StepState, "", pathForStep(base, prev));
+    window.history.replaceState({ salpimStep: prev, salpimDepth: 0 } satisfies StepState, "", withQuery(pathForStep(base, prev)));
     goTo(prev);
   }, [base, goTo, step]);
 
-  return { back };
+  /**
+   * 화면의 홈 버튼. 이 흐름에서 쌓은 기록을 한 번에 되감아 홈 주소로 돌아간다.
+   * 되감기라서 홈에서 브라우저 뒤로가기를 눌러도 방금 떠난 단계로 다시 들어가지 않는다.
+   */
+  const home = useCallback(() => {
+    const depth = readState().salpimDepth ?? 0;
+    if (depth > 0) {
+      homingRef.current = true;
+      window.history.go(-depth);
+    } else {
+      window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", withQuery(base));
+    }
+    prevStepRef.current = 1;
+    goTo(1);
+  }, [base, goTo]);
+
+  return { back, home };
 }
