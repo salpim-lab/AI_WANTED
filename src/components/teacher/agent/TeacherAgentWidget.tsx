@@ -42,12 +42,21 @@ import { SIGNAL_COLORS } from "@/lib/constants/colors";
 // f.domain 인덱싱에서 타입 에러가 난다.)
 // barColor는 신호등 색 순서(초록·노랑·남색)를 그대로 매긴 것 — 실제 정서/학교생활/가정 상태를
 // 나타내는 색은 아니고, 세 카드를 구분하는 용도로 사이트 색상 팔레트를 재사용한 것뿐이다.
-const DOMAIN_STYLE: Record<string, { icon: string; barColor: string; label: string }> = {
-  emotion: { icon: "💚", barColor: SIGNAL_COLORS.green.hex, label: "정서" },
-  learning: { icon: "📔", barColor: SIGNAL_COLORS.yellow.hex, label: "학교생활" },
-  home: { icon: "🏠", barColor: SIGNAL_COLORS.navy.hex, label: "가정 연계" },
+//
+// (2026-09-19) "이모지가 너무 AI티 난다"는 피드백 — 💚📔🏠🧩📎📌처럼 라벨마다 색색깔 이모지를
+// 붙였던 걸 다 뺐다. 이미 barColor(색깔바/점)로 도메인을 구분하고 있어서 이모지 없이도 식별은
+// 되고, 이모지를 빼니 타이포그래피 위주의 더 차분한 제품 느낌이 된다.
+const DOMAIN_STYLE: Record<string, { barColor: string; label: string }> = {
+  emotion: { barColor: SIGNAL_COLORS.green.hex, label: "정서" },
+  learning: { barColor: SIGNAL_COLORS.yellow.hex, label: "학교생활" },
+  home: { barColor: SIGNAL_COLORS.navy.hex, label: "가정 연계" },
 };
 const DOMAIN_ORDER: AgentDomain[] = ["emotion", "learning", "home"];
+
+/** 라벨 앞에 붙는 작은 색 점 — 이모지 대신 barColor로 도메인을 구분한다. */
+function Dot({ color }: { color: string }) {
+  return <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full align-middle" style={{ backgroundColor: color }} aria-hidden />;
+}
 
 function EvidenceChips({ evidence }: { evidence: string[] }) {
   if (evidence.length === 0) return null;
@@ -58,7 +67,7 @@ function EvidenceChips({ evidence }: { evidence: string[] }) {
           key={i}
           className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
         >
-          📎 {e}
+          {e}
         </span>
       ))}
     </div>
@@ -69,14 +78,13 @@ function DomainFindings({ findings }: { findings: DomainFinding[] }) {
   return (
     <div className="flex w-full flex-col gap-1.5">
       {findings.map((f) => {
-        const style = DOMAIN_STYLE[f.domain] ?? { icon: "🔹", barColor: "#d1d5db" };
+        const style = DOMAIN_STYLE[f.domain] ?? { barColor: "#d1d5db" };
         return (
           <div key={f.domain} className="flex gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
             <span className="w-1 shrink-0 rounded-full" style={{ backgroundColor: style.barColor }} aria-hidden />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <div className="text-[11px] font-bold text-gray-600">
-                {style.icon} {f.label}
-              </div>
+              {/* 카드 왼쪽에 이미 색깔바가 있어서 라벨 옆에 점을 또 넣으면 중복이라 텍스트만 */}
+              <div className="text-[11px] font-bold text-gray-600">{f.label}</div>
               <div className="whitespace-pre-line text-xs text-gray-900">{f.finding}</div>
               <EvidenceChips evidence={f.evidence} />
             </div>
@@ -147,7 +155,7 @@ export default function TeacherAgentWidget() {
 
         {studentId && (
           <div className="border-b border-indigo-100 bg-indigo-50 px-4 py-1.5 text-[11px] font-medium text-indigo-700">
-            📌 {scopedStudentName ?? "이 페이지의 학생"} 기준으로 답해요
+            {scopedStudentName ?? "이 페이지의 학생"} 기준으로 답해요
           </div>
         )}
 
@@ -167,12 +175,13 @@ export default function TeacherAgentWidget() {
               {m.domainFindings && m.domainFindings.length > 0 && (
                 <>
                   <DomainFindings findings={m.domainFindings} />
-                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">🧩 종합의견</div>
+                  <div className="mt-0.5 text-[11px] font-bold text-gray-500">종합의견</div>
                 </>
               )}
               {m.respondedDomain && (
-                <div className="text-[11px] font-bold text-gray-500">
-                  {DOMAIN_STYLE[m.respondedDomain]?.icon} {DOMAIN_STYLE[m.respondedDomain]?.label} 관점
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+                  <Dot color={DOMAIN_STYLE[m.respondedDomain]?.barColor ?? "#d1d5db"} />
+                  {DOMAIN_STYLE[m.respondedDomain]?.label} 관점
                 </div>
               )}
               <div
@@ -201,13 +210,14 @@ export default function TeacherAgentWidget() {
                   key={domain}
                   type="button"
                   onClick={() => toggleDomain(domain)}
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                     active
                       ? "border-indigo-500 bg-indigo-600 text-white"
                       : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
                   }`}
                 >
-                  {style.icon} {style.label}
+                  <Dot color={style.barColor} />
+                  {style.label}
                 </button>
               );
             })}
