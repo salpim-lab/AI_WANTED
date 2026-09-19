@@ -10,9 +10,11 @@
 
 import { useActionState, useState } from "react";
 import { createConsultation } from "@/app/(teacher)/consultation/actions";
+import { todayKst } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
 import TagInput, { type TagOption } from "@/components/shared/TagInput";
-import { errorText, fieldLabel, helperNote, textArea, textInput } from "@/components/shared/ui";
+import { boardActionButton, errorText, fieldLabel, helperNote, textArea, textInput } from "@/components/shared/ui";
 import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
 import DataExportBox from "./DataExportBox";
 import MethodPicker from "./MethodPicker";
@@ -63,7 +65,7 @@ export default function ConsultationComposer({ students, reportDays }: { student
           ✓ {state.message}
         </span>
       )}
-      <button type="button" className="btn btn-primary btn-sm" onClick={openModal}>
+      <button type="button" className={boardActionButton} onClick={openModal}>
         상담 기록
       </button>
 
@@ -108,13 +110,13 @@ export default function ConsultationComposer({ students, reportDays }: { student
           <label htmlFor="consultation-occurred-at" className={fieldLabel}>
             상담 일시 (선택)
           </label>
-          <input
+          <QuarterHourDateTimeInput
             id="consultation-occurred-at"
-            type="datetime-local"
             name="occurredAt"
             value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-            className={textInput}
+            onChange={setOccurredAt}
+            required={false}
+            max={todayKst()}
           />
 
           <label htmlFor="consultation-body" className={fieldLabel}>

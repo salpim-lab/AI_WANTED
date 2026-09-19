@@ -1,5 +1,5 @@
 // 담당: 김현우
-// 학부모상담기록 "예정된 상담" 칼럼의 "상담 예약" 버튼과 모달. 아직 상담 전이라 내용은 받지 않고
+// 학부모상담기록 "예정된 상담" 목록 위의 "상담 예약" 버튼과 모달. 아직 상담 전이라 내용은 받지 않고
 // 학생(@태그, 한 명)·상담 대상·방식·예정 일시만 받는다 — 저장은 Server Action(scheduleConsultationAction).
 // 참고: docs/prototype/prototype-teacher.html #modal-consult
 
@@ -8,8 +8,9 @@
 import { useActionState, useState } from "react";
 import { scheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import Modal from "@/components/shared/Modal";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
 import TagInput, { type TagOption } from "@/components/shared/TagInput";
-import { errorText, fieldLabel, textInput } from "@/components/shared/ui";
+import { boardActionButton, errorText, fieldLabel, textInput } from "@/components/shared/ui";
 import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
 import MethodPicker from "./MethodPicker";
 
@@ -55,7 +56,7 @@ export default function ScheduleConsultationComposer({ students }: { students: C
           ✓ {state.message}
         </span>
       )}
-      <button type="button" className="btn btn-primary btn-sm" onClick={openModal}>
+      <button type="button" className={boardActionButton} onClick={openModal}>
         상담 예약
       </button>
 
@@ -94,15 +95,7 @@ export default function ScheduleConsultationComposer({ students }: { students: C
           <label htmlFor="schedule-at" className={fieldLabel}>
             예정 일시
           </label>
-          <input
-            id="schedule-at"
-            type="datetime-local"
-            name="scheduledAt"
-            required
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-            className={textInput}
-          />
+          <QuarterHourDateTimeInput id="schedule-at" name="scheduledAt" value={scheduledAt} onChange={setScheduledAt} />
 
           {isFreshResult && state.status === "error" && (
             <p role="alert" className={errorText}>

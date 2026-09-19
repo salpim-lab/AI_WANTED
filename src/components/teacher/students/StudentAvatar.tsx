@@ -2,7 +2,7 @@
 // 아이 프로필 그림. 학생 화면과 같은 그림(public/students/<성 뺀 이름>.png)을 쓴다 —
 // 경로는 lib/students/photo.ts(이유민)의 studentPhotoPath 한 곳에서만 정한다.
 // 그림은 시드 학생용 AI 생성 이미지다(실제 아동 사진 아님). 그림이 없거나 못 불러오면 이름 첫 글자로 대신한다.
-//   size="lg": 아이 상세 머리 / size="sm": 자리 배치도 카드
+//   size="lg": 아이 상세 머리 / size="sm": 자리 배치도 카드 / size="chat": 대화 말풍선 옆 (동그라미)
 
 "use client";
 
@@ -12,6 +12,7 @@ import { studentPhotoPath } from "@/lib/students/photo";
 const SIZE = {
   lg: { box: "size-14 rounded-[20px]", text: "text-2xl" },
   sm: { box: "size-8 rounded-xl", text: "text-sm" },
+  chat: { box: "size-9 rounded-full", text: "text-base" },
 } as const;
 
 export default function StudentAvatar({

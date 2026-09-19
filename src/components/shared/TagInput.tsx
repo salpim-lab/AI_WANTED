@@ -3,15 +3,15 @@
 // 이름 문자열이 아니라 학생 id로 선택된다. name을 주면 선택된 id들을 hidden input으로 함께 제출한다
 // (Server Action에서 formData.getAll(name)).
 // 학급 명단(options)에 있는 아이만 태그할 수 있다 — 동명이인·오타로 엉뚱한 아이에게 기록이 붙지 않게.
+// 입력창을 누르면 아직 태그하지 않은 아이 전체가 가나다 순으로 뜨고, 글자를 치면 그 이름으로 좁혀진다.
 // 참고: docs/prototype/prototype-teacher.html #obs-tag-input
 
 "use client";
 
 import { useId, useState } from "react";
+import { sortByKoreanName } from "@/components/shared/sortByKoreanName";
 
 export type TagOption = { id: string; label: string };
-
-const MAX_SUGGESTIONS = 8;
 
 export default function TagInput({
   options,
@@ -29,12 +29,15 @@ export default function TagInput({
   inputId?: string;
 }) {
   const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
   const hintId = useId();
 
   const selectedIds = new Set(value.map((tag) => tag.id));
   const term = query.trim().replace(/^@/, "");
-  const candidates = options.filter((option) => !selectedIds.has(option.id) && option.label.includes(term));
-  const suggestions = candidates.slice(0, MAX_SUGGESTIONS);
+  const candidates = sortByKoreanName(
+    options.filter((option) => !selectedIds.has(option.id) && option.label.includes(term)),
+    (option) => option.label,
+  );
 
   function add(option: TagOption) {
     onChange([...value, option]);
@@ -74,6 +77,8 @@ export default function TagInput({
           autoComplete="off"
           className="min-w-20 flex-1 border-none text-xs outline-none"
           onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault(); // 태그 입력 중 Enter로 폼이 제출되지 않게
@@ -86,28 +91,28 @@ export default function TagInput({
           }}
         />
       </div>
-      {term && (
-        <div id={hintId} className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      {(focused || term) && (
+        // 칩을 눌러도 입력창 포커스가 빠지지 않게 mousedown을 막는다 (안 그러면 누르는 순간 목록이 닫힌다)
+        <div
+          id={hintId}
+          onMouseDown={(event) => event.preventDefault()}
+          className="mt-1.5 flex max-h-28 flex-wrap items-center gap-1.5 overflow-y-auto"
+        >
           {candidates.length === 0 ? (
-            <span className="text-[11px] text-gray-500">우리 반 명단에 없는 이름이에요.</span>
+            <span className="text-[11px] text-gray-500">
+              {term ? "우리 반 명단에 없는 이름이에요." : "태그할 수 있는 아이를 모두 골랐어요."}
+            </span>
           ) : (
-            <>
-              {suggestions.map((option) => (
-                <button
-                  type="button"
-                  key={option.id}
-                  onClick={() => add(option)}
-                  className="rounded-full border-[1.5px] border-gray-200 bg-[#f8f7f4] px-2.5 py-[3px] text-[11px] font-semibold text-gray-500 transition-colors hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-500"
-                >
-                  {option.label}
-                </button>
-              ))}
-              {candidates.length > suggestions.length && (
-                <span className="text-[11px] text-gray-400">
-                  외 {candidates.length - suggestions.length}명 — 이름을 더 입력해 좁혀보세요
-                </span>
-              )}
-            </>
+            candidates.map((option) => (
+              <button
+                type="button"
+                key={option.id}
+                onClick={() => add(option)}
+                className="rounded-full border-[1.5px] border-gray-200 bg-[#f8f7f4] px-2.5 py-[3px] text-[11px] font-semibold text-gray-500 transition-colors hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-500"
+              >
+                {option.label}
+              </button>
+            ))
           )}
         </div>
       )}
