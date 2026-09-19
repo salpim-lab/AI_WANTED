@@ -18,7 +18,7 @@ import type { SignalColor } from "@/lib/types/signal";
 
 /** 화면 한 줄. components/teacher/dashboard/mockData.ts 의 BriefingStudent 와 같은 모양이다. */
 export type BriefingRow = {
-  studentId: number;
+  studentId: string | number;
   name: string;
   tone: SignalColor;
   status: string;
