@@ -188,7 +188,8 @@
   transition: color 0.15s, transform 0.15s;
 }
 /* 홈으로 가는 버튼 — 프로필 알약 바로 오른쪽에 같은 높이(7.2cqh = 사진 5.4 + 위아래 0.9)의
-   흰 원으로 둔다. 뒤로가기처럼 맨 선만 두면 알약 옆에서 작고 흐려 보였고, 섬 위에서는 묻혔다. */
+   흰 원으로 둔다. 뒤로가기처럼 맨 선만 두면 알약 옆에서 작고 흐려 보였고, 섬 위에서는 묻혔다.
+   흰 원이 받쳐 주므로 아이콘은 뒤로가기와 같은 연회색이어도 보인다. */
 .student-home-btn {
   position: absolute;
   right: 2.2cqw;
@@ -203,12 +204,13 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.14);
-  color: var(--sh-navy);
+  /* 아이콘 색은 뒤로가기와 같게 — 올리면 둘 다 남색이 된다 */
+  color: #b3bacb;
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
 }
 .student-home-btn .student-back__icon { width: 3.6cqh; height: 3.6cqh; stroke-width: 2; }
-.student-home-btn:hover { background: #fff; }
+.student-home-btn:hover { background: #fff; color: var(--sh-navy); }
 .student-home-btn:active { transform: translateY(0.2cqh) scale(0.97); }
 .student-home-btn:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
