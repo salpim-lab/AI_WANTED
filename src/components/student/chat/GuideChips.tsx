@@ -16,14 +16,15 @@ import { useEffect, useState } from "react";
 import { hintLines } from "@/lib/chat/hints";
 
 /** 한 줄이 떠올라 머물다 사라지는 시간 */
-const LINE_MS = 4200;
+const LINE_MS = 2600;
 
 /**
- * 힌트 문장을 한 줄씩 **한 번만** 흘려 보여준 뒤, 말하기 버튼 위에 말풍선 하나로 정리해 둔다.
- * 계속 흘리면 같은 말이 반복돼 피로했다. 다 흐른 뒤에는 움직이지 않는 말풍선으로 남는다.
+ * 힌트를 한 문장으로 이어 한 줄씩 **한 번만** 흘린 뒤, 주제마다 구름 말풍선으로 흩어 둔다.
+ * 계속 흘리면 같은 말이 반복돼 피로했다. 다 흐른 뒤에는 말풍선들이 조용히 떠 있다.
  * 줄마다 key 를 바꿔 등장 애니메이션을 처음부터 다시 틀게 한다.
  */
-function HintFlow({ lines }: { lines: string[] }) {
+function HintFlow({ topics }: { topics: string[] }) {
+  const lines = hintLines(topics);
   // index: 지금 흘리는 줄. lines.length 에 닿으면 말풍선으로 정리된 상태
   const [index, setIndex] = useState(0);
   const settled = index >= lines.length;
@@ -33,21 +34,29 @@ function HintFlow({ lines }: { lines: string[] }) {
     return () => window.clearTimeout(id);
   }, [index, settled]);
 
+  if (settled) {
+    // 주제마다 구름 말풍선. 누르는 것이 아니다.
+    return (
+      <div className="guide-chips" role="note">
+        <span className="sr-only">{lines.join(" ")}</span>
+        <ul className="guide-chips__row" aria-hidden="true">
+          {topics.map((t) => (
+            <li key={t} className="guide-chip guide-chip--hint">
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return (
     <div className="guide-flow" role="note">
       <span className="sr-only">{lines.join(" ")}</span>
-      {settled ? (
-        // 살핌이 건네는 한마디 — 아래(말하기 버튼)를 가리키는 꼬리. 누르는 것이 아니다.
-        <p className="guide-bubble" aria-hidden="true">
-          {lines.join(" ")}
+      <div className="guide-flow__stage" aria-hidden="true">
+        <p key={index} className="guide-flow__line">
+          {lines[index]}
         </p>
-      ) : (
-        <div className="guide-flow__stage" aria-hidden="true">
-          <p key={index} className="guide-flow__line">
-            {lines[index]}
-          </p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -75,7 +84,7 @@ export default function GuideChips({
 }) {
   if (!selectable) {
     if (!hints.length) return null;
-    return <HintFlow lines={hintLines(hints)} />;
+    return <HintFlow topics={hints} />;
   }
 
   if (!replies?.length && !replies2?.length) return null;

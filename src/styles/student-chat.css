@@ -344,7 +344,7 @@
 }
 
 /* 힌트 흐름 — 한 문장을 줄마다 나눠, 한 줄씩 아래에서 천천히 떠올랐다가 위로 사라진다.
-   한 번만 흐르고, 다 흐르면 말하기 버튼 위에 말풍선(.guide-bubble)으로 정리돼 머문다.
+   한 번만 흐르고, 다 흐르면 주제마다 구름 말풍선(.guide-chip--hint)으로 흩어져 머문다.
    살핌 로고 글꼴(Jua). 굵기가 하나뿐이라 font-weight 를 올리지 않는다 — 올리면 가짜 굵기가 입혀진다. */
 .guide-flow {
   display: flex;
@@ -364,48 +364,13 @@
   font-weight: 400;
   font-size: 2.6cqh;
   color: #8a8fa6;
-  animation: guideLine 4.2s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: guideLine 2.6s cubic-bezier(0.45, 0, 0.55, 1) both;
 }
 @keyframes guideLine {
   0% { opacity: 0; transform: translateY(1.2cqh); }
   20% { opacity: 1; transform: translateY(0); }
   78% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-1.2cqh); }
-}
-
-/* 다 흐른 뒤 머무는 말풍선. 아래로 뾰족한 꼬리가 말하기 버튼을 가리킨다.
-   테두리 없이 옅은 바탕 + 부드러운 그림자 — 버튼이 아니라 살핌이 건네는 한마디로 읽히게 한다. */
-@keyframes guideBubbleIn {
-  from { opacity: 0; transform: translateY(1cqh); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.guide-bubble {
-  position: relative;
-  max-width: 72%;
-  margin: 0 auto 1.4cqh;
-  padding: 1.4cqh 2.8cqh;
-  border-radius: 2.4cqh;
-  background: #f1f1f6;
-  box-shadow: 0 0.5cqh 1.4cqh rgba(60, 68, 110, 0.08);
-  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
-  font-weight: 400;
-  font-size: 2.4cqh;
-  line-height: 1.5;
-  color: #7a8097;
-  text-align: center;
-  animation: guideBubbleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.guide-bubble::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -1cqh;
-  width: 2cqh;
-  height: 2cqh;
-  margin-left: -1cqh;
-  background: inherit;
-  transform: rotate(45deg);
-  border-radius: 0 0 0.4cqh 0;
 }
 
 /* 가이드 칩 — 망설일 때만 올라온다 */
@@ -457,16 +422,24 @@
   border-radius: 999px;
   padding: 1.2cqh 2.4cqh;
   /* 연회색 — 화면의 보라 계열 사이에서 가장 조용한 색. 힌트가 눈에 먼저 들어오면 안 된다. */
-  background: #eff0f4;
-  /* 아주 옅은 윤곽 — 꼬리 점까지 같은 선을 둘러야 생각 풍선 모양이 드러난다.
-     윤곽 없이 바탕색만 두면 꼬리가 배경에 묻혀 그냥 둥근 버튼처럼 읽혔다. */
-  box-shadow: inset 0 0 0 0.18cqh #dde0e8;
+  /* 흰 구름 + 부드러운 그림자. 그림자(drop-shadow)는 풍선과 꼬리 점 모양을 그대로 따라가서
+     테두리 없이도 생각 풍선 윤곽이 보인다. 회색 바탕만 두면 꼬리가 배경에 묻혀 버튼처럼 읽혔고,
+     테두리를 두르면 딱딱했다. */
+  background: #fdfdff;
+  filter: drop-shadow(0 0.4cqh 0.8cqh rgba(60, 68, 110, 0.13));
   color: #5f6478;
   font-weight: 500;
   cursor: default;
   user-select: none;
   pointer-events: none;
-  animation: guideFloat 5.4s ease-in-out infinite alternate;
+  animation:
+    guideBubbleIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both,
+    guideFloat 5.4s ease-in-out 0.7s infinite alternate;
+}
+/* 구름이 하나씩 차례로 떠오른다 */
+@keyframes guideBubbleIn {
+  from { opacity: 0; transform: translateY(1cqh); }
+  to { opacity: 1; transform: translateY(-0.2cqh); }
 }
 /* 생각 풍선 꼬리: 크고 작은 점 두 개 */
 .guide-chip--hint::before,
@@ -475,7 +448,6 @@
   position: absolute;
   border-radius: 50%;
   background: inherit;
-  box-shadow: inherit;
 }
 /* 풍선에서 살짝 떨어져 대각선으로 작아지는 점 두 개 */
 .guide-chip--hint::before { width: 1.7cqh; height: 1.7cqh; left: 2.4cqh; bottom: -2cqh; }
@@ -485,13 +457,13 @@
 .guide-chip--hint:nth-child(1) { translate: 0 -0.5cqh; }
 .guide-chip--hint:nth-child(2) {
   translate: 0 0.5cqh;
-  animation-delay: -2s;
-  animation-duration: 6s;
+  animation-delay: 0.15s, 0.85s;
+  animation-duration: 0.7s, 6s;
 }
 .guide-chip--hint:nth-child(3) {
   translate: 0 -0.2cqh;
-  animation-delay: -3.6s;
-  animation-duration: 5s;
+  animation-delay: 0.3s, 1s;
+  animation-duration: 0.7s, 5s;
 }
 /* 가운데 풍선은 꼬리를 오른쪽에 — 다 같은 쪽이면 줄 세운 것처럼 보인다 */
 .guide-chip--hint:nth-child(2)::before { left: auto; right: 2.4cqh; }
@@ -582,11 +554,9 @@
   .guide-chips,
   .guide-chip--hint,
   .guide-flow,
-  .guide-flow__line,
-  .guide-bubble { animation: none; }
+  .guide-flow__line { animation: none; }
   /* 움직임을 줄이면 흘리지 않고 문장 전체를 한 줄로 보여준다 */
-  .guide-flow__stage,
-  .guide-bubble { display: none; }
+  .guide-flow__stage { display: none; }
   .guide-flow .sr-only { position: static; width: auto; height: auto; clip: auto; margin: 0; overflow: visible; white-space: normal; font-size: 2.3cqh; color: #7a8097; text-align: center; }
   .chat-typing span { animation: none; }
 }
