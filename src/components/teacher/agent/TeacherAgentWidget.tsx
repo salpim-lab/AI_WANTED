@@ -27,15 +27,21 @@ import { useAgentChat, type AgentDomain, type DomainFinding } from "./useAgentCh
 // 로봇 이모지(🤖)는 차갑다는 피드백 → 학생 쪽 브랜드 얼굴(SalpimFace)로 바꿔봤는데 그것도 안 예쁘다는
 // 피드백 → 올빼미로 교체 (AgentOwlIcon, 이 폴더 안에서 직접 만든 아이콘, 단독 소유).
 import AgentOwlIcon from "./AgentOwlIcon";
+// (2026-09-19) 도메인 카드 색깔바를 사이트에서 쓰는 신호등 색과 통일해달라는 피드백 — 임의로 고른
+// emerald/amber/sky 대신 김현우 소유 shared/signalStyles.ts(SIGNAL_DOT, 교사 화면 신호등 색의
+// 원본)를 그대로 가져다 쓴다. 남의 파일은 안 고치고 import만 한다는 원칙 유지.
+import { SIGNAL_DOT } from "@/components/shared/signalStyles";
 
 // context.ts(server-only)의 DOMAIN_LABEL을 클라이언트에서 못 불러오니 여기서 아이콘·짧은 라벨을
 // 따로 정의한다 — 값("emotion"|"learning"|"home")만 서버와 맞으면 된다.
 // (DomainFinding.domain은 string이라 조회 키도 string으로 열어둔다 — AgentDomain으로 좁히면
 // f.domain 인덱싱에서 타입 에러가 난다.)
+// bar 색은 신호등 색 순서(초록·노랑·남색)를 그대로 매긴 것 — 실제 정서/학교생활/가정 상태를
+// 나타내는 색은 아니고, 세 카드를 구분하는 용도로 사이트 색상 팔레트를 재사용한 것뿐이다.
 const DOMAIN_STYLE: Record<string, { icon: string; bar: string; label: string }> = {
-  emotion: { icon: "💚", bar: "bg-emerald-400", label: "정서" },
-  learning: { icon: "📔", bar: "bg-amber-400", label: "학교생활" },
-  home: { icon: "🏠", bar: "bg-sky-400", label: "가정 연계" },
+  emotion: { icon: "💚", bar: SIGNAL_DOT.green, label: "정서" },
+  learning: { icon: "📔", bar: SIGNAL_DOT.yellow, label: "학교생활" },
+  home: { icon: "🏠", bar: SIGNAL_DOT.navy, label: "가정 연계" },
 };
 const DOMAIN_ORDER: AgentDomain[] = ["emotion", "learning", "home"];
 
