@@ -47,21 +47,22 @@ function parseDomains(value: unknown): AgentDomain[] {
   return [...seen];
 }
 
-// (2026-09-19) 모델 답변 끝의 "[USED] EM1,EM3" 줄을 읽어 실제로 인용한 근거만 골라낸다.
+// (2026-09-19) 모델 답변 끝의 "[USED] EM1,EM3"를 읽어 실제로 인용한 근거만 골라낸다.
 // 예전엔 domain.evidence(컨텍스트로 넘긴 원본 전체, 예: 최근 3일치 체크인 6개)를 항상 그대로
 // 보여줘서 "오늘은 어때?"처럼 하루만 물어도 근거 칩이 9개씩 붙어 답변 내용과 따로 노는 문제가
 // 있었다 — prompt.ts(EVIDENCE_TAG_RULE)가 태그 규칙을 알려주고, 여기서 그 결과를 파싱한다.
-// 형식이 없거나(구형 응답, 모델이 규칙을 안 지킴) 태그가 하나도 안 읽히면 원본 전체를 그대로
-// 보여주는 폴백 — 근거가 아예 안 보이는 것보단 많이 보이는 쪽이 안전하다.
+//
+// (2026-09-19 수정) 처음엔 "[USED]가 마지막 줄 전체"라고 가정하고 줄 단위로 잘랐는데, 모델이
+// "...관찰되었습니다. [USED] EL1,EL2"처럼 마지막 문장 뒤에 줄바꿈 없이 이어 붙이는 경우가 있었다
+// — 그러면 매칭에 실패해서 [USED] 태그가 안 지워진 채로 화면에 그대로 노출됐다. 줄 단위 대신
+// 문자열 끝에서 "[USED] 태그, 태그" 패턴을 직접 찾도록 바꿔서 줄바꿈 유무와 무관하게 잡는다.
 function extractUsedEvidence(rawText: string, evidenceIndex: Map<string, string>, fallback: string[]): { text: string; evidence: string[] } {
-  const lines = rawText.trimEnd().split("\n");
-  const lastLine = lines[lines.length - 1]?.trim() ?? "";
-  const match = lastLine.match(/^\[USED\]\s*(.+)$/);
-  if (!match) return { text: rawText, evidence: fallback };
+  const match = rawText.match(/\[USED\]\s*([A-Za-z]{2}\d+(?:\s*,\s*[A-Za-z]{2}\d+)*)\s*$/);
+  if (!match || match.index === undefined) return { text: rawText, evidence: fallback };
 
   const tags = match[1].split(",").map((t) => t.trim().toUpperCase());
   const used = tags.map((t) => evidenceIndex.get(t)).filter((label): label is string => Boolean(label));
-  const text = lines.slice(0, -1).join("\n").trim();
+  const text = rawText.slice(0, match.index).trim();
   if (!used.length) return { text: text || rawText, evidence: fallback };
   return { text: text || rawText, evidence: used };
 }
