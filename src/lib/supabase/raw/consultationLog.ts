@@ -41,11 +41,13 @@ type ConsultationRow = {
   method: string | null;
   evidence_refs: unknown;
   created_at: string;
+  // (2026-09-20, 이지현 제안) findClassConsultation의 소유권 확인용으로 SELECT에 추가.
+  teacher_id: string;
   work_records: { id: string; title: string; body: string; occurred_at: string; created_at: string } | null;
 };
 
 const SELECT =
-  "id, enrollment_id, work_record_id, scheduled_at, status, counterpart, method, evidence_refs, created_at, work_records(id, title, body, occurred_at, created_at)";
+  "id, enrollment_id, work_record_id, scheduled_at, status, counterpart, method, evidence_refs, created_at, teacher_id, work_records(id, title, body, occurred_at, created_at)";
 
 function toConsultationLog(db: RecordDb, row: ConsultationRow): ConsultationLog | null {
   const record = row.work_records;
@@ -107,12 +109,21 @@ async function listByStatus(
   return (data ?? []) as ConsultationRow[];
 }
 
-/** 담당 학급의 상담 한 건 — 다른 학급 건이면 null */
-async function findClassConsultation(db: RecordDb, id: string): Promise<ConsultationRow | null> {
+/**
+ * 담당 학급의 상담 한 건 — 다른 학급 건이면 null.
+ * (2026-09-20, 이지현 제안) viewerTeacherId를 주면 소유권도 같이 확인한다 — 이 상담이
+ * "공용(진짜 담임이 예약한 것)"이거나 "나(viewerTeacherId)"의 것일 때만 돌려준다. 이전엔
+ * id만 맞으면 다른 학급이 아닌 한 누구든 이 행을 찾아 reschedule/complete할 수 있었다 —
+ * 데모 모드에서 방문자 B가 A의 parent_consultations.id를 알아내면(URL 등) A의 예정된 상담을
+ * 고치거나 완료 처리할 수 있는 구멍이었다. 안 주면(기존 호출부) 기존과 동일하게 동작.
+ */
+async function findClassConsultation(db: RecordDb, id: string, viewerTeacherId?: string): Promise<ConsultationRow | null> {
   const { data, error } = await db.client.from("parent_consultations").select(SELECT).eq("id", id).maybeSingle();
   if (error) throw error;
   const row = data as ConsultationRow | null;
-  return row && db.studentByEnrollment.has(row.enrollment_id) ? row : null;
+  if (!row || !db.studentByEnrollment.has(row.enrollment_id)) return null;
+  if (viewerTeacherId && row.teacher_id !== viewerTeacherId && row.teacher_id !== db.teacherId) return null;
+  return row;
 }
 
 /** 봉인된 상담 원문 1건 + 그 아이 연결. 호출 전에 모든 확인을 끝내 둘 것 (봉인 뒤에는 되돌릴 수 없다) */
@@ -213,9 +224,15 @@ export async function scheduleConsultation(input: NewScheduledConsultation): Pro
  * 예정된 상담의 일시·상담 대상·방식을 바꾼다 — parent_consultations(일정 메타)만 갱신한다.
  * 아직 상담 전이라 work_records가 없는 건만 허용하고, 완료된 상담(봉인된 원문이 있는 건)은 거부한다.
  */
-export async function rescheduleConsultation(input: RescheduleConsultation): Promise<ScheduledConsultation> {
+export async function rescheduleConsultation(
+  input: RescheduleConsultation,
+  viewerTeacherId?: string,
+): Promise<ScheduledConsultation> {
   const db = await recordDb(input.classId);
-  const row = db ? await findClassConsultation(db, input.id) : null;
+  // (2026-09-20, 이지현 제안) viewerTeacherId를 안 넘기면 이 소유권 확인이 안 걸린다 —
+  // 호출부(consultation/actions.ts, 김현우 소유)가 teacher.id를 넘기도록 같이 고쳐야
+  // 이 경로가 실제로 막힌다. 아직 안 넘기고 있어서 이 자리는 그 전까지 기존과 동일하게 동작.
+  const row = db ? await findClassConsultation(db, input.id, viewerTeacherId) : null;
   if (!db || !row) throw new Error("담당 학급의 예정된 상담이 아닙니다");
   if (row.status !== "preparing" || row.work_record_id) throw new Error("완료된 상담은 바꿀 수 없습니다");
 
@@ -242,7 +259,10 @@ export async function rescheduleConsultation(input: RescheduleConsultation): Pro
  */
 export async function completeScheduledConsultation(input: CompleteScheduledConsultation): Promise<ConsultationLog> {
   const db = await recordDb(input.classId);
-  const row = db ? await findClassConsultation(db, input.id) : null;
+  // (2026-09-20, 이지현 제안) input.createdBy는 이미 호출부가 넘겨주고 있던 값이라(공개 데모
+  // 대응 전부터 존재) 여기서는 함수 시그니처를 안 바꿔도 바로 소유권 확인에 쓸 수 있다 — 이
+  // 상담이 "공용" 또는 "나(input.createdBy)"의 것일 때만 완료 처리를 허용한다.
+  const row = db ? await findClassConsultation(db, input.id, input.createdBy) : null;
   if (!db || !row) throw new Error("담당 학급의 예정된 상담이 아닙니다");
   if (row.status === "completed" || row.work_record_id) throw new Error("이미 완료 처리된 상담입니다");
 
