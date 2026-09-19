@@ -188,26 +188,30 @@ export default function TeacherAgentWidget() {
           {sending && <TypingDots />}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-2.5 pt-2">
-          {DOMAIN_ORDER.map((domain) => {
-            const style = DOMAIN_STYLE[domain];
-            const active = selectedDomains.includes(domain);
-            return (
-              <button
-                key={domain}
-                type="button"
-                onClick={() => toggleDomain(domain)}
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                  active
-                    ? "border-indigo-500 bg-indigo-600 text-white"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
-                }`}
-              >
-                {style.icon} {style.label}
-              </button>
-            );
-          })}
-          <span className="ml-auto text-[10px] text-gray-400">관점을 선택하면 그 영역을 자세히 답해요!</span>
+        <div className="border-t border-gray-100 px-2.5 pt-2">
+          {/* 안내 문구를 칩 위에 둔다 — 행동(칩 선택)보다 먼저 읽혀야 하는 정보라 위가 자연스럽고,
+              가로 폭을 혼자 다 쓰니 줄바꿈 걱정도 없다. */}
+          <p className="mb-1 text-[10px] text-gray-400">관점을 선택하면 그 영역을 자세히 답해요!</p>
+          <div className="flex flex-wrap gap-1.5">
+            {DOMAIN_ORDER.map((domain) => {
+              const style = DOMAIN_STYLE[domain];
+              const active = selectedDomains.includes(domain);
+              return (
+                <button
+                  key={domain}
+                  type="button"
+                  onClick={() => toggleDomain(domain)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    active
+                      ? "border-indigo-500 bg-indigo-600 text-white"
+                      : "border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                  }`}
+                >
+                  {style.icon} {style.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <form
