@@ -84,14 +84,10 @@ export default function DateControl({
     };
   }, [open]);
 
-  // 주말은 고를 수 없다. 수업일에만 기록이 쌓이고, 대시보드도 주말을 직전 수업일로 되돌린다.
-  const isWeekend = (key: string) => {
-    const day = new Date(`${key}T00:00:00Z`).getUTCDay();
-    return day === 0 || day === 6;
-  };
-
+  /* 주말도 고를 수 있다. 예전에는 막아 뒀는데(수업일에만 기록이 쌓인다는 이유),
+     정작 오늘이 토요일이면 "오늘"을 못 고르고 달력이 금요일에 멈춰 있었다.
+     토·일 글자는 옅게 남긴다 — 고를 수 있지만 수업일이 아니라는 표시다. */
   const outOfRange = (key: string) =>
-    isWeekend(key) ||
     (maxDate !== undefined && key > maxDate) ||
     (minDate !== undefined && key < minDate);
 
