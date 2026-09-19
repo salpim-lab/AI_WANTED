@@ -95,7 +95,8 @@ export default function MorningHome({
     setClosing(false);
     setHidden(false);
     setRun((r) => r + 1);
-    replayTimer.current = setTimeout(close, 1400);
+    // 봉투 등장(1s) + 편지지 올라오기(1.05s 뒤 2s)가 끝난 다음에 닫는다
+    replayTimer.current = setTimeout(close, 3400);
   }
 
   const showIntro = !view || closing || hidden;
@@ -120,7 +121,7 @@ export default function MorningHome({
         <>
           <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} />
           <div
-            className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2${closing ? " sh-letter-cta-away" : ""}`}
+            className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2 ${closing ? "sh-letter-cta-away" : "sh-letter-cta-in"}`}
           >
             <CtaButton onClick={next} />
           </div>
