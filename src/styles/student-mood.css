@@ -117,7 +117,9 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: radial-gradient(ellipse at 50% 58%, var(--lamp-core), transparent 75%);
+  background:
+    radial-gradient(ellipse 62% 58% at 50% 54%, rgba(255, 255, 255, 0.28), transparent 72%),
+    radial-gradient(ellipse at 50% 58%, var(--lamp-core), transparent 75%);
   opacity: 0;
   transition: opacity 0.16s ease-out;
 }
@@ -125,6 +127,24 @@
 .mood-btn--selected .mood-btn__dome::before {
   opacity: 1;
   transition-duration: 0.08s;
+}
+/* 마우스가 올라오면 돔 안의 불빛만 망설이듯 천천히 밝아진다.
+   베젤은 점등하지 않고, 터치 화면에는 고착되는 hover를 만들지 않는다. */
+@keyframes moodDomeHoverGlow {
+  0%, 100% { opacity: 0.28; }
+  50% { opacity: 0.82; }
+}
+@keyframes moodDomeHoverPress {
+  0%, 100% { transform: translateY(0.12cqh); }
+  50% { transform: translateY(0.3cqh); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .mood-btn:hover:not(:active):not([aria-disabled="true"]):not(.mood-btn--selected) .mood-btn__dome {
+    animation: moodDomeHoverPress 1.35s ease-in-out infinite;
+  }
+  .mood-btn:hover:not(:active):not([aria-disabled="true"]):not(.mood-btn--selected) .mood-btn__dome::before {
+    animation: moodDomeHoverGlow 1.35s ease-in-out infinite;
+  }
 }
 .mood-btn:focus-visible .mood-btn__bezel {
   outline: 0.5cqh solid var(--dome);
@@ -211,5 +231,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mood-btn__dome,
-  .mood-btn__dome::before { transition: none; }
+  .mood-btn__dome::before {
+    transition: none;
+    animation: none;
+  }
+  .mood-btn:hover:not(:active):not([aria-disabled="true"]):not(.mood-btn--selected) .mood-btn__dome::before {
+    animation: none;
+  }
+  .mood-btn:hover:not(:active):not([aria-disabled="true"]):not(.mood-btn--selected) .mood-btn__dome {
+    animation: none;
+    transform: none;
+  }
 }

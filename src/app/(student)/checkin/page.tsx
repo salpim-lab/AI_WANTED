@@ -51,16 +51,18 @@ export default function CheckinPage() {
   // 떠올리며 말하도록 돕는 장치다. 하교 화면과 같은 출처(SIGNAL_COLORS)를 쓴다.
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
 
-  // 선생님 편지 — 교사가 아이 상세에서 보낸 최종본 (2026-09-18 김현우 연결, 이유민 님과 PR 협의).
-  // 불러오는 동안·실패·편지 없음은 모두 null → 편지 없이 인사 화면으로 시작한다 (데모 문장을 띄우지 않는다).
-  const [letter, setLetter] = useState<{ text: string; teacherName: string } | null>(null);
+  // 선생님 편지 — undefined는 불러오는 중, null은 확인했지만 오늘 편지가 없는 상태다.
+  // 둘을 구분해야 로딩 중 인사 문구가 잠깐 보였다가 편지로 바뀌는 깜빡임이 생기지 않는다.
+  const [letter, setLetter] = useState<{ text: string; teacherName: string } | null | undefined>(undefined);
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/student/letter", { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : { letter: null }))
       .then((data: { letter?: { text: string; teacherName: string } | null }) => setLetter(data.letter ?? null))
-      .catch(() => {
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         // 편지는 없어도 등교 흐름은 이어진다
+        setLetter(null);
       });
     return () => controller.abort();
   }, []);
@@ -79,7 +81,7 @@ export default function CheckinPage() {
         active={flow.step === 1}
         onNext={() => flow.goTo(2)}
         bgSrc="/brand/checkin_home2.webp"
-        letterText={letter?.text ?? null}
+        {...(letter === undefined ? {} : { letterText: letter?.text ?? null })}
         {...(letter ? { teacherName: letter.teacherName } : {})}
       />
       <MoodPicker active={flow.step === 2} onSelect={flow.selectColor} />

@@ -363,7 +363,7 @@
   /* 가는 본문 글꼴. 로고 글꼴(Jua)은 굵기가 하나뿐이라 더 가늘게 할 수 없었다 */
   font-family: var(--font-sans-kr), sans-serif;
   font-weight: 400;
-  font-size: 2.5cqh;
+  font-size: 2cqh;
   color: #8a8fa6;
   animation: guideLine 2.1s cubic-bezier(0.45, 0, 0.55, 1) both;
 }
@@ -417,8 +417,19 @@
    "머릿속에 떠오른 생각" 으로 보이게 한다. 풍선마다 박자를 달리해 둥실 떠다닌다.
    음성을 못 쓸 때만 --pick 이 붙어 진짜 버튼이 된다(아래). */
 /* 말하기 버튼 바로 위에 붙게 — 꼬리 끝(약 1.4cqh)이 버튼 조금 위에 오도록 아래 여백을 맞춘다 */
-.guide-chips__row:has(.guide-chip--hint) { gap: 2cqh 2.4cqh; padding: 0.6cqh 0 1.8cqh; }
-.guide-chips:has(.guide-chip--hint) { margin-bottom: -0.8cqh; }
+.guide-chips__row:has(.guide-chip--hint) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 2.4cqh;
+  row-gap: 2cqh;
+  padding: 0.1cqh 0 0;
+}
+/* 라벨과 칩을 구분하고, 꼬리 끝과 말하기 버튼 사이에도 아이가 읽기 편한 숨을 둔다. */
+.guide-chips:has(.guide-chip--hint) { gap: 0.9cqh; margin-bottom: 0.6cqh; }
+.guide-chips__row:has(.guide-chip--hint) .guide-chip:nth-child(1) { justify-self: end; }
+.guide-chips__row:has(.guide-chip--hint) .guide-chip:nth-child(2) { justify-self: center; }
+.guide-chips__row:has(.guide-chip--hint) .guide-chip:nth-child(3) { justify-self: start; }
 .guide-chip--hint {
   position: relative;
   border: 0;
@@ -431,6 +442,7 @@
   /* 납작한 연회색. 그림자·높낮이·떠다님을 빼서 깔끔하게 둔다 — 요소가 많아 어수선했다. */
   background: #f0f1f5;
   font-family: var(--font-sans-kr), sans-serif;
+  font-size: 2cqh;
   color: #5f6478;
   font-weight: 400;
   cursor: default;
@@ -582,4 +594,3 @@
   align-items: center;
   gap: 1.2cqh;
 }
-
