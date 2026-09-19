@@ -474,14 +474,15 @@
   gap: 1.8cqh;
 }
 .sh-cta-stack > .sh-cta { width: 100%; }
-/* 보조 버튼: 흰색 하나만 있으면 붕 떠 보여서, 아래로 갈수록 옅은 회보라가 도는 그라데이션과
-   주 버튼과 같은 아래쪽 턱·그림자를 준다. 색은 주 버튼보다 한참 조용하게. */
+/* 보조 버튼: 부드러운 버터 노랑. 보라의 보색 쪽이라 주 버튼과 싸우지 않으면서 확실히 구분되고,
+   편지의 해·별, 배경의 따뜻한 햇빛과 이어진다. 입체감은 주 버튼과 같은 방식(아래 턱 + 그림자).
+   글자는 노랑 위에서 읽히도록 짙은 갈색. */
 .sh-cta--ghost {
-  background: linear-gradient(180deg, #ffffff 0%, #eceef8 100%);
-  color: #4d5480;
+  background: linear-gradient(180deg, #f7e3a6 0%, #eed386 100%);
+  color: #6b5316;
   box-shadow:
-    inset 0 -0.45cqh 0 rgba(90, 96, 150, 0.16),
-    0 0.9cqh 2.2cqh rgba(40, 48, 90, 0.16);
+    inset 0 -0.45cqh 0 rgba(150, 110, 20, 0.22),
+    0 0.9cqh 2.2cqh rgba(170, 130, 40, 0.22);
 }
 
 .sh-profile {
