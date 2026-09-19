@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CARRY_HEIGHT, CARRY_WIDTH, CHARACTER_MODEL_HEIGHT, createChildCharacter, LIFT_GRAB, liftRise, createPopBurst, type ChildCharacter } from "./character";
@@ -23,8 +23,8 @@ type Props = {
   incomingAsset?: Pick<IslandGift, "name" | "assetFormat" | "geometrySpec">;
   /** Today's item is generated: it drops in front of the character. */
   itemReady?: boolean;
-  /** Why today's item was made; a bubble shows it beside the dropped item. */
-  itemReason?: string;
+  /** Bubble beside the dropped item: its name, why it was made, and the place button. */
+  itemBubble?: ReactNode;
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
@@ -114,7 +114,7 @@ export default function IslandScene({
   gifts,
   incomingAsset,
   itemReady = false,
-  itemReason,
+  itemBubble,
   selected,
   proposal,
   phase,
@@ -365,9 +365,6 @@ export default function IslandScene({
       lift?: { start: number; from: THREE.Vector3; carryScale: number; carryHeight: number; grabbed?: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: number } };
     } | null = null;
     let characterBaseY = initialCharacterPosition.y;
-    // The reason bubble: the zoom it first showed at, and whether it's gone for good.
-    let reasonZoom: number | null = null;
-    let reasonDismissed = false;
     // Clicks and the bubble wait until the pop-in has landed.
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
@@ -494,7 +491,6 @@ export default function IslandScene({
 
     function startLift() {
       if (!character || !item) return;
-      reasonDismissed = true;
       character.setPose("carrying");
       item.drop = undefined;
       item.object.visible = true;
@@ -823,8 +819,13 @@ export default function IslandScene({
         const inside = home.localToWorld(localDoor.clone().add(new THREE.Vector3(0, 0, -0.65)));
         // With decorations ignored, head directly to the doorstep, without a yard detour.
         const route = findWalkingPath({ ...pieceLandscape, canWalk: pieceLandscape.canWalkHome }, displayedCoordinates.fromDisplayedWorld(current.root.position), displayedCoordinates.fromDisplayedWorld(threshold), radius);
-        if (!route) { homeCallbacksRef.current.onHomeBlocked(); return; }
-        const points = route.slice(1).map((p) => displayedCoordinates.toDisplayedWorld(p, pieceLandscape.walkHeightAt(p.x, p.z) + 0.02));
+        if (!route) {
+          // No walkable way home: pop straight onto the doorstep and carry on from there.
+          current.root.position.copy(threshold);
+          characterBaseY = threshold.y;
+          placementNoticeCallbackRef.current("길이 막혀서 순간 이동 했어!");
+        }
+        const points = route ? route.slice(1).map((p) => displayedCoordinates.toDisplayedWorld(p, pieceLandscape.walkHeightAt(p.x, p.z) + 0.02)) : [threshold.clone()];
         points[points.length - 1].copy(threshold);
         let length = 0;
         points.reduce((a, b) => { length += Math.hypot(b.x - a.x, b.z - a.z); return b; }, current.root.position);
@@ -865,22 +866,21 @@ export default function IslandScene({
       render();
     }
 
-    // Guidance is a fixed overlay card; only the item's reason follows the scene,
-    // to the left of the item while it rests on the ground.
+    // The item bubble follows the scene, to the left of the item while it rests
+    // on the ground; it holds the place button, so it stays inside the view.
     function updateBubble() {
       const bubble = reasonBubbleRef.current;
       if (!bubble) return;
       const onGround = !!item && !classroom && item.object.parent === scene && item.object.visible
         && !item.drop && !item.lift && stateRef.current.phase === "ready";
-      // Shown once, from the landing until the pick-up; zooming out dismisses it for good.
-      if (onGround && reasonZoom === null) reasonZoom = camera.zoom;
-      if (reasonZoom !== null && camera.zoom < reasonZoom * 0.95) reasonDismissed = true;
-      const show = onGround && !reasonDismissed;
-      bubble.style.display = show ? "" : "none";
-      if (!show) return;
-      const rect = projectedBoxRect(new THREE.Box3().setFromObject(item!.object), camera, canvas.clientWidth, canvas.clientHeight);
-      bubble.style.left = `${rect.left - 10}px`;
-      bubble.style.top = `${(rect.top + rect.bottom) / 2}px`;
+      // While confirming, the same bubble asks beside the character holding the item.
+      const anchor = onGround ? item!.object : !classroom && stateRef.current.phase === "confirming" ? character?.root : undefined;
+      bubble.style.display = anchor ? "" : "none";
+      if (!anchor) return;
+      const rect = projectedBoxRect(new THREE.Box3().setFromObject(anchor), camera, canvas.clientWidth, canvas.clientHeight);
+      const halfHeight = bubble.offsetHeight / 2;
+      bubble.style.left = `${THREE.MathUtils.clamp(rect.left - 10, bubble.offsetWidth + 8, canvas.clientWidth - 8)}px`;
+      bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
     }
 
     function render() {
@@ -1704,13 +1704,23 @@ export default function IslandScene({
     runtimeRef.current?.setCharacterState(phase, proposal);
   }, [proposal, phase, mode]);
 
+  const bubbleContent = mode === "island" && phase === "confirming" ? <>
+    <p className="text-[14px] font-bold tracking-[-0.35px] break-keep">여기로 정할까?</p>
+    <p className="mt-0.5 break-keep">정하면 수정 못 해!</p>
+    <button onClick={onConfirm} className="mt-2 h-[30px] w-full rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white">확정하기</button>
+  </> : itemBubble;
+
+  // A bubble mounted while the scene is idle still needs a frame to be placed.
+  const hasItemBubble = !!bubbleContent;
+  useEffect(() => { if (hasItemBubble) runtimeRef.current?.render(); }, [hasItemBubble, phase]);
+
   useEffect(() => {
     itemReadyRef.current = itemReady;
     runtimeRef.current?.syncItem();
   }, [itemReady]);
 
   // Only choices that need a tap live here; progress messages are in IslandExperience's top notice.
-  const bubbleVisible = mode === "island" && (phase === "confirming" || phase === "farewell");
+  const bubbleVisible = mode === "island" && phase === "farewell";
 
   return <div
     ref={hostRef}
@@ -1723,24 +1733,20 @@ export default function IslandScene({
       role="status"
       aria-live="polite"
     >
-      {phase === "confirming" && <>
-        <div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[-0.35px]">여기로 정할까?</p><p className="text-[12px] text-[#7d849b]">정하면 수정 못 해!</p></div>
-        <button onClick={onConfirm} className="h-[30px] shrink-0 rounded-full bg-[#5a52f0] px-2 text-[12px] font-semibold text-white">확정하기</button>
-      </>}
       {phase === "farewell" && <>
         <div className="min-w-0 flex-1"><p className="text-[15px] font-bold text-[#5a52f0]">집으로 가는 길을 찾지 못했어</p><p className="text-[12px] text-[#7d849b]">다시 한 번 시도해 줘.</p></div>
         <button onClick={onRetryHome} className="h-[30px] shrink-0 rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white">다시 집으로 가기</button>
       </>}
     </div>}
 
-    {itemReason && <div
+    {bubbleContent && <div
       ref={reasonBubbleRef}
-      className="island-bubble pointer-events-none absolute z-20 max-w-[180px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
+      className="island-bubble absolute z-20 w-max max-w-[220px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
       data-tail="left"
       style={{ display: "none" }}
       role="status"
     >
-      {itemReason}
+      {bubbleContent}
       <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-white/70 bg-white/55" />
     </div>}
 
