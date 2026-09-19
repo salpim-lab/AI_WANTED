@@ -21,6 +21,8 @@
 import Link from "next/link";
 import { toKstDate } from "@/components/shared/datetime";
 import HorizontalScroller from "@/components/shared/HorizontalScroller";
+// 오른쪽 위로 나가는 화살표 — 학부모상담기록 카드와 똑같은 SVG 를 그대로 쓴다 (김현우 담당 공용 조각)
+import { ArrowUpRightIcon } from "@/components/teacher/consultation/consultationCardParts";
 import EditScheduledConsultationButton from "@/components/teacher/consultation/EditScheduledConsultationButton";
 import type { BriefingStudent } from "./mockData";
 import type { ConsultationMethod, ScheduledConsultation } from "@/lib/types/teacherRecord";
@@ -112,7 +114,7 @@ export default function MorningBriefing({
       <HorizontalScroller listClassName="briefing-list" label="먼저 살펴볼 아이">
         {watch.map((s) => (
           <li key={s.studentId}>
-            <Link href={`/students/${s.studentId}`} className={`briefing-row ${TONE_CLASS[s.tone]}`}>
+            <Link href={`/students/${s.studentId}`} className={`briefing-row group ${TONE_CLASS[s.tone]}`}>
               <span className="briefing-avatar" aria-hidden />
               <span className="briefing-info">
                 <span className="briefing-line">
@@ -121,10 +123,8 @@ export default function MorningBriefing({
                 </span>
                 <span className="breason">{s.reason}</span>
               </span>
-              {/* 같은 화면 안에서 옆으로 가는 게 아니라 아이 상세로 빠져나간다 — ↗ 가 그 뜻이다 */}
-              <span className="briefing-go" aria-hidden>
-                ↗
-              </span>
+              {/* 같은 화면 안에서 옆으로 가는 게 아니라 아이 상세로 빠져나간다 — 학부모상담기록과 같은 화살표 */}
+              <ArrowUpRightIcon />
             </Link>
           </li>
         ))}

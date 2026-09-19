@@ -1,54 +1,67 @@
 // 담당: 김현우
-// "완료한 상담" 카드 — 목록에서는 미리보기만 보여주고, 누르면 상담 내용 전체를 모달로 연다.
+// "완료한 상담" 카드 — 학생관찰일지 피드 카드(ObservationFeedCard)와 같은 모양이다:
+// 종류 태그 · 시각 · 🔒 수정 불가 → 제목 → 본문 미리보기 → @아이 태그. 목록에서는 미리보기만 보여주고, 누르면 상담 내용 전체를 모달로 연다.
+// @아이 태그는 아이 상세로 가는 링크라 버튼 안에 넣을 수 없다 — 카드 전체를 덮는 버튼 위에 태그를 z-10으로 띄운다.
 // 누적 자료 링크는 두지 않는다 — 예정된 상담 카드(ScheduledConsultationCard)에서만 연다.
 
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { formatKstDateTime } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
-import { card, clickableCard, immutableBadge, timestampText } from "@/components/shared/ui";
+import { card, clickableCard, immutableBadge, studentTagLink, timestampText } from "@/components/shared/ui";
 import type { ConsultationLog } from "@/lib/types/teacherRecord";
-import { ArrowUpRightIcon, consultationKindLabel, parseConsultationTitle } from "./consultationCardParts";
+import { consultationKindLabel, isStudentSelfConsultation, parseConsultationTitle } from "./consultationCardParts";
 
+/** 상담 일시가 기록 시각과 이만큼 이상 다를 때만 따로 표시 */
 const OCCURRED_AT_DISPLAY_THRESHOLD_MS = 60_000;
 
-export default function CompletedConsultationCard({ entry }: { entry: ConsultationLog }) {
+const KIND_TAG = {
+  parent: "bg-amber-50 text-amber-700",
+  student: "bg-violet-50 text-violet-700",
+} as const;
+
+export default function CompletedConsultationCard({ entry, showDate }: { entry: ConsultationLog; showDate: boolean }) {
   const [open, setOpen] = useState(false);
   const showOccurredAt =
     Math.abs(new Date(entry.occurredAt).getTime() - new Date(entry.createdAt).getTime()) >=
     OCCURRED_AT_DISPLAY_THRESHOLD_MS;
-  const heading = parseConsultationTitle(entry.title);
+  const counterpart = parseConsultationTitle(entry.title).counterpart;
+  const kindLabel = consultationKindLabel(counterpart);
+  const kindTag = isStudentSelfConsultation(counterpart) ? KIND_TAG.student : KIND_TAG.parent;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={`${card} ${clickableCard} group block w-full px-[18px] py-4 text-left`}
-      >
-        {/* 머리 모양은 예정된 상담 카드와 같다 — 이름 + "학생/학부모 상담", 그 아래 "대상 - 방식" */}
-        <div className="flex items-start gap-2">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <strong className="text-sm font-extrabold tracking-[-0.2px] text-[#102a56]">{entry.student.name}</strong>
-              <span className="text-xs font-bold text-[#7d849b]">{consultationKindLabel(heading.counterpart)}</span>
-            </div>
-            {entry.title && <p className="mt-0.5 text-[11.5px] text-[#7d849b]">{heading.line}</p>}
-          </div>
-          <span className={`${immutableBadge} shrink-0`}>🔒 수정 불가</span>
-          <ArrowUpRightIcon />
-        </div>
+      <article className={`${card} ${clickableCard} relative h-full px-[18px] py-4`}>
+        {/* 카드 전체를 누르는 영역 */}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`${entry.student.name} ${kindLabel} 내용 전체 보기`}
+          className="absolute inset-0 rounded-[inherit]"
+        />
 
-        <p className={`${timestampText} mt-2`}>상담 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
-        <p className="mt-1.5 line-clamp-3 text-[13px] leading-[1.7] whitespace-pre-wrap text-[#33405f]">{entry.body}</p>
-      </button>
+        <header className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${kindTag}`}>{kindLabel}</span>
+          <time dateTime={entry.createdAt} className={timestampText}>
+            {showDate ? formatKstDateTime(entry.createdAt).slice(0, 16) : formatKstDateTime(entry.createdAt).slice(11, 16)}
+          </time>
+          {showOccurredAt && (
+            <time dateTime={entry.occurredAt} className={timestampText}>
+              - 상담 {formatKstDateTime(entry.occurredAt).slice(0, 16)}
+            </time>
+          )}
+          <span className={immutableBadge}>🔒 수정 불가</span>
+        </header>
+        {entry.title && <h3 className="mb-1.5 text-sm font-bold">{entry.title}</h3>}
+        <p className="line-clamp-3 text-[13px] leading-[1.7] whitespace-pre-wrap">{entry.body}</p>
+        <StudentTag entry={entry} className="relative z-10 mt-2.5" />
+      </article>
 
       <Modal open={open} title={`${entry.student.name} 상담 내용`} onClose={() => setOpen(false)}>
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#ede9ff] px-[9px] py-0.5 text-xs font-bold text-[#3f37c9]">
-            {entry.student.name}
-          </span>
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${kindTag}`}>{kindLabel}</span>
           {entry.title && (
             <span className="rounded-full bg-amber-100 px-[9px] py-0.5 text-xs font-bold text-amber-800">
               {entry.title}
@@ -61,13 +74,17 @@ export default function CompletedConsultationCard({ entry }: { entry: Consultati
           <p className={`${timestampText} mb-3`}>상담 일시 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
         )}
         <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-[#102a56]">{entry.body}</p>
-
-        {entry.evidenceRefs.length > 0 && (
-          <p className="mt-4 border-t border-[#e6e2fb] pt-3 text-[11px] text-[#7d849b]">
-            저장 당시 근거 기록 {entry.evidenceRefs.length}건 연결
-          </p>
-        )}
       </Modal>
     </>
+  );
+}
+
+function StudentTag({ entry, className }: { entry: ConsultationLog; className: string }) {
+  return (
+    <div className={`flex flex-wrap gap-1.5 ${className}`}>
+      <Link href={`/students/${entry.student.studentId}`} className={studentTagLink}>
+        @{entry.student.name}
+      </Link>
+    </div>
   );
 }

@@ -17,9 +17,9 @@ export default function MinjunIslandPage() {
   const isPlaced = (id: string) => placements.some(p => p.itemId === id);
   const next = (id: string) => { setItemId(id); setRound(r => r + 1); };
 
-  async function save() {
-    const res = await fetch("/api/dev/demo-placements", { method: "POST", body: JSON.stringify(placements) });
-    setStatus(res.ok ? `저장했어요 (${placements.length}개)` : "저장하지 못했어요");
+  async function save(list: DemoPlacement[] = placements) {
+    const res = await fetch("/api/dev/demo-placements", { method: "POST", body: JSON.stringify(list) });
+    setStatus(res.ok ? `저장했어요 (${list.length}개)` : "저장하지 못했어요");
   }
 
   return (
@@ -30,18 +30,20 @@ export default function MinjunIslandPage() {
           {date} {period} · {ITEM_CATALOG.find(entry => entry.id === id)?.displayName}{isPlaced(id) && " ✓"}
         </button>)}
         <button onClick={() => { setPlacements(current => current.filter(p => p.itemId !== itemId)); setRound(r => r + 1); }} disabled={!isPlaced(itemId)} className="rounded-xl border bg-white px-3 py-2 disabled:opacity-40">이 아이템 치우기</button>
-        <button onClick={save} className="rounded-xl bg-[#47694b] px-4 py-2 text-white">배치 저장</button>
-        <span className="text-[#71816a]">{status || `놓은 아이템 ${placements.length}/${MINJUN_DEMO_ITEMS.length}개 · 놓은 뒤 “배치 저장”을 눌러야 파일에 기록돼요. 다시 놓으면 자리가 바뀌어요.`}</span>
+        <button onClick={() => save()} className="rounded-xl bg-[#47694b] px-4 py-2 text-white">배치 저장</button>
+        <span className="text-[#71816a]">{status || `놓은 아이템 ${placements.length}/${MINJUN_DEMO_ITEMS.length}개 · 놓으면 바로 파일에 저장돼요. 다시 놓으면 자리가 바뀌어요.`}</span>
       </div>
       <IslandExperience
         key={round}
         studentName="민준"
+        plain
         placedGifts={others}
         incomingItem={{ emoji: "🎁", name: item.displayName, reason: reason ?? item.displayName, assetFormat: "procedural", geometrySpec: item.spec }}
         onComplete={gift => {
           if (!gift) return;
-          setPlacements(current => [...current.filter(p => p.itemId !== itemId), { itemId, x: gift.x, z: gift.z }]);
-          setStatus("");
+          const saved = [...placements.filter(p => p.itemId !== itemId), { itemId, x: gift.x, z: gift.z }];
+          setPlacements(saved);
+          void save(saved);
           const nextItem = MINJUN_DEMO_ITEMS.find(({ itemId: id }) => id !== itemId && !placements.some(p => p.itemId === id));
           next(nextItem?.itemId ?? itemId);
         }}

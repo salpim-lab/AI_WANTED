@@ -129,7 +129,7 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
         <li key={i}>
           <p>&ldquo;{q.text}&rdquo;</p>
           <span className="rd-quote-by">
-            {q.from} · {q.date.slice(5).replace("-", "/")}
+            {q.from} | {q.date.slice(5).replace("-", "/")}
           </span>
         </li>
       ))}

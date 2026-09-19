@@ -218,7 +218,8 @@ async function loadRealSessions(
     }
     const rowByDbId = new Map<string, MockStudentRow>();
     for (const row of rows) {
-      const dbId = dbIdByName.get(givenName(row.display_name));
+      // DB 이름이 성 포함("김민준")이든 성 뺀 이름("민준", 시드)이든 잇는다
+      const dbId = dbIdByName.get(row.display_name) ?? dbIdByName.get(givenName(row.display_name));
       if (dbId) rowByDbId.set(dbId, row);
     }
     if (rowByDbId.size === 0) return result;
@@ -454,7 +455,9 @@ function buildInsights(studentId: string): { vocab: VocabInsight; relation: Rela
     .map((e) => {
       const otherId = e.from === dashboardId ? e.to : e.from;
       const other = relation.nodes.find((n) => n.studentId === otherId);
-      return other ? { studentId: mockStudentIdFromNumber(otherId), name: other.name, kind: e.kind } : null;
+      // relation.edges 의 from/to 는 실제 데이터(uuid 문자열)와 타입을 공유하느라 넓어졌지만,
+      // 이 파일은 mock 스냅샷만 쓰므로 여기서는 늘 숫자다.
+      return other ? { studentId: mockStudentIdFromNumber(Number(otherId)), name: other.name, kind: e.kind } : null;
     })
     .filter((c): c is { studentId: string; name: string; kind: "normal" | "conflict" } => c !== null);
 

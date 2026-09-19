@@ -74,6 +74,13 @@ export function nowKstLocalInput(): string {
   return toKstLocalInput(new Date());
 }
 
+/** 지금(한국 시각)을 15분 단위로 내린 값 — "2026-09-12T14:00". 미래로 넘어가지 않게 내림 */
+export function nowKstLocalInputQuarter(): string {
+  const now = nowKstLocalInput();
+  const minute = Number(now.slice(14, 16));
+  return `${now.slice(0, 14)}${String(minute - (minute % 15)).padStart(2, "0")}`;
+}
+
 /** ISO 시각 → 한국 시각 <input type="datetime-local"> 값 — "2026-09-12T14:03" */
 export function toKstLocalInput(instant: Date | string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

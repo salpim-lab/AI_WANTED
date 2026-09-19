@@ -13,15 +13,17 @@ import Modal from "@/components/shared/Modal";
 import { card, clickableCard, immutableBadge, timestampText } from "@/components/shared/ui";
 import type { ObservationLog, TaggedStudent } from "@/lib/types/teacherRecord";
 
+// 이 화면의 종류는 "관찰"과 "상담" 둘뿐이다 — 갈등 기록(record_type 'conflict')은 관찰로 보여준다 (갈등 입력은 보류라 여기서 새로 만들 수 없고,
+// 대시보드·DB에서 들어온 갈등 기록도 관찰 탭에 잡힌다: ObservationBoard.matchesType).
 const RECORD_TYPE_TAG: Record<ObservationLog["recordType"], string> = {
   general: "bg-sky-50 text-sky-700",
-  conflict: "bg-rose-50 text-rose-700",
+  conflict: "bg-sky-50 text-sky-700",
   student_consultation: "bg-violet-50 text-violet-700",
 };
 
 const RECORD_TYPE_LABEL: Record<ObservationLog["recordType"], string> = {
   general: "관찰",
-  conflict: "갈등",
+  conflict: "관찰",
   student_consultation: "상담",
 };
 
