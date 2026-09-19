@@ -19,6 +19,8 @@ import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementPropo
 
 type Props = {
   mode: ViewMode;
+  /** Checkout (하교) turns the sky and light to sunset. */
+  sunset?: boolean;
   gifts: IslandGift[];
   incomingAsset?: Pick<IslandGift, "name" | "assetFormat" | "geometrySpec">;
   /** Today's item is generated: it drops in front of the character. */
@@ -77,6 +79,9 @@ const POP_OVERSHOOT = 2.165;
 const DROP_MS = 800;
 const LIFT_MS = 1400;
 const PUT_DOWN_MS = 1500;
+// The first share of the put-down is a walk to the side, still holding the item up; the rest bends and sets it down.
+const PUT_DOWN_STEP = 0.3;
+const putDownLower = (progress: number) => Math.max(0, (progress - PUT_DOWN_STEP) / (1 - PUT_DOWN_STEP));
 // Once grabbed, it settles into the hands over this share of the lift.
 const GRAB_SETTLE = 0.2;
 const UPRIGHT = new THREE.Quaternion();
@@ -111,6 +116,7 @@ const CLASSROOM_SPACING = 33;
 
 export default function IslandScene({
   mode,
+  sunset = false,
   gifts,
   incomingAsset,
   itemReady = false,
@@ -270,9 +276,9 @@ export default function IslandScene({
 
     // Hemisphere + a warm ambient floor keep shaded rock mid-toned instead of green-black.
     // Warm late-morning sun over a soft sky/earth bounce; shadows stay soft.
-    scene.add(new THREE.HemisphereLight("#cdeaf5", "#9a7550", 1.15));
-    scene.add(new THREE.AmbientLight("#fff1dc", 0.38));
-    const sunlight = new THREE.DirectionalLight("#ffd8a3", 2.7);
+    scene.add(new THREE.HemisphereLight(sunset ? "#f4b39a" : "#cdeaf5", sunset ? "#7a4a52" : "#9a7550", 1.15));
+    scene.add(new THREE.AmbientLight(sunset ? "#ffd2b0" : "#fff1dc", 0.38));
+    const sunlight = new THREE.DirectionalLight(sunset ? "#ff9a55" : "#ffd8a3", 2.7);
     sunlight.castShadow = true;
     sunlight.shadow.mapSize.set(2048, 2048);
     const islandSize = Math.max(islandBox.getSize(new THREE.Vector3()).x, islandBox.getSize(new THREE.Vector3()).z);
@@ -294,7 +300,7 @@ export default function IslandScene({
     scene.add(sunlight, sunlight.target);
 
     // Soft sky bounce from the viewer's lower right keeps the hanging rock readable.
-    const fill = new THREE.DirectionalLight("#bfe0ee", 0.6);
+    const fill = new THREE.DirectionalLight(sunset ? "#c98bb5" : "#bfe0ee", 0.6);
     const fillOffset = new THREE.Vector3(6, -3.5, 9);
     fill.target.position.copy(target);
     scene.add(fill, fill.target);
@@ -949,7 +955,7 @@ export default function IslandScene({
       if (character) {
         const root = character.root;
         const seconds = calm ? 0 : now / 1000;
-        character.setLift(settingDown ? 1 - Math.min((now - settingDown.start) / (calm ? 350 : PUT_DOWN_MS), 1) : liftProgress(now));
+        character.setLift(settingDown ? 1 - putDownLower(Math.min((now - settingDown.start) / (calm ? 350 : PUT_DOWN_MS), 1)) : liftProgress(now));
         character.setDoorReach(0);
         character.setRunning(!calm && !!(activeWalk?.run || (homecoming?.stage === "walking" && homecoming.run)));
         if (entrance) {
@@ -975,17 +981,23 @@ export default function IslandScene({
         } else if (settingDown && item) {
           const motion = settingDown;
           const progress = Math.min((now - motion.start) / (calm ? 350 : PUT_DOWN_MS), 1);
-          const reverse = 1 - progress;
-          const retreat = easeInOutCubic(Math.min(progress / 0.45, 1));
+          const reverse = 1 - putDownLower(progress);
+          const stepping = progress < PUT_DOWN_STEP;
+          const retreat = easeInOutCubic(Math.min(progress / PUT_DOWN_STEP, 1));
           root.position.lerpVectors(motion.from, motion.stand, retreat);
           const ground = displayedCoordinates.fromDisplayedWorld(root.position);
           characterBaseY = pieceLandscape.walkHeightAt(ground.x, ground.z) + 0.02;
-          root.position.y = characterBaseY;
+          // Real steps while sidestepping, so the feet do not skate.
+          const stride = stepping && !calm ? Math.sin(progress * PUT_DOWN_MS / 1000 * 12) : 0;
+          root.position.y = characterBaseY + Math.abs(stride) * characterScale * 0.08;
           // Ease the view along the side step, so the walk home starts already centred.
           centreOn(new THREE.Vector3(root.position.x, characterBaseY + characterScale * CHARACTER_MODEL_HEIGHT / 2, root.position.z),
             calm ? 1 : 1 - Math.exp(-6 * deltaSeconds));
-          root.rotation.y = Math.atan2(motion.to.x - motion.stand.x, motion.to.z - motion.stand.z);
-          character.animate(seconds, 0);
+          // Face the way it steps, then turn to the item to bend over it.
+          const step = Math.atan2(motion.stand.x - motion.from.x, motion.stand.z - motion.from.z);
+          const toItem = Math.atan2(motion.to.x - motion.stand.x, motion.to.z - motion.stand.z);
+          root.rotation.y = stepping && motion.stand.distanceTo(motion.from) > 1e-3 ? step : toItem;
+          character.animate(seconds, stride);
           const object = item.object;
           if (reverse > LIFT_GRAB) {
             object.position.set(0, THREE.MathUtils.lerp(-motion.height / 2, GRIP_OFFSET.y, liftRise(reverse)), 0);
@@ -1724,7 +1736,7 @@ export default function IslandScene({
 
   return <div
     ref={hostRef}
-    className="absolute inset-0 bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)] [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]"
+    className={`absolute inset-0 ${sunset ? "bg-[linear-gradient(180deg,#5b5a9c_0%,#c9739a_38%,#f6a06b_72%,#ffd59a_100%)]" : "bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)]"} [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]`}
     style={{ cursor: selected && (phase === "choosing" || phase === "confirming") ? "crosshair" : "grab" }}
   >
     {bubbleVisible && <div
