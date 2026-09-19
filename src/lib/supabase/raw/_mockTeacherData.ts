@@ -19,7 +19,7 @@ import { addDays, todayKst } from "@/components/shared/datetime";
 
 export const MOCK_TEACHER = {
   id: "20000000-0000-4000-8000-000000000001",
-  classId: "30000000-0000-4000-8000-000000000302",
+  classId: "20000000-0000-4000-8000-000000000001",
   displayName: "이선생님",
 } as const;
 

@@ -357,6 +357,8 @@ function conflictLedger(): ConflictRow[] {
 export type VocabStudent = {
   studentId: number;
   name: string;
+  /** 막대 아래에는 학생 명단의 이름만 쓴다. */
+  shortName?: string;
   count: number;
   delta: number;
   /** 그 아이가 쓴 표제어 (먼저 쓴 순). 길이는 항상 count 와 같다 — 숫자와 명단이 어긋날 수 없다. */
@@ -417,7 +419,7 @@ function vocabTrendBase(): VocabMonth[] {
 /* ══ 화면 타입 ═══════════════════════════════════════════════════════ */
 
 /** 화면에 이름을 띄우고 /students/[id] 로 보내기 위한 최소 참조 */
-export type StudentRef = { studentId: number; name: string };
+export type StudentRef = { studentId: string | number; name: string };
 
 /** 한 감정 색의 집계 — count 는 students.length 에서 파생되므로 숫자와 명단이 항상 일치한다 */
 export type MoodShare = {

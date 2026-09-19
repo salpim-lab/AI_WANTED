@@ -20,7 +20,7 @@ export type ParticipationSummary = {
   /** 반 전체 학생 수 */
   totalCount: number;
   /** 그날 체크인을 완료하지 않은 아이 (이름을 눌러 아이 상세로 간다) */
-  absentStudents: { studentId: number; name: string }[];
+  absentStudents: { studentId: string | number; name: string }[];
 };
 
 // TODO(진승혜): getParticipationSummary(classId: string, date: string): Promise<ParticipationSummary>

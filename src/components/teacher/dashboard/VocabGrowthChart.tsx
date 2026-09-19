@@ -18,14 +18,15 @@
 import type { DashboardData } from "./mockData";
 
 export default function VocabGrowthChart({ students, trend }: DashboardData["vocab"]) {
-  const maxCount = Math.max(...students.map((d) => d.count));
+  const maxCount = Math.max(1, ...students.map((d) => d.count));
   // 막대 색(평균 이상/이하)을 가르는 기준으로만 쓴다 — 카드 하단에 숫자로 따로 적지는 않는다.
   // 제목 옆 "9월 평균 N개"가 이미 같은 이야기를 하고, 범례가 어느 쪽이 위인지 말해 준다.
-  const average =
-    Math.round((students.reduce((sum, d) => sum + d.count, 0) / students.length) * 10) / 10;
+  const average = students.length
+    ? Math.round((students.reduce((sum, d) => sum + d.count, 0) / students.length) * 10) / 10
+    : 0;
 
-  const thisMonth = trend[trend.length - 1];
-  const lastMonth = trend[trend.length - 2];
+  const thisMonth = trend.at(-1) ?? { month: "이번 달", average: 0 };
+  const lastMonth = trend.at(-2) ?? thisMonth;
   const monthDelta = Math.round((thisMonth.average - lastMonth.average) * 10) / 10;
   const deltaLabel = `${monthDelta > 0 ? "+" : ""}${monthDelta}`;
 
@@ -64,7 +65,7 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
                     style={{ height: `${Math.round((d.count / maxCount) * 100)}%` }}
                   />
                 </span>
-                <span className="student-label">{d.name.slice(1)}</span>
+                <span className="student-label">{d.shortName ?? d.name.slice(-2)}</span>
               </button>
 
               <div className="vocab-tooltip" role="tooltip">
