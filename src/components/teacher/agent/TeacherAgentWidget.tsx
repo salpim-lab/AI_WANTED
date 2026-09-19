@@ -189,7 +189,6 @@ export default function TeacherAgentWidget() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 px-2.5 pt-2">
-          <span className="text-[10px] text-gray-400">관점 선택</span>
           {DOMAIN_ORDER.map((domain) => {
             const style = DOMAIN_STYLE[domain];
             const active = selectedDomains.includes(domain);
@@ -208,9 +207,7 @@ export default function TeacherAgentWidget() {
               </button>
             );
           })}
-          <span className="ml-auto text-[10px] text-gray-400">
-            {selectedDomains.length === 0 ? "고르면 그 영역을 자세히 답해요" : `${selectedDomains.length}개 관점`}
-          </span>
+          <span className="ml-auto text-[10px] text-gray-400">관점을 선택하면 그 영역을 자세히 답해요!</span>
         </div>
 
         <form
