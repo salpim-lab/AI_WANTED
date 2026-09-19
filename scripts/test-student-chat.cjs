@@ -84,6 +84,18 @@ t('첫 질문 안에서 같은 어미가 잇달아 나오지 않는다', () => {
   }
 });
 
+t('첫 질문은 아이 하루를 짐작해 평가하지 않고, 초록은 힘든 일을 전제하지 않는다', () => {
+  for (const flow of ['checkin', 'checkout']) {
+    for (const [color, list] of Object.entries(openers.OPENERS[flow])) {
+      for (const s of list) {
+        // "괜찮았나 봐" "힘든가 봐" "하루였나 싶네" "안 좋은 것 같아" — 어른이 아이 하루를 매기는 말투
+        assert.ok(!/나 봐|가 봐|나 싶네|것 같아/.test(s), `짐작하는 말투: ${s}`);
+        if (color === 'green') assert.ok(!s.includes('털어놓'), `초록에 "털어놓고": ${s}`);
+      }
+    }
+  }
+});
+
 t('남색은 "왜 혼자 있고 싶은지" 를 묻지 않는다', () => {
   for (const flow of ['checkin', 'checkout']) {
     for (const s of openers.OPENERS[flow].navy) {
