@@ -88,10 +88,10 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   const hasIncomingItem = incomingItem !== null;
 
   useEffect(() => {
-    if (preparing || !hasIncomingItem) return;
+    if (preparing || !hasIncomingItem || entryStage === "intro") return;
     const timer = window.setTimeout(() => setCompletionNoticeVisible(false), 3_000);
     return () => window.clearTimeout(timer);
-  }, [preparing, hasIncomingItem]);
+  }, [preparing, hasIncomingItem, entryStage === "intro"]);
 
   useEffect(() => {
     if (!preparing) return;
@@ -274,7 +274,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
         {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
-        {mode === "island" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && incomingItem && completionNoticeVisible)) && <div className={`pointer-events-none absolute inset-x-3 z-30 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center px-4 text-center text-black font-[family-name:var(--font-cute)] font-normal top-[22%]`} role="status" aria-live="polite">
+        {mode === "island" && entryStage !== "intro" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && incomingItem && completionNoticeVisible)) && <div className={`pointer-events-none absolute inset-x-3 z-30 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center px-4 text-center text-black font-[family-name:var(--font-cute)] font-normal top-[22%]`} role="status" aria-live="polite">
           <div className="relative min-w-0"><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : `${acquired.name} 생성 완료!`}</p><div className="absolute inset-x-0 top-full">{phase === "choosing" && placementNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] font-normal text-black">{placementNotice}</p>}{progressNotice?.[1] && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}</div></div>
         </div>}
 
