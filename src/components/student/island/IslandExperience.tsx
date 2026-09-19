@@ -159,6 +159,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   function finishPuttingDown() {
     if (!proposal || phase !== "placing") return;
     setGifts((current) => [...current, { ...proposal, id: `gift-${++giftId.current}` }]);
+    setPlacementNotice(null);
     setPhase("returning");
   }
 
@@ -203,9 +204,9 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   // Once the door closes the island zooms out on its own; the camera buttons go with it.
   const showSceneControls = (mode === "classroom" || entryStage !== "intro") && homeGreeting !== "closed";
   // Bottom card = needs a tap; everything else is a top notice.
-  const showBottomCard = mode === "island" && ((showPlacementCta && !preparing) || phase === "confirming" || phase === "farewell");
+  const showBottomCard = mode === "island" && phase === "farewell";
   const progressNotice = phase === "placing" ? ["아이템을 내려놓는 중…", "여기에 잘 놓아둘게!"]
-    : phase === "returning" ? homeGreeting === "closed" ? null : homeGreeting === "greeting" ? [flow === "checkin" ? "이따 봐! 👋" : "내일 또 봐! 👋", null] : [`${acquired.name} 배치 완료!`, "집으로 돌아가는 중…"]
+    : phase === "returning" ? homeGreeting === "closed" ? null : homeGreeting === "greeting" ? [flow === "checkin" ? "이따 봐! 👋" : "내일 또 봐! 👋", null] : [`${acquired.name} 배치 완료!`, placementNotice ?? "집으로 돌아가는 중…"]
     : null;
 
   return <div lang="ko" className={`island-experience ${compact ? "island-compact flex min-h-0 flex-1 flex-col text-[#2f3560]" : "min-h-dvh bg-[#f7f8f2] text-[#294638] [font-family:'Apple_SD_Gothic_Neo','Malgun_Gothic',sans-serif]"} [&_button]:cursor-pointer`}>
@@ -233,7 +234,11 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
           gifts={sceneGifts}
           incomingAsset={{ name: acquired.name, assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec }}
           itemReady={!preparing && baseItemCount === 0}
-          itemReason={incomingItem?.reason}
+          itemBubble={showPlacementCta && !preparing && <>
+            <p className="text-[14px] font-bold tracking-[-0.35px] break-keep">{`${acquired.emoji} ${acquired.name}`}</p>
+            <p className="mt-0.5 whitespace-pre-line break-keep font-[family-name:var(--font-hand)] text-[15px]">{(incomingItem?.reason ?? "오늘 받은 아이템을 섬에 놓아 볼까?").replace(/,\s*/g, ",\n")}</p>
+            <button onClick={startPlacement} disabled={entryStage === "exiting"} className="mt-2 h-[30px] w-full rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white disabled:opacity-40">내 섬에 놓기</button>
+          </>}
           selected={selected}
           proposal={proposal}
           phase={phase}
@@ -270,11 +275,6 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
         {mode === "island" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && incomingItem && completionNoticeVisible)) && <div className={`pointer-events-none absolute inset-x-3 z-30 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center px-4 text-center text-black font-[family-name:var(--font-cute)] font-normal top-[22%]`} role="status" aria-live="polite">
           <div className="relative min-w-0"><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : `${acquired.name} 생성 완료!`}</p><div className="absolute inset-x-0 top-full">{phase === "choosing" && placementNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] font-normal text-black">{placementNotice}</p>}{progressNotice?.[1] && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] text-black break-keep">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}</div></div>
-        </div>}
-
-        {showPlacementCta && !preparing && <div className={`island-guidance-card island-cta-enter ${entryStage === "exiting" ? "island-cta-exit" : ""}`}>
-          <div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[-0.35px] break-keep">{`${acquired.emoji} ${acquired.name}`}</p><p className="text-[12px] text-[#7d849b] break-keep">오늘 받은 아이템을 섬에 놓아 볼까?</p></div>
-          <button onClick={startPlacement} disabled={entryStage === "exiting"} className="h-[30px] shrink-0 rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white disabled:opacity-40">내 섬에 놓기</button>
         </div>}
 
         {phase !== "moving" && showSceneControls && <div className={`pointer-events-none [&>button]:pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col items-start gap-4 ${showBottomCard ? "max-[900px]:bottom-[76px]" : ""} ${compact ? "px-3 pb-3 pt-6" : "px-5 pb-5 pt-10"}`}>
