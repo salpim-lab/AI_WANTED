@@ -35,7 +35,7 @@ export default function CheckoutPage() {
       (s === 3 ? flow.messages.length > 0 : s === 4 ? Boolean(flow.sessionId || flow.item) : Boolean(flow.item)),
     [flow.messages.length, flow.sessionId, flow.item],
   );
-  const { back, home } = useStepUrl({ base: "/checkout", step: flow.step, goTo, canShow: canShowStep });
+  const { back } = useStepUrl({ base: "/checkout", step: flow.step, goTo, canShow: canShowStep });
   const colorMeta = flow.color ? SIGNAL_COLORS[flow.color] : null;
   const router = useRouter();
   const [toTeacher, setToTeacher] = useState(false);
@@ -50,12 +50,8 @@ export default function CheckoutPage() {
     if (teacherTimer.current !== null) clearTimeout(teacherTimer.current);
   }, []);
 
-  // 홈 버튼: 하던 흐름을 비우고 하교 홈으로
-  const { reset } = flow;
-  const goHome = useCallback(() => {
-    reset();
-    home();
-  }, [reset, home]);
+  // 홈 버튼: 서비스 첫 화면(학생/교사 고르는 페이지)으로 나간다
+  const goHome = useCallback(() => router.push("/"), [router]);
 
   return (
     <>

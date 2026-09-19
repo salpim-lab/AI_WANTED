@@ -39,7 +39,7 @@ export default function CheckinPage() {
       (s === 3 ? flow.messages.length > 0 : s === 4 ? Boolean(flow.sessionId || flow.item) : Boolean(flow.item)),
     [flow.messages.length, flow.sessionId, flow.item],
   );
-  const { back, home } = useStepUrl({ base: "/checkin", step: flow.step, goTo, canShow: canShowStep });
+  const { back } = useStepUrl({ base: "/checkin", step: flow.step, goTo, canShow: canShowStep });
   // 섬 화면 테스트용 — 대화·선물 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
   const [testItem, setTestItem] = useState<Item | null>(null);
   const enterTestIsland = () => {
@@ -82,13 +82,8 @@ export default function CheckinPage() {
     return () => controller.abort();
   }, []);
 
-  // 홈 버튼: 하던 흐름을 비우고 등교 홈으로. 앞으로 가기로 끝난 대화에 다시 들어가지 않게 상태도 지운다.
-  const { reset } = flow;
-  const goHome = useCallback(() => {
-    reset();
-    setTestItem(null);
-    home();
-  }, [reset, home]);
+  // 홈 버튼: 서비스 첫 화면(학생/교사 고르는 페이지)으로 나간다
+  const goHome = useCallback(() => router.push("/"), [router]);
 
   // 섬 배치를 마친 뒤 하교로 넘어가는 장면. 섬 테스트 경로에서도 같은 장면을 보여준다
   // — 빠져 있으면 장면 없이 갑자기 하교 화면으로 바뀌었다.

@@ -54,8 +54,6 @@ export function useStepUrl({
   const canShowRef = useRef(canShow);
   const prevStepRef = useRef(step);
   const mountedRef = useRef(false);
-  // 홈 버튼으로 기록을 여러 칸 되감는 중. 되감기가 끝나기(popstate) 전에 단계가 1로 바뀌어도 기록을 쌓지 않는다.
-  const homingRef = useRef(false);
 
   useEffect(() => {
     canShowRef.current = canShow;
@@ -82,7 +80,6 @@ export function useStepUrl({
       mountedRef.current = true;
       return;
     }
-    if (homingRef.current) return;
     const want = pathForStep(base, step);
     if (window.location.pathname === want) return;
     const depth = (readState().salpimDepth ?? 0) + 1;
@@ -98,7 +95,6 @@ export function useStepUrl({
   // 브라우저 뒤로·앞으로: 주소의 단계로 맞춘다. 보여줄 수 없는 단계면 홈으로.
   useEffect(() => {
     const onPop = () => {
-      homingRef.current = false;
       const target = stepFromPath(base, window.location.pathname);
       if (canShowRef.current(target)) {
         prevStepRef.current = target;
@@ -125,21 +121,5 @@ export function useStepUrl({
     goTo(prev);
   }, [base, goTo, step]);
 
-  /**
-   * 화면의 홈 버튼. 이 흐름에서 쌓은 기록을 한 번에 되감아 홈 주소로 돌아간다.
-   * 되감기라서 홈에서 브라우저 뒤로가기를 눌러도 방금 떠난 단계로 다시 들어가지 않는다.
-   */
-  const home = useCallback(() => {
-    const depth = readState().salpimDepth ?? 0;
-    if (depth > 0) {
-      homingRef.current = true;
-      window.history.go(-depth);
-    } else {
-      window.history.replaceState({ salpimStep: 1, salpimDepth: 0 } satisfies StepState, "", withQuery(base));
-    }
-    prevStepRef.current = 1;
-    goTo(1);
-  }, [base, goTo]);
-
-  return { back, home };
+  return { back };
 }
