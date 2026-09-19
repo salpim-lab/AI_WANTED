@@ -15,6 +15,7 @@ import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
 import StudentBackButton from "@/components/student/home/StudentBackButton";
+import StudentHomeButton from "@/components/student/home/StudentHomeButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
@@ -48,6 +49,9 @@ export default function CheckoutPage() {
   useEffect(() => () => {
     if (teacherTimer.current !== null) clearTimeout(teacherTimer.current);
   }, []);
+
+  // 홈 버튼: 서비스 첫 화면(학생/교사 고르는 페이지)으로 나간다
+  const goHome = useCallback(() => router.push("/"), [router]);
 
   return (
     <>
@@ -94,6 +98,7 @@ export default function CheckoutPage() {
           <span>선생님 화면으로 이동할게요</span>
         </div>
       )}
+      {flow.step >= 2 && !toTeacher && <StudentHomeButton onHome={goHome} />}
       {(
         flow.step === 2 ||
         (flow.step === 5 && !toTeacher) ||

@@ -187,10 +187,43 @@
   cursor: pointer;
   transition: color 0.15s, transform 0.15s;
 }
-.mood-screen.active .sh-header,
-.chat-screen.active:not(.item-prep) .sh-header,
-.island-screen.active:not(.island-screen--preparing) .sh-header {
-  left: 5.2cqw;
+/* 홈으로 가는 버튼 — 프로필 알약 바로 오른쪽에 같은 높이(7.2cqh = 사진 5.4 + 위아래 0.9)의
+   흰 원으로 둔다. 뒤로가기처럼 맨 선만 두면 알약 옆에서 작고 흐려 보였고, 섬 위에서는 묻혔다.
+   흰 원이 받쳐 주므로 아이콘은 뒤로가기와 같은 연회색이어도 보인다. */
+.student-home-btn {
+  position: absolute;
+  right: 2.2cqw;
+  top: 4.4cqh;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 7.2cqh;
+  height: 7.2cqh;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.14);
+  /* 아이콘 색은 뒤로가기와 같게 — 올리면 둘 다 남색이 된다 */
+  color: #b3bacb;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.student-home-btn .student-back__icon { width: 3.6cqh; height: 3.6cqh; stroke-width: 2; }
+.student-home-btn:hover { background: #fff; color: var(--sh-navy); }
+.student-home-btn:active { transform: translateY(0.2cqh) scale(0.97); }
+.student-home-btn:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+
+/* 로고·프로필은 버튼이 실제로 떠 있을 때만 안쪽으로 비켜 선다.
+   버튼이 없는 순간(로딩·AI 응답 대기·장면 전환)에는 모서리에 그대로 붙어 빈자리가 생기지 않는다.
+   버튼은 페이지가 스테이지 바로 아래에 그리므로 스테이지의 :has 로 판단한다. */
+.sh-header,
+.sh-profile { transition: left 0.25s ease, right 0.25s ease; }
+.tablet-stage:has(> .student-back) .sh-header { left: 5.2cqw; }
+.tablet-stage:has(> .student-home-btn) .sh-profile { right: calc(2.2cqw + 7.2cqh + 1.2cqh); }
+@media (prefers-reduced-motion: reduce) {
+  .sh-header,
+  .sh-profile { transition: none; }
 }
 .student-back__icon {
   width: 3.8cqh;
@@ -599,6 +632,64 @@
 @media (prefers-reduced-motion: reduce) {
   .sh-to-checkout,
   .sh-to-teacher { animation: none; }
+}
+
+/* 하교 홈 "교사 시점으로 전환하기" — 올리면 아래에 안내 말풍선 */
+.sh-teacher-switch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.sh-teacher-tip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 1.6cqh);
+  z-index: 5;
+  width: max-content;
+  max-width: 50cqh;
+  padding: 1.3cqh 2cqh;
+  border-radius: 1.6cqh;
+  /* 반투명 흰 말풍선 + 가는 빨간 글씨 — 주의를 주되 버튼보다 튀지 않게 */
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(0.8cqh);
+  -webkit-backdrop-filter: blur(0.8cqh);
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.1);
+  color: #d64545;
+  font-family: var(--font-sans-kr), sans-serif;
+  font-size: 1.9cqh;
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: center;
+  word-break: keep-all;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, -0.6cqh);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+/* 위쪽 꼬리 */
+.sh-teacher-tip::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -0.8cqh;
+  width: 1.6cqh;
+  height: 1.6cqh;
+  background: inherit;
+  border-radius: 0.3cqh 0 0 0;
+  /* 반투명이라 말풍선과 겹치는 아래 절반을 잘라 낸다 — 겹치면 그 부분만 진해 보인다 */
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  transform: translateX(-50%) rotate(45deg);
+}
+.sh-teacher-switch:hover .sh-teacher-tip,
+.sh-teacher-switch:focus-within .sh-teacher-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-teacher-tip { transition: none; }
 }
 
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */

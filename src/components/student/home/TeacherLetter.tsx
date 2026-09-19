@@ -115,8 +115,9 @@ export default function TeacherLetter({
         <div className="flex items-center gap-[1.8cqh] pr-[6cqh]">
           {/* 교사 사진은 넣지 않기로 했다(2026-09-16). 아바타 원 자체를 두지 않는다. */}
           {/* 아바타 원을 없앤 뒤로는 두 줄로 끊을 이유가 없어 한 줄로 쓴다 */}
+          {/* 아이에게는 선생님 이름보다 "담임선생님" 이 바로 와닿는다 — 이름은 넣지 않는다(2026-09-20) */}
           <p className="sh-cute whitespace-nowrap text-[2.6cqh] leading-[1.4] text-[var(--sh-navy)]">
-            <span className="text-[var(--sh-violet)]">{data.teacherName}</span>이{" "}
+            <span className="text-[var(--sh-violet)]">담임선생님</span>이{" "}
             {data.studentName}이에게 보내는 편지
           </p>
           {/* 작은 해 — 목업의 장식 */}

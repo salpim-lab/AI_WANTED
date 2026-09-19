@@ -43,7 +43,6 @@ const CHECKOUT: Record<SignalColor, string[]> = {
  */
 const SECOND_TURN = ["그때 들었던 기분", "지금 마음", "더 하고 싶은 말"];
 
-/** turn 은 아이가 이미 말한 횟수. 0 이면 첫 질문에 답할 차례다. */
 /** 받침이 있는가 — 조사(이나/나, 을/를)를 고르는 데 쓴다 */
 function hasBatchim(word: string): boolean {
   const code = word.trim().charCodeAt(word.trim().length - 1);
@@ -52,29 +51,20 @@ function hasBatchim(word: string): boolean {
 }
 
 /**
- * 힌트 주제를 한 문장으로 이어지는 줄들로 만든다. 화면은 이 줄을 하나씩 흘려 보여준다.
- *   ["수업 시간에 있었던 일", "쉬는 시간에 있었던 일", "급식 시간에 생겼던 일"]
- *   → ["수업 시간에 있었던 일이나", "쉬는 시간에 있었던 일이나", "급식 시간에 생겼던 일을 이야기해도 좋아"]
+ * 힌트 주제를 말하기 버튼 위에 한 줄로 띄울 문장으로 만든다.
+ * 첫 주제에는 "이나/나", 가운데는 쉼표, 마지막에 "을/를 이야기해도 좋아" 를 붙인다.
+ *   ["속상했던 일", "오늘 아침에 있었던 일", "지금 마음"]
+ *   → "속상했던 일이나 오늘 아침에 있었던 일, 지금 마음을 이야기해도 좋아"
  */
-export function hintLines(topics: string[]): string[] {
-  return topics.map((t, i) =>
-    i < topics.length - 1
-      ? `${t}${hasBatchim(t) ? "이나" : "나"}`
-      : `${t}${hasBatchim(t) ? "을" : "를"} 이야기해도 좋아`,
-  );
-}
-
-/**
- * 말풍선에 넣을 글. 한 줄로 이어 읽히게 앞은 쉼표, 가운데는 "이나/나", 마지막은 그대로 둔다.
- *   ["지금 마음", "요즘 있었던 일", "하고 싶은 말"] → ["지금 마음,", "요즘 있었던 일이나", "하고 싶은 말"]
- */
-export function bubbleTexts(topics: string[]): string[] {
+export function hintSentence(topics: string[]): string {
+  if (!topics.length) return "";
   const last = topics.length - 1;
-  return topics.map((t, i) =>
-    i === last ? t : i === 0 && last >= 2 ? `${t},` : `${t}${hasBatchim(t) ? "이나" : "나"}`,
-  );
+  const head = topics.slice(0, last).map((t, i) => (i === 0 ? `${t}${hasBatchim(t) ? "이나" : "나"}` : `${t},`));
+  const tail = `${topics[last]}${hasBatchim(topics[last]) ? "을" : "를"} 이야기해도 좋아`;
+  return [...head, tail].join(" ");
 }
 
+/** turn 은 아이가 이미 말한 횟수. 0 이면 첫 질문에 답할 차례다. */
 export function pickHints(flow: Flow, color: SignalColor | null, turn = 0): string[] {
   if (!color) return [];
   if (turn >= 1) return SECOND_TURN;

@@ -17,6 +17,7 @@ import { getCheckinScenario } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
 import StudentBackButton from "@/components/student/home/StudentBackButton";
+import StudentHomeButton from "@/components/student/home/StudentHomeButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
@@ -80,8 +81,28 @@ export default function CheckinPage() {
     return () => controller.abort();
   }, []);
 
-  // 대기(아이템 준비) 화면을 먼저 보여 준 뒤 섬으로 넘어간다. sessionId가 없으면 시간만 흐르는 시연 모드다.
-  if (testItem) return <ItemPreparation flow="checkin" sessionId={null} item={testItem} onReady={() => {}} onIslandComplete={goToCheckout} />;
+  // 홈 버튼: 서비스 첫 화면(학생/교사 고르는 페이지)으로 나간다
+  const goHome = useCallback(() => router.push("/"), [router]);
+
+  // 섬 배치를 마친 뒤 하교로 넘어가는 장면. 섬 테스트 경로에서도 같은 장면을 보여준다
+  // — 빠져 있으면 장면 없이 갑자기 하교 화면으로 바뀌었다.
+  const checkoutHandOff = toCheckout && (
+    <div className="sh-to-checkout" role="status" aria-live="polite">
+      <p className="sh-cute">오늘 아침 이야기 고마워!</p>
+      <span>즐거운 하루 보내고, 하교 시간에 다시 만나자</span>
+    </div>
+  );
+
+  if (testItem) {
+    return (
+      <>
+        {/* 대기(아이템 준비) 화면을 먼저 보여 준 뒤 섬으로 넘어간다. sessionId가 없으면 시간만 흐르는 시연 모드다. */}
+        <ItemPreparation flow="checkin" sessionId={null} item={testItem} onReady={() => {}} onIslandComplete={goToCheckout} />
+        {checkoutHandOff}
+        {!toCheckout && <StudentHomeButton onHome={goHome} />}
+      </>
+    );
+  }
 
   return (
     <>
@@ -129,12 +150,8 @@ export default function CheckinPage() {
           onIslandComplete={goToCheckout}
         />
       )}
-      {toCheckout && (
-        <div className="sh-to-checkout" role="status" aria-live="polite">
-          <p className="sh-cute">오늘 아침 이야기 고마워!</p>
-          <span>즐거운 하루 보내고, 하교 시간에 다시 만나자</span>
-        </div>
-      )}
+      {checkoutHandOff}
+      {flow.step >= 2 && !toCheckout && <StudentHomeButton onHome={goHome} />}
       {(
         flow.step === 2 ||
         (flow.step === 5 && !toCheckout) ||
