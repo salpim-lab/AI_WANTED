@@ -58,15 +58,31 @@ function parseDomains(value: unknown): AgentDomain[] {
 // "...관찰되었습니다. [USED] EL1,EL2"처럼 마지막 문장 뒤에 줄바꿈 없이 이어 붙이는 경우가 있었다
 // — 그러면 매칭에 실패해서 [USED] 태그가 안 지워진 채로 화면에 그대로 노출됐다. 줄 단위 대신
 // 문자열 끝에서 "[USED] 태그, 태그" 패턴을 직접 찾도록 바꿔서 줄바꿈 유무와 무관하게 잡는다.
+//
+// (2026-09-19 수정, Claude 전환 후) "인용 없으면 [USED] 생략"이라고 지시했더니 Claude가 그
+// "생략"을 문자 그대로 답변에 적어버린 사례가 나왔다("[USED] 생략") — 태그 형식(EM1 등)이 아니라
+// 정규식 매칭에 실패하고, 그러면 그 줄이 안 지워진 채 화면에 노출됐다. prompt.ts도 지시문을 더
+// 명확하게 고쳤지만, 모델이 또 다른 변형("[USED] none", "[USED] -" 등)을 쓸 수도 있으니 여기서도
+// "[USED]로 시작하는 마지막 줄"이면 태그를 못 읽어도 일단 화면에서는 지우는 방어 코드를 둔다.
 function extractUsedEvidence(rawText: string, evidenceIndex: Map<string, string>, fallback: string[]): { text: string; evidence: string[] } {
   const match = rawText.match(/\[USED\]\s*([A-Za-z]{2}\d+(?:\s*,\s*[A-Za-z]{2}\d+)*)\s*$/);
-  if (!match || match.index === undefined) return { text: rawText, evidence: fallback };
+  if (match && match.index !== undefined) {
+    const tags = match[1].split(",").map((t) => t.trim().toUpperCase());
+    const used = tags.map((t) => evidenceIndex.get(t)).filter((label): label is string => Boolean(label));
+    const text = rawText.slice(0, match.index).trim();
+    if (!used.length) return { text: text || rawText, evidence: fallback };
+    return { text: text || rawText, evidence: used };
+  }
 
-  const tags = match[1].split(",").map((t) => t.trim().toUpperCase());
-  const used = tags.map((t) => evidenceIndex.get(t)).filter((label): label is string => Boolean(label));
-  const text = rawText.slice(0, match.index).trim();
-  if (!used.length) return { text: text || rawText, evidence: fallback };
-  return { text: text || rawText, evidence: used };
+  // 태그 형식이 아예 안 맞는 "[USED] 생략"류 — 근거는 못 걸러도(안전한 폴백: 전체 다 보여줌),
+  // 적어도 이 문구가 답변에 그대로 노출되는 것만은 막는다.
+  const looseMatch = rawText.match(/\n?\[USED\][^\n]*$/);
+  if (looseMatch && looseMatch.index !== undefined) {
+    const text = rawText.slice(0, looseMatch.index).trim();
+    return { text: text || rawText, evidence: fallback };
+  }
+
+  return { text: rawText, evidence: fallback };
 }
 
 async function runDomain(domain: DomainContext, question: string, studentName: string | null): Promise<DomainFinding> {
