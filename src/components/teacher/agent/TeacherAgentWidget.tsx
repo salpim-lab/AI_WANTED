@@ -27,21 +27,25 @@ import { useAgentChat, type AgentDomain, type DomainFinding } from "./useAgentCh
 // 로봇 이모지(🤖)는 차갑다는 피드백 → 학생 쪽 브랜드 얼굴(SalpimFace)로 바꿔봤는데 그것도 안 예쁘다는
 // 피드백 → 올빼미로 교체 (AgentOwlIcon, 이 폴더 안에서 직접 만든 아이콘, 단독 소유).
 import AgentOwlIcon from "./AgentOwlIcon";
-// (2026-09-19) 도메인 카드 색깔바를 사이트에서 쓰는 신호등 색과 통일해달라는 피드백 — 임의로 고른
-// emerald/amber/sky 대신 김현우 소유 shared/signalStyles.ts(SIGNAL_DOT, 교사 화면 신호등 색의
-// 원본)를 그대로 가져다 쓴다. 남의 파일은 안 고치고 import만 한다는 원칙 유지.
-import { SIGNAL_DOT } from "@/components/shared/signalStyles";
+// (2026-09-19) 도메인 카드 색깔바를 사이트 신호등 색과 통일해달라는 피드백. 처음엔 김현우 소유
+// shared/signalStyles.ts(SIGNAL_DOT)를 썼는데, 그건 "교사 화면" 신호등 색이고 담당자가 곧 학생
+// 화면 기준으로 다시 맞출 예정이라고 함 — 그러면 여기도 같이 틀어진다. 진짜 원본은
+// lib/constants/colors.ts(이유민 소유, SIGNAL_COLORS)의 hex 값 — "여기 값만 고치면 전체 앱에
+// 반영되도록 항상 이걸 참조할 것"이라고 파일에 명시돼 있는 SSOT라서, 교사 화면 쪽 색이 나중에
+// 바뀌어도 이 컴포넌트는 계속 학생 화면과 같은 색을 쓰게 된다. Tailwind 클래스 대신 hex를 인라인
+// style로 직접 적용한다(className으로 하려면 hex를 문자열로 박아 넣어야 해서 SSOT를 못 따라간다).
+import { SIGNAL_COLORS } from "@/lib/constants/colors";
 
 // context.ts(server-only)의 DOMAIN_LABEL을 클라이언트에서 못 불러오니 여기서 아이콘·짧은 라벨을
 // 따로 정의한다 — 값("emotion"|"learning"|"home")만 서버와 맞으면 된다.
 // (DomainFinding.domain은 string이라 조회 키도 string으로 열어둔다 — AgentDomain으로 좁히면
 // f.domain 인덱싱에서 타입 에러가 난다.)
-// bar 색은 신호등 색 순서(초록·노랑·남색)를 그대로 매긴 것 — 실제 정서/학교생활/가정 상태를
+// barColor는 신호등 색 순서(초록·노랑·남색)를 그대로 매긴 것 — 실제 정서/학교생활/가정 상태를
 // 나타내는 색은 아니고, 세 카드를 구분하는 용도로 사이트 색상 팔레트를 재사용한 것뿐이다.
-const DOMAIN_STYLE: Record<string, { icon: string; bar: string; label: string }> = {
-  emotion: { icon: "💚", bar: SIGNAL_DOT.green, label: "정서" },
-  learning: { icon: "📔", bar: SIGNAL_DOT.yellow, label: "학교생활" },
-  home: { icon: "🏠", bar: SIGNAL_DOT.navy, label: "가정 연계" },
+const DOMAIN_STYLE: Record<string, { icon: string; barColor: string; label: string }> = {
+  emotion: { icon: "💚", barColor: SIGNAL_COLORS.green.hex, label: "정서" },
+  learning: { icon: "📔", barColor: SIGNAL_COLORS.yellow.hex, label: "학교생활" },
+  home: { icon: "🏠", barColor: SIGNAL_COLORS.navy.hex, label: "가정 연계" },
 };
 const DOMAIN_ORDER: AgentDomain[] = ["emotion", "learning", "home"];
 
@@ -65,10 +69,10 @@ function DomainFindings({ findings }: { findings: DomainFinding[] }) {
   return (
     <div className="flex w-full flex-col gap-1.5">
       {findings.map((f) => {
-        const style = DOMAIN_STYLE[f.domain] ?? { icon: "🔹", bar: "bg-gray-300" };
+        const style = DOMAIN_STYLE[f.domain] ?? { icon: "🔹", barColor: "#d1d5db" };
         return (
           <div key={f.domain} className="flex gap-2 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
-            <span className={`w-1 shrink-0 rounded-full ${style.bar}`} aria-hidden />
+            <span className="w-1 shrink-0 rounded-full" style={{ backgroundColor: style.barColor }} aria-hidden />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="text-[11px] font-bold text-gray-600">
                 {style.icon} {f.label}
