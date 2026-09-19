@@ -201,12 +201,25 @@ const HOUSE_STYLES: HouseStyle[] = [
   { width: 1.3, depth: 1.15, wall: 0.85, walls: "#b07a45", beams: "#7d5030", roof: "#5aa39a", rise: 0.62, chimney: false, gableWindow: false },
 ];
 
-function house(variant: number) {
+function house(variant: number, entrance = false) {
   const s = HOUSE_STYLES[variant % HOUSE_STYLES.length];
   const model = new ModelBuilder();
   const w = s.width - 0.2, d = s.depth - 0.2, base = 0.16, top = base + s.wall;
   model.add(box(0.05), "#bfb3a0", [0, base / 2, 0], [s.width - 0.05, base, s.depth - 0.05]);
-  model.add(box(0.05), s.walls, [0, base + s.wall / 2, 0], [w, s.wall, d]);
+  if (entrance) {
+    const doorX = w * 0.18;
+    // Hollow walls and a real doorway let the child pass behind the facade.
+    // Keep the original exterior bounds: thickness extends inward so windows
+    // and corner beams remain in front of the walls instead of coplanar.
+    const thickness = 0.12;
+    const frontZ = (d - thickness) / 2;
+    model.add(cube, s.walls, [0, base + s.wall / 2, -frontZ], [w, s.wall, thickness]);
+    for (const side of [-1, 1]) model.add(cube, s.walls, [side * (w - thickness) / 2, base + s.wall / 2, 0], [thickness, s.wall, d - 2 * thickness]);
+    const left = doorX - 0.23, right = doorX + 0.23;
+    model.add(cube, s.walls, [(-w / 2 + left) / 2, base + s.wall / 2, frontZ], [left + w / 2, s.wall, thickness]);
+    model.add(cube, s.walls, [(right + w / 2) / 2, base + s.wall / 2, frontZ], [w / 2 - right, s.wall, thickness]);
+    model.add(cube, s.walls, [doorX, base + 0.82 + (s.wall - 0.82) / 2, frontZ], [0.46, s.wall - 0.82, thickness]);
+  } else model.add(box(0.05), s.walls, [0, base + s.wall / 2, 0], [w, s.wall, d]);
   for (const x of [-1, 1]) for (const z of [-1, 1]) model.add(box(0.02), s.beams, [x * w / 2, base + s.wall / 2, z * d / 2], [0.12, s.wall, 0.12]);
   model.add(box(0.02), s.beams, [0, top - 0.04, d / 2], [w, 0.09, 0.1]);
   // Gable prism in wall colour, then two roof slabs with a generous overhang.
@@ -220,8 +233,8 @@ function house(variant: number) {
   }
   model.add(box(0.03), s.beams, [0, top + rise + 0.02, 0], [s.width + 0.34, 0.1, 0.12]);
   // Door, windows and a little porch step.
-  model.add(box(0.03), "#8a4f2c", [w * 0.18, base + 0.42, d / 2 + 0.03], [0.46, 0.8, 0.06]);
-  model.add(new THREE.SphereGeometry(0.035, 6, 4), "#f2c54e", [w * 0.18 + 0.14, base + 0.42, d / 2 + 0.07]);
+  if (!entrance) model.add(box(0.03), "#8a4f2c", [w * 0.18, base + 0.42, d / 2 + 0.03], [0.46, 0.8, 0.06]);
+  if (!entrance) model.add(new THREE.SphereGeometry(0.035, 6, 4), "#f2c54e", [w * 0.18 + 0.14, base + 0.42, d / 2 + 0.07]);
   model.add(box(0.03), "#cdbb9d", [w * 0.18, 0.05, d / 2 + 0.2], [0.62, 0.1, 0.32]);
   const pane = (x: number, y: number, z: number, turn: number, size = 0.4) => {
     model.add(box(0.02), s.beams, [x, y, z], [size + 0.1, size + 0.06, 0.06], [0, turn, 0]);
@@ -292,12 +305,37 @@ const FLAT = new Set<PropKind>(["lily", "foam", "stone", "flower"]);
 
 // One InstancedMesh per model key for every prop in `placements` — the
 // classroom view batches all 20 pieces into the same handful of draw calls.
-export function createLandscapeProps(placements: readonly PropPlacement[], library?: ReadonlyMap<PropKey, THREE.BufferGeometry>) {
+export function createLandscapeProps(placements: readonly PropPlacement[], library?: ReadonlyMap<PropKey, THREE.BufferGeometry>, interactiveHome = false) {
   const group = new THREE.Group();
   group.name = "landscape-props";
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.86, metalness: 0 });
   const buckets = new Map<PropKey, PropPlacement[]>();
+  const mainHouse = interactiveHome ? placements.find((prop) => prop.kind === "house") : undefined;
   for (const prop of placements) {
+    if (prop === mainHouse) {
+      const style = HOUSE_STYLES[prop.variant % HOUSE_STYLES.length];
+      const home = new THREE.Group();
+      home.name = "homecoming-house";
+      home.position.set(prop.x, prop.y, prop.z);
+      home.rotation.y = prop.rotation;
+      home.scale.set(...prop.scale);
+      const body = new THREE.Mesh(house(prop.variant, true), material);
+      body.castShadow = body.receiveShadow = true;
+      home.add(body);
+      const doorX = (style.width - 0.2) * 0.18, doorZ = (style.depth - 0.2) / 2 + 0.04;
+      const hinge = new THREE.Group();
+      hinge.name = "homecoming-door";
+      hinge.position.set(doorX - 0.23, 0.16, doorZ);
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.8, 0.06), new THREE.MeshStandardMaterial({ color: "#8a4f2c", roughness: 0.85 }));
+      panel.position.set(0.23, 0.42, 0);
+      panel.castShadow = panel.receiveShadow = true;
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshStandardMaterial({ color: "#f2c54e" }));
+      knob.position.set(0.37, 0.42, 0.04);
+      hinge.add(panel, knob); home.add(hinge);
+      home.userData.doorway = new THREE.Vector3(doorX, 0.18, doorZ);
+      group.add(home);
+      continue;
+    }
     const key = propKey(prop.kind, prop.variant);
     buckets.set(key, [...(buckets.get(key) ?? []), prop]);
   }

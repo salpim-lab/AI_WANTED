@@ -80,6 +80,12 @@ export type PieceLandscape = {
   surfaceAt: (x: number, z: number) => number;
   // Items: flat ground, away from the rim, water, banks and fixed props.
   canPlace: (x: number, z: number, radius: number) => boolean;
+  // Walking can cross dirt paths and approach the rim to the body clearance.
+  canWalk: (x: number, z: number, radius: number) => boolean;
+  // Automatic homecoming ignores props and water, but crosses terrace banks only on stairs.
+  canWalkHome: (x: number, z: number, radius: number) => boolean;
+  walkHeightAt: (x: number, z: number) => number;
+  walkDirectionAt: (x: number, z: number, direction: PuzzlePoint, radius: number) => PuzzlePoint;
 };
 
 type Frame = { centre: PuzzlePoint; back: PuzzlePoint; right: PuzzlePoint; uMin: number; uMax: number; vMin: number; vMax: number };
@@ -722,12 +728,30 @@ function planForest(ctx: PlanContext, trees: TreeSpot[]) {
   }
 }
 
-function placeableAt(ctx: PlanContext, x: number, z: number, radius: number, edgeMargin = ctx.edgeMargin) {
+// Stair geometry faces local +Z at the low end. Limit traversal to the
+// tread width so the neighbouring terrace bank remains impassable.
+function stairAt(ctx: PlanContext, x: number, z: number, radius = 0, landing = 0) {
+  for (const stair of ctx.props) {
+    if (stair.kind !== "stairs") continue;
+    const dx = x - stair.x, dz = z - stair.z;
+    const across = dx * Math.cos(stair.rotation) - dz * Math.sin(stair.rotation);
+    const along = dx * Math.sin(stair.rotation) + dz * Math.cos(stair.rotation);
+    if (Math.abs(across) + radius <= stair.scale[0] * 0.45
+      && Math.abs(along) <= stair.scale[2] / 2 + landing + 1e-6) return { stair, along };
+  }
+  return null;
+}
+
+function placeableAt(ctx: PlanContext, x: number, z: number, radius: number, edgeMargin = ctx.edgeMargin, walking = false) {
   const p = { x, z };
   if (!inside(ctx, p) || distanceToPuzzleRim(p, ctx.polygon) < edgeMargin) return false;
-  if (ctx.tiers.some((tier) => tierZone(tier, x, z, radius) === "bank")) return false;
+  const onStairs = walking && !!stairAt(ctx, x, z, radius, 0.35);
+  if (!onStairs && ctx.tiers.some((tier) => tierZone(tier, x, z, radius) === "bank")) return false;
   if (ctx.water && ctx.water.sdf(x, z) < radius + SHORE_WIDTH) return false;
-  return !ctx.blockers.some((b) => dist(b, p) < b.r + radius);
+  // Stair reservations extend onto flat landings for item clearance. They
+  // must not block walking before the character enters the stair corridor.
+  // The bank test above still prevents walking beside the stair flight.
+  return !ctx.blockers.some((b) => !(walking && (b.id.startsWith("path") || b.id.startsWith("stairs"))) && dist(b, p) < b.r + radius);
 }
 
 // Items that fit on a grid whose spacing equals the item gap.
@@ -867,7 +891,30 @@ export function createPieceLandscape(layout: IslandLayout, pieceIndex: number): 
     pieceIndex, piece, polygon, capY: ctx.capY, edgeMargin, tiers, water, paths: ctx.paths, props: ctx.props, blockers,
     heightAt: (x, z) => layout.surfaceY + offset(x, z),
     surfaceAt: (x, z) => ctx.capY + offset(x, z),
+    walkDirectionAt: (x, z, direction, radius) => {
+      const hit = stairAt(ctx, x, z, radius, 1);
+      if (!hit) return direction;
+      const axis = { x: Math.sin(hit.stair.rotation), z: Math.cos(hit.stair.rotation) };
+      const along = direction.x * axis.x + direction.z * axis.z;
+      // Up/down inputs follow the flight; sideways inputs keep their direction.
+      if (Math.abs(along) < 0.7) return direction;
+      return { x: axis.x * Math.sign(along), z: axis.z * Math.sign(along) };
+    },
+    walkHeightAt: (x, z) => {
+      const hit = stairAt(ctx, x, z);
+      if (!hit) return layout.surfaceY + offset(x, z);
+      // Traverse the flight as a continuous ramp, joining both terrain levels.
+      const progress = Math.max(0, Math.min(1, 0.5 - hit.along / hit.stair.scale[2]));
+      return hit.stair.y - CAP_LIFT + progress * hit.stair.scale[1];
+    },
     canPlace: (x, z, radius) => placeableAt(ctx, x, z, radius),
+    canWalk: (x, z, radius) => placeableAt(ctx, x, z, radius, radius, true),
+    canWalkHome: (x, z, radius) => {
+      const p = { x, z };
+      if (!inside(ctx, p) || distanceToPuzzleRim(p, ctx.polygon) < radius) return false;
+      if (stairAt(ctx, x, z, radius, 0.35)) return true;
+      return !ctx.tiers.some((tier) => tierZone(tier, x, z, radius) === "bank");
+    },
   };
   return landscape;
 }

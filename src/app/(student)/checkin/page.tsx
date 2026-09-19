@@ -17,12 +17,20 @@ import StudentHome from "@/components/student/home/StudentHome";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
+import IslandBoard from "@/components/student/IslandBoard";
+import { ITEM_CATALOG } from "@/lib/items/itemCatalog";
 import type { Item } from "@/components/student/mockScenarios";
 
 export default function CheckinPage() {
   const flow = useCheckinFlow("checkin");
   const { setItem, goTo } = flow;
   const enterIsland = useCallback((item: Item) => { setItem(item); goTo(5); }, [setItem, goTo]);
+  // 섬 화면 테스트용 — 대화·선물 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
+  const [testItem, setTestItem] = useState<Item | null>(null);
+  const enterTestIsland = () => {
+    const pick = ITEM_CATALOG[Math.floor(Math.random() * ITEM_CATALOG.length)];
+    setTestItem({ emoji: "🎁", name: pick.displayName, reason: "섬 화면 테스트용 선물이야. ".repeat(3).trim(), geometrySpec: pick.spec });
+  };
   const scenario = flow.color ? getCheckinScenario(flow.color) : null;
   // 뱃지는 색 이름이 아니라 마음 설명을 보여준다. 아이가 "내가 왜 이 기분이지?" 를
   // 떠올리며 말하도록 돕는 장치다. 하교 화면과 같은 출처(SIGNAL_COLORS)를 쓴다.
@@ -42,8 +50,15 @@ export default function CheckinPage() {
     return () => controller.abort();
   }, []);
 
+  if (testItem) return <IslandBoard item={testItem} />;
+
   return (
     <>
+      {flow.step === 1 && (
+        <button type="button" onClick={enterTestIsland} style={{ position: "fixed", right: 16, bottom: 16, zIndex: 100, padding: "8px 14px", borderRadius: 999, border: "1px solid #ccc", background: "#fff", fontSize: 14 }}>
+          섬 화면 테스트하기
+        </button>
+      )}
       <StudentHome
         mode="morning"
         active={flow.step === 1}
@@ -73,7 +88,7 @@ export default function CheckinPage() {
         flow="checkin"
         color={flow.color}
       />
-      {(flow.step === 4 || flow.step === 5) && <ItemPreparation sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
+      {(flow.step === 4 || flow.step === 5) && <ItemPreparation flow="checkin" sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
     </>
   );
 }
