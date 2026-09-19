@@ -12,6 +12,12 @@ import "server-only";
 import type { AgentDomain } from "./context";
 import { DOMAIN_LABEL } from "./context";
 
+/** [EM1] 같은 태그를 실제로 인용한 것만 마지막 줄에 돌려달라는 공통 규칙 — route.ts의
+ * extractUsedEvidence가 이 형식을 그대로 파싱한다. 형식이 없거나 못 읽으면 근거를 전부 보여주는
+ * 안전한 폴백을 쓰므로, 모델이 규칙을 안 지켜도 답변 자체가 깨지진 않는다. */
+const EVIDENCE_TAG_RULE =
+  "컨텍스트의 각 줄 앞에는 [EM1]처럼 대괄호 태그가 있습니다. 답변 본문에는 태그를 쓰지 말고, 답변을 다 쓴 뒤 마지막 줄에 실제로 근거로 삼은 태그만 콤마로 나열하세요 (형식: [USED] EM1,EM3 — 하나도 없으면 [USED] 생략).";
+
 const COMMON_RULES = [
   "컨텍스트에 없는 내용은 추측하지 말고, 모르면 모른다고 답하세요.",
   "진단하거나 단정하지 말고 관찰된 사실 위주로 답하세요.",
@@ -32,6 +38,7 @@ export function buildDomainSystemPrompt(domain: AgentDomain, studentName: string
     ...COMMON_RULES,
     "컨텍스트의 [오늘] 날짜를 확인하세요. [교사 질문]에 '오늘', '어제', '이번 주'처럼 시점이 있으면 전체 기간을 뭉뚱그리지 말고 그 시점에 해당하는 날짜의 기록 위주로 답하세요. 그 시점에 해당하는 기록이 없으면 '오늘 기록은 없고, 최근(날짜)에는 ~'처럼 시점 차이를 명확히 알려주세요.",
     "2~3문장 이내로, 이 영역에서 참고할 만한 사실만 짧게 답하세요. 참고할 게 없으면 '이 영역에는 참고할 기록이 없습니다'라고만 답하세요.",
+    EVIDENCE_TAG_RULE,
     studentName ? `지금은 "${studentName}" 학생 한 명에 대한 자료입니다.` : "지금은 학급 전체에 대한 자료입니다.",
   ].join("\n");
 }
@@ -44,6 +51,7 @@ export function buildLightSystemPrompt(studentName: string | null): string {
     "컨텍스트에 없는 내용은 추측하지 말고, 모르면 모른다고 답하세요.",
     "진단하거나 단정하지 말고 관찰된 사실 위주로, 가벼운 질문에는 가볍게 3~5문장 이내로 바로 답하세요.",
     "아이를 판단하는 표현(문제아, 예민하다 등)은 쓰지 마세요.",
+    EVIDENCE_TAG_RULE,
     studentName
       ? `지금 대화는 "${studentName}" 학생 한 명에 대한 것입니다.`
       : "지금은 특정 학생이 아니라 학급 전체에 대한 질문입니다. 특정 학생 이야기가 필요하면 이름을 물어보세요.",

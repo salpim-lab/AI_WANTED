@@ -21,7 +21,13 @@
 // 교사 인증이 붙은 뒤로 미룬다 — 지금은 auth.uid()가 없어서 RLS 쓰기 정책을 만족할 수 없다.
 
 import { NextResponse } from "next/server";
-import { buildAgentContext, DOMAIN_LABEL, type AgentDomain, type DomainContext } from "@/components/teacher/agent/context";
+import {
+  buildAgentContext,
+  buildEvidenceIndex,
+  DOMAIN_LABEL,
+  type AgentDomain,
+  type DomainContext,
+} from "@/components/teacher/agent/context";
 import { buildDomainSystemPrompt, buildLightSystemPrompt, buildMergeSystemPrompt } from "@/components/teacher/agent/prompt";
 import { callTeacherAgentModel, hasOpenAIKey } from "@/lib/openai/teacherAgentModel";
 
@@ -41,15 +47,35 @@ function parseDomains(value: unknown): AgentDomain[] {
   return [...seen];
 }
 
+// (2026-09-19) 모델 답변 끝의 "[USED] EM1,EM3" 줄을 읽어 실제로 인용한 근거만 골라낸다.
+// 예전엔 domain.evidence(컨텍스트로 넘긴 원본 전체, 예: 최근 3일치 체크인 6개)를 항상 그대로
+// 보여줘서 "오늘은 어때?"처럼 하루만 물어도 근거 칩이 9개씩 붙어 답변 내용과 따로 노는 문제가
+// 있었다 — prompt.ts(EVIDENCE_TAG_RULE)가 태그 규칙을 알려주고, 여기서 그 결과를 파싱한다.
+// 형식이 없거나(구형 응답, 모델이 규칙을 안 지킴) 태그가 하나도 안 읽히면 원본 전체를 그대로
+// 보여주는 폴백 — 근거가 아예 안 보이는 것보단 많이 보이는 쪽이 안전하다.
+function extractUsedEvidence(rawText: string, evidenceIndex: Map<string, string>, fallback: string[]): { text: string; evidence: string[] } {
+  const lines = rawText.trimEnd().split("\n");
+  const lastLine = lines[lines.length - 1]?.trim() ?? "";
+  const match = lastLine.match(/^\[USED\]\s*(.+)$/);
+  if (!match) return { text: rawText, evidence: fallback };
+
+  const tags = match[1].split(",").map((t) => t.trim().toUpperCase());
+  const used = tags.map((t) => evidenceIndex.get(t)).filter((label): label is string => Boolean(label));
+  const text = lines.slice(0, -1).join("\n").trim();
+  if (!used.length) return { text: text || rawText, evidence: fallback };
+  return { text: text || rawText, evidence: used };
+}
+
 async function runDomain(domain: DomainContext, question: string, studentName: string | null): Promise<DomainFinding> {
   if (!domain.text) return { ...domain, finding: "이 영역에는 참고할 기록이 없습니다." };
   try {
-    const finding = await callTeacherAgentModel(
+    const raw = await callTeacherAgentModel(
       buildDomainSystemPrompt(domain.domain, studentName),
       `${domain.text}\n\n[교사 질문]\n${question}`,
       15_000,
     );
-    return { ...domain, finding };
+    const { text, evidence } = extractUsedEvidence(raw, buildEvidenceIndex([domain]), domain.evidence);
+    return { ...domain, finding: text, evidence };
   } catch {
     // 도메인 하나가 실패해도 전체 답변을 막지 않는다 — 원본 컨텍스트를 그대로 소견 대신 보여준다.
     return { ...domain, finding: domain.text };
@@ -97,11 +123,13 @@ export async function POST(request: Request) {
       return respond({ answer, studentName, evidence: selected.flatMap((d) => d.evidence), domainFindings, respondedDomain: null, mocked: true });
     }
 
-    // 라이트 모드 — 1회 호출
+    // 라이트 모드 — 1회 호출. 3개 도메인 텍스트를 합치므로 태그(EM/EL/EH)가 도메인마다 구분돼 있어야
+    // 어느 도메인의 몇 번째 근거인지 안 헷갈린다 (buildEvidenceIndex가 도메인별 접두사로 맵을 만든다).
     if (selected.length === 0) {
       const combinedText = domains.map((d) => d.text).filter(Boolean).join("\n\n") || "참고할 기록이 없습니다.";
-      const answer = await callTeacherAgentModel(buildLightSystemPrompt(studentName), `${combinedText}\n\n[교사 질문]\n${question}`, 20_000);
-      return respond({ answer, studentName, evidence: domains.flatMap((d) => d.evidence), domainFindings: [], respondedDomain: null, mocked: false });
+      const raw = await callTeacherAgentModel(buildLightSystemPrompt(studentName), `${combinedText}\n\n[교사 질문]\n${question}`, 20_000);
+      const { text, evidence } = extractUsedEvidence(raw, buildEvidenceIndex(domains), domains.flatMap((d) => d.evidence));
+      return respond({ answer: text, studentName, evidence, domainFindings: [], respondedDomain: null, mocked: false });
     }
 
     // 도메인 1개 — 그 도메인 호출 결과를 그대로 답으로(합치기 생략)
@@ -116,7 +144,9 @@ export async function POST(request: Request) {
     const mergeInput =
       findings.map((f) => `[${DOMAIN_LABEL[f.domain]} 소견]\n${f.finding}`).join("\n\n") + `\n\n[교사 질문]\n${question}`;
     const answer = await callTeacherAgentModel(buildMergeSystemPrompt(studentName), mergeInput, 20_000);
-    return respond({ answer, studentName, evidence: selected.flatMap((d) => d.evidence), domainFindings, respondedDomain: null, mocked: false });
+    // 전체 근거 칩도 findings(도메인별로 이미 [USED]로 걸러진 evidence)를 합친 것으로 —
+    // selected(원본 전체)를 쓰면 종합의견 밑에도 다시 근거가 과하게 붙는다.
+    return respond({ answer, studentName, evidence: findings.flatMap((f) => f.evidence), domainFindings, respondedDomain: null, mocked: false });
   } catch (error) {
     const message = error instanceof Error ? error.message : "답변을 만들지 못했습니다.";
     return NextResponse.json({ message }, { status: 502 });
