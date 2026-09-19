@@ -33,7 +33,7 @@
 }
 
 .landing-content { position: relative; width: min(100%, 900px); }
-.landing-intro { margin-bottom: clamp(18px, 4dvh, 36px); text-align: center; position: relative; top: clamp(-40px, -4.5dvh, -20px); }
+.landing-intro { margin-bottom: clamp(18px, 4dvh, 36px); text-align: center; position: relative; top: clamp(-64px, -7dvh, -36px); }
 .landing-logo { display: flex; justify-content: center; }
 
 .landing-intro h1 {
@@ -44,6 +44,8 @@
   font-weight: 300;
   line-height: 1.6;
   letter-spacing: -0.2px;
+  word-break: keep-all;
+  text-wrap: balance;
 }
 
 .landing-intro p { margin-top: 10px; color: #6b7290; font-size: 15px; line-height: 1.6; }

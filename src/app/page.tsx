@@ -96,11 +96,7 @@ export default function Home() {
             <div className="landing-logo">
               <SalpimLogo size={64} tagline={false} />
             </div>
-            <h1>
-              아이의 작은 신호를 지나치지 않도록
-              <br />
-              교사의 살핌을 더 가까이
-            </h1>
+            <h1>아이의 작은 신호를 지나치지 않도록, 교사의 살핌을 더 가까이</h1>
           </div>
 
           <div className="landing-options">
