@@ -6,8 +6,14 @@
 // 그래서 지도는 그대로 두고 옆에서만 바뀐다.
 //
 // 아무도 안 눌렀을 때는 최근 갈등 기록을 보여준다 — 빈 패널을 두느니 그게 낫다.
+//
+// 갈등 기록이 여러 건이면 아래로 쌓지 않고 카로셀로 한 건씩 넘긴다 (ConflictCarousel).
+// 쌓으면 패널이 길어지고, 길어진 패널이 같은 행의 관계 지도까지 끌고 늘어난다.
+// 기록 하나는 통째로 보여야 진술 둘이 "엇갈린 진술"로 읽히므로 잘라서 쌓지 않는다.
+//
 // 읽기 전용이다. work_records / conflict_statements 쓰기는 김현우 담당.
 
+import { useState } from "react";
 import type {
   ConflictRow,
   ConflictStatement,
@@ -37,6 +43,8 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
         <span className="conflict-status">{row.status}</span>
       </div>
 
+      {/* 진술이 엇갈린다는 안내 줄은 뺐다 — 두 진술을 나란히 놓은 것 자체가 이미 그 말이고,
+          노란 경고 박스가 붙으면 아직 확인 중인 일이 판정된 일처럼 읽힌다. */}
       <div className="conflict-stmts">
         {row.statements.map((st, i) => (
           <div className="conflict-stmt" key={i}>
@@ -47,22 +55,71 @@ function ConflictArticle({ row }: { row: ConflictRow }) {
           </div>
         ))}
       </div>
-
-      {row.warn && <p className="conflict-warn">{row.warn}</p>}
     </article>
   );
 }
 
-/** 기록이 여러 건이면 아래로 쌓지 않고 한 칸 안에서 넘긴다 — 쌓으면 패널이 길어지고,
-    길어진 패널이 같은 행의 관계 지도까지 끌고 늘어난다. */
-function ConflictList({ rows }: { rows: ConflictRow[] }) {
+/** 한 번에 한 건씩 옆으로 넘긴다. 1건이면 ‹ › 줄 없이 카드 하나로만 보인다.
+    공용 HorizontalScroller 를 쓰지 않는 이유: 그쪽은 보이는 폭의 80%씩 굴리는 방식이라
+    scroll-snap: x mandatory 와 부딪혀 넘긴 자리에서 도로 제자리로 스냅해 버린다.
+    여기는 한 장이 곧 한 칸이므로 스크롤 대신 transform 으로 장을 옮긴다 — 스냅이 낄 자리가 없다.
+
+    rows 가 바뀌어도(다른 아이를 고름) 이 컴포넌트는 같은 자리에 남으므로,
+    호출부에서 key 로 새로 만들어 첫 장부터 보게 한다. */
+function ConflictCarousel({ rows, label }: { rows: ConflictRow[]; label: string }) {
+  const [page, setPage] = useState(0);
+  const last = rows.length - 1;
+
   return (
     <div className="rd-conflicts">
-      {rows.map((row) => (
-        <ConflictArticle key={`${row.date}-${row.pair}`} row={row} />
-      ))}
+      {/* 몇 번째인지는 숫자로 말하지 않는다 — 제목의 "N건"이 전체 수를 이미 말했고,
+          두어 건을 넘겨 보는 데 1/2 라는 눈금까지는 필요 없다. */}
+      {rows.length > 1 && (
+        <div className="rd-carousel-nav">
+          <button
+            type="button"
+            className="rd-carousel-btn"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            aria-label={`${label} 이전`}
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="rd-carousel-btn"
+            onClick={() => setPage((p) => Math.min(last, p + 1))}
+            disabled={page === last}
+            aria-label={`${label} 다음`}
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      <div className="rd-carousel-viewport">
+        <div className="rd-carousel-track" style={{ transform: `translateX(-${page * 100}%)` }}>
+          {rows.map((row, i) => (
+            <div
+              className="rd-carousel-slide"
+              key={`${row.date}-${row.pair}`}
+              /* 보이지 않는 장은 탭 순서와 읽기에서 뺀다 — 화면 밖 카드로 포커스가 새면
+                 칸이 옆으로 밀려 버린다 */
+              aria-hidden={i !== page}
+              inert={i !== page ? true : undefined}
+            >
+              <ConflictArticle row={row} />
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
+}
+
+/** 제목 옆 건수 — "갈등 기록 2건". 0건일 때는 숫자를 달지 않는다 (아래 문장이 대신 말한다). */
+function CountBadge({ n }: { n: number }) {
+  return n > 0 ? <span className="cnt">{n}건</span> : null;
 }
 
 function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
@@ -81,12 +138,13 @@ function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
 }
 
 /** 세 갈래(선택 없음 / 아이 / 선)가 같은 제목 줄을 쓴다.
-    패널에는 스크롤을 걸지 않는다 — 길어지는 덩어리는 각자 안에서 잘린다 (CSS 참고). */
+    패널에는 스크롤을 걸지 않는다 — 칸 높이가 고정이라 안쪽이 알아서 맞춰진다 (CSS 참고).
+    고른 것을 푸는 "닫기"는 여기가 아니라 지도 안 오른쪽 위에 있다 (RelationshipMap). */
 function Pane({
   action,
   children,
 }: {
-  action: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -105,25 +163,17 @@ export default function RelationDetailPane({
   pair,
   periodLabel,
   fallbackConflicts,
-  onClear,
 }: {
   detail: RelationDetail | null;
   pair: RelationPairDetail | null;
   periodLabel: string;
   /** 아무것도 선택하지 않았을 때 보여줄 최근 갈등 */
   fallbackConflicts: ConflictRow[];
-  onClear: () => void;
 }) {
-  const closeButton = (
-    <button type="button" className="rd-clear" onClick={onClear}>
-      닫기
-    </button>
-  );
-
   // 선을 눌렀을 때 — "이 선이 왜 생겼나"에만 답한다.
   if (pair) {
     return (
-      <Pane action={closeButton}>
+      <Pane>
         <div className="rd-head">
           <strong className="rd-name">
             {pair.a.name} ↔ {pair.b.name}
@@ -146,12 +196,16 @@ export default function RelationDetailPane({
 
         <div className="rd-section-title">
           갈등 기록
-          <span className="cnt">{pair.conflicts.length}</span>
+          <CountBadge n={pair.conflicts.length} />
         </div>
         {pair.conflicts.length === 0 ? (
           <p className="conflict-empty">두 아이 사이의 갈등 기록은 없어요.</p>
         ) : (
-          <ConflictList rows={pair.conflicts} />
+          <ConflictCarousel
+            key={`pair-${pair.a.name}-${pair.b.name}`}
+            rows={pair.conflicts}
+            label={`${pair.a.name}·${pair.b.name} 갈등 기록`}
+          />
         )}
       </Pane>
     );
@@ -164,8 +218,11 @@ export default function RelationDetailPane({
           <p className="conflict-empty">이 날짜까지 기록된 갈등이 없어요.</p>
         ) : (
           <>
-            <div className="rd-section-title">최근 갈등 기록</div>
-            <ConflictList rows={fallbackConflicts} />
+            <div className="rd-section-title">
+              최근 갈등 기록
+              <CountBadge n={fallbackConflicts.length} />
+            </div>
+            <ConflictCarousel key="recent" rows={fallbackConflicts} label="최근 갈등 기록" />
           </>
         )}
       </Pane>
@@ -173,7 +230,7 @@ export default function RelationDetailPane({
   }
 
   return (
-    <Pane action={closeButton}>
+    <Pane>
       <div className="rd-head">
         <strong className="rd-name">{detail.name}</strong>
         <span className="rd-sub">{periodLabel} · 다른 아이 대화에 {detail.mentionCount}번 나왔어요</span>
@@ -188,12 +245,16 @@ export default function RelationDetailPane({
 
       <div className="rd-section-title">
         갈등 기록
-        <span className="cnt">{detail.conflicts.length}</span>
+        <CountBadge n={detail.conflicts.length} />
       </div>
       {detail.conflicts.length === 0 ? (
         <p className="conflict-empty">{periodLabel} 갈등 기록이 없어요.</p>
       ) : (
-        <ConflictList rows={detail.conflicts} />
+        <ConflictCarousel
+          key={`student-${detail.name}`}
+          rows={detail.conflicts}
+          label={`${detail.name} 갈등 기록`}
+        />
       )}
     </Pane>
   );

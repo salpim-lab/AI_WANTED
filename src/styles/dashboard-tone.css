@@ -36,14 +36,17 @@
 
   /* 관계 지도 */
   --rel-node-fill: #ffffff;
-  --rel-ring: #6366f1;
-  --rel-ring-conflict: #f4837d;
-  --rel-ring-isolated: #d8dbe6;
+  /* 원은 색으로 구분하지 않는다 — 테두리도 글자도 한 가지 톤이다.
+     tone(normal·conflict·isolated)에 따라 달랐던 링 색은 원 크기가 대신한다. */
+  --rel-ring: #9aa3bd;
+  --rel-text: #102a56;
+  --rel-text-muted: #7d849b;
+  /* 선은 색을 남긴다 — 갈등선과 언급선은 성격이 달라서 점선만으로는 덜 구분된다 */
   --rel-edge: #d3d8ea;
   --rel-edge-conflict: #f4a9a5;
-  --rel-text: #102a56;
-  --rel-text-conflict: #c96560;
-  --rel-text-muted: #7d849b;
+  /* 고른 아이에 닿은 선을 진하게 내릴 때 쓰는 짙은 짝 */
+  --rel-edge-strong: #6b76a0;
+  --rel-edge-conflict-strong: #d9615a;
 
   /* 바탕은 SalpimBackdrop(교실 일러스트)이 깐다 — 여기서 칠하면 그림이 가려진다 (2026-09-18 김현우, PR 협의) */
   background: transparent;
@@ -84,7 +87,8 @@
 .page-dashboard .conflict-status,
 .page-dashboard .rd-quotes li,
 .page-dashboard .vocab-word-list li,
-.page-dashboard .rd-clear,
+.page-dashboard .relation-clear,
+.page-dashboard .rd-carousel-btn,
 .page-dashboard .ca-absent-trigger { border-radius: 999px; }
 .page-dashboard .date-field,
 .page-dashboard .tt-btn {
@@ -163,7 +167,6 @@
 
 /* 카드 안 소제목 — 아이 상세 "등교 마음 기록", 업무기록 섹션 제목과 같은 급 */
 .page-dashboard .pane-title,
-.page-dashboard .briefing-col-title,
 .page-dashboard .rd-section-title {
   font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
   font-weight: 400;
@@ -173,7 +176,7 @@
 /* 소제목 옆 작은 설명·개수는 본문 글꼴로 되돌린다 */
 .page-dashboard .pane-title .pane-sub,
 .page-dashboard .pane-title .cnt,
-.page-dashboard .briefing-col-title .briefing-col-hint {
+.page-dashboard .rd-section-title .cnt {
   font-family: var(--font-sans-kr), sans-serif;
 }
 

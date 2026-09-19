@@ -156,7 +156,7 @@ export type ConsultationLog = {
   id: string; // parent_consultations.id
   workRecordId: string;
   student: TaggedStudent;
-  /** 예: "어머니 · 전화 상담" */
+  /** 예: "어머니 - 전화 상담" (2026-09-19 이전 기록은 "어머니 · 전화 상담") */
   title: string;
   body: string;
   occurredAt: string; // ISO
@@ -167,6 +167,8 @@ export type ConsultationLog = {
 export type ConsultationFilter = {
   keyword?: string;
   studentId?: string;
+  /** YYYY-MM-DD (KST). 있으면 상담 일시가 그날인 기록만 */
+  date?: string;
 };
 
 export type NewConsultationLog = {

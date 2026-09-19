@@ -15,7 +15,7 @@ import type { RiskLevel } from "./gates";
 import { CHAT_TURN_PROMPT, RISK_CHECK_PROMPT } from "./prompt";
 
 export type ChatTurnOutput = {
-  /** 아이에게 보여줄 다음 질문. 종료면 빈 문자열 */
+  /** 아이에게 보여줄 후속 질문 한 줄(받아주는 말 + 질문). 위험 표시면 빈 문자열 */
   reply: string;
   /** 충분히 이야기했는지. 게이트가 이 값으로 종료를 판단한다 */
   sufficient: boolean;
@@ -23,17 +23,34 @@ export type ChatTurnOutput = {
   risk: RiskLevel;
 };
 
-/** Structured Outputs 스키마. strict 모드라 모든 필드가 required 여야 한다. */
+/**
+ * Structured Outputs 스키마. strict 모드라 모든 필드가 required 여야 한다.
+ *
+ * 받아주는 말(ack)과 질문(question)을 나눠 받는다. 예전에는 reply 한 칸이었는데,
+ * 모델이 sufficient=true 를 낼 때 reply 에 마무리 인사("이겼던 거 정말 기분 좋았겠네")를
+ * 썼고, 게이트가 첫 턴의 sufficient 를 무시하고 대화를 이어가면서 그 인사가 질문 자리에
+ * 그대로 나갔다. 아이는 질문 없는 말을 받고 무엇을 해야 할지 몰랐다.
+ * 이제 question 은 sufficient 와 상관없이 항상 쓴다. 쓸지 말지는 게이트가 정한다.
+ */
 export const CHAT_TURN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["reply", "sufficient", "risk"],
+  required: ["ack", "question", "sufficient", "risk"],
   properties: {
-    reply: { type: "string", maxLength: 120 },
+    ack: { type: "string", maxLength: 60 },
+    question: { type: "string", maxLength: 80 },
     sufficient: { type: "boolean" },
     risk: { type: "string", enum: ["none", "flag"] },
   },
 } as const;
+
+/**
+ * 모델이 질문을 빠뜨리거나 물음표 없는 문장을 냈을 때 대신 쓰는 질문.
+ * 여섯 갈래 중 ①(더 말해달라)이다. 어떤 이야기 뒤에 붙어도 어색하지 않고, 캐묻지 않는다.
+ */
+export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
+
+const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
 
 export type ChatTurnInput = {
   flow: "checkin" | "checkout";
@@ -74,6 +91,9 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
     },
     // 짧게 답하도록 강제한다. 아이가 읽을 분량이고 비용도 여기서 갈린다.
     max_output_tokens: 200,
+    // 기본값(1)은 같은 말에도 매번 다르게 굴어서, 사람마다 테스트 결과가 갈렸다.
+    // 질문 문장은 조금씩 달라도 되지만 형식은 흔들리면 안 된다.
+    temperature: 0.5,
     // 벤더 대시보드에 응답을 남기지 않는다. 학습 사용 차단과는 별개 설정이다.
     store: false,
   };
@@ -109,6 +129,8 @@ export function buildRiskCheckRequest(input: Pick<ChatTurnInput, "transcript">) 
       },
     },
     max_output_tokens: 50,
+    // 분류다. 같은 말에는 같은 판정이 나와야 한다.
+    temperature: 0,
     store: false,
   };
 }
@@ -142,7 +164,11 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
     throw new ChatTurnError("INVALID_AI_OUTPUT", 502, "응답 형식이 잘못되었습니다.");
   }
   const o = raw as Record<string, unknown>;
-  if (typeof o.reply !== "string" || typeof o.sufficient !== "boolean") {
+  if (
+    typeof o.ack !== "string" ||
+    typeof o.question !== "string" ||
+    typeof o.sufficient !== "boolean"
+  ) {
     throw new ChatTurnError("INVALID_AI_OUTPUT", 502, "응답 필드가 잘못되었습니다.");
   }
   if (o.risk !== "none" && o.risk !== "flag") {
@@ -151,5 +177,14 @@ export function parseChatTurn(raw: unknown): ChatTurnOutput {
   // 위험 표시가 붙으면 AI 가 만든 문장은 쓰지 않는다.
   // 캐묻거나 위로하는 말이 섞이면 진술이 오염되고, 그건 우리가 판단할 일이 아니다.
   if (o.risk === "flag") return { reply: "", sufficient: true, risk: "flag" };
-  return { reply: o.reply.trim(), sufficient: o.sufficient, risk: "none" };
+
+  // 질문이 없거나 물음표로 끝나지 않으면 기본 질문으로 바꾼다.
+  // 후속 질문 자리에는 반드시 질문이 가야 한다.
+  const question = isQuestion(o.question) ? o.question.trim() : FALLBACK_QUESTION;
+  const ack = o.ack.trim();
+  return {
+    reply: ack ? `${ack} ${question}` : question,
+    sufficient: o.sufficient,
+    risk: "none",
+  };
 }

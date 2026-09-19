@@ -236,6 +236,12 @@ async function loadRealSessions(
       if (!row) continue;
       const key = `${row.enrollment_id}|${r.session_date}`;
       const list = result.get(key) ?? [];
+      // 색만 고르고 대화를 마치지 않은 회차(started)는 교사 화면에 보여주지 않는다 — 진행 중이거나 중간에 나간 것이라
+      // "그 시간대 기록"으로 읽히면 안 된다. 그래도 그날 실제 세션이 있었으니 키는 남겨 mock으로 채우지 않는다.
+      if (r.status === "started") {
+        result.set(key, list);
+        continue;
+      }
       list.push({
         sessionId: r.id,
         period: r.period,

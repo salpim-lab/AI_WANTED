@@ -146,6 +146,9 @@ export type RelationNode = {
   name: string;
   x: number;
   y: number;
+  /** 원 반지름. 자리(x·y)는 "얼마나 많이 불렸나", 크기는 "얼마나 살펴볼 일이 있나"를 말한다.
+      둘을 같은 값으로 두면 가운데 큰 원이 곧 인기 많은 아이가 되는데, 지도가 찾아야 하는
+      아이는 그 반대편(아무도 이름을 안 부른 아이)이라 기준을 갈라 뒀다 — attentionOf 참고. */
   r: number;
   tone: "normal" | "conflict" | "isolated";
   note?: string;
@@ -279,7 +282,6 @@ export type ConflictRow = {
   summary: string;
   status: string;
   statements: ConflictStatement[];
-  warn?: string;
 };
 
 /** 갈등은 오늘 / 그저께 / 1주 전 / 2주 반 전에 있었던 일로 둔다 — 날짜가 today 를 따라 움직인다.
@@ -303,7 +305,6 @@ function conflictLedger(): ConflictRow[] {
       { who: "김민준 (하교)", tone: "red", text: "서연이가 먼저 밀었어요. 제가 지나가는데 갑자기 밀었어요." },
       { who: "이서연 (하교)", tone: "navy", text: "민준이가 제 자리에 앉아서 비키라고 했는데 계속 안 비켰어요." },
     ],
-    warn: "두 진술이 서로 다릅니다. 판단 전 양측 원본을 확인하세요.",
   },
   {
     date: twoDaysAgo,
@@ -761,6 +762,19 @@ const EDGE_MIN_MENTIONS = 2;
 /** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다. */
 const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 152, ry: 84 }, { count: 13, rx: 288, ry: 152 }] };
 
+/* 원 크기. 16 이면 세 글자 이름이 들어가고, 32 를 넘으면 바깥 고리에서 이웃과 붙는다.
+   "살펴볼 일" 한 점마다 4px 씩 키운다 — 실제 데이터의 최댓값에 맞춰 늘리지 않고
+   점당 고정폭으로 둔다. 기간 토글(1주·2주·4주)을 오갈 때 같은 아이가 같은 크기로
+   남아야 크기가 뜻을 갖는다. 최댓값에 맞춰 늘리면 기간마다 기준이 달라져 비교가 안 된다. */
+const NODE_MIN_R = 16;
+const NODE_MAX_R = 32;
+const NODE_R_STEP = 4;
+/** 아무도 이름을 부르지 않은 아이에게 주는 점수 — 갈등 두 건과 같은 무게로 둔다.
+    소외는 갈등처럼 기록으로 남지 않아서, 세지 않으면 지도에서 가장 작게 그려진 채 묻힌다. */
+const ISOLATED_ATTENTION = 2;
+/** 갈등 건수는 여기서 멈춘다 */
+const CONFLICT_ATTENTION_CAP = 3;
+
 function buildRelation(dateKey: string, windowDays: number): RelationGraph {
   const window = recentSchoolDays(dateKey, windowDays);
   const ids = Object.keys(STUDENT_NAMES).map(Number);
@@ -786,8 +800,17 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
   const recordCount = new Map<number, number>(ids.map((id) => [id, 0]));
   for (const c of records) for (const id of c.pairIds) recordCount.set(id, (recordCount.get(id) ?? 0) + 1);
 
+  // 가운데 자리를 누구에게 줄지 — 이름이 많이 불린 순서다 (배치 전용)
   const weightOf = (id: number) => (mentioned.get(id) ?? 0) + (recordCount.get(id) ?? 0) * RECORD_WEIGHT;
-  const maxWeight = Math.max(1, ...ids.map(weightOf));
+
+  /* 원 크기는 정반대를 본다: "교사가 살펴볼 일이 얼마나 되나".
+     언급이 많아 가운데 앉은 아이는 이미 눈에 띄고, 지도가 찾아 줘야 하는 건
+     아무도 이름을 부르지 않은 아이와 갈등이 잦은 아이다. 그 둘을 크게 그린다.
+     갈등은 건수를 세되 세 건에서 멈춘다 — 그 위로는 크기 차이가 뜻을 더하지 않고
+     원이 이웃을 덮기만 한다. */
+  const attentionOf = (id: number) =>
+    ((mentioned.get(id) ?? 0) === 0 ? ISOLATED_ATTENTION : 0) +
+    Math.min(recordCount.get(id) ?? 0, CONFLICT_ATTENTION_CAP);
 
   const conflictIds = new Set(records.flatMap((c) => c.pairIds));
   const isConflictPair = (a: number, b: number) =>
@@ -814,7 +837,7 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
       name: STUDENT_NAMES[studentId],
       x,
       y,
-      r: Math.round(13 + (weight / maxWeight) * 19),
+      r: Math.min(NODE_MAX_R, NODE_MIN_R + attentionOf(studentId) * NODE_R_STEP),
       tone: weight === 0 ? "isolated" : conflictIds.has(studentId) ? "conflict" : "normal",
       note:
         weight > 0

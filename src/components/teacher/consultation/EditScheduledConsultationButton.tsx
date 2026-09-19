@@ -10,15 +10,11 @@ import { useActionState, useState } from "react";
 import { rescheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import { toKstLocalInput } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
-import { choicePill, errorText, fieldLabel, textInput } from "@/components/shared/ui";
+import { errorText, fieldLabel, textInput } from "@/components/shared/ui";
 import type { ConsultationMethod, FormActionState, ScheduledConsultation } from "@/lib/types/teacherRecord";
+import MethodPicker from "./MethodPicker";
 
 const INITIAL_STATE: FormActionState = { status: "idle", message: null, seq: 0 };
-const METHODS: { value: ConsultationMethod; label: string }[] = [
-  { value: "phone", label: "전화" },
-  { value: "visit", label: "방문" },
-  { value: "online", label: "온라인" },
-];
 const MAX_COUNTERPART_LENGTH = 30;
 
 export default function EditScheduledConsultationButton({
@@ -106,27 +102,10 @@ export default function EditScheduledConsultationButton({
                 maxLength={MAX_COUNTERPART_LENGTH}
                 placeholder="예: 어머니, 학생 본인"
                 onChange={(e) => setCounterpart(e.target.value)}
-                className={`${textInput} w-full`}
+                className={`${textInput} h-9 w-full`}
               />
             </div>
-            <fieldset>
-              <legend className={fieldLabel}>상담 방식</legend>
-              <div className="flex gap-1.5">
-                {METHODS.map((m) => (
-                  <label key={m.value}>
-                    <input
-                      type="radio"
-                      name="method"
-                      value={m.value}
-                      checked={method === m.value}
-                      onChange={() => setMethod(m.value)}
-                      className="peer sr-only"
-                    />
-                    <span className={choicePill}>{m.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <MethodPicker id={`reschedule-method-${consultation.id}`} value={method} onChange={setMethod} />
           </div>
 
           {isFreshResult && state.status === "error" && (

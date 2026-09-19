@@ -5,6 +5,10 @@
 // 막대에 올리면 그 아이가 실제로 쓴 표제어를 펼친다 — "14개"라는 숫자만으로는
 // 교사가 무엇을 칭찬하고 무엇을 더 끌어낼지 알 수 없다. 이번 달 새로 쓴 말은 따로 표시한다.
 // (오늘의 교실 명단 툴팁과 같은 방식: JS 없이 :hover / :focus-within 으로만)
+// 툴팁은 막대 아래가 아니라 옆에 붙는다: 왼쪽 절반 막대는 오른쪽에, 오른쪽 절반 막대는 왼쪽에.
+// 아래에 두면 마지막 막대의 툴팁이 카드 밖으로 나가 화면 전체에 가로 스크롤이 생겼고,
+// 스무 개가 나란히 선 차트에서는 옆으로 펴는 편이 막대를 가리지도 않는다.
+// 어느 쪽에 펼지는 렌더할 때 정한다 — CSS 는 몇 번째 막대인지 알 수 없다.
 // 차트 라이브러리를 새로 설치하지 않고 CSS/SVG 로만 그린다 (package.json 변경 금지).
 // 데이터: page.tsx 가 "선택 날짜까지의 누적"으로 조립해 props 로 내려준다.
 //   실제로는 app/api/ai/vocab-growth/route.ts
@@ -14,6 +18,8 @@ import type { DashboardData } from "./mockData";
 
 export default function VocabGrowthChart({ students, trend }: DashboardData["vocab"]) {
   const maxCount = Math.max(...students.map((d) => d.count));
+  // 막대 색(평균 이상/이하)을 가르는 기준으로만 쓴다 — 카드 하단에 숫자로 따로 적지는 않는다.
+  // 제목 옆 "9월 평균 N개"가 이미 같은 이야기를 하고, 범례가 어느 쪽이 위인지 말해 준다.
   const average =
     Math.round((students.reduce((sum, d) => sum + d.count, 0) / students.length) * 10) / 10;
 
@@ -21,6 +27,9 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
   const lastMonth = trend[trend.length - 2];
   const monthDelta = Math.round((thisMonth.average - lastMonth.average) * 10) / 10;
   const deltaLabel = `${monthDelta > 0 ? "+" : ""}${monthDelta}`;
+
+  // 차트 왼쪽 절반이면 툴팁을 오른쪽으로 편다 (그 반대도 마찬가지)
+  const half = students.length / 2;
 
   return (
     <section className="card vocab-card">
@@ -34,12 +43,15 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
       </div>
 
       <ul className="vocab-chart">
-        {students.map((d) => {
+        {students.map((d, index) => {
           const aboveAverage = d.count >= average;
           // 이번 달에 새로 쓴 말은 목록의 뒤쪽에 온다 (먼저 쓴 순으로 정렬돼 있다)
           const newFrom = d.count - d.delta;
           return (
-            <li className="vocab-bar-group" key={d.studentId}>
+            <li
+              className={"vocab-bar-group " + (index < half ? "tip-right" : "tip-left")}
+              key={d.studentId}
+            >
               <button type="button" className="vocab-trigger">
                 <span className={"vocab-val" + (aboveAverage ? " above" : "")}>{d.count}</span>
                 <span className="vocab-track">
@@ -84,9 +96,6 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
         </span>
         <span>
           <i className="vocab-key" /> 평균 이하
-        </span>
-        <span className="vocab-foot-right">
-          학급 평균 <strong>{average}개</strong>
         </span>
       </div>
     </section>

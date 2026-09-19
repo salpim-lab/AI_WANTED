@@ -68,7 +68,7 @@ for(const [kind,expect,say] of CASES){
   headers:{Authorization:"Bearer "+K,"Content-Type":"application/json"},
   body:JSON.stringify({model:"gpt-4o-mini",instructions:P,
    input:[{role:"user",content:JSON.stringify({transcript:T})}],
-   text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,store:false})});
+   text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,temperature:0,store:false})});
  const d=await r.json();
  const o=JSON.parse((d.output??[]).filter(x=>x.type==="message").flatMap(x=>x.content??[]).filter(c=>c.type==="output_text").map(c=>c.text).join(""));
  const flagged=o.risk==="flag";
@@ -84,7 +84,7 @@ if(BORDERLINE.length){
      headers:{Authorization:"Bearer "+K,"Content-Type":"application/json"},
      body:JSON.stringify({model:"gpt-4o-mini",instructions:P,
       input:[{role:"user",content:JSON.stringify({transcript:T})}],
-      text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,store:false})});
+      text:{format:{type:"json_schema",name:"risk_check",strict:true,schema:SCHEMA}},max_output_tokens:50,temperature:0,store:false})});
     const d=await r.json();
     const o=JSON.parse((d.output??[]).filter(x=>x.type==="message").flatMap(x=>x.content??[]).filter(c=>c.type==="output_text").map(c=>c.text).join(""));
     console.log(`     ${o.risk.padEnd(4)} │ ${say}`);

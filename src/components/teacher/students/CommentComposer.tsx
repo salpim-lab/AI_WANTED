@@ -97,12 +97,32 @@ export default function CommentComposer({
 
   return (
     <section className={`${salpimPaperCard} px-6 py-5`}>
-      <h3 className={`${salpimTitle} mb-1 flex items-center gap-1.5 text-xl`}>
-        <span aria-hidden>✉️</span>
-        선생님의 한마디
-      </h3>
-      <p className={`mb-3.5 text-xs ${salpimMuted}`}>
-        선생님의 말로 다듬어 저장하면, 내일 등교 때 {studentName}에게 전달돼요.
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <h3 className={`${salpimTitle} flex items-center gap-1.5 text-xl`}>
+          <span aria-hidden>✉️</span>
+          선생님의 한마디
+        </h3>
+        <p className={`text-xs ${salpimMuted}`}>
+          선생님의 말로 다듬어 저장하면, 내일 등교 때 {studentName}에게 전달돼요.
+        </p>
+      </div>
+
+      <p id="teacher-comment-hint" className={`mb-2 flex flex-wrap items-center gap-1.5 text-[11px] ${salpimMuted}`}>
+        {draftState.status === "loading" && "AI 초안을 불러오는 중…"}
+        {draftState.status === "unavailable" && "AI 초안이 없어요. 직접 작성할 수 있어요."}
+        {draftState.status === "ready" &&
+          (ghost ? (
+            <>
+              회색 글씨는 AI 초안이에요.
+              <kbd className="rounded border border-[#ece0c9] bg-white px-1 font-mono text-[10px] text-[#102a56]">Tab</kbd>
+              을 누르면 그대로 쓸 수 있어요.
+            </>
+          ) : (
+            "AI 초안을 참고해 선생님의 말로 쓰고 있어요."
+          ))}
+        {draftState.status === "ready" && draftState.isExample && (
+          <span className="rounded bg-amber-50 px-1.5 py-px font-semibold text-amber-700">API 연결 전 - 예시</span>
+        )}
       </p>
 
       <label htmlFor="teacher-comment" className="sr-only">
@@ -143,24 +163,6 @@ export default function CommentComposer({
         />
       </div>
 
-      <p id="teacher-comment-hint" className={`mt-1.5 flex items-center gap-1.5 text-[11px] ${salpimMuted}`}>
-        {draftState.status === "loading" && "AI 초안을 불러오는 중…"}
-        {draftState.status === "unavailable" && "AI 초안이 없어요. 직접 작성할 수 있어요."}
-        {draftState.status === "ready" &&
-          (ghost ? (
-            <>
-              회색 글씨는 AI 초안이에요.
-              <kbd className="rounded border border-[#ece0c9] bg-white px-1 font-mono text-[10px] text-[#102a56]">Tab</kbd>
-              을 누르면 그대로 쓸 수 있어요.
-            </>
-          ) : (
-            "AI 초안을 참고해 선생님의 말로 쓰고 있어요."
-          ))}
-        {draftState.status === "ready" && draftState.isExample && (
-          <span className="rounded bg-amber-50 px-1.5 py-px font-semibold text-amber-700">API 연결 전 · 예시</span>
-        )}
-      </p>
-
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -183,15 +185,9 @@ export default function CommentComposer({
           style={{ borderRadius: 999, background: saved ? "#22c55e" : "#635bff", borderColor: "transparent" }}
           onClick={send}
         >
-          {saved ? `✓ ${studentName}에게 전달 예정` : sending ? "보내는 중…" : "저장 · 내일 전달"}
+          {saved ? `✓ ${studentName}에게 전달 예정` : sending ? "보내는 중…" : "저장 - 내일 전달"}
         </button>
-        <span className={`ml-auto text-[11px] ${salpimMuted}`}>자동 발송 없음 — 저장해야 전달됩니다</span>
       </div>
-      {saved && (
-        <p role="status" className={`mt-2 text-[11px] ${salpimMuted}`}>
-          내일 등교 때 {studentName}의 등교 화면에 선생님 편지로 보여요. 고쳐서 다시 저장하면 마지막 글이 전달돼요.
-        </p>
-      )}
       {sendError && (
         <p role="alert" className="mt-2 text-[11px] text-red-600">
           {sendError}

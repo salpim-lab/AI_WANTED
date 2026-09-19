@@ -8,8 +8,8 @@ import Link from "next/link";
 import type { TaggedStudent } from "@/lib/types/teacherRecord";
 
 const REPORT_ITEMS = [
-  "신호등 색 요약 (등교·하교)",
-  "감정 어휘 · 관계 지도 (오늘 기준)",
+  "신호등 색 요약 (등교-하교)",
+  "감정 어휘 - 관계 지도",
   "학생관찰일지에 태그된 기록",
   "AI 분석 요약",
 ];
@@ -33,7 +33,7 @@ export default function DataExportBox({ student, days }: { student: TaggedStuden
         rel="noopener"
         className="btn btn-primary btn-sm mt-3 block w-full text-center"
       >
-        리포트 열기 · PDF로 저장
+        리포트 열기 - PDF로 저장
       </Link>
       <p className="mt-1.5 text-[11px] text-[#7d849b]">리포트 화면에서 기간을 직접 바꿀 수 있어요.</p>
     </div>

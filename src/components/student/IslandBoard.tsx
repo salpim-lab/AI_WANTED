@@ -10,6 +10,7 @@ import { findCatalogItem } from "@/lib/items/itemCatalog";
 
 export default function IslandBoard({
   active = true,
+  flow = "checkin",
   item,
   baseItemCount = 0,
   studentName = "민준",
@@ -18,6 +19,7 @@ export default function IslandBoard({
   preparing = false,
 }: {
   active?: boolean;
+  flow?: "checkin" | "checkout";
   item: Item | null;
   baseItemCount?: number;
   studentName?: string;
@@ -33,6 +35,6 @@ export default function IslandBoard({
   return <div className="screen active island-screen" id="s5">
     <SalpimHeader />
     <StudentProfile name={studentFullName} />
-    <IslandExperience compact incomingItem={incoming} studentName={studentName} baseItemCount={baseItemCount} preparing={preparing} onComplete={onComplete}/>
+    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} baseItemCount={baseItemCount} preparing={preparing} onComplete={onComplete}/>
   </div>;
 }

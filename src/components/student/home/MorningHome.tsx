@@ -34,7 +34,7 @@ export default function MorningHome({
       setHidden(true);
     }
     function onMotionChange() { if (motion.matches) finish(); }
-    timer.current = setTimeout(finish, motion.matches ? 0 : 1150);
+    timer.current = setTimeout(finish, motion.matches ? 0 : 1100);
     motion.addEventListener("change", onMotionChange);
     return () => {
       if (timer.current !== null) clearTimeout(timer.current);

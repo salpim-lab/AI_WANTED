@@ -7,11 +7,10 @@
 
 import { revalidatePath } from "next/cache";
 import { parsePastKstLocalDateTime } from "@/components/shared/datetime";
-import { getMockAiPreview, getStudentDaySessions, listClassStudents } from "@/lib/supabase/queries/teacherStudents";
+import { listClassStudents } from "@/lib/supabase/queries/teacherStudents";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { insertObservationLog } from "@/lib/supabase/raw/observationLog";
 import type { ActionResult } from "@/lib/types/teacherRecord";
-import type { SignalColor } from "@/lib/types/signal";
 
 const MAX_TITLE_LENGTH = 100;
 const MAX_BODY_LENGTH = 5000;
@@ -35,8 +34,8 @@ export async function createObservation(formData: FormData): Promise<ActionResul
   if (body.length > MAX_BODY_LENGTH) return fail(`내용은 ${MAX_BODY_LENGTH}자 이내로 적어 주세요.`);
   if (title.length > MAX_TITLE_LENGTH) return fail(`제목은 ${MAX_TITLE_LENGTH}자 이내로 적어 주세요.`);
   if (occurredAt === "invalid") return fail("발생 일시를 확인해 주세요. 미래 시각은 입력할 수 없어요.");
-  if (recordType === "student_consultation" && studentIds.length === 0) {
-    return fail("상담한 아이를 선택해 주세요.");
+  if (studentIds.length === 0) {
+    return fail(recordType === "student_consultation" ? "상담한 아이를 태그해 주세요." : "관찰한 아이를 태그해 주세요.");
   }
 
   const classStudentIds = new Set((await listClassStudents(teacher.classId)).map((s) => s.studentId));
@@ -62,24 +61,4 @@ export async function createObservation(formData: FormData): Promise<ActionResul
     status: "success",
     message: recordType === "student_consultation" ? "학생 상담 기록을 저장했어요." : "관찰 기록을 저장했어요.",
   };
-}
-
-export type StudentDayContext = {
-  morning: SignalColor | null;
-  afternoon: SignalColor | null;
-  /** AI가 요약한 그날 대화 참고용 한 줄 — 진단·판정이 아니라 기록 전 기억을 돕는 참고 자료 */
-  aiSummary: string | null;
-};
-
-/**
- * 관찰 기록을 적기 전에 "그 아이가 그날 어땠는지" 잠깐 보여주기 위한 요약.
- * 아이 상세 탭과 같은 데이터(체크인 세션, AI 분석 미리보기)를 재사용한다 — 새 저장소를 만들지 않는다.
- */
-export async function getStudentDayContext(studentId: string, date: string): Promise<StudentDayContext> {
-  const teacher = await getActingTeacher();
-  const sessions = await getStudentDaySessions(teacher.classId, studentId, date);
-  const latest = (period: "morning" | "afternoon"): SignalColor | null =>
-    [...sessions].filter((s) => s.period === period).sort((a, b) => b.attempt - a.attempt)[0]?.color ?? null;
-  const { analysis } = await getMockAiPreview(teacher.classId, studentId, date);
-  return { morning: latest("morning"), afternoon: latest("afternoon"), aiSummary: analysis };
 }
