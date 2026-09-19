@@ -218,8 +218,6 @@
 .briefing-line .bstatus { font-size: var(--fs-body); font-weight: var(--fw-bold); }
 .briefing-info .breason { font-size: var(--fs-label); color: var(--muted); line-height: 1.55; }
 /* 화살표도 이름 줄에 맞춘다 — 카드마다 다른 높이에 떠 있으면 시선이 흔들린다 */
-.briefing-go { font-size: var(--fs-name); color: var(--faint); flex-shrink: 0; margin-top: 1px; }
-.briefing-row:hover .briefing-go { color: var(--muted); }
 
 .tone-green .briefing-avatar { background: var(--green); box-shadow: 0 0 0 5px var(--green-bg); }
 .tone-green .bstatus { color: var(--green-ink); }
@@ -525,7 +523,7 @@
 /* ── 3. 오늘의 교실 ───────────────────────────────────────────── */
 /* 오늘의 교실만 제목 바로 아래 질문 한 줄이 붙는다 (제목 위치 자체는 다른 카드와 동일) */
 .classroom-card .card-title { margin-bottom: 8px; }
-.classroom-question { margin: 0 0 20px; font-size: var(--fs-body); color: var(--muted); line-height: 1.6; }
+.classroom-question { margin: 0 0 8px; font-size: var(--fs-body); color: var(--muted); line-height: 1.6; }
 .classroom-weather { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .classroom-headline { font-size: var(--fs-title); font-weight: var(--fw-regular); letter-spacing: -0.7px; }
 .classroom-support { margin: 5px 0 0; font-size: var(--fs-label); color: var(--muted); line-height: 1.55; }
@@ -560,15 +558,16 @@
   color: var(--muted);
 }
 /* 참여 인원 한 줄 — 단독 카드였던 전체 참여도를 여기로 접어 넣은 것.
-   숫자는 작게, 미참여 명단은 눌러야 할 때만 위에 올려 본다. */
+   숫자는 작게, 미참여 명단은 눌러야 할 때만 위에 올려 본다.
+   질문 문장 바로 밑이라 구분선은 안 긋는다 — 위 줄(.classroom-question)과 한 묶음으로 보이게 간격만 좁게. */
 .classroom-attend {
   display: flex;
   align-items: baseline;
   gap: 9px;
   flex-wrap: wrap;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin-top: 0;
+  padding-top: 0;
+  margin-bottom: 20px;
   font-size: var(--fs-label);
 }
 .classroom-attend .ca-label { font-weight: var(--fw-bold); color: var(--muted); }
@@ -629,8 +628,9 @@
   margin-left: 8px;
   font-size: var(--fs-caption);
   font-weight: var(--fw-bold);
-  color: var(--green-ink);
-  background: var(--green-bg);
+  /* 예전엔 초록(늘었다=좋은 일)이었는데, 남색(신호 4색 중 하나, 이미 대시보드 곳곳에 쓰는 톤)으로 바꿨다 */
+  color: var(--navy-ink);
+  background: var(--navy-bg);
   border-radius: 99px;
   padding: 3px 9px;
 }
@@ -720,7 +720,7 @@
 .tip-center .vocab-tooltip { left: 50%; transform: translate(-50%, 3px); }
 
 .vocab-bar-group:hover .vocab-tooltip,
-.vocab-bar-group:focus-within .vocab-tooltip {
+.vocab-trigger:focus-visible + .vocab-tooltip {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

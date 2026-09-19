@@ -11,7 +11,7 @@ export const MINJUN_DEMO_ITEMS = [
   { itemId: "soccer_ball", date: "9/7", period: "등교", reason: "아빠랑 찬 슛이 날아갈 것 같았다고 했지?" }, { itemId: "wishing_well", date: "9/7", period: "하교", reason: "옛날 우물로 발표 주제를 정했어!" },
   { itemId: "well_bucket", date: "9/8", period: "등교", reason: "할머니께 들은 우물 이야기가 신기했지?" }, { itemId: "microphone", date: "9/8", period: "하교", reason: "조사한 걸 말해줬더니 뿌듯했어!" },
   { itemId: "trophy", date: "9/9", period: "등교", reason: "다시 하는 축구, 무조건 이긴다고 했지?" }, { itemId: "soccer_goal", date: "9/9", period: "하교", reason: "취소된 골이 정말 억울했지?" },
-  { itemId: "notebook", date: "9/10", period: "등교", reason: "떨리는 발표, 연습을 많이 했어!" }, { itemId: "clothespin", date: "9/10", period: "하교", reason: "빨래 얘기에 친구들이 웃어줬어!" },
+  { itemId: "notebook", date: "9/10", period: "등교", reason: "떨리는 발표, 연습을 많이 했어!" }, { itemId: "drying_rack", date: "9/10", period: "하교", reason: "빨래 얘기에 친구들이 웃어줬어!" },
   { itemId: "cookies", date: "9/11", period: "등교", reason: "하준이랑 버스 옆자리, 과자 세 개 챙겼어!" }, { itemId: "model_rocket", date: "9/11", period: "하교", reason: "로켓 발사에 심장이 쿵 했다고 했지?" },
 ] as const;
 
@@ -22,7 +22,8 @@ export const MINJUN_DEMO_PLACEMENTS = saved as DemoPlacement[];
 export function placementsToGifts(placements: DemoPlacement[]): IslandGift[] {
   return placements.flatMap(({ itemId, x, z }) => {
     const item = ITEM_CATALOG.find(entry => entry.id === itemId);
-    return item ? [{ id: `demo-${itemId}`, kind: "star" as const, name: item.displayName, x, z, assetFormat: "procedural" as const, geometrySpec: item.spec }] : [];
+    const demo = MINJUN_DEMO_ITEMS.find(entry => entry.itemId === itemId);
+    return item ? [{ id: `demo-${itemId}`, kind: "star" as const, name: item.displayName, x, z, assetFormat: "procedural" as const, geometrySpec: item.spec, note: demo && { when: `${demo.date} ${demo.period} 발화`, reason: demo.reason } }] : [];
   });
 }
 

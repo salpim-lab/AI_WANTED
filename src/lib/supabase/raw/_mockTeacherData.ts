@@ -31,7 +31,7 @@ import { addDays, todayKst } from "@/components/shared/datetime";
 export const MOCK_TEACHER = {
   id: "20000000-0000-4000-8000-000000000001",
   classId: "20000000-0000-4000-8000-000000000001",
-  displayName: "이선생님",
+  displayName: "선생님",
 } as const;
 
 /**
@@ -75,7 +75,7 @@ export const MOCK_DB_CLASS_ID = "20000000-0000-4000-8000-000000000001";
  * 앱은 아직 mock 교사·mock 명단(student_id)을 쓰고, DB에는 시드 학급·시드 교사·시드 enrollment가 있다.
  *   - 학급: MOCK_TEACHER.classId → MOCK_DB_CLASS_ID (그 외 학급은 null — 담당 학급이 아니다)
  *   - 교사: MOCK_TEACHER.id → DB 학급의 담임(class_teachers.role='homeroom')
- *   - 학생: mock 이름(성 포함) ↔ DB 이름(성 뺀 이름)
+ *   - 학생: mock 이름(성 포함) ↔ DB 이름(성 포함이면 그대로, 시드처럼 성 뺀 이름이면 성을 떼고)
  * 인증이 붙으면(getActingTeacher가 실제 교사를 돌려주면) 이 연결표는 삭제하고 v_students_current를 직접 쓴다.
  */
 export type RecordDb = {
@@ -109,7 +109,8 @@ async function loadRecordDb(client: RecordDb["client"]): Promise<Omit<RecordDb, 
   const enrollmentOf = new Map<string, string>();
   const dbStudentOf = new Map<string, string>();
   for (const mock of MOCK_STUDENTS) {
-    const db = dbByName.get(givenName(mock.display_name));
+    // DB 이름이 성 포함("김민준")이든 성 뺀 이름("민준", 시드)이든 잇는다
+    const db = dbByName.get(mock.display_name) ?? dbByName.get(givenName(mock.display_name));
     if (!db?.enrollment_id || !db.student_id) continue;
     studentByEnrollment.set(db.enrollment_id, mock);
     enrollmentOf.set(mock.student_id, db.enrollment_id);

@@ -98,10 +98,7 @@ export default function CommentComposer({
   return (
     <section className={`${salpimPaperCard} px-6 py-5`}>
       <div className="mb-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <h3 className={`${salpimTitle} flex items-center gap-1.5 text-xl`}>
-          <span aria-hidden>✉️</span>
-          선생님의 한마디
-        </h3>
+        <h3 className={`${salpimTitle} text-xl`}>선생님의 한마디</h3>
         <p className={`text-xs ${salpimMuted}`}>
           선생님의 말로 다듬어 저장하면, 내일 등교 때 {studentName}에게 전달돼요.
         </p>
@@ -179,7 +176,14 @@ export default function CommentComposer({
           className="btn btn-primary btn-sm"
           disabled={saved || sending || !text.trim()}
           // 공용 .btn은 Tailwind로 덮어쓸 수 없어 학생 화면 보라색 둥근 버튼은 inline style로 준다
-          style={{ borderRadius: 999, background: saved ? "#22c55e" : "#635bff", borderColor: "transparent" }}
+          // 저장 중·저장 후에는 눌렀다는 걸 알 수 있게 회색 비활성 모습으로 바꾼다
+          style={{
+            borderRadius: 999,
+            borderColor: "transparent",
+            ...(saved || sending
+              ? { background: "#e6e2fb", color: "#7d849b", cursor: "not-allowed", opacity: 1 }
+              : { background: "#635bff" }),
+          }}
           onClick={send}
         >
           {saved ? `✓ ${studentName}에게 전달 예정` : sending ? "보내는 중…" : "저장 - 내일 전달"}

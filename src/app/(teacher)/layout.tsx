@@ -32,7 +32,7 @@ export default function TeacherLayout({
             <SalpimLogo />
           </div>
           <div className="meta">
-            <strong>3학년 2반</strong> · <CurrentDate /> · 이선생님
+            <strong>3학년 2반</strong> · <CurrentDate />
           </div>
         </header>
         {/* 네비(왼쪽 사이드바) + 본문을 가로로 묶는 래퍼.

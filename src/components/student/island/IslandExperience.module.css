@@ -1,0 +1,21 @@
+.progressNotice {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 25px 13px;
+}
+
+.progressNotice::before {
+  content: "";
+  position: absolute;
+  inset: -14px -30px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 64% 58% at 43% 47%, rgb(255 255 255 / 78%) 0%, rgb(255 255 255 / 48%) 50%, transparent 100%),
+    radial-gradient(ellipse 60% 56% at 60% 54%, rgb(255 255 255 / 64%) 0%, rgb(255 255 255 / 34%) 55%, transparent 100%);
+  filter: blur(12px);
+}

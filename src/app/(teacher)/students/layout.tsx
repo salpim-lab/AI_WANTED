@@ -29,7 +29,7 @@ async function StudentsLayoutInMockScope({ children }: LayoutProps<"/students">)
   ]);
 
   return (
-    <StudentsSplitView seats={seats} grid={{ rows, cols }} date={today}>
+    <StudentsSplitView seats={seats} grid={{ rows, cols }}>
       {children}
     </StudentsSplitView>
   );

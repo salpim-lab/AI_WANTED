@@ -28,7 +28,7 @@ export default function ItemPipelineLabPage() {
           {categories.map(category => <optgroup key={category} label={category}>
             {ITEM_CATALOG.filter(item => item.category === category).map(item => <option key={item.id} value={item.id}>{item.displayName}</option>)}
           </optgroup>)}
-          <option value={FALLBACK_ID}>기본 선물 (실패 시)</option>
+          <option value={FALLBACK_ID}>기본 아이템 (실패 시)</option>
         </select>
         <button onClick={random} className="rounded-xl border bg-white px-3 py-2">무작위</button>
         <button onClick={() => { setPlaced([]); setRound(r => r + 1); }} disabled={!placed.length} className="rounded-xl border bg-white px-3 py-2 disabled:opacity-40">놓은 아이템 모두 지우기</button>
