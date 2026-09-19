@@ -42,7 +42,8 @@ export default function CheckinPage() {
   const goToCheckout = useCallback(() => {
     if (checkoutTimer.current !== null) return;
     setToCheckout(true);
-    checkoutTimer.current = setTimeout(() => router.push("/checkout"), 2800);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    checkoutTimer.current = setTimeout(() => router.push("/checkout"), reducedMotion ? 0 : 2400);
   }, [router]);
   useEffect(() => () => {
     if (checkoutTimer.current !== null) clearTimeout(checkoutTimer.current);
@@ -117,13 +118,14 @@ export default function CheckinPage() {
         />
       )}
       {toCheckout && (
-        <div className="sh-to-checkout" role="status">
-          오늘 하루를 보내고, 하교 시간으로 넘어갈게요
+        <div className="sh-to-checkout" role="status" aria-live="polite">
+          <p className="sh-cute">오늘 아침 이야기 고마워!</p>
+          <span>즐거운 하루 보내고, 하교 시간에 다시 만나자</span>
         </div>
       )}
       {(
         flow.step === 2 ||
-        flow.step === 5 ||
+        (flow.step === 5 && !toCheckout) ||
         (flow.step === 3 && !flow.typing && !flow.thinking && !flow.conversationOver && flow.consultState === "hidden")
       ) && (
         <StudentBackButton
