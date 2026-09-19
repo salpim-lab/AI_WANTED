@@ -595,6 +595,29 @@
 }
 @media (prefers-reduced-motion: reduce) { .sh-to-checkout { animation: none; transform: translateX(-50%); } }
 
+/* 하교 섬 배치 완료 후 교사 화면으로 넘어가는 짧은 연결 장면. */
+@keyframes shToTeacherIn {
+  from { opacity: 0; transform: translateY(1.2cqh); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sh-to-teacher {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2cqh;
+  background: rgba(250, 250, 255, 0.92);
+  color: var(--sh-navy);
+  text-align: center;
+  animation: shToTeacherIn 0.8s ease-out both;
+}
+.sh-to-teacher p { margin: 0; font-size: 5cqh; }
+.sh-to-teacher span { font-size: 2.6cqh; font-weight: 700; color: var(--sh-muted); }
+@media (prefers-reduced-motion: reduce) { .sh-to-teacher { animation: none; } }
+
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */
 .sh-cta-stack {
   display: flex;
