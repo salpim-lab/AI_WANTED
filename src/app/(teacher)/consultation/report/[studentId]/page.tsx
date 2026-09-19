@@ -26,7 +26,8 @@ async function ConsultationReportPageInMockScope({
   const teacher = await getActingTeacher();
   const { from, to } = resolveReportRange(dateParam(query.from), dateParam(query.to));
 
-  const report = await getConsultationReport(teacher.classId, studentId, from, to);
+  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — teacher.id를 viewerTeacherId로.
+  const report = await getConsultationReport(teacher.classId, studentId, from, to, teacher.id);
   if (!report) notFound();
 
   after(() =>

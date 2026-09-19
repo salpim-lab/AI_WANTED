@@ -114,11 +114,7 @@ async function buildStudentContext(
   viewerTeacherId?: string,
 ): Promise<AgentContextBundle> {
   const from = addDays(today, -(REPORT_DEFAULT_DAYS - 1));
-  // (2026-09-20) getConsultationReport(김현우 소유, queries/teacherStudents.ts)는 아직
-  // viewerTeacherId를 안 받는다 — 내부에서 부르는 listObservationLogsForStudent에도 아직
-  // 안 흘러간다. 공개 데모 방문자 격리가 이 경로까지 완전해지려면 그쪽도 같이 고쳐야 해서
-  // PR에서 김현우와 같이 확인 필요(내 파일 밖이라 여기서 임의로 안 고침).
-  const report = await getConsultationReport(classId, studentId, from, today);
+  const report = await getConsultationReport(classId, studentId, from, today, viewerTeacherId);
   if (!report) {
     return {
       classId,

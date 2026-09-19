@@ -58,9 +58,12 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
       ? { studentIds: [consultStudentId], occurredAt }
       : undefined;
 
+  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — teacher.id를 viewerTeacherId로 넘겨서
+  // 다른 방문자가 새로 쓴 기록은 이 목록에 안 보이게 한다. 자세한 내용은 observationLog.ts 참고.
   const feedObservations = await listObservationLogs(
     teacher.classId,
     searching ? { keyword, studentId } : { from: date, to: date },
+    teacher.id,
   );
 
   return (

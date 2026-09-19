@@ -32,6 +32,8 @@ import {
 } from "@/components/teacher/agent/context";
 import { buildDomainSystemPrompt, buildLightSystemPrompt, buildMergeSystemPrompt } from "@/components/teacher/agent/prompt";
 import { callTeacherAgentModel, hasClaudeKey } from "@/lib/anthropic/teacherAgentModel";
+import { checkAndIncrementRateLimit } from "@/lib/ai/rateLimit";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -105,6 +107,22 @@ function toFindingPayload(f: DomainFinding) {
   return { domain: f.domain, label: DOMAIN_LABEL[f.domain], finding: f.finding, evidence: f.evidence };
 }
 
+// (2026-09-20) 공개 데모 AI 호출 비용 제한 — 로그인한(익명 포함) 세션이 있으면 auth.uid()로,
+// 없으면 IP로 시간창 안 호출 횟수를 센다(lib/ai/rateLimit.ts, DB 원자적 카운터).
+async function resolveRateLimitSubject(request: Request): Promise<string> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) return `user:${user.id}`;
+  } catch {
+    // 세션 확인 실패 — IP로 대체
+  }
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  return `ip:${ip}`;
+}
+
 export async function POST(request: Request) {
   let body: RequestBody;
   try {
@@ -116,6 +134,12 @@ export async function POST(request: Request) {
   const question = typeof body.question === "string" ? body.question.trim() : "";
   if (!question) {
     return NextResponse.json({ message: "question이 필요합니다." }, { status: 400 });
+  }
+
+  const rateLimitSubject = await resolveRateLimitSubject(request);
+  const withinLimit = await checkAndIncrementRateLimit(rateLimitSubject, { windowSeconds: 3600, maxCalls: 30 });
+  if (!withinLimit) {
+    return NextResponse.json({ message: "잠시 후 다시 시도해주세요 (요청이 너무 많아요)." }, { status: 429 });
   }
   const studentId = typeof body.studentId === "string" && body.studentId.trim() ? body.studentId.trim() : null;
   const requestedDomains = parseDomains(body.domains);

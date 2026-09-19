@@ -498,12 +498,19 @@ function existingDayAnalysis(
   return seeded ? { analysisId: seeded.id, sessionId: seeded.source_id, date, summary: seeded.result.summary } : null;
 }
 
-/** 학부모 상담 근거 자료 — 신호등 색 이력, AI 분석, 관찰일지 태그 항목. from~to는 교사가 고른 날짜 범위(둘 다 포함) */
+/**
+ * 학부모 상담 근거 자료 — 신호등 색 이력, AI 분석, 관찰일지 태그 항목. from~to는 교사가 고른 날짜 범위(둘 다 포함)
+ * (2026-09-20, 이지현 제안) viewerTeacherId — 공개 데모 방문자 격리용, listObservationLogs와
+ * 같은 방식(observationLog.ts 참고). 안 주면 기존과 동일하게 시드 담임 것만 보인다. 이 파일의
+ * 다른 호출부(consultation/actions.ts 등, 김현우 소유)는 아직 안 건드렸다 — teacher.id를
+ * 갖고 있으니 필요하면 같은 방식으로 넘기면 된다.
+ */
 export async function getConsultationReport(
   classId: string,
   studentId: string,
   from: string,
   to: string,
+  viewerTeacherId?: string,
 ): Promise<ConsultationReport | null> {
   const row = findRow(classId, studentId);
   if (!row) return null;
@@ -521,7 +528,7 @@ export async function getConsultationReport(
     if (analysis) analyses.push(analysis);
   }
 
-  const observations = await listObservationLogsForStudent(classId, studentId, to, days);
+  const observations = await listObservationLogsForStudent(classId, studentId, to, days, viewerTeacherId);
 
   const evidenceRefs: EvidenceRef[] = [
     ...sessions.map((s) => ({ table: "checkin_sessions" as const, id: s.sessionId })),

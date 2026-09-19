@@ -1424,6 +1424,12 @@ export type Database = {
     }
     Functions: {
       current_actor: { Args: never; Returns: string }
+      // 이지현 (제안, 2026-09-20): 마이그레이션 20260920020400_1091_ai_rate_limits.sql 참고.
+      // 이 파일은 원래 자동 생성 — 그 마이그레이션이 실제 DB에 적용된 뒤 다시 생성하면 자동 반영됨.
+      increment_ai_rate_limit: {
+        Args: { p_subject: string; p_window_seconds: number; p_max_calls: number }
+        Returns: boolean
+      }
       get_student_context: {
         Args: { p_enrollment_id: string; p_since?: string }
         Returns: Json
