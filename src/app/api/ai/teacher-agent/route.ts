@@ -1,9 +1,11 @@
 // 담당: 이지현
 // 선생님 agent (협진 챗봇) — 교사 화면 어디서나 뜨는 전역 챗봇의 서버 쪽.
 // 컨텍스트는 components/teacher/agent/context.ts(이지현 소유, 김현우의 조회 함수 재사용)로
-// 정서/학교생활 관찰/가정 연계 3개 도메인으로 모으고, 도메인마다 OpenAI를 병렬 호출해 소견을 낸 뒤
+// 정서/학교생활 관찰/가정 연계 3개 도메인으로 모으고, 도메인마다 Claude를 병렬 호출해 소견을 낸 뒤
 // 마지막에 하나로 합친다 (image.png "3개 system prompt 병렬 호출 후 합치는 구조").
-// OPENAI_API_KEY가 없으면(로컬 개발 중 키 미설정) 도메인별 컨텍스트를 그대로 보여주는 개발용
+// (2026-09-19) OpenAI에서 Claude로 전환 — lib/anthropic/teacherAgentModel.ts 참고. 다른 팀원
+// 기능(아이템 생성 등)은 그대로 OpenAI를 쓰므로 이 라우트만의 결정이다.
+// ANTHROPIC_API_KEY가 없으면(로컬 개발 중 키 미설정) 도메인별 컨텍스트를 그대로 보여주는 개발용
 // 폴백을 준다 — 화면 전체 흐름을 키 없이도 끝까지 테스트할 수 있다.
 //
 // 근거(evidence)는 각 도메인이 어떤 기록(날짜·종류)을 봤는지 사람이 읽을 수 있는 문자열로 같이
@@ -29,7 +31,7 @@ import {
   type DomainContext,
 } from "@/components/teacher/agent/context";
 import { buildDomainSystemPrompt, buildLightSystemPrompt, buildMergeSystemPrompt } from "@/components/teacher/agent/prompt";
-import { callTeacherAgentModel, hasOpenAIKey } from "@/lib/openai/teacherAgentModel";
+import { callTeacherAgentModel, hasClaudeKey } from "@/lib/anthropic/teacherAgentModel";
 
 export const runtime = "nodejs";
 
@@ -109,8 +111,8 @@ export async function POST(request: Request) {
     const respond = (payload: object) =>
       NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
 
-    if (!hasOpenAIKey()) {
-      const prefix = "[개발용 응답 · OpenAI 키 미설정]\n\n";
+    if (!hasClaudeKey()) {
+      const prefix = "[개발용 응답 · ANTHROPIC_API_KEY 미설정]\n\n";
       if (selected.length === 0) {
         const answer = prefix + domains.map((d) => `[${DOMAIN_LABEL[d.domain]}]\n${d.text || "참고할 기록이 없습니다."}`).join("\n\n");
         return respond({ answer, studentName, evidence: domains.flatMap((d) => d.evidence), domainFindings: [], respondedDomain: null, mocked: true });
