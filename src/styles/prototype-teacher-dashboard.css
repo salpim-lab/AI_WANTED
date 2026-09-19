@@ -218,8 +218,6 @@
 .briefing-line .bstatus { font-size: var(--fs-body); font-weight: var(--fw-bold); }
 .briefing-info .breason { font-size: var(--fs-label); color: var(--muted); line-height: 1.55; }
 /* 화살표도 이름 줄에 맞춘다 — 카드마다 다른 높이에 떠 있으면 시선이 흔들린다 */
-.briefing-go { font-size: var(--fs-name); color: var(--faint); flex-shrink: 0; margin-top: 1px; }
-.briefing-row:hover .briefing-go { color: var(--muted); }
 
 .tone-green .briefing-avatar { background: var(--green); box-shadow: 0 0 0 5px var(--green-bg); }
 .tone-green .bstatus { color: var(--green-ink); }
@@ -594,6 +592,10 @@
 /* 카드 오른쪽 끝에 붙어 있어 툴팁은 오른쪽 모서리 기준으로 펼친다 */
 .ca-absent .mood-tooltip { left: auto; right: 0; width: max-content; min-width: 150px; }
 
+/* 등교/하교 탭 — .rel-period 를 그대로 쓰되, 여기는 카드 제목 줄 안이 아니라 혼자 한 줄을 차지하므로
+   오른쪽으로 밀던 margin-left:auto 를 끄고 위아래 간격만 준다. */
+.classroom-period.rel-period { margin: 16px 0 18px; }
+
 .classroom-delta { margin: 14px 0 0; font-size: var(--fs-label); line-height: 1.65; color: var(--muted); }
 
 .classroom-recent {
@@ -629,8 +631,9 @@
   margin-left: 8px;
   font-size: var(--fs-caption);
   font-weight: var(--fw-bold);
-  color: var(--green-ink);
-  background: var(--green-bg);
+  /* 예전엔 초록(늘었다=좋은 일)이었는데, 남색(신호 4색 중 하나, 이미 대시보드 곳곳에 쓰는 톤)으로 바꿨다 */
+  color: var(--navy-ink);
+  background: var(--navy-bg);
   border-radius: 99px;
   padding: 3px 9px;
 }
@@ -720,7 +723,7 @@
 .tip-center .vocab-tooltip { left: 50%; transform: translate(-50%, 3px); }
 
 .vocab-bar-group:hover .vocab-tooltip,
-.vocab-bar-group:focus-within .vocab-tooltip {
+.vocab-trigger:focus-visible + .vocab-tooltip {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

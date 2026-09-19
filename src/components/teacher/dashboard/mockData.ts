@@ -723,14 +723,20 @@ function buildBriefingFacts(dateKey: string): StudentFacts[] {
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
 
+/** 등교/하교 한 시간대의 날씨+감정 분포 — 아이 상세의 "등교 마음 기록/하교 마음 기록"과 같은 구분이다.
+    mock 은 시간대를 나눠 기록하지 않는 구조라 두 탭에 같은 값을 담는다 —
+    실제 등교/하교 구분은 lib/supabase/queries/dashboardSnapshot.ts(체크인의 period 컬럼)에서만 진짜로 갈린다. */
+export type ClassroomPeriod = { weather: ClassroomWeather; mood: MoodShare[] };
+export type CheckinPeriod = "morning" | "afternoon";
+
 export type DashboardData = {
   dateKey: string;
   isToday: boolean;
   briefing: { watch: BriefingStudent[] };
   classroom: {
-    weather: ClassroomWeather;
+    periods: Record<CheckinPeriod, ClassroomPeriod>;
+    defaultPeriod: CheckinPeriod;
     delta: string;
-    mood: MoodShare[];
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
@@ -977,13 +983,12 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
     isToday: key === today,
     briefing: { watch: buildBriefingRows(buildBriefingFacts(key), key) },
     classroom: {
-      weather: {
-        ...deriveWeather(snapshot.mood),
-        question: WEATHER_QUESTION,
-        support: snapshot.weatherSupport,
+      periods: {
+        morning: { weather: { ...deriveWeather(snapshot.mood), question: WEATHER_QUESTION, support: snapshot.weatherSupport }, mood: buildMood(snapshot) },
+        afternoon: { weather: { ...deriveWeather(snapshot.mood), question: WEATHER_QUESTION, support: snapshot.weatherSupport }, mood: buildMood(snapshot) },
       },
+      defaultPeriod: "morning",
       delta: snapshot.classroomDelta,
-      mood: buildMood(snapshot),
       // 스냅샷이 있는 날은 큰 아이콘과 같은 규칙으로 유도한다 — 둘이 어긋나면 안 된다.
       recentDays: schoolDays.map((date, i) => ({
         date: shortDate(date),
@@ -1057,10 +1062,7 @@ export function mergeLiveVocab(
 /* ── 사용 중단 (기존 ColorSummaryBar.tsx 가 아직 import 하고 있어 유지) ──
    대시보드에서는 "오늘의 교실" 카드가 같은 집계를 흡수했다. */
 export function colorStats() {
-  const mood = getDashboardSnapshot(dashboardToday()).classroom.mood.map((m) => ({
-    color: m.color,
-    count: m.count,
-    pct: m.pct,
-  }));
-  return { morning: mood, afternoon: mood };
+  const { periods } = getDashboardSnapshot(dashboardToday()).classroom;
+  const asStats = (moods: MoodShare[]) => moods.map((m) => ({ color: m.color, count: m.count, pct: m.pct }));
+  return { morning: asStats(periods.morning.mood), afternoon: asStats(periods.afternoon.mood) };
 }

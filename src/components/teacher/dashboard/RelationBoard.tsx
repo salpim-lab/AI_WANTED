@@ -38,7 +38,7 @@ export default function RelationBoard({
     <section className="card col-12 relation-conflict">
       <div className="card-title">
         우리 반 관계
-        <span className="card-sub">발화·기록에서 본 아이들 사이</span>
+        <span className="card-sub">발화|기록에서 본 아이들 사이</span>
 
         {/* 기간을 바꿔도 고른 아이·선은 그대로 둔다 — 같은 관계가 기간에 따라
             어떻게 달라지는지 보는 게 이 토글을 쓰는 이유다. */}

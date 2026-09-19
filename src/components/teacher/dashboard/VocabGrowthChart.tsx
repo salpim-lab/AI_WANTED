@@ -40,7 +40,7 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
     <section className="card vocab-card">
       <div className="card-title">
         감정 어휘 성장
-        <span className="card-sub">누적 어휘 개수 · 학생 {students.length}명</span>
+        <span className="card-sub">누적 어휘 개수 | 학생 {students.length}명</span>
         <span className="vocab-trend-note">
           {thisMonth.month} 평균 {thisMonth.average}개
           <em className={monthDelta < 0 ? "down" : undefined}>지난달 {deltaLabel}</em>

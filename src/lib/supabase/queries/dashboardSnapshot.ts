@@ -32,6 +32,9 @@ type ClassroomDay = {
   kind: WeatherKind;
   isToday: boolean;
 };
+/** 등교/하교 한 시간대의 날씨+감정 분포 — 아이 상세의 "등교 마음 기록/하교 마음 기록"과 같은 구분이다 */
+type ClassroomPeriod = { weather: ClassroomWeather; mood: MoodShare[] };
+type CheckinPeriod = "morning" | "afternoon";
 type ParticipationSummary = {
   date: string;
   completedCount: number;
@@ -87,9 +90,10 @@ type DashboardData = {
   isToday: boolean;
   briefing: { watch: BriefingStudent[] };
   classroom: {
-    weather: ClassroomWeather;
+    periods: Record<CheckinPeriod, ClassroomPeriod>;
+    /** 탭을 처음 열 때 어느 쪽을 보여줄지 — 그 시간대 중 더 최근에 기록이 쌓인 쪽 */
+    defaultPeriod: CheckinPeriod;
     delta: string;
-    mood: MoodShare[];
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
@@ -241,13 +245,28 @@ async function loadSessions(roster: RosterStudent[], from: string, to: string): 
   return (data ?? []) as DashboardSession[];
 }
 
-function latestColor(sessions: DashboardSession[], enrollmentId: string, dateKey: string): SignalColor | null {
+function latestColor(
+  sessions: DashboardSession[],
+  enrollmentId: string,
+  dateKey: string,
+  period?: CheckinPeriod,
+): SignalColor | null {
   const latest = sessions
     .filter((session) => session.enrollment_id === enrollmentId && session.session_date === dateKey)
+    .filter((session) => !period || session.period === period)
     .filter((session) => SIGNAL_SET.has(session.mood_color))
     .sort((a, b) => b.started_at.localeCompare(a.started_at) || b.attempt - a.attempt)[0];
 
   return latest ? (latest.mood_color as SignalColor) : null;
+}
+
+/** 그 시간대에 가장 최근 기록이 쌓인 시각 — 없으면 undefined. 탭 기본값을 정하는 데만 쓴다. */
+function latestStartOf(sessions: DashboardSession[], dateKey: string, period: CheckinPeriod): string | undefined {
+  return sessions
+    .filter((session) => session.session_date === dateKey && session.period === period)
+    .map((session) => session.started_at)
+    .sort()
+    .at(-1);
 }
 
 function deriveWeather(mood: Record<SignalColor, number[]>): Pick<ClassroomWeather, "kind" | "headline"> {
@@ -367,7 +386,7 @@ function buildMockRelation(roster: RosterStudent[], dateKey: string): Record<Rel
   const nameFor = (studentNo: number) => roster.find((student) => student.studentNo === studentNo)?.name ?? "이름 없음";
   const mapConflict = (conflict: ConflictRow) => ({
     ...conflict,
-    pair: conflict.pairIds.map(nameFor).join(" · "),
+    pair: conflict.pairIds.map(nameFor).join(" | "),
     statements: conflict.statements.map((statement) => ({
       ...statement,
       who: replaceNames(statement.who, mockNames, roster),
@@ -651,6 +670,23 @@ async function loadLatestMinjunLemmas(roster: RosterStudent[], dateKey: string):
     : [];
 }
 
+function buildClassroomPeriod(
+  roster: RosterStudent[],
+  sessions: DashboardSession[],
+  dateKey: string,
+  period: CheckinPeriod,
+  support: string,
+): ClassroomPeriod {
+  const students: StudentSignal[] = roster.map((student) => ({
+    ...student,
+    color: latestColor(sessions, student.enrollmentId, dateKey, period),
+  }));
+  const weather = deriveWeather(moodIds(students));
+  // 질문 문장은 탭 위에 고정으로 뜨는 카드 인사말이라 등교/하교 둘 다 같은 문장을 쓴다
+  const question = "우리 반 마음에는 어떤 날씨가 찾아왔을까요?";
+  return { weather: { ...weather, question, support }, mood: buildMood(students) };
+}
+
 export async function getDashboardDataFromSupabase(classId: string, dateKey: string): Promise<DashboardData> {
   const roster = withFullNames(await loadRoster(classId), dateKey);
   const maxRelationDays = Math.max(...RELATION_PERIODS.map((period) => period.days));
@@ -660,21 +696,26 @@ export async function getDashboardDataFromSupabase(classId: string, dateKey: str
     color: latestColor(sessions, student.enrollmentId, dateKey),
   }));
 
-  const weather = deriveWeather(moodIds(students));
   const relation = buildMockRelation(roster, dateKey);
+
+  // 탭 기본값 — 그날 더 최근에 기록이 쌓인 시간대. 아직 둘 다 없으면 등교부터 보여준다
+  // (학교 하루가 등교로 시작하니, 텅 빈 하교 탭을 먼저 보여줄 이유가 없다).
+  const morningLatest = latestStartOf(sessions, dateKey, "morning");
+  const afternoonLatest = latestStartOf(sessions, dateKey, "afternoon");
+  const defaultPeriod: CheckinPeriod =
+    afternoonLatest && (!morningLatest || afternoonLatest > morningLatest) ? "afternoon" : "morning";
 
   return {
     dateKey,
     isToday: dateKey === dashboardToday(),
     briefing: { watch: buildBriefing(students) },
     classroom: {
-      weather: {
-        ...weather,
-        question: "우리 반 마음에는 어떤 날씨가 찾아왔을까요?",
-        support: "오늘 응답을 모아 본 분위기예요.",
+      periods: {
+        morning: buildClassroomPeriod(roster, sessions, dateKey, "morning", "등교 때 응답을 모아 본 분위기예요."),
+        afternoon: buildClassroomPeriod(roster, sessions, dateKey, "afternoon", "하교 때 응답을 모아 본 분위기예요."),
       },
+      defaultPeriod,
       delta: "학생들의 오늘 응답을 기준으로 집계했어요.",
-      mood: buildMood(students),
       recentDays: buildRecentDays(dateKey, sessions, roster),
     },
     participation: buildParticipation(dateKey, roster, students),
