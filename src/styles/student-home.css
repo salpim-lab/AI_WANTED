@@ -201,7 +201,8 @@
   100% { transform: translateY(0); }
 }
 .sh-letter-entering {
-  animation: shLetterPullUp 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* 아이 눈으로는 0.78초가 정신없었다. 천천히 꺼내 올린다 */
+  animation: shLetterPullUp 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
@@ -386,7 +387,7 @@
 }
 .sh-letter-leaving .sh-letter-assembly {
   transform-origin: 50% 69%;
-  animation: shEnvelopeDrop var(--lt-drop-dur, 0.9s) var(--lt-drop-delay, 0.5s)
+  animation: shEnvelopeDrop var(--lt-drop-dur, 1.15s) var(--lt-drop-delay, 0.5s)
     cubic-bezier(0.4, 0, 0.6, 1) forwards;
   pointer-events: none;
 }
@@ -407,7 +408,7 @@
 .sh-morning-intro-entering > .sh-intro {
   pointer-events: auto;
   transform-origin: 50% 100%;
-  animation: shMorningSprout 1.3s var(--lt-greet-delay, 1s) cubic-bezier(0.25, 0.9, 0.3, 1) both;
+  animation: shMorningSprout 1.6s var(--lt-greet-delay, 1.2s) cubic-bezier(0.25, 0.9, 0.3, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
@@ -424,6 +425,48 @@
   .sh-morning-intro-entering > .sh-intro > * { animation: none; }
 }
 
+
+/* 등교 섬 배치를 마친 뒤 하교로 넘어가기 전 안내. 화면을 덮지 않고 아래에 조용히 뜬다 */
+@keyframes shToCheckoutIn {
+  from { opacity: 0; transform: translate(-50%, 1.5cqh); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.sh-to-checkout {
+  position: absolute;
+  left: 50%;
+  bottom: 6cqh;
+  z-index: 20;
+  padding: 1.6cqh 3.2cqh;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--sh-navy);
+  font-size: 2.4cqh;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0.8cqh 2.4cqh rgba(40, 48, 90, 0.16);
+  animation: shToCheckoutIn 0.5s ease-out both;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .sh-to-checkout { animation: none; transform: translateX(-50%); } }
+
+/* 하교 홈의 "교사 시점으로 전환하기" — 주 버튼보다 한참 조용한 보조 버튼 */
+.sh-switch-teacher {
+  display: inline-flex;
+  align-items: center;
+  padding: 1.2cqh 2.8cqh;
+  border-radius: 999px;
+  border: 0.2cqh solid rgba(108, 99, 255, 0.22);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--sh-muted);
+  font-size: 2.1cqh;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0.4cqh 1.2cqh rgba(40, 48, 90, 0.08);
+  backdrop-filter: blur(0.6cqh);
+  transition: background 0.15s, color 0.15s;
+}
+.sh-switch-teacher:hover { background: #fff; color: var(--sh-navy); }
+.sh-switch-teacher:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
 .sh-profile {
   display: inline-flex;

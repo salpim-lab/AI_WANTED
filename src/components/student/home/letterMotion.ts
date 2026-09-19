@@ -23,12 +23,13 @@ export type LetterMotion = {
   greetDelay: number;
 };
 
+// 어른 눈에 맞던 속도가 아이에게는 정신없을 수 있어서 조금씩 늦췄다(2026-09-19).
 export const DEFAULT_LETTER_MOTION: LetterMotion = {
   dropDelay: 0.5,
-  dropDuration: 0.9,
+  dropDuration: 1.15,
   dropDistance: 34,
   tilt: 1,
-  greetDelay: 1,
+  greetDelay: 1.2,
 };
 
 /** 편지 장면을 치워도 되는 시각(ms) — 봉투가 다 내려간 뒤 */
