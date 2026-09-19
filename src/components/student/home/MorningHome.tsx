@@ -95,8 +95,8 @@ export default function MorningHome({
     setClosing(false);
     setHidden(false);
     setRun((r) => r + 1);
-    // 편지지가 다 올라온 다음(0.2s 뒤 2.4s)에 닫는다
-    replayTimer.current = setTimeout(close, 2900);
+    // 편지지가 다 올라온 다음(2.4s)에 닫는다
+    replayTimer.current = setTimeout(close, 2700);
   }
 
   const showIntro = !view || closing || hidden;

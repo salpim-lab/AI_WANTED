@@ -207,13 +207,14 @@
 }
 /* 첫 화면 — 봉투는 처음부터 열린 채로 있고, 편지지만 곧바로 천천히 올라온다.
    (닫힌 봉투가 도착해 열리는 연출도 해 봤지만, 바로 편지를 보여주는 쪽으로 돌아왔다 — 2026-09-19)
-   0.20 편지지가 천천히 시작해 서서히 올라온다 (2.4s). 그 전까지는 보이지 않는다
-   2.30 아래 "오늘의 마음 이야기하기" 버튼이 조용히 나타난다 */
+   0.00 편지지가 곧바로 올라오기 시작해 끝에서 천천히 멈춘다 (2.4s)
+        — 기다렸다가 느리게 출발하면 빈 봉투만 1초 가까이 보였다. 출발은 빠르게, 도착은 부드럽게
+   2.10 아래 "오늘의 마음 이야기하기" 버튼이 조용히 나타난다 */
 @keyframes shSoftAppear { from { opacity: 0; } to { opacity: 1; } }
 .sh-letter-entering {
-  animation: shLetterPullUp 2.4s cubic-bezier(0.4, 0, 0.25, 1) 0.2s both;
+  animation: shLetterPullUp 2.4s cubic-bezier(0.2, 0.75, 0.3, 1) both;
 }
-.sh-letter-cta-in { animation: shSoftAppear 0.8s ease-out 2.3s both; }
+.sh-letter-cta-in { animation: shSoftAppear 0.8s ease-out 2.1s both; }
 
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
 .sh-letter-scene { position: absolute; inset: 0; pointer-events: none; }
