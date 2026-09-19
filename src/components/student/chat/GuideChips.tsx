@@ -13,7 +13,7 @@
 // 그래서 AI 가 물어본 뒤 잠시 아무 반응이 없을 때만 올라온다.
 import type { Reply } from "../mockScenarios";
 import { useEffect, useState } from "react";
-import { hintLines } from "@/lib/chat/hints";
+import { bubbleTexts, hintLines } from "@/lib/chat/hints";
 
 /** 한 줄이 떠올라 머물다 사라지는 시간 */
 const LINE_MS = 2100;
@@ -39,9 +39,11 @@ function HintFlow({ topics, flowFirst }: { topics: string[]; flowFirst: boolean 
     // 주제마다 구름 말풍선. 누르는 것이 아니다.
     return (
       <div className="guide-chips" role="note">
+        <p className="guide-chips__label">이런 얘기를 해도 좋아</p>
         <span className="sr-only">{lines.join(" ")}</span>
+        {/* 말풍선끼리 한 줄로 이어 읽히게: "지금 마음," "요즘 있었던 일이나" "하고 싶은 말" */}
         <ul className="guide-chips__row" aria-hidden="true">
-          {topics.map((t) => (
+          {bubbleTexts(topics).map((t) => (
             <li key={t} className="guide-chip guide-chip--hint">
               {t}
             </li>

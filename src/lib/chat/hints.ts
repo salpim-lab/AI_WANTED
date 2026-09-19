@@ -64,6 +64,17 @@ export function hintLines(topics: string[]): string[] {
   );
 }
 
+/**
+ * 말풍선에 넣을 글. 한 줄로 이어 읽히게 앞은 쉼표, 가운데는 "이나/나", 마지막은 그대로 둔다.
+ *   ["지금 마음", "요즘 있었던 일", "하고 싶은 말"] → ["지금 마음,", "요즘 있었던 일이나", "하고 싶은 말"]
+ */
+export function bubbleTexts(topics: string[]): string[] {
+  const last = topics.length - 1;
+  return topics.map((t, i) =>
+    i === last ? t : i === 0 && last >= 2 ? `${t},` : `${t}${hasBatchim(t) ? "이나" : "나"}`,
+  );
+}
+
 export function pickHints(flow: Flow, color: SignalColor | null, turn = 0): string[] {
   if (!color) return [];
   if (turn >= 1) return SECOND_TURN;
