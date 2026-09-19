@@ -187,23 +187,29 @@
   cursor: pointer;
   transition: color 0.15s, transform 0.15s;
 }
-/* 홈으로 가는 버튼 — 뒤로가기의 짝. 오른쪽 모서리, 프로필 바깥쪽에 둔다. */
+/* 홈으로 가는 버튼 — 프로필 알약 바로 오른쪽에 같은 높이(7.2cqh = 사진 5.4 + 위아래 0.9)의
+   흰 원으로 둔다. 뒤로가기처럼 맨 선만 두면 알약 옆에서 작고 흐려 보였고, 섬 위에서는 묻혔다. */
 .student-home-btn {
   position: absolute;
-  right: 1.2cqw;
+  right: 2.2cqw;
   top: 4.4cqh;
   z-index: 30;
-  display: inline-flex;
-  align-items: center;
-  padding: 1cqh 0.8cqh;
+  display: grid;
+  place-items: center;
+  width: 7.2cqh;
+  height: 7.2cqh;
+  padding: 0;
   border: 0;
-  background: transparent;
-  color: #b3bacb;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.14);
+  color: var(--sh-navy);
   cursor: pointer;
-  transition: color 0.15s, transform 0.15s;
+  transition: background 0.15s, transform 0.15s;
 }
-.student-home-btn:hover { color: var(--sh-navy); }
-.student-home-btn:active { transform: translateY(0.2cqh) scale(0.98); }
+.student-home-btn .student-back__icon { width: 3.6cqh; height: 3.6cqh; stroke-width: 2; }
+.student-home-btn:hover { background: #fff; }
+.student-home-btn:active { transform: translateY(0.2cqh) scale(0.97); }
 .student-home-btn:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
 /* 로고·프로필은 버튼이 실제로 떠 있을 때만 안쪽으로 비켜 선다.
@@ -212,7 +218,7 @@
 .sh-header,
 .sh-profile { transition: left 0.25s ease, right 0.25s ease; }
 .tablet-stage:has(> .student-back) .sh-header { left: 5.2cqw; }
-.tablet-stage:has(> .student-home-btn) .sh-profile { right: 5.4cqw; }
+.tablet-stage:has(> .student-home-btn) .sh-profile { right: calc(2.2cqw + 7.2cqh + 1.2cqh); }
 @media (prefers-reduced-motion: reduce) {
   .sh-header,
   .sh-profile { transition: none; }
