@@ -209,7 +209,7 @@ export default function TeacherAgentWidget() {
             );
           })}
           <span className="ml-auto text-[10px] text-gray-400">
-            {selectedDomains.length === 0 ? "안 고르면 짧게 답해요" : `${selectedDomains.length}개 관점`}
+            {selectedDomains.length === 0 ? "고르면 그 영역을 자세히 답해요" : `${selectedDomains.length}개 관점`}
           </span>
         </div>
 
