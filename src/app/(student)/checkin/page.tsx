@@ -15,6 +15,7 @@ import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { getCheckinScenario } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
+import StudentBackButton from "@/components/student/home/StudentBackButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
@@ -119,6 +120,15 @@ export default function CheckinPage() {
         <div className="sh-to-checkout" role="status">
           오늘 하루를 보내고, 하교 시간으로 넘어갈게요
         </div>
+      )}
+      {(
+        flow.step === 2 ||
+        flow.step === 5 ||
+        (flow.step === 3 && !flow.typing && !flow.thinking && !flow.conversationOver && flow.consultState === "hidden")
+      ) && (
+        <StudentBackButton
+          onBack={() => flow.goTo(flow.step - 1)}
+        />
       )}
     </>
   );
