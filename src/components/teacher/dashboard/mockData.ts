@@ -42,19 +42,18 @@ export function shortDate(dateKey: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-/** dateKey 를 포함해 거슬러 올라가며 주말을 건너뛴 수업일 count 개 (오래된 날짜부터) */
+/** dateKey 를 포함해 거슬러 올라간 수업일 count 개 (오래된 날짜부터). 주말도 수업일이다 (2026-09-19 결정) */
 function recentSchoolDays(dateKey: string, count: number): string[] {
   const out: string[] = [];
   const cursor = new Date(`${dateKey}T00:00:00Z`);
   while (out.length < count) {
-    const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 6) out.push(cursor.toISOString().slice(0, 10));
+    out.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   return out.reverse();
 }
 
-/** 오늘부터 거슬러 k 번째 수업일. schoolDayAgo(0) = 오늘(주말이면 가장 가까운 지난 수업일) */
+/** 오늘부터 거슬러 k 번째 수업일. schoolDayAgo(0) = 오늘 */
 function schoolDayAgo(k: number): string {
   return recentSchoolDays(todayKst(), k + 1)[0];
 }
@@ -65,14 +64,13 @@ function monthDayLabel(dateKey: string): string {
   return `${Number(m)}월 ${Number(d)}일`;
 }
 
-/** from ~ to 사이의 수업일 (양끝 포함, 오래된 날 → 최근 날) */
+/** from ~ to 사이의 수업일 (양끝 포함, 오래된 날 → 최근 날). 주말도 수업일이다 */
 function schoolDaysBetween(from: string, to: string): string[] {
   const out: string[] = [];
   const cursor = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);
   while (cursor <= end) {
-    const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 6) out.push(cursor.toISOString().slice(0, 10));
+    out.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return out;
@@ -87,7 +85,6 @@ function schoolDaysBetween(from: string, to: string): string[] {
 export function dashboardDates(): string[] {
   const today = todayKst();
   const days = schoolDaysBetween(`${today.slice(0, 8)}01`, today);
-  // 달이 주말로 시작하면 이번 달 수업일이 아직 없다 — 가장 가까운 지난 수업일 하나라도 둔다.
   return days.length ? days : [schoolDayAgo(0)];
 }
 
@@ -108,7 +105,7 @@ export function resolveDateKey(raw?: string | string[]): string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return today;
   if (value > today) return today;
   if (value < min) return min;
-  // 스냅샷이 없는 날(주말 등)은 가장 가까운 과거 스냅샷으로
+  // 목록에 없는 날은 가장 가까운 과거 날짜로
   return [...dates].reverse().find((d) => d <= value) ?? today;
 }
 
@@ -208,12 +205,12 @@ const SOCIAL_WEIGHT: Record<number, number> = {
   11: 5, 12: 3, 13: 8, 14: 3, 15: 2, 16: 2, 17: 0, 18: 3, 19: 4, 20: 2,
 };
 
-/** 관계 지도가 보는 기간. days 는 수업일 수다 (주말은 애초에 기록이 없다).
+/** 관계 지도가 보는 기간. days 는 수업일 수다 (주말도 수업일이라 한 주 = 7일).
     "누적"은 한 학기 남짓을 잡는다 — 무제한으로 두면 3월 기록이 9월 관계를 흔든다. */
 export const RELATION_PERIODS = [
-  { id: "1w", label: "최근 1주", days: 5 },
-  { id: "2w", label: "최근 2주", days: 10 },
-  { id: "4w", label: "최근 4주", days: 20 },
+  { id: "1w", label: "최근 1주", days: 7 },
+  { id: "2w", label: "최근 2주", days: 14 },
+  { id: "4w", label: "최근 4주", days: 28 },
   { id: "all", label: "누적", days: 90 },
 ] as const;
 

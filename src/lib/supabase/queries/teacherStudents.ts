@@ -31,6 +31,10 @@ import {
   mockBriefingBadge,
   mockCheckinsFor,
   mockCommentDraft,
+  mockFixtureDayAi,
+  isLiveInMockScope,
+  usesMockFixture,
+  type FixtureDayAi,
   mockSeatLayouts,
   mockStudentIdFromNumber,
   type MockStudentRow,
@@ -268,10 +272,20 @@ async function loadRealSessions(
 
 type SessionSource = (row: MockStudentRow, date: string) => AnalysisInputSession[];
 
-/** rows × [from, to] 세션 — 그 아이·그 날짜에 실제 세션이 하나라도 있으면 실제만, 없으면 mock (두 출처를 섞지 않는다) */
+/**
+ * rows × [from, to] 세션 — 그 아이·그 날짜에 실제 세션이 하나라도 있으면 실제만, 없으면 mock (두 출처를 섞지 않는다).
+ * 단 목업 범위(김현우 화면)에서는: 실제로 쓰는 아이(김민준)는 실제 기록만, 나머지 아이는 목업이 있는 날짜면 목업이 먼저다
+ * (테스트로 쌓인 실제 기록이 목업 이야기를 덮지 않게).
+ */
 async function loadSessions(rows: MockStudentRow[], from: string, to: string): Promise<SessionSource> {
   const real = await loadRealSessions(rows, from, to);
-  return (row, date) => real.get(`${row.enrollment_id}|${date}`) ?? mockDaySessions(row.enrollment_id, date);
+  return (row, date) => {
+    const key = `${row.enrollment_id}|${date}`;
+    // 실제로 쓰는 아이(김민준)는 목업 범위에서 실제 체크인만 — 없는 날은 빈 날이다
+    if (isLiveInMockScope(row.enrollment_id)) return real.get(key) ?? [];
+    if (usesMockFixture(row.enrollment_id, date)) return mockDaySessions(row.enrollment_id, date);
+    return real.get(key) ?? mockDaySessions(row.enrollment_id, date);
+  };
 }
 
 /** 같은 날 같은 시간대에 재시도(attempt)가 있으면 마지막 시도의 색을 대표값으로 쓴다 */
@@ -373,7 +387,7 @@ function latestStateEstimate(sessionIds: string[]): string | null {
   return typeof estimate === "string" && estimate.trim() ? estimate : null;
 }
 
-/** to를 마지막 날로 하는 days일치 색 이력 (오래된 날 → 최근 날 순) */
+/** to를 마지막 날로 하는 최근 days 등교일치 색 이력 (오래된 날 → 최근 날 순). 주말도 등교일로 친다 */
 export async function getColorHistory(
   classId: string,
   studentId: string,
@@ -406,6 +420,15 @@ export async function getMockAiPreview(
     analysis: analyses.at(-1)?.result.summary ?? null,
     draft: mockCommentDraft(row.enrollment_id, date),
   };
+}
+
+/**
+ * 배포 전 목업(mock-data/out)에 미리 넣어 둔 그날 AI 분석·보낸 한마디. 목업 범위 밖이거나 목업에 없는 날짜면 null —
+ * 그때 화면은 지금처럼 /api/ai/daily-analysis·comment-draft를 부른다.
+ */
+export async function getPrecomputedDayAi(classId: string, studentId: string, date: string): Promise<FixtureDayAi | null> {
+  const row = findRow(classId, studentId);
+  return row ? mockFixtureDayAi(row.enrollment_id, date) : null;
 }
 
 /**

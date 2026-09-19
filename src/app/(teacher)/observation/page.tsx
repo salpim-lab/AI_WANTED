@@ -9,7 +9,7 @@ import ObservationBoard from "@/components/teacher/observation/ObservationBoard"
 import { todayKst } from "@/components/shared/datetime";
 import { dateParam, firstParam } from "@/components/shared/params";
 import { listClassStudents } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { listObservationLogs } from "@/lib/supabase/raw/observationLog";
 import SalpimBackdrop from "@/components/shared/SalpimBackdrop";
 import type { RecordTypeFilter } from "@/lib/types/teacherRecord";
@@ -18,7 +18,12 @@ function parseType(value: string | undefined): RecordTypeFilter {
   return value === "observation" || value === "consultation" ? value : "all";
 }
 
-export default async function ObservationPage({ searchParams }: PageProps<"/observation">) {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export default async function ObservationPage(...args: Parameters<typeof ObservationPageInMockScope>) {
+  return withTeacherMockFixture(() => ObservationPageInMockScope(...args));
+}
+
+async function ObservationPageInMockScope({ searchParams }: PageProps<"/observation">) {
   const params = await searchParams;
   const teacher = await getActingTeacher();
   const students = await listClassStudents(teacher.classId);

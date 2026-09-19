@@ -30,7 +30,7 @@ export default function ConsultationBoard({
   scheduled: ScheduledConsultation[];
   students: ClassStudent[];
   filter: ConsultationFilter;
-  /** YYYY-MM-DD (KST) — 예정·완료 목록을 이 날짜로 거른다 (검색 중이면 완료 목록은 전체 기간) */
+  /** YYYY-MM-DD (KST) — 예정 목록은 이 날짜부터 앞으로, 완료 목록은 이 날짜 하루로 거른다 (검색 중이면 완료 목록은 전체 기간) */
   date: string;
   today: string;
   reportDays: number;
@@ -42,7 +42,7 @@ export default function ConsultationBoard({
       <div className="relative z-20 mb-5 flex flex-wrap items-center gap-2.5">
         <h2 className={`${boardPageTitle} shrink-0`}>학부모상담기록</h2>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <DateControl dateKey={date} today={today} basePath="/consultation" />
+          <DateControl dateKey={date} today={today} basePath="/consultation" maxDate={today} />
           <RecordSearch basePath="/consultation" students={students} filter={filter} />
           <ScheduleConsultationComposer students={students} />
           <ConsultationComposer students={students} reportDays={reportDays} />
@@ -56,7 +56,7 @@ export default function ConsultationBoard({
           </h3>
 
           {scheduled.length === 0 ? (
-            <div className={emptyState}>이 날짜에 예정된 상담이 없어요.</div>
+            <div className={emptyState}>이 날짜부터 예정된 상담이 없어요.</div>
           ) : (
             <ul className="grid gap-2.5">
               {scheduled.map((item) => (

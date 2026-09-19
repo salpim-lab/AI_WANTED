@@ -4,7 +4,8 @@
 //     같은 시간대에 여러 번 체크인했으면 대화가 남은 회차 중 가장 최근 것 하나만 보여준다 (이전 회차는 DB에 그대로 남는다).
 //     색만 고르고 대화를 끝내지 않은 회차(대화 0턴)는 대화가 있는 회차가 하나도 없을 때만 보여준다.
 //     AI 분석은 대화가 있는 마음 기록이 있을 때만 — 없으면 분석하지 않는다.
-//   카드 2: 선생님의 한마디 (오늘 날짜에서만)
+//   카드 2: 선생님의 한마디 — 오늘은 작성칸, 지난 날짜는 그날 보낸 한마디(있으면)를 읽기 전용으로
+//   precomputed(배포 전 목업에 미리 넣어 둔 AI 분석·보낸 한마디)가 있으면 AI를 부르지 않고 그대로 보여준다.
 // 참고: docs/planning/PLANNING.md "탭 2. 아이 상세 페이지"
 // AI 분석·코멘트 초안은 API route를 클라이언트 컴포넌트에서 fetch로만 호출한다 (서버 전용 코드라 직접 import 불가):
 //   - 분석: POST /api/ai/daily-analysis (analysis_runs, 원래 이지현 배정 — 김현우 구현, PR 협의)   → AiAnalysisBox
@@ -13,10 +14,11 @@
 // (참고: docs/planning/살핌_DB_스키마_v0.3.md §13 담당자별 작업 경계)
 
 import Link from "next/link";
-import { formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
+import { addDays, formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { SIGNAL_DOT, SIGNAL_LABEL } from "@/components/shared/signalStyles";
-import { salpimCard, salpimMuted, salpimTitle, timestampText } from "@/components/shared/ui";
+import { salpimCard, salpimMuted, salpimPaperCard, salpimTitle, timestampText } from "@/components/shared/ui";
+import type { FixtureDayAi } from "@/lib/supabase/raw/_mockTeacherData";
 import type { ClassStudent, ColorHistoryDay, DaySession } from "@/lib/types/teacherRecord";
 import AiAnalysisBox from "./AiAnalysisBox";
 import CommentComposer from "./CommentComposer";
@@ -38,6 +40,7 @@ export default function StudentDetailPanel({
   sessions,
   history,
   preview,
+  precomputed = null,
 }: {
   student: ClassStudent;
   date: string;
@@ -45,6 +48,8 @@ export default function StudentDetailPanel({
   sessions: DaySession[];
   history: ColorHistoryDay[];
   preview: { analysis: string | null; draft: string | null };
+  /** 목업에 미리 넣어 둔 그날 AI 분석·보낸 한마디 — 있으면 AI를 부르지 않는다 */
+  precomputed?: FixtureDayAi | null;
 }) {
   const isToday = date === today;
   const shortName = givenName(student.name);
@@ -134,6 +139,7 @@ export default function StudentDetailPanel({
                 fallback={preview.analysis}
                 hasMorning={Boolean(morningShown?.turns.length)}
                 hasAfternoon={Boolean(afternoonShown?.turns.length)}
+                precomputed={precomputed}
               />
             </div>
           </>
@@ -148,12 +154,35 @@ export default function StudentDetailPanel({
           date={date}
           fallbackDraft={preview.draft}
         />
+      ) : precomputed?.letter ? (
+        <SentLetterCard date={date} final={precomputed.letter.final} />
       ) : (
         <p className={`px-1 text-xs ${salpimMuted}`}>
           선생님의 한마디는 오늘 날짜에서 작성해요. 저장한 한마디는 다음날 등교 때 아이에게 전달돼요.
         </p>
       )}
     </div>
+  );
+}
+
+/** 지난 날짜에 보낸 한마디 — 수정할 수 없고 읽기만 한다. 아이는 다음 등교일(주말 포함, 곧 다음 날) 아침에 읽었다 */
+function SentLetterCard({ date, final }: { date: string; final: string }) {
+  const delivered = addDays(date, 1);
+  return (
+    <section className={`${salpimPaperCard} px-6 py-5`}>
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+        <h3 className={`${salpimTitle} flex items-center gap-1.5 text-xl`}>
+          <span aria-hidden>✉️</span>
+          선생님의 한마디
+        </h3>
+        <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+          ✓ {formatKstDate(delivered)} 등교 때 전달됨
+        </span>
+      </div>
+      <p className="rounded-2xl border-[1.5px] border-[#ece0c9] px-4 py-3 font-[family-name:var(--font-hand)] text-[18px] leading-[1.7] whitespace-pre-wrap text-[#33405f]">
+        {final}
+      </p>
+    </section>
   );
 }
 

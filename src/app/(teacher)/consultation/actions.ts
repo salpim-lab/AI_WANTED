@@ -25,7 +25,7 @@ import {
 } from "@/lib/supabase/queries/teacherStudents";
 import { getOrCreatePeriodSummary, PeriodSummaryUnavailableError } from "./_lib/periodSummary";
 import { resolveReportRange } from "./_lib/reportRange";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, mockFixturePeriodSummary, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import {
   completeScheduledConsultation,
   insertConsultationLog,
@@ -47,7 +47,12 @@ function isMethod(value: string): value is keyof typeof METHOD_LABEL {
   return Object.hasOwn(METHOD_LABEL, value);
 }
 
-export async function createConsultation(formData: FormData): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function createConsultation(...args: Parameters<typeof createConsultationInMockScope>) {
+  return withTeacherMockFixture(() => createConsultationInMockScope(...args));
+}
+
+async function createConsultationInMockScope(formData: FormData): Promise<ActionResult> {
   const teacher = await getActingTeacher();
 
   const studentId = String(formData.get("studentId") ?? "");
@@ -90,7 +95,12 @@ export async function createConsultation(formData: FormData): Promise<ActionResu
   return { status: "success", message: "상담 기록을 저장했어요." };
 }
 
-export async function scheduleConsultationAction(formData: FormData): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function scheduleConsultationAction(...args: Parameters<typeof scheduleConsultationActionInMockScope>) {
+  return withTeacherMockFixture(() => scheduleConsultationActionInMockScope(...args));
+}
+
+async function scheduleConsultationActionInMockScope(formData: FormData): Promise<ActionResult> {
   const teacher = await getActingTeacher();
 
   const studentId = String(formData.get("studentId") ?? "");
@@ -124,7 +134,12 @@ export async function scheduleConsultationAction(formData: FormData): Promise<Ac
   return { status: "success", message: "상담을 예약했어요." };
 }
 
-export async function rescheduleConsultationAction(formData: FormData): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function rescheduleConsultationAction(...args: Parameters<typeof rescheduleConsultationActionInMockScope>) {
+  return withTeacherMockFixture(() => rescheduleConsultationActionInMockScope(...args));
+}
+
+async function rescheduleConsultationActionInMockScope(formData: FormData): Promise<ActionResult> {
   const teacher = await getActingTeacher();
 
   const id = String(formData.get("id") ?? "");
@@ -150,7 +165,12 @@ export async function rescheduleConsultationAction(formData: FormData): Promise<
   return { status: "success", message: "상담 일정을 바꿨어요." };
 }
 
-export async function completeConsultationAction(formData: FormData): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function completeConsultationAction(...args: Parameters<typeof completeConsultationActionInMockScope>) {
+  return withTeacherMockFixture(() => completeConsultationActionInMockScope(...args));
+}
+
+async function completeConsultationActionInMockScope(formData: FormData): Promise<ActionResult> {
   const teacher = await getActingTeacher();
 
   const id = String(formData.get("id") ?? "");
@@ -199,7 +219,12 @@ export type ReportAiSummaryResult =
  * 리포트를 서버에서 다시 만들어 입력으로 쓴다 (클라이언트가 보낸 분석 문장은 받지 않는다).
  * 같은 기간·같은 입력이면 저장된 결과를 재사용하므로 여러 번 불러도 AI는 한 번만 부른다.
  */
-export async function getReportAiSummaryAction(
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function getReportAiSummaryAction(...args: Parameters<typeof getReportAiSummaryActionInMockScope>) {
+  return withTeacherMockFixture(() => getReportAiSummaryActionInMockScope(...args));
+}
+
+async function getReportAiSummaryActionInMockScope(
   studentId: string,
   from: string,
   to: string,
@@ -210,6 +235,10 @@ export async function getReportAiSummaryAction(
   const report = await getConsultationReport(teacher.classId, studentId, from, to);
   if (!report) return { status: "error" };
   if (report.analyses.length === 0 && report.observations.length === 0) return { status: "empty" };
+
+  // 실제로 쓰는 아이(김민준)가 아니면 배포 전 목업에 미리 넣어 둔 기간 요약을 쓴다 — AI를 부르지 않는다
+  const mockSummary = mockFixturePeriodSummary(report.student.studentId);
+  if (mockSummary) return { status: "ready", summary: mockSummary };
 
   // 테스트 중 토큰 절약 — /api/ai/daily-analysis와 같은 설정을 따른다
   const onlyIds = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean);
@@ -237,7 +266,12 @@ export async function getReportAiSummaryAction(
  * 예정된 상담 카드의 "누적 자료 보기" 팝업 — 인쇄용 페이지(report/[studentId])와 같은 리포트를 돌려준다.
  * 담당 학급 학생이 아니면 null. 민감 데이터 열람이므로 페이지와 똑같이 view_log에 1행 남긴다.
  */
-export async function getConsultationReportAction(
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function getConsultationReportAction(...args: Parameters<typeof getConsultationReportActionInMockScope>) {
+  return withTeacherMockFixture(() => getConsultationReportActionInMockScope(...args));
+}
+
+async function getConsultationReportActionInMockScope(
   studentId: string,
   from?: string,
   to?: string,

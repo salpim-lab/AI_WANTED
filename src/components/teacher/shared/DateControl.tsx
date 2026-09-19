@@ -84,14 +84,8 @@ export default function DateControl({
     };
   }, [open]);
 
-  // 주말은 고를 수 없다. 수업일에만 기록이 쌓이고, 대시보드도 주말을 직전 수업일로 되돌린다.
-  const isWeekend = (key: string) => {
-    const day = new Date(`${key}T00:00:00Z`).getUTCDay();
-    return day === 0 || day === 6;
-  };
-
+  // 주말도 등교일이라 고를 수 있다 (2026-09-19 결정). 주말 칸은 색만 구분한다.
   const outOfRange = (key: string) =>
-    isWeekend(key) ||
     (maxDate !== undefined && key > maxDate) ||
     (minDate !== undefined && key < minDate);
 
