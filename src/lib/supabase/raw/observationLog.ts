@@ -5,29 +5,37 @@
 // 서버 전용 — Server Component / Server Action에서만 import한다 ("use client" 파일에서 import 금지).
 // 모든 함수가 classId를 받는다: 서버는 service_role로 RLS를 우회하므로 담당 학급 범위를 코드에서 직접 건다.
 //
-// 지금은 mock 저장소(_mockTeacherData.ts) 구현이다. Supabase 연결 시 함수 본문만 교체하고 시그니처는 유지한다.
-//   insert: work_records(status='sealed', sealed_at=now(), created_at은 DB default) + work_record_students
-//           → 두 insert를 한 트랜잭션(RPC)으로 묶는다
-//   list:   work_records ⨝ work_record_students ⨝ v_students_current,
-//           키워드는 body_tsv(simple 설정) 전문검색, 날짜는 occurred_at 범위
+// Supabase 연결 (2026-09-19). 앱의 mock 명단·교사 ↔ DB 행은 recordDb()(_mockTeacherData.ts)가 잇는다.
+//   insert: work_records(status='sealed', sealed_at, created_at은 DB default) → work_record_students
+//           TODO: 두 insert를 한 트랜잭션(RPC)으로 묶기 — 지금은 학생 확인을 insert 전에 끝내서 두 번째 실패 가능성만 줄였다
+//   list:   work_records ⨝ work_record_students. 키워드·날짜 필터는 조회 후 코드에서 (학급 기록 수가 적은 동안)
+// TODO(감사 로그): set_config('app.actor_id')를 심으려면 RPC가 필요하다 — 지금 audit_log.changed_by는 NULL로 남는다.
 
-import { addDays, toKstDate } from "@/components/shared/datetime";
-import type { NewObservationLog, ObservationFilter, ObservationLog } from "@/lib/types/teacherRecord";
-import { MOCK_STUDENTS, mockStore, type WorkRecordRow } from "./_mockTeacherData";
+import { addDays, toKstDate, todayKst } from "@/components/shared/datetime";
+import type { NewObservationLog, ObservationFilter, ObservationLog, WorkRecordType } from "@/lib/types/teacherRecord";
+import { dbTeacherId, recordDb, type RecordDb } from "./_mockTeacherData";
 
-const OBSERVATION_TYPES: ReadonlySet<WorkRecordRow["record_type"]> = new Set([
-  "general",
-  "conflict",
-  "student_consultation",
-]);
+const OBSERVATION_TYPES: WorkRecordType[] = ["general", "conflict", "student_consultation"];
+const TITLE_FROM_BODY_LENGTH = 40;
 
-function toObservationLog(row: WorkRecordRow): ObservationLog {
-  const taggedStudents = mockStore()
-    .workRecordStudents.filter((link) => link.work_record_id === row.id)
-    .flatMap((link) => {
-      const student = MOCK_STUDENTS.find((s) => s.enrollment_id === link.enrollment_id);
-      return student ? [{ studentId: student.student_id, name: student.display_name }] : [];
-    });
+type WorkRecordWithStudents = {
+  id: string;
+  record_type: string;
+  title: string;
+  body: string;
+  occurred_at: string;
+  created_at: string;
+  supersedes_id: string | null;
+  work_record_students: { enrollment_id: string }[];
+};
+
+const SELECT = "id, record_type, title, body, occurred_at, created_at, supersedes_id, work_record_students(enrollment_id)";
+
+function toObservationLog(db: RecordDb, row: WorkRecordWithStudents): ObservationLog {
+  const taggedStudents = row.work_record_students.flatMap((link) => {
+    const student = db.studentByEnrollment.get(link.enrollment_id);
+    return student ? [{ studentId: student.student_id, name: student.display_name }] : [];
+  });
 
   return {
     id: row.id,
@@ -52,19 +60,38 @@ function matchesKeyword(log: ObservationLog, keyword: string): boolean {
     .every((term) => haystack.includes(term));
 }
 
+/** DB는 제목이 필수다 — 교사가 비워 두면 본문 첫 줄 앞부분을 제목으로 쓴다 */
+function titleOrFromBody(title: string | null, body: string): string {
+  if (title?.trim()) return title.trim();
+  const firstLine = body.trim().split(/\r?\n/)[0];
+  return firstLine.length > TITLE_FROM_BODY_LENGTH ? `${firstLine.slice(0, TITLE_FROM_BODY_LENGTH)}…` : firstLine;
+}
+
 export async function listObservationLogs(classId: string, filter: ObservationFilter = {}): Promise<ObservationLog[]> {
-  return mockStore()
-    .workRecords.filter((row) => row.class_id === classId && row.status === "sealed" && OBSERVATION_TYPES.has(row.record_type))
-    .map(toObservationLog)
+  const db = await recordDb(classId);
+  if (!db) return [];
+
+  const { data, error } = await db.client
+    .from("work_records")
+    .select(SELECT)
+    .eq("class_id", db.classId)
+    .eq("status", "sealed")
+    .in("record_type", OBSERVATION_TYPES)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  return ((data ?? []) as WorkRecordWithStudents[])
+    .map((row) => toObservationLog(db, row))
     .filter((log) => {
       if (filter.studentId && !log.taggedStudents.some((t) => t.studentId === filter.studentId)) return false;
       const occurredOn = toKstDate(log.occurredAt);
+      // 미래 날짜로 미리 넣어 둔 목업(다른 아이들 배포 전 목업)이 실제 "오늘"보다 앞서 검색으로 새지 않게 항상 막는다
+      if (occurredOn > todayKst()) return false;
       if (filter.from && occurredOn < filter.from) return false;
       if (filter.to && occurredOn > filter.to) return false;
       if (filter.keyword && !matchesKeyword(log, filter.keyword)) return false;
       return true;
-    })
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    });
 }
 
 /** 한 아이가 태그된 관찰일지 — 상담 리포트용 (기간: from~to, 발생 시각 기준) */
@@ -78,33 +105,42 @@ export async function listObservationLogsForStudent(
 }
 
 export async function insertObservationLog(input: NewObservationLog): Promise<ObservationLog> {
-  const store = mockStore();
+  const db = await recordDb(input.classId);
+  if (!db) throw new Error(`담당 학급이 아닙니다: ${input.classId}`);
 
+  // 봉인된 기록은 되돌릴 수 없으니, 학생 확인은 insert 전에 끝낸다
   const enrollmentIds = [...new Set(input.taggedStudentIds)].map((studentId) => {
-    const student = MOCK_STUDENTS.find((s) => s.student_id === studentId && s.class_id === input.classId);
-    if (!student) throw new Error(`담당 학급에 없는 학생입니다: ${studentId}`);
-    return student.enrollment_id;
+    const enrollmentId = db.enrollmentOf.get(studentId);
+    if (!enrollmentId) throw new Error(`담당 학급에 없는 학생입니다: ${studentId}`);
+    return enrollmentId;
   });
 
-  // 기록 시각은 서버가 정한다 (DB에서는 created_at default now()). 클라이언트가 보낸 시각을 받지 않는다.
+  // 기록 시각은 서버가 정한다 (created_at은 DB default now()). 클라이언트가 보낸 시각을 받지 않는다.
   const now = new Date().toISOString();
-  const row: WorkRecordRow = {
-    id: crypto.randomUUID(),
-    class_id: input.classId,
-    record_type: input.recordType,
-    title: input.title,
-    body: input.body,
-    occurred_at: input.occurredAt ?? now,
-    created_by: input.createdBy,
-    status: "sealed",
-    sealed_at: now,
-    supersedes_id: null,
-    created_at: now,
-  };
+  const { data: record, error } = await db.client
+    .from("work_records")
+    .insert({
+      class_id: db.classId,
+      record_type: input.recordType,
+      title: titleOrFromBody(input.title, input.body),
+      body: input.body,
+      occurred_at: input.occurredAt ?? now,
+      created_by: dbTeacherId(db, input.createdBy),
+      status: "sealed",
+      sealed_at: now,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
 
-  store.workRecords.push(row);
-  for (const enrollmentId of enrollmentIds) {
-    store.workRecordStudents.push({ work_record_id: row.id, enrollment_id: enrollmentId, participant_role: "participant" });
+  if (enrollmentIds.length > 0) {
+    const { error: linkError } = await db.client
+      .from("work_record_students")
+      .insert(enrollmentIds.map((enrollment_id) => ({ work_record_id: record.id, enrollment_id, participant_role: "participant" })));
+    if (linkError) throw new Error(`기록은 봉인됐지만 태그한 아이를 잇지 못했습니다 (${record.id}): ${linkError.message}`);
   }
-  return toObservationLog(row);
+
+  const { data: saved, error: readError } = await db.client.from("work_records").select(SELECT).eq("id", record.id).single();
+  if (readError) throw readError;
+  return toObservationLog(db, saved as WorkRecordWithStudents);
 }

@@ -8,7 +8,7 @@
 import { revalidatePath } from "next/cache";
 import { parsePastKstLocalDateTime } from "@/components/shared/datetime";
 import { listClassStudents } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { insertObservationLog } from "@/lib/supabase/raw/observationLog";
 import type { ActionResult } from "@/lib/types/teacherRecord";
 
@@ -20,7 +20,12 @@ function fail(message: string): ActionResult {
   return { status: "error", message };
 }
 
-export async function createObservation(formData: FormData): Promise<ActionResult> {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export async function createObservation(...args: Parameters<typeof createObservationInMockScope>) {
+  return withTeacherMockFixture(() => createObservationInMockScope(...args));
+}
+
+async function createObservationInMockScope(formData: FormData): Promise<ActionResult> {
   const teacher = await getActingTeacher();
 
   const recordTypeRaw = String(formData.get("recordType") ?? "general");
