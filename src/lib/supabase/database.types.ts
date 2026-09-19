@@ -123,6 +123,9 @@ export type Database = {
           analysis_type: string
           category_tags: string[]
           created_at: string
+          // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리용 — 1090/1092 마이그레이션 참고.
+          // source_type이 'student'|'class'일 때만 쓴다. 실제 supabase gen types 전까지 임시 수기 패치.
+          demo_owner_id: string | null
           error_message: string | null
           id: string
           model: string | null
@@ -140,6 +143,7 @@ export type Database = {
           analysis_type: string
           category_tags?: string[]
           created_at?: string
+          demo_owner_id?: string | null
           error_message?: string | null
           id?: string
           model?: string | null
@@ -157,6 +161,7 @@ export type Database = {
           analysis_type?: string
           category_tags?: string[]
           created_at?: string
+          demo_owner_id?: string | null
           error_message?: string | null
           id?: string
           model?: string | null

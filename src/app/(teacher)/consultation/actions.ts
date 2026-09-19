@@ -154,7 +154,9 @@ async function rescheduleConsultationActionInMockScope(formData: FormData): Prom
   if (scheduledAt === "invalid") return fail("예정 일시를 확인해 주세요.");
 
   try {
-    await rescheduleConsultation({ id, classId: teacher.classId, counterpart, method, scheduledAt });
+    // (2026-09-20, 이지현 제안) 서버에서 확인한 현재 방문자 id(teacher.id)를 소유권 확인용으로
+    // 같이 넘긴다 — raw/consultationLog.ts 주석 참고. 넘기지 않으면 타입 에러로 막힌다.
+    await rescheduleConsultation({ id, classId: teacher.classId, counterpart, method, scheduledAt }, teacher.id);
   } catch (error) {
     console.error("[rescheduleConsultationAction] update failed", error);
     return fail("일정을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.");

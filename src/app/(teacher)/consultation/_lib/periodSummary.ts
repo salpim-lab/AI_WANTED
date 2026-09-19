@@ -7,6 +7,10 @@
 //
 // 지금은 mock 저장소(mockAnalysisRuns)에 쓴다. Supabase 연결 시 analysis_runs
 //   (analysis_type='consultation_period_summary', source_type='student', source_id=student_id) select/insert로 교체한다.
+// ⚠️ (2026-09-20, 이지현 제안) 그때 반드시 demo_owner_id(1090 마이그레이션)도 같이 채울 것 —
+//   source_type='student'는 모든 방문자가 같은 student_id를 공유해서 source_id만으로는 소유자를
+//   가릴 수 없다. 안 채우면 1092의 analysis_runs_demo_owner_restrict가 이 행을 공용으로 취급해
+//   다른 방문자에게도 보인다. select 쪽도 현재 방문자 id(공용 OR 본인)로 걸러야 한다.
 
 import "server-only";
 

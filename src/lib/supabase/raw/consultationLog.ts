@@ -111,18 +111,20 @@ async function listByStatus(
 
 /**
  * 담당 학급의 상담 한 건 — 다른 학급 건이면 null.
- * (2026-09-20, 이지현 제안) viewerTeacherId를 주면 소유권도 같이 확인한다 — 이 상담이
+ * (2026-09-20, 이지현 제안) viewerTeacherId는 소유권 확인용으로 필수다 — 이 상담이
  * "공용(진짜 담임이 예약한 것)"이거나 "나(viewerTeacherId)"의 것일 때만 돌려준다. 이전엔
  * id만 맞으면 다른 학급이 아닌 한 누구든 이 행을 찾아 reschedule/complete할 수 있었다 —
  * 데모 모드에서 방문자 B가 A의 parent_consultations.id를 알아내면(URL 등) A의 예정된 상담을
- * 고치거나 완료 처리할 수 있는 구멍이었다. 안 주면(기존 호출부) 기존과 동일하게 동작.
+ * 고치거나 완료 처리할 수 있는 구멍이었다. 처음엔 선택 인자로 만들었다가, "값이 없으면 검사를
+ * 생략"하는 형태는 호출부가 하나라도 빠뜨리면 그대로 구멍이 재현되므로 필수 인자로 바꿨다 —
+ * 컴파일 타임에 모든 호출부가 넘기도록 강제한다.
  */
-async function findClassConsultation(db: RecordDb, id: string, viewerTeacherId?: string): Promise<ConsultationRow | null> {
+async function findClassConsultation(db: RecordDb, id: string, viewerTeacherId: string): Promise<ConsultationRow | null> {
   const { data, error } = await db.client.from("parent_consultations").select(SELECT).eq("id", id).maybeSingle();
   if (error) throw error;
   const row = data as ConsultationRow | null;
   if (!row || !db.studentByEnrollment.has(row.enrollment_id)) return null;
-  if (viewerTeacherId && row.teacher_id !== viewerTeacherId && row.teacher_id !== db.teacherId) return null;
+  if (row.teacher_id !== viewerTeacherId && row.teacher_id !== db.teacherId) return null;
   return row;
 }
 
@@ -226,12 +228,11 @@ export async function scheduleConsultation(input: NewScheduledConsultation): Pro
  */
 export async function rescheduleConsultation(
   input: RescheduleConsultation,
-  viewerTeacherId?: string,
+  viewerTeacherId: string,
 ): Promise<ScheduledConsultation> {
   const db = await recordDb(input.classId);
-  // (2026-09-20, 이지현 제안) viewerTeacherId를 안 넘기면 이 소유권 확인이 안 걸린다 —
-  // 호출부(consultation/actions.ts, 김현우 소유)가 teacher.id를 넘기도록 같이 고쳐야
-  // 이 경로가 실제로 막힌다. 아직 안 넘기고 있어서 이 자리는 그 전까지 기존과 동일하게 동작.
+  // (2026-09-20, 이지현 제안) viewerTeacherId는 필수 인자 — consultation/actions.ts가
+  // 서버에서 확인한 현재 방문자 id(teacher.id)를 반드시 넘긴다.
   const row = db ? await findClassConsultation(db, input.id, viewerTeacherId) : null;
   if (!db || !row) throw new Error("담당 학급의 예정된 상담이 아닙니다");
   if (row.status !== "preparing" || row.work_record_id) throw new Error("완료된 상담은 바꿀 수 없습니다");

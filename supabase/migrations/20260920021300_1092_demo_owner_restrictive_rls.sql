@@ -34,11 +34,9 @@
 -- - get_student_context(uuid, timestamptz): security definer 아님(caller 권한으로 실행) +
 --   내부에서 쓰는 v_students_current/v_signal_flags 뷰 둘 다 `security_invoker = true`로
 --   선언돼 있다 — 즉 호출자의 RLS가 그대로 적용된다. checkin_sessions/work_records를 직접
---   조회하는 부분도 이 마이그레이션의 RESTRICTIVE 정책이 그대로 걸린다. 다만 v_signal_flags가
---   읽는 analysis_runs는 위에서 "범위 밖"이라고 적은 테이블이라, 이 RPC를 통해 다른 방문자의
---   analysis_runs 내용이 새 나갈 수 있다(지금은 방문자별 analysis_runs 자체를 안 쓰고 있어
---   실제 데이터는 없지만, 구조적으로는 열려 있다) — meeting_requests도 이 RPC가 직접 읽는데
---   아래에서 restrictive를 추가했다.
+--   조회하는 부분도 이 마이그레이션의 RESTRICTIVE 정책이 그대로 걸린다. v_signal_flags가 읽는
+--   analysis_runs도 아래에서 restrictive를 추가해 이제 같이 막힌다 — meeting_requests도 이 RPC가
+--   직접 읽는데 아래에서 restrictive를 추가했다.
 -- - authenticated에게 execute 권한이 있는 함수는 is_class_teacher/is_enrollment_*(불리언 확인용,
 --   데이터 자체를 안 돌려줌)과 get_student_context뿐이다(전수 확인: `grant execute ... to
 --   authenticated`로 grep). 그 외 데이터 노출 경로는 못 찾았다.
@@ -48,9 +46,16 @@
 --   구분할 owner 컬럼이 없다. 애초에 앱 코드(comment-draft 라우트)도 아직 demo_owner_id/
 --   created_by로 방문자별 필터링을 안 하고 있어서(이번 작업 범위 밖), RLS만 좁혀봐야 의미가
 --   없다 — 컬럼 추가 + 앱 코드 변경이 먼저 필요.
--- - analysis_runs: source_type이 session/message/record/student/class 5종류라 소유권 경로가
---   제각각이고, student/class 소스는 애초에 "한 방문자가 새로 만든 것"이라는 개념 자체가
---   불명확하다(반 전체 분석). 앱 코드도 아직 방문자별로 안 나눈다 — 후속 작업.
+-- (2026-09-20 추가) analysis_runs는 더 이상 범위 밖이 아니다 — 아래에서 5개 source_type을
+-- 전부 다룬다: session/message/record는 부모 레코드(checkin_sessions/work_records)의 소유권을
+-- 따라가고, student/class는 1090에서 추가한 analysis_runs.demo_owner_id를 직접 쓴다. 지금 실제로
+-- Supabase에 쓰는 경로는 source_type='session'(감정 어휘 추출 캐시, lib/vocab/liveVocab.ts·
+-- api/ai/vocab-growth/route.ts)뿐이고 — 그중 vocab-growth는 RLS가 적용되는 세션 클라이언트를
+-- 쓰므로 이 정책이 배포 즉시 유효하다. 하루 분석(dailyAnalysis.ts)·상담 기간요약(periodSummary.ts)은
+-- 아직 실제 DB가 아니라 메모리 목업(mockAnalysisRuns, globalThis)에 쓰고 있어 이 정책의 적용
+-- 대상이 아니다 — 나중에 실제 analysis_runs로 옮길 때 source_type='session'|'student'인 이
+-- 두 경로도 이 정책 아래로 들어온다(session은 바로 적용, student는 쓰기 코드가 demo_owner_id를
+-- 채워야 함).
 --
 -- ## 수정 방법: RESTRICTIVE 정책 추가
 -- Postgres에서 PERMISSIVE 정책끼리는 OR로 결합되지만, RESTRICTIVE 정책은 기존 결과에 AND로
@@ -141,6 +146,55 @@ using (
     select 1 from public.checkin_sessions cs
     where cs.id = meeting_requests.source_session_id
       and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+-- (2026-09-20 추가) analysis_runs — analysis_runs_teacher_read(기존, 9010_rls.sql)와 똑같이
+-- source_type별로 나눠서 좁힌다. session/message/record는 부모 레코드의 소유권을 그대로
+-- 따라가고(그 부모가 이미 위에서 restrictive로 좁혀진 테이블이다), student/class는 1090에서
+-- 추가한 analysis_runs.demo_owner_id를 직접 비교한다 — 부모 레코드로는 "이 반 전체" 또는
+-- "이 학생"이라는 정보만 있고 어느 방문자가 만들었는지는 알 수 없기 때문이다.
+create policy analysis_runs_demo_owner_restrict on public.analysis_runs
+as restrictive
+for select to authenticated
+using (
+  (
+    source_type = 'session'
+    and exists (
+      select 1 from public.checkin_sessions cs
+      where cs.id = analysis_runs.source_id
+        and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+    )
+  )
+  or (
+    source_type = 'message'
+    and exists (
+      select 1
+      from public.conversation_messages cm
+      join public.checkin_sessions cs on cs.id = cm.session_id
+      where cm.id = analysis_runs.source_id
+        and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+    )
+  )
+  or (
+    source_type = 'record'
+    and exists (
+      select 1 from public.work_records wr
+      where wr.id = analysis_runs.source_id
+        and (
+          wr.created_by = (select auth.uid())
+          or exists (
+            select 1 from public.class_teachers ct
+            where ct.class_id = wr.class_id
+              and ct.teacher_id = wr.created_by
+              and ct.role = 'homeroom'
+          )
+        )
+    )
+  )
+  or (
+    source_type in ('student', 'class')
+    and (analysis_runs.demo_owner_id is null or analysis_runs.demo_owner_id = (select auth.uid()))
   )
 );
 
