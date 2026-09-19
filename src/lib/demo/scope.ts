@@ -73,9 +73,15 @@ export function ownerVisible(scope: DemoScope, ownerId: string | null | undefine
 const VERIFIED_SEED_RECORD_ID = /^[0-9a-f]{8}-0000-4000-8000-[0-9a-f]{12}$/i;
 /**
  * 팀이 "데모용으로 확인했다"고 명시한 기록 id — 승격하려면 여기와 DB의 public.is_verified_demo_record()
- * (1093 마이그레이션) 배열에 같은 id를 함께 추가한다. 기본은 비어 있다(확인 전에는 공용으로 보이지 않는다).
+ * (1093 마이그레이션) 배열에 같은 id를 함께 추가한다. 목록에 없는 랜덤 id 기록은 확인 전에는 공용으로 보이지 않는다.
  */
-export const VERIFIED_EXTRA_RECORD_IDS: ReadonlySet<string> = new Set<string>([]);
+export const VERIFIED_EXTRA_RECORD_IDS: ReadonlySet<string> = new Set<string>([
+  // record_type=conflict 데모 기록 — 2026-09-19 16:19 진술까지 완성돼 생성된 4건 (2026-09-20 승인)
+  "bf7dab9d-4bac-4800-b11d-c2b57cd93623",
+  "fe920999-9085-4dac-9537-6da0c140654a",
+  "bd702f2f-c525-4734-9105-b734d7568423",
+  "4a541946-1407-4d02-bd40-a18db308b4ba",
+]);
 export const isVerifiedSeedRecordId = (id: string) =>
   VERIFIED_SEED_RECORD_ID.test(id) || VERIFIED_EXTRA_RECORD_IDS.has(id.toLowerCase());
 
