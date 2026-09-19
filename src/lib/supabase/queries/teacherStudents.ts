@@ -219,7 +219,8 @@ async function loadRealSessions(
     }
     const rowByDbId = new Map<string, MockStudentRow>();
     for (const row of rows) {
-      const dbId = dbIdByName.get(givenName(row.display_name));
+      // DB 이름이 성 포함("김민준")이든 성 뺀 이름("민준", 시드)이든 잇는다
+      const dbId = dbIdByName.get(row.display_name) ?? dbIdByName.get(givenName(row.display_name));
       if (dbId) rowByDbId.set(dbId, row);
     }
     if (rowByDbId.size === 0) return result;
