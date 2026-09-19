@@ -523,7 +523,7 @@
 /* ── 3. 오늘의 교실 ───────────────────────────────────────────── */
 /* 오늘의 교실만 제목 바로 아래 질문 한 줄이 붙는다 (제목 위치 자체는 다른 카드와 동일) */
 .classroom-card .card-title { margin-bottom: 8px; }
-.classroom-question { margin: 0 0 20px; font-size: var(--fs-body); color: var(--muted); line-height: 1.6; }
+.classroom-question { margin: 0 0 8px; font-size: var(--fs-body); color: var(--muted); line-height: 1.6; }
 .classroom-weather { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .classroom-headline { font-size: var(--fs-title); font-weight: var(--fw-regular); letter-spacing: -0.7px; }
 .classroom-support { margin: 5px 0 0; font-size: var(--fs-label); color: var(--muted); line-height: 1.55; }
@@ -558,15 +558,16 @@
   color: var(--muted);
 }
 /* 참여 인원 한 줄 — 단독 카드였던 전체 참여도를 여기로 접어 넣은 것.
-   숫자는 작게, 미참여 명단은 눌러야 할 때만 위에 올려 본다. */
+   숫자는 작게, 미참여 명단은 눌러야 할 때만 위에 올려 본다.
+   질문 문장 바로 밑이라 구분선은 안 긋는다 — 위 줄(.classroom-question)과 한 묶음으로 보이게 간격만 좁게. */
 .classroom-attend {
   display: flex;
   align-items: baseline;
   gap: 9px;
   flex-wrap: wrap;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin-top: 0;
+  padding-top: 0;
+  margin-bottom: 20px;
   font-size: var(--fs-label);
 }
 .classroom-attend .ca-label { font-weight: var(--fw-bold); color: var(--muted); }
@@ -591,10 +592,6 @@
 .ca-absent-trigger:focus-visible { outline: 2px solid var(--navy-ring); outline-offset: 2px; }
 /* 카드 오른쪽 끝에 붙어 있어 툴팁은 오른쪽 모서리 기준으로 펼친다 */
 .ca-absent .mood-tooltip { left: auto; right: 0; width: max-content; min-width: 150px; }
-
-/* 등교/하교 탭 — .rel-period 를 그대로 쓰되, 여기는 카드 제목 줄 안이 아니라 혼자 한 줄을 차지하므로
-   오른쪽으로 밀던 margin-left:auto 를 끄고 위아래 간격만 준다. */
-.classroom-period.rel-period { margin: 16px 0 18px; }
 
 .classroom-delta { margin: 14px 0 0; font-size: var(--fs-label); line-height: 1.65; color: var(--muted); }
 

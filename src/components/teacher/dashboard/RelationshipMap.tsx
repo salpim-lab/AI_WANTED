@@ -5,13 +5,15 @@
 // 외부 graph 패키지를 쓰지 않고 SVG 로 직접 그린다.
 // 원에는 색을 쓰지 않는다 — 스무 개 원이 저마다 다른 색을 띠면 그게 먼저 읽히고,
 // 정작 이 지도가 보여주려는 것(누가 크고, 누가 어디에 붙어 있나)이 뒤로 밀린다.
-// 원이 말하는 건 크기 하나다: 이름이 안 나온 아이와 갈등이 잦은 아이가 크게 그려진다
-// (크기 계산은 mockData.ts 의 attentionOf — 링 색이 아니라 반지름이 그 역할을 이어받았다).
+// 원 크기는 딱 3단계뿐이다: 평소(1단계) · 소외·갈등이라 살펴볼 아이(2단계) ·
+// 지금 고른 아이(3단계, tone 과 무관하게 항상 이 단계). 중간값을 두지 않는다 —
+// 단계가 여러 개면 "이게 몇 단계짜리 큰 원이지"를 매번 옆 원과 비교해야 해서,
+// 오히려 "평소인지 살펴볼 아이인지"가 한눈에 안 읽혔다. (TIER1/2/3_SCALE 참고)
 // 갈등 관계는 붉게 칠하지 않고 점선으로만 구분한다 (살핌_기획안.md 10. 가드레일)
 //
 // 아이에 마우스를 올리면(또는 키보드로 포커스하면) 그 아이와 이어진 선·아이만 남기고
 // 나머지를 흐리게 내린다. 선이 서른 개가 넘으면 누가 누구와 이어졌는지 눈으로 못 따라간다.
-// 고른 아이는 원을 크게 부풀리고(ACTIVE_SCALE) 그 아이에 닿은 선은 진하게 내린다 —
+// 고른 아이는 원을 3단계로 부풀리고 그 아이에 닿은 선은 진하게 내린다 —
 // 흐리게 내리는 것만으로는 스무 명 사이에서 "지금 보는 아이"가 어디 있는지 눈에 안 들어온다.
 // 이 강조는 CSS 만으로는 못 한다 — 어떤 선이 "지금 올린 노드"에 닿는지는 데이터를 봐야 알 수 있다.
 //
@@ -27,17 +29,25 @@
 import { useState } from "react";
 import type { RelationGraph } from "./mockData";
 
-/** 원을 데이터 반지름(mockData 의 attentionOf)의 몇 배로 그릴지.
-    예전에는 평상시 1 배로 그리고 고른 아이만 1.8 배로 부풀렸는데, 그 1 배가 너무 작아
-    "누가 큰 아이인가"—이 지도가 보여주려는 단 하나—가 눌러 보기 전에는 읽히지 않았다.
-    그래서 부풀린 크기(1.8)를 평상시 크기로 올린다. */
-const BASE_SCALE = 1.8;
+/** 모든 원의 기준 반지름. 1·2·3단계는 전부 이 값의 배수로만 정해진다 —
+    데이터(언급·갈등 건수)로 반지름을 촘촘히 계산하던 예전 방식은 단계가 사실상
+    무한히 생겨서 "몇 단계짜리 큰 원인지"가 안 읽혔다.
+    기준 반지름을 10 으로 올려 달라는 요청에 맞춰, LAYOUT(mockData.ts)의 두 고리 사이
+    간격도 함께 넓혔다 (스무 명 기준 최소 간격 약 72px) — 2단계 원 둘이 그 간격에서
+    만나도(2×10×3.0 + NODE_GAP = 67) 겹치지 않는 크기다. */
+const NODE_UNIT_R = 10;
+/** 1단계: 평소 아이 */
+const TIER1_SCALE = 1.5;
+/** 2단계: 소외·갈등이라 주의해서 봐야 할 아이 (tone !== "normal") */
+const TIER2_SCALE = 3.0;
+/** 3단계: 지금 고른 아이. tone 과 무관하게 이 단계다.
+    다만 이 배수를 그대로 쓰지는 않는다 — 옆 원과 너무 가까우면 덮어 버렸다.
+    아래 roomAround 로 "이웃까지 남은 자리"를 재서 둘 중 작은 쪽을 쓴다. */
+const TIER3_SCALE = 4.0;
 
-/** 고른 아이가 부푸는 배수. 다만 이 배수를 그대로 쓰지는 않는다 —
-    큰 원에 1.45 를 곱하면 옆 아이를 덮어 버렸다. 아래 roomAround 로 "이웃까지 남은 자리"를
-    재서 둘 중 작은 쪽을 쓴다. 고리 간격은 데이터(누가 가운데인지)에 따라 달라지므로
-    상수 하나로는 못 막는다. */
-const ACTIVE_SCALE = 1.45;
+/** 이 아이가 지금(고르지 않은) 평소 반지름 — tone 하나로 1단계·2단계를 가른다 */
+const restingR = (n: { tone: "normal" | "conflict" | "isolated" }) =>
+  NODE_UNIT_R * (n.tone === "normal" ? TIER1_SCALE : TIER2_SCALE);
 
 /** 원과 원 사이에 최소한 남겨 둘 틈 */
 const NODE_GAP = 7;
@@ -57,10 +67,17 @@ const LABEL_STEPS: [min: number, size: number][] = [
 ];
 const labelSize = (r: number) => LABEL_STEPS.find(([min]) => r >= min)![1];
 
-/** 지금 강조 중인 대상 — 아이 하나이거나 선 하나다 */
-export type MapFocus = { kind: "student"; id: number } | { kind: "pair"; key: string } | null;
+/** 아이 하나이거나 짝 하나의 식별자 — mock 은 1~20 번호, 실제 데이터는 students.id(uuid) 문자열이다 */
+type Id = string | number;
 
-const keyOf = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+/** 지금 강조 중인 대상 — 아이 하나이거나 선 하나다.
+    pair 는 원래 두 id(a·b)를 그대로 들고 다닌다 — key 문자열을 나중에 다시 쪼개 복원하지 않는다.
+    uuid 는 "-"를 이미 포함하고 있어서 문자열을 쪼개 아이디를 되찾는 방식 자체가 안전하지 않다. */
+export type MapFocus = { kind: "student"; id: Id } | { kind: "pair"; key: string; a: Id; b: Id } | null;
+
+/** 두 id 를 늘 같은 순서로 이어 붙인 값 — 실제 계산(누가 이어졌는지)은 그대로고,
+    문자열로 바뀌는 건 "짝을 가리키는 이름표" 하나뿐이다. */
+const keyOf = (a: Id, b: Id) => (String(a) < String(b) ? `${a}::${b}` : `${b}::${a}`);
 
 /** 선은 직선 대신 아주 살짝 휘게 긋는다.
     스무 명이 서른 개 넘는 직선으로 이어지면 자로 그은 거미줄처럼 보이고, 두 원 사이를
@@ -94,8 +111,8 @@ export default function RelationshipMap({
   const active = hover ?? selected;
 
   // 강조할 아이들 — 아이를 짚으면 그 아이와 이어진 아이들, 선을 짚으면 그 선의 양쪽만.
-  const litNodes = new Set<number>();
-  const isEdgeLit = (from: number, to: number) => {
+  const litNodes = new Set<Id>();
+  const isEdgeLit = (from: Id, to: Id) => {
     if (!active) return false;
     if (active.kind === "pair") return keyOf(from, to) === active.key;
     return from === active.id || to === active.id;
@@ -107,19 +124,21 @@ export default function RelationshipMap({
       if (e.to === active.id) litNodes.add(e.from);
     }
   } else if (active?.kind === "pair") {
-    for (const id of active.key.split("-").map(Number)) litNodes.add(id);
+    litNodes.add(active.a);
+    litNodes.add(active.b);
   }
 
-  /* 크기를 먼저 정해 둔다 — 원과 꼬리말("오간 이야기 없음")을 두 겹으로 나눠 그리는데,
-     둘이 같은 반지름을 봐야 꼬리말이 제 원 아래에 붙는다.
-     고른 아이만 확 키운다. 이웃(peer)은 2px 만 — 같이 커지면 누굴 골랐는지 도로 흐려진다. */
+  /* 고른 아이만 3단계로 키운다. 나머지는 tone 그대로 1·2단계 반지름에 머무른다 —
+     "겹치지 않는다"는 이 나머지가 고정값이라는 데서 나온다: 매번 지도를 그릴 때
+     restingR(normal 1.2배 / 소외·갈등 1.8배)로만 움직이니, 고른 원 하나가 이웃의
+     "평소" 반지름을 넘어서지 않게만 막으면 항상 안전하다. */
   /** 이 아이가 이웃·테두리에 닿지 않고 커질 수 있는 최대 반지름 */
   const roomAround = (n: (typeof nodes)[number]) => {
     const toEdge = Math.min(n.x, VIEW_W - n.x, n.y, VIEW_H - n.y) - EDGE_PAD;
     const toNeighbour = Math.min(
       ...nodes
         .filter((o) => o.studentId !== n.studentId)
-        .map((o) => Math.hypot(o.x - n.x, o.y - n.y) - (o.r * BASE_SCALE + 2) - NODE_GAP),
+        .map((o) => Math.hypot(o.x - n.x, o.y - n.y) - restingR(o) - NODE_GAP),
     );
     return Math.min(toEdge, toNeighbour);
   };
@@ -127,15 +146,15 @@ export default function RelationshipMap({
   const sized = nodes.map((n) => {
     const isActive = active?.kind === "student" && active.id === n.studentId;
     const lit = litNodes.has(n.studentId);
-    const baseR = n.r * BASE_SCALE;
-    // 고른 아이는 배수만큼 키우되, 이웃까지 남은 자리를 넘지 않는다 (작아지지도 않는다)
-    const activeR = Math.max(baseR, Math.min(baseR * ACTIVE_SCALE, roomAround(n)));
+    const baseR = restingR(n);
+    // 3단계로 키우되, 이웃까지 남은 자리를 넘지 않는다 (평소 크기 밑으로 작아지지는 않는다)
+    const activeR = Math.max(baseR, Math.min(NODE_UNIT_R * TIER3_SCALE, roomAround(n)));
     return {
       n,
       isActive,
       lit,
       picked: selected?.kind === "student" && selected.id === n.studentId,
-      shownR: Math.round(isActive ? activeR : lit ? baseR + 2 : baseR),
+      shownR: Math.round(isActive ? activeR : baseR),
     };
   });
 
@@ -180,7 +199,7 @@ export default function RelationshipMap({
             if (!a || !b) return null;
             const conflict = e.kind === "conflict";
             const key = keyOf(e.from, e.to);
-            const focus = { kind: "pair", key } as const;
+            const focus = { kind: "pair", key, a: e.from, b: e.to } as const;
             // 휘는 방향을 번호 순서로 고정한다 (a→b 로 그리든 b→a 로 그리든 같은 모양)
             const [from, to] = e.from < e.to ? [a, b] : [b, a];
             const d = edgePath(from, to);

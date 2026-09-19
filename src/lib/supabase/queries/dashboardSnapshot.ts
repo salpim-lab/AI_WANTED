@@ -1,11 +1,14 @@
-import { addDays, todayKst } from "@/components/shared/datetime";
+import { addDays, todayKst, toKstDate } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 import { canonicalize } from "@/lib/vocab/lexicon";
-import { getDashboardSnapshot } from "@/components/teacher/dashboard/mockData";
+import { aggregateVocab, type SessionLemmas } from "@/lib/vocab/aggregate";
+import { BRIEFING_HISTORY_DAYS, buildBriefingRows } from "@/lib/supabase/queries/morningBriefing";
+import type { StudentFacts } from "@/lib/briefing/triggers";
+import { isDistressWord } from "@/lib/vocab/lexicon";
 
-type WeatherKind = "sunny" | "partly" | "cloudy" | "rainy";
+type WeatherKind = "sunny" | "partly" | "cloudy" | "rainy" | "stormy" | "quiet";
 type RelationPeriod = "1w" | "2w" | "4w" | "all";
 
 type StudentRef = { studentId: string | number; name: string };
@@ -45,31 +48,31 @@ type ConflictRow = {
   date: string;
   label: string;
   pair: string;
-  pairIds: [number, number];
+  pairIds: [string, string];
   summary: string;
   status: string;
   statements: { who: string; tone: SignalColor | "muted"; text: string }[];
 };
 type RelationGraph = {
   nodes: {
-    studentId: number;
+    studentId: string;
     name: string;
     x: number;
     y: number;
     r: number;
     tone: "normal" | "conflict" | "isolated";
   }[];
-  edges: { from: number; to: number; kind: "normal" | "conflict"; strength: number }[];
-  details: Record<number, {
-    studentId: number;
+  edges: { from: string; to: string; kind: "normal" | "conflict"; strength: number }[];
+  details: Record<string, {
+    studentId: string;
     name: string;
     mentionCount: number;
     quotes: { from: string; date: string; text: string }[];
     conflicts: ConflictRow[];
   }>;
   pairs: Record<string, {
-    a: { studentId: number; name: string };
-    b: { studentId: number; name: string };
+    a: { studentId: string; name: string };
+    b: { studentId: string; name: string };
     mentionCount: number;
     quotes: { from: string; date: string; text: string }[];
     conflicts: ConflictRow[];
@@ -77,7 +80,7 @@ type RelationGraph = {
   conflicts: ConflictRow[];
 };
 type VocabStudent = {
-  studentId: number;
+  studentId: string;
   name: string;
   shortName?: string;
   count: number;
@@ -134,18 +137,15 @@ type DashboardSession = {
   status: string;
   started_at: string;
   transcript: unknown;
+  prosody: unknown;
 };
 
 type StudentSignal = RosterStudent & { color: SignalColor | null };
 
-const TONE_STATUS: Record<SignalColor, { status: string; reason: string }> = {
-  green: { status: "안정", reason: "오늘 응답을 안정적으로 마쳤어요." },
-  yellow: { status: "조금 살피기", reason: "오늘 응답에서 흔들림 신호가 보여요." },
-  red: { status: "우선 확인", reason: "오늘 응답에서 속상함 신호가 강하게 나왔어요." },
-  navy: { status: "거리 필요", reason: "오늘은 혼자 있고 싶은 마음을 표현했어요." },
-};
-
 const KO_WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
+/** 감정 어휘 누적 집계의 시작점 — 관계 지도의 "누적"(90일)과는 다른 값이다.
+    실제 체크인 기록이 이보다 훨씬 뒤에나 시작하므로, 넉넉히 이르게 잡아 전체 기록을 다 담는다. */
+const VOCAB_HISTORY_START = "2020-01-01";
 
 function envReady() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() && process.env.SUPABASE_SECRET_KEY?.trim());
@@ -200,29 +200,18 @@ async function loadRoster(classId: string): Promise<RosterStudent[]> {
 
   if (error) throw error;
 
+  // students.display_name 은 이제 성까지 포함한 전체 이름이다(2026-09-20 전체 이름 마이그레이션).
+  // 짧은 이름(막대 아래 라벨 등)은 여기서 성만 뗀다 — givenName 이 그 규칙(2글자 이하는 그대로)을 쥐고 있다.
   return (data ?? []).map((row, index) => {
-    const shortName = (row.students as { display_name?: string } | null)?.display_name ?? "이름 없음";
+    const fullName = (row.students as { display_name?: string } | null)?.display_name ?? "이름 없음";
     return {
       studentNo: index + 1,
       studentId: row.student_id,
       enrollmentId: row.id,
-      name: shortName,
-      shortName,
+      name: fullName,
+      shortName: givenName(fullName),
       seatRow: row.seat_row,
       seatCol: row.seat_col,
-    };
-  });
-}
-
-function withFullNames(roster: RosterStudent[], dateKey: string): RosterStudent[] {
-  const mockNames = new Map(
-    getDashboardSnapshot(dateKey).vocab.students.map((student) => [student.studentId, student.name]),
-  );
-  return roster.map((student) => {
-    const mockName = mockNames.get(student.studentNo);
-    return {
-      ...student,
-      name: mockName ? `${mockName.slice(0, -2)}${student.shortName}` : student.shortName,
     };
   });
 }
@@ -233,7 +222,7 @@ async function loadSessions(roster: RosterStudent[], from: string, to: string): 
   const client = createAdminClient();
   const { data, error } = await client
     .from("checkin_sessions")
-    .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript")
+    .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript, prosody")
     .in("enrollment_id", roster.map((student) => student.enrollmentId))
     .gte("session_date", from)
     .lte("session_date", to)
@@ -269,22 +258,48 @@ function latestStartOf(sessions: DashboardSession[], dateKey: string, period: Ch
     .at(-1);
 }
 
-function deriveWeather(mood: Record<SignalColor, number[]>): Pick<ClassroomWeather, "kind" | "headline"> {
+/* 전체 응답 수 = 초록+노랑+빨강+남색. 색마다 무게를 둬서 "흐림 지수"를 만든다
+   (초록 0 · 노랑 0.4 · 남색 0.7 · 빨강 1.0).
+   흐림지수 = (노랑×0.4 + 남색×0.7 + 빨강×1.0) / 전체 응답 수
+
+   맑음    초록 ≥ 70% AND 빨강 < 10% AND 남색 < 10%
+   구름조금 위 맑음이 아니면서, 흐림지수 < 0.35 인 나머지
+   흐림    흐림지수 0.35~0.55, 또는 (빨강+남색) ≥ 30%
+   비      흐림지수 ≥ 0.55, 또는 빨강 ≥ 30%
+   비가 많이 와요  빨강 ≥ 45%  — "비" 조건의 부분집합이라 먼저 검사해야 묻히지 않는다.
+   응답이 적어요   응답률(전체 응답 수/학급 인원) < 30% — 다른 판정보다 먼저 가른다. */
+function deriveWeather(
+  mood: Record<SignalColor, number[]>,
+  totalRoster: number,
+): Pick<ClassroomWeather, "kind" | "headline" | "support"> {
   const green = mood.green.length;
   const yellow = mood.yellow.length;
   const red = mood.red.length;
-  const anchored = green + yellow + red;
-  if (anchored === 0) return { kind: "cloudy", headline: "아직 응답이 적어요" };
+  const navy = mood.navy.length;
+  const total = green + yellow + red + navy;
 
-  const score = (green + yellow * 0.5) / anchored;
-  const redShare = red / anchored;
-  if (redShare >= 0.45) return { kind: "rainy", headline: "비가 오는 분위기예요" };
-  if (redShare >= 0.3) return { kind: "cloudy", headline: "먹구름이 조금 모였어요" };
-  if (score >= 0.8) return { kind: "sunny", headline: "맑은 기운이 많아요" };
-  if (score >= 0.7) return { kind: "partly", headline: "대체로 맑아요" };
-  if (score >= 0.55) return { kind: "partly", headline: "구름이 조금 있어요" };
-  if (score >= 0.35) return { kind: "cloudy", headline: "흐린 신호가 보여요" };
-  return { kind: "rainy", headline: "비가 오는 분위기예요" };
+  if (totalRoster <= 0 || total / totalRoster < 0.3) {
+    return { kind: "quiet", headline: "응답이 적어요", support: "아직 오늘의 마음을 알려준 친구가 많지 않아요." };
+  }
+
+  const gloom = (yellow * 0.4 + navy * 0.7 + red * 1.0) / total;
+  const greenShare = green / total;
+  const redShare = red / total;
+  const navyShare = navy / total;
+
+  if (redShare >= 0.45) {
+    return { kind: "stormy", headline: "비가 많이 와요", support: "오늘은 마음이 무거운 친구들이 비교적 많이 보여요." };
+  }
+  if (gloom >= 0.55 || redShare >= 0.3) {
+    return { kind: "rainy", headline: "비가 내려요", support: "속상하거나 혼자 있고 싶은 마음이 평소보다 많아요." };
+  }
+  if (gloom >= 0.35 || redShare + navyShare >= 0.3) {
+    return { kind: "cloudy", headline: "조금 흐려요", support: "평소보다 조심스러운 마음이 조금 더 보여요." };
+  }
+  if (greenShare >= 0.7 && redShare < 0.1 && navyShare < 0.1) {
+    return { kind: "sunny", headline: "맑아요", support: "오늘은 편안하고 좋은 마음이 많은 날이에요." };
+  }
+  return { kind: "partly", headline: "구름이 조금 있어요", support: "대체로 편안하지만, 여러 감정이 함께 보여요." };
 }
 
 function buildMood(students: StudentSignal[]): MoodShare[] {
@@ -295,25 +310,122 @@ function buildMood(students: StudentSignal[]): MoodShare[] {
       color,
       count: matched.length,
       pct: checkedIn.length ? Math.round((matched.length / checkedIn.length) * 1000) / 10 : 0,
-      students: matched.map((student) => ({ studentId: student.studentNo, name: student.name })),
+      students: matched.map((student) => ({ studentId: student.studentId, name: student.name })),
     };
   });
 }
 
-function buildBriefing(students: StudentSignal[]): BriefingStudent[] {
-  return students
-    .filter((student): student is StudentSignal & { color: SignalColor } => student.color !== null && student.color !== "green")
-    .sort((a, b) => {
-      const priority: Record<SignalColor, number> = { red: 0, navy: 1, yellow: 2, green: 3 };
-      return priority[a.color] - priority[b.color] || a.studentNo - b.studentNo;
-    })
-    .slice(0, WATCH_LIMIT)
-    .map((student) => ({
-      studentId: student.studentNo,
-      name: student.name,
-      tone: student.color,
-      ...TONE_STATUS[student.color],
+type EmotionRun = { source_id: string; created_at: string; result: unknown };
+
+function latestSession(sessions: DashboardSession[], enrollmentId: string, date: string, period: CheckinPeriod) {
+  return sessions
+    .filter((session) => session.enrollment_id === enrollmentId && session.session_date === date && session.period === period)
+    .filter((session) => SIGNAL_SET.has(session.mood_color))
+    .sort((a, b) => b.started_at.localeCompare(a.started_at) || b.attempt - a.attempt)[0];
+}
+
+function latestMorningHistory(sessions: DashboardSession[], enrollmentId: string, before: string) {
+  const byDate = new Map<string, DashboardSession>();
+  for (const session of sessions) {
+    if (session.enrollment_id !== enrollmentId || session.period !== "morning" || session.session_date >= before) continue;
+    if (!SIGNAL_SET.has(session.mood_color)) continue;
+    const previous = byDate.get(session.session_date);
+    if (!previous || session.started_at > previous.started_at || (session.started_at === previous.started_at && session.attempt > previous.attempt)) {
+      byDate.set(session.session_date, session);
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.session_date.localeCompare(b.session_date));
+}
+
+function resultLemmas(result: unknown): { lemma: string; quote?: string }[] {
+  const raw = result as { lemmas?: unknown; evidence?: unknown } | null;
+  const lemmas = Array.isArray(raw?.lemmas) ? raw.lemmas.map(canonicalize).filter((lemma): lemma is string => lemma !== null) : [];
+  const evidence = Array.isArray(raw?.evidence) ? raw.evidence : [];
+  return lemmas.map((lemma) => {
+    const match = evidence.find((item) => item && typeof item === "object" && canonicalize((item as { lemma?: unknown }).lemma) === lemma) as { quote?: unknown } | undefined;
+    return { lemma, ...(typeof match?.quote === "string" ? { quote: match.quote } : {}) };
+  });
+}
+
+function prosodyRatios(today: DashboardSession | undefined, history: DashboardSession[]) {
+  if (!today) return undefined;
+  const metric = (session: DashboardSession) => {
+    const utterances = (session.prosody as { utterances?: unknown } | null)?.utterances;
+    if (!Array.isArray(utterances) || utterances.length === 0) return null;
+    const values = utterances.filter((item): item is { duration_sec?: unknown; response_delay_sec?: unknown } => Boolean(item && typeof item === "object"));
+    const duration = values.reduce((sum, item) => sum + (typeof item.duration_sec === "number" ? item.duration_sec : 0), 0);
+    const delays = values.map((item) => item.response_delay_sec).filter((value): value is number => typeof value === "number" && value >= 0);
+    return duration > 0 && delays.length ? { speech: duration, latency: delays.reduce((sum, value) => sum + value, 0) / delays.length } : null;
+  };
+  const current = metric(today);
+  const past = history.map(metric).filter((value): value is { speech: number; latency: number } => value !== null);
+  if (!current || past.length < 3) return undefined;
+  const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const speechBase = median(past.map((value) => value.speech));
+  const latencyBase = median(past.map((value) => value.latency));
+  if (speechBase <= 0 || latencyBase <= 0) return undefined;
+  return { speechRatio: current.speech / speechBase, latencyRatio: current.latency / latencyBase };
+}
+
+async function buildBriefing(roster: RosterStudent[], sessions: DashboardSession[], dateKey: string, conflicts: ConflictRow[]): Promise<BriefingStudent[]> {
+  if (!envReady() || roster.length === 0) return [];
+  const client = createAdminClient();
+  const briefingSessions = sessions.filter((session) => session.session_date >= addDays(dateKey, -BRIEFING_HISTORY_DAYS));
+  const sessionIds = briefingSessions.map((session) => session.id);
+  const emotionRuns: EmotionRun[] = [];
+  for (let index = 0; index < sessionIds.length; index += ANALYSIS_QUERY_BATCH_SIZE) {
+    const { data, error } = await client.from("analysis_runs").select("source_id, created_at, result")
+      .eq("analysis_type", ANALYSIS_TYPE).eq("source_type", "session").eq("status", "completed")
+      .in("source_id", sessionIds.slice(index, index + ANALYSIS_QUERY_BATCH_SIZE));
+    if (error) throw error;
+    emotionRuns.push(...((data ?? []) as EmotionRun[]));
+  }
+  const emotionBySession = new Map<string, EmotionRun>();
+  for (const run of emotionRuns) if (!emotionBySession.get(run.source_id) || emotionBySession.get(run.source_id)!.created_at < run.created_at) emotionBySession.set(run.source_id, run);
+
+  const { data: requests, error: requestsError } = await client.from("meeting_requests")
+    .select("enrollment_id, requested_at, priority").in("enrollment_id", roster.map((student) => student.enrollmentId)).eq("status", "requested");
+  if (requestsError) throw requestsError;
+  const requestByEnrollment = new Map((requests ?? []).sort((a, b) => a.requested_at.localeCompare(b.requested_at)).map((row) => [row.enrollment_id, row]));
+
+  const aliases = roster.map((student) => ({ enrollmentId: student.enrollmentId, aliases: aliasesFor(student.name) }));
+  const facts: StudentFacts[] = roster.map((student) => {
+    const historySessions = latestMorningHistory(briefingSessions, student.enrollmentId, dateKey);
+    const today = latestSession(briefingSessions, student.enrollmentId, dateKey, "morning");
+    const todayRun = today ? emotionBySession.get(today.id) : undefined;
+    const todayLemmas = todayRun ? resultLemmas(todayRun.result) : [];
+    const priorLemmas = new Set(historySessions.flatMap((session) => {
+      const run = emotionBySession.get(session.id);
+      return run ? resultLemmas(run.result).map((item) => item.lemma) : [];
     }));
+    const analyzedSessions = [...historySessions, ...(today ? [today] : [])].filter((session) => emotionBySession.has(session.id));
+    let emotionWordGap = 0;
+    for (const session of [...analyzedSessions].reverse()) {
+      if (resultLemmas(emotionBySession.get(session.id)!.result).length) break;
+      emotionWordGap += 1;
+    }
+    const since = addDays(dateKey, -20);
+    const recentTexts = briefingSessions.filter((session) => session.enrollment_id === student.enrollmentId && session.session_date >= since && session.session_date <= dateKey).flatMap((session) => transcriptText(session.transcript));
+    const peerMentionGapWeeks = recentTexts.length > 0 && !recentTexts.some((text) => aliases.some((peer) => peer.enrollmentId !== student.enrollmentId && peer.aliases.some((alias) => text.includes(alias)))) ? 3 : null;
+    const navyCountLast2Weeks = latestMorningHistory(briefingSessions, student.enrollmentId, addDays(dateKey, 1)).filter((session) => session.session_date >= addDays(dateKey, -13) && session.mood_color === "navy").length;
+    const lastConflict = conflicts.filter((conflict) => conflict.pairIds.includes(student.studentId)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const request = requestByEnrollment.get(student.enrollmentId);
+    return {
+      studentId: student.studentId,
+      name: student.name,
+      todayColor: today && SIGNAL_SET.has(today.mood_color) ? today.mood_color as SignalColor : null,
+      history: historySessions.map((session) => ({ date: session.session_date, color: session.mood_color as SignalColor })),
+      ...(request ? { meetingRequest: { requestedOn: toKstDate(request.requested_at), priority: request.priority === "high" ? "high" as const : "normal" as const } } : {}),
+      ...(prosodyRatios(today, historySessions) ? { prosody: prosodyRatios(today, historySessions) } : {}),
+      ...(lastConflict ? { lastConflict: { date: lastConflict.date, resolved: /완료/.test(lastConflict.status) } } : {}),
+      ...(todayRun ? { todayLemmas } : {}),
+      ...(todayRun ? { newLemmas: todayLemmas.map((item) => item.lemma).filter((lemma) => isDistressWord(lemma) && !priorLemmas.has(lemma)) } : {}),
+      ...(analyzedSessions.length ? { emotionWordGap } : {}),
+      ...(peerMentionGapWeeks ? { peerMentionGapWeeks } : {}),
+      navyCountLast2Weeks,
+    };
+  });
+  return buildBriefingRows(facts, dateKey, WATCH_LIMIT);
 }
 
 function buildParticipation(dateKey: string, roster: RosterStudent[], students: StudentSignal[]): ParticipationSummary {
@@ -324,7 +436,7 @@ function buildParticipation(dateKey: string, roster: RosterStudent[], students: 
     totalCount: roster.length,
     absentStudents: students
       .filter((student) => student.color === null)
-      .map((student) => ({ studentId: student.studentNo, name: student.name })),
+      .map((student) => ({ studentId: student.studentId, name: student.name })),
   };
 }
 
@@ -346,7 +458,7 @@ function buildRecentDays(dateKey: string, sessions: DashboardSession[], roster: 
     return {
       date: shortDate(date),
       weekday: weekdayOf(date),
-      kind: deriveWeather(moodIds(daySignals)).kind as WeatherKind,
+      kind: deriveWeather(moodIds(daySignals), daySignals.length).kind as WeatherKind,
       isToday: date === dateKey,
     };
   });
@@ -369,79 +481,28 @@ function aliasesFor(name: string): string[] {
   return [...new Set([name, shortName].filter((alias) => alias.length >= 2))];
 }
 
-function pairKey(a: number, b: number) {
-  return a < b ? `${a}-${b}` : `${b}-${a}`;
+/** 두 학생 id 를 늘 같은 순서로 이어 붙인 값 — 실제 계산(누가 이어졌는지)은 그대로고,
+    구분자만 "::"로 바꿨다. students.id 는 uuid 라 "-"를 이미 포함하고 있어서,
+    "-"로 이어 붙이면 나중에 다시 쪼갤 때 안전하지 않다. */
+function pairKey(a: string, b: string) {
+  return a < b ? `${a}::${b}` : `${b}::${a}`;
 }
 
-function replaceNames(text: string, mockNames: Map<number, string>, roster: RosterStudent[]) {
-  return [...mockNames.entries()].reduce((result, [studentNo, mockName]) => {
-    const name = roster.find((student) => student.studentNo === studentNo)?.name;
-    return name ? result.split(mockName).join(name) : result;
-  }, text);
-}
-
-function buildMockRelation(roster: RosterStudent[], dateKey: string): Record<RelationPeriod, RelationGraph> {
-  const snapshot = getDashboardSnapshot(dateKey);
-  const mockNames = new Map(snapshot.relation.all.nodes.map((node) => [node.studentId, node.name]));
-  const nameFor = (studentNo: number) => roster.find((student) => student.studentNo === studentNo)?.name ?? "이름 없음";
-  const mapConflict = (conflict: ConflictRow) => ({
-    ...conflict,
-    pair: conflict.pairIds.map(nameFor).join(" | "),
-    statements: conflict.statements.map((statement) => ({
-      ...statement,
-      who: replaceNames(statement.who, mockNames, roster),
-      text: replaceNames(statement.text, mockNames, roster),
-    })),
-  });
-
-  return Object.fromEntries(
-    RELATION_PERIODS.map(({ id }) => {
-      const graph = snapshot.relation[id];
-      const conflicts = graph.conflicts.slice(0, 4).map(mapConflict);
-      return [
-        id,
-        {
-          nodes: graph.nodes.map((node) => ({ ...node, name: nameFor(node.studentId) })),
-          edges: graph.edges,
-          details: Object.fromEntries(
-            Object.entries(graph.details).map(([studentNo, detail]) => [
-              studentNo,
-              {
-                ...detail,
-                name: nameFor(detail.studentId),
-                quotes: detail.quotes.map((quote) => ({ ...quote, from: replaceNames(quote.from, mockNames, roster), text: replaceNames(quote.text, mockNames, roster) })),
-                conflicts: detail.conflicts.map(mapConflict),
-              },
-            ]),
-          ),
-          pairs: Object.fromEntries(
-            Object.entries(graph.pairs).map(([key, pair]) => [
-              key,
-              {
-                ...pair,
-                a: { ...pair.a, name: nameFor(pair.a.studentId) },
-                b: { ...pair.b, name: nameFor(pair.b.studentId) },
-                quotes: pair.quotes.map((quote) => ({ ...quote, from: replaceNames(quote.from, mockNames, roster), text: replaceNames(quote.text, mockNames, roster) })),
-                conflicts: pair.conflicts.map(mapConflict),
-              },
-            ]),
-          ),
-          conflicts,
-        } satisfies RelationGraph,
-      ];
-    }),
-  ) as Record<RelationPeriod, RelationGraph>;
-}
-
-export function buildRelation(roster: RosterStudent[], sessions: DashboardSession[], dateKey: string, days: number): RelationGraph {
+export function buildRelation(
+  roster: RosterStudent[],
+  sessions: DashboardSession[],
+  dateKey: string,
+  days: number,
+  allConflicts: ConflictRow[],
+): RelationGraph {
   const from = addDays(dateKey, -(days - 1));
   const windowSessions = sessions.filter((session) => session.session_date >= from && session.session_date <= dateKey);
   const byEnrollment = new Map(roster.map((student) => [student.enrollmentId, student]));
   const aliases = roster.map((student) => ({ student, aliases: aliasesFor(student.name) }));
-  const mentioned = new Map<number, number>(roster.map((student) => [student.studentNo, 0]));
+  const mentioned = new Map<string, number>(roster.map((student) => [student.studentId, 0]));
   const pairCount = new Map<string, number>();
-  const studentQuotes = new Map<number, { from: string; date: string; text: string }[]>(
-    roster.map((student) => [student.studentNo, []]),
+  const studentQuotes = new Map<string, { from: string; date: string; text: string }[]>(
+    roster.map((student) => [student.studentId, []]),
   );
   const pairQuotes = new Map<string, { from: string; date: string; text: string }[]>();
 
@@ -454,22 +515,30 @@ export function buildRelation(roster: RosterStudent[], sessions: DashboardSessio
         if (target.enrollmentId === speaker.enrollmentId) continue;
         if (!targetAliases.some((alias) => text.includes(alias))) continue;
 
-        mentioned.set(target.studentNo, (mentioned.get(target.studentNo) ?? 0) + 1);
-        const key = pairKey(speaker.studentNo, target.studentNo);
+        mentioned.set(target.studentId, (mentioned.get(target.studentId) ?? 0) + 1);
+        const key = pairKey(speaker.studentId, target.studentId);
         pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
 
         const quote = { from: speaker.name, date: session.session_date, text };
-        studentQuotes.get(target.studentNo)!.push(quote);
+        studentQuotes.get(target.studentId)!.push(quote);
         if (!pairQuotes.has(key)) pairQuotes.set(key, []);
         pairQuotes.get(key)!.push(quote);
       }
     }
   }
 
+  // 이 기간 안의 갈등만 — 관계선 계산 방식은 그대로다. 여기서 하는 일은
+  // "이 기간(날짜 창)에 낀 갈등이 뭔지" 거르는 것뿐이다.
+  const records = allConflicts.filter((c) => c.date >= from && c.date <= dateKey);
+  const conflictIds = new Set(records.flatMap((c) => c.pairIds));
+  const isConflictPair = (a: string, b: string) =>
+    records.some((c) => c.pairIds.includes(a) && c.pairIds.includes(b));
+
   const ranked = [...roster].sort(
-    (a, b) => (mentioned.get(b.studentNo) ?? 0) - (mentioned.get(a.studentNo) ?? 0) || a.studentNo - b.studentNo,
+    (a, b) => (mentioned.get(b.studentId) ?? 0) - (mentioned.get(a.studentId) ?? 0) || a.studentNo - b.studentNo,
   );
-  const layout = { cx: 330, cy: 190, rings: [{ count: 6, rx: 148, ry: 82 }, { count: 13, rx: 268, ry: 142 }] };
+  // mockData.ts 의 LAYOUT 과 같은 값을 쓴다 (RelationshipMap 의 2단계 원 크기와 안 겹치도록 맞춘 간격).
+  const layout = { cx: 330, cy: 190, rings: [{ count: 6, rx: 125, ry: 78 }, { count: 13, rx: 282, ry: 150 }] };
 
   const nodes = ranked.map((student, rank) => {
     let x = layout.cx;
@@ -481,62 +550,88 @@ export function buildRelation(roster: RosterStudent[], sessions: DashboardSessio
       x = Math.round(layout.cx + Math.cos(angle) * ring.rx);
       y = Math.round(layout.cy + Math.sin(angle) * ring.ry);
     }
-    const count = mentioned.get(student.studentNo) ?? 0;
+    const count = mentioned.get(student.studentId) ?? 0;
     return {
-      studentId: student.studentNo,
+      studentId: student.studentId,
       name: student.name,
       x,
       y,
       r: Math.min(28, 12 + Math.max(0, Math.min(count, 4)) * 4),
-      tone: count === 0 ? ("isolated" as const) : ("normal" as const),
+      tone: count === 0 ? ("isolated" as const) : conflictIds.has(student.studentId) ? ("conflict" as const) : ("normal" as const),
     };
   });
 
   const strongest = Math.max(...pairCount.values(), 1);
   const edges = [...pairCount].map(([key, count]) => {
-    const [fromId, toId] = key.split("-").map(Number);
-    return { from: fromId, to: toId, kind: "normal" as const, strength: count / strongest };
+    const [fromId, toId] = key.split("::");
+    return {
+      from: fromId,
+      to: toId,
+      kind: isConflictPair(fromId, toId) ? ("conflict" as const) : ("normal" as const),
+      strength: count / strongest,
+    };
   });
+  // 갈등은 서로 언급이 없어도(발화에 이름이 안 나와도) 반드시 선으로 보여야 한다
+  for (const c of records) {
+    const [a, b] = c.pairIds;
+    if (!edges.some((e) => (e.from === a && e.to === b) || (e.from === b && e.to === a))) {
+      edges.push({ from: a, to: b, kind: "conflict", strength: 0.5 });
+    }
+  }
 
   const details = Object.fromEntries(
     roster.map((student) => [
-      student.studentNo,
+      student.studentId,
       {
-        studentId: student.studentNo,
+        studentId: student.studentId,
         name: student.name,
-        mentionCount: mentioned.get(student.studentNo) ?? 0,
-        quotes: (studentQuotes.get(student.studentNo) ?? []).slice().reverse().slice(0, 3),
-        conflicts: [],
+        mentionCount: mentioned.get(student.studentId) ?? 0,
+        quotes: (studentQuotes.get(student.studentId) ?? []).slice().reverse().slice(0, 3),
+        conflicts: records.filter((c) => c.pairIds.includes(student.studentId)),
       },
     ]),
   );
 
+  const byId = new Map(roster.map((student) => [student.studentId, student]));
+  // 갈등만 있고 서로 언급은 없는 짝도 상세 패널이 있어야 한다 (mockData.ts 의 같은 처리 참고)
+  const pairKeys = new Set([...pairQuotes.keys(), ...records.map((c) => pairKey(...c.pairIds))]);
   const pairs = Object.fromEntries(
-    [...pairQuotes].map(([key, quotes]) => {
-      const [a, b] = key.split("-").map(Number);
-      const studentA = roster.find((student) => student.studentNo === a)!;
-      const studentB = roster.find((student) => student.studentNo === b)!;
+    [...pairKeys].map((key) => {
+      const [a, b] = key.split("::");
+      const studentA = byId.get(a)!;
+      const studentB = byId.get(b)!;
+      const quotes = pairQuotes.get(key) ?? [];
       return [
         key,
         {
-          a: { studentId: studentA.studentNo, name: studentA.name },
-          b: { studentId: studentB.studentNo, name: studentB.name },
+          a: { studentId: studentA.studentId, name: studentA.name },
+          b: { studentId: studentB.studentId, name: studentB.name },
           mentionCount: quotes.length,
           quotes: quotes.slice().reverse().slice(0, 4),
-          conflicts: [],
+          conflicts: records.filter((c) => pairKey(...c.pairIds) === key),
         },
       ];
     }),
   );
 
-  return { nodes, edges, details, pairs, conflicts: [] };
+  return { nodes, edges, details, pairs, conflicts: records };
 }
 
+/** 감정 어휘 성장 — 실제 analysis_runs(emotion_vocab) 결과만 쓴다. mock 폴백 없음.
+    "count"(누적 어휘 종류 수)와 "trend"(달말 학급 평균)의 뜻은 lib/vocab/aggregate.ts 의
+    aggregateVocab 이 정하고, route.ts(app/api/ai/vocab-growth)도 같은 함수를 쓴다 —
+    대시보드와 그 API가 "평균"을 서로 다르게 계산하면 같은 날 다른 숫자가 나온다.
+    분석이 아직 없는 세션은 그냥 "표제어 0개"로 잡힌다 — 평균을 0으로 깎아내리지 않으려면
+    호출부에서 분석 진행 상황(pending)을 따로 보여줘야 하지만, 지금 카드는 그 자리가 없어
+    숫자만 정직하게 낮게 나온다("분석 대기" 문구는 UI 변경 없이는 넣을 곳이 없다). */
 export async function buildVocab(roster: RosterStudent[], sessions: DashboardSession[], dateKey: string): Promise<DashboardData["vocab"]> {
   const withTranscript = sessions.filter((session) => session.transcript !== null && session.session_date <= dateKey);
-  if (!envReady() || roster.length === 0 || withTranscript.length === 0) {
+  if (roster.length === 0) {
+    return { students: [], trend: [{ month: monthLabel(dateKey.slice(0, 7)), average: 0 }] };
+  }
+  if (!envReady() || withTranscript.length === 0) {
     return {
-      students: roster.map((student) => ({ studentId: student.studentNo, name: student.name, count: 0, delta: 0, words: [] })),
+      students: roster.map((student) => ({ studentId: student.studentId, name: student.name, shortName: student.shortName, count: 0, delta: 0, words: [] })),
       trend: [{ month: monthLabel(dateKey.slice(0, 7)), average: 0 }],
     };
   }
@@ -564,110 +659,125 @@ export async function buildVocab(roster: RosterStudent[], sessions: DashboardSes
     lemmasBySession.set(run.source_id, lemmas);
   }
 
-  const firstSeen = new Map<number, Map<string, string>>();
-  const studentNoByEnrollment = new Map(roster.map((student) => [student.enrollmentId, student.studentNo]));
+  const studentIdByEnrollment = new Map(roster.map((student) => [student.enrollmentId, student.studentId]));
+
+  // 표제어를 처음 쓴 날짜(누적 집합 계산용) — aggregateVocab 이 count/delta/trend 를 셀 때 쓴다.
+  // 여기서는 그 결과에 없는 "실제로 쓴 낱말 목록"(막대 툴팁용)만 따로 모은다.
+  const firstSeen = new Map<string, Map<string, string>>();
+  const perSession: SessionLemmas<string>[] = [];
   for (const session of withTranscript) {
-    const studentNo = studentNoByEnrollment.get(session.enrollment_id);
-    if (!studentNo) continue;
-    if (!firstSeen.has(studentNo)) firstSeen.set(studentNo, new Map());
-    const seen = firstSeen.get(studentNo)!;
-    for (const lemma of lemmasBySession.get(session.id) ?? []) {
-      if (!seen.has(lemma)) seen.set(lemma, session.session_date);
-    }
+    const studentId = studentIdByEnrollment.get(session.enrollment_id);
+    if (!studentId) continue;
+    const lemmas = lemmasBySession.get(session.id) ?? [];
+    perSession.push({ studentId, date: session.session_date, lemmas });
+
+    if (!firstSeen.has(studentId)) firstSeen.set(studentId, new Map());
+    const seen = firstSeen.get(studentId)!;
+    for (const lemma of lemmas) if (!seen.has(lemma)) seen.set(lemma, session.session_date);
   }
 
-  const currentMonth = dateKey.slice(0, 7);
-  const students: VocabStudent[] = roster.map((student) => {
-    const seen = firstSeen.get(student.studentNo) ?? new Map<string, string>();
-    const words = [...seen.keys()];
-    return {
-      studentId: student.studentNo,
-      name: student.name,
-      count: words.length,
-      delta: [...seen.values()].filter((date) => date.slice(0, 7) === currentMonth).length,
-      words,
-    };
-  });
+  const rosterRef = roster.map((student) => ({ studentId: student.studentId, name: student.name }));
+  const { students: aggregated, trend } = aggregateVocab(rosterRef, perSession, dateKey);
 
-  const months = [...new Set(withTranscript.map((session) => session.session_date.slice(0, 7)))].sort();
-  const trend: VocabMonth[] = (months.length ? months : [currentMonth]).map((ym) => {
-    const total = roster.reduce((sum, student) => {
-      const seen = firstSeen.get(student.studentNo);
-      if (!seen) return sum;
-      return sum + [...seen.values()].filter((date) => date.slice(0, 7) <= ym).length;
-    }, 0);
-    return { month: monthLabel(ym), average: Math.round((total / roster.length) * 10) / 10 };
-  });
+  const shortNameOf = new Map(roster.map((student) => [student.studentId, student.shortName]));
+  const students: VocabStudent[] = aggregated.map((stat) => ({
+    ...stat,
+    shortName: shortNameOf.get(stat.studentId),
+    words: [...(firstSeen.get(stat.studentId)?.keys() ?? [])],
+  }));
 
   return { students, trend };
 }
 
-async function buildDashboardVocab(roster: RosterStudent[], dateKey: string) {
-  const mockVocab = getDashboardSnapshot(dateKey).vocab;
-  const latestMinjunLemmas = await loadLatestMinjunLemmas(roster, dateKey);
-
-  const students = mockVocab.students.map((student) => {
-    const rosterStudent = roster.find((item) => item.studentNo === student.studentId);
-    const shortName = rosterStudent?.shortName ?? student.name.slice(-2);
-    const fullName = rosterStudent?.name ?? `${student.name.slice(0, -2)}${shortName}`;
-    if (student.studentId !== 1) {
-      return { ...student, name: fullName, shortName };
-    }
-
-    const addedWords = latestMinjunLemmas.filter((word) => !student.words.includes(word));
-    return {
-      ...student,
-      name: fullName,
-      shortName,
-      count: student.count + addedWords.length,
-      delta: student.delta + addedWords.length,
-      words: [...student.words, ...addedWords],
-    };
-  });
-
-  return {
-    students,
-    trend: mockVocab.trend.map((month, index) =>
-      index === mockVocab.trend.length - 1 ? { ...month, average: 10.4 } : month,
-    ),
-  };
-}
-
-async function loadLatestMinjunLemmas(roster: RosterStudent[], dateKey: string): Promise<string[]> {
-  const minjun = roster.find((student) => student.studentNo === 1);
-  if (!envReady() || !minjun) return [];
-
+/** 실제 갈등 기록 — work_records(record_type='conflict') + work_record_students(관련 학생) +
+    conflict_statements(학생 발화 근거)를 그대로 읽는다. mock 의 4건짜리 갈등 목록을 대신한다.
+    "장난"이라는 낱말만으로 갈등이라 판단하지 않는다 — 애초에 이 record_type='conflict' 로
+    분류하는 판단 자체를 만들 때(스크립트로 1회 처리) 그 기준을 적용했고, 여기서는 이미
+    분류된 결과를 그대로 읽기만 한다(이 화면은 읽기 전용이다). */
+async function loadConflicts(classId: string): Promise<ConflictRow[]> {
+  if (!envReady()) return [];
   const client = createAdminClient();
-  const { data: latest, error: latestError } = await client
-    .from("checkin_sessions")
-    .select("id")
-    .eq("enrollment_id", minjun.enrollmentId)
-    .eq("status", "completed")
-    .lte("session_date", dateKey)
-    .order("session_date", { ascending: false })
-    .order("started_at", { ascending: false })
-    .order("attempt", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (latestError) throw latestError;
-  if (!latest) return [];
 
-  const { data, error } = await client
-    .from("analysis_runs")
-    .select("result")
-    .eq("analysis_type", ANALYSIS_TYPE)
-    .eq("source_type", "session")
-    .eq("status", "completed")
-    .eq("source_id", latest.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
+  const { data: records, error: recordsError } = await client
+    .from("work_records")
+    .select("id, title, body, occurred_at")
+    .eq("class_id", classId)
+    .eq("record_type", "conflict")
+    .order("occurred_at");
+  if (recordsError) throw recordsError;
+  if (!records?.length) return [];
 
-  const lemmas = (data?.result as { lemmas?: unknown } | null)?.lemmas;
-  return Array.isArray(lemmas)
-    ? lemmas.map(canonicalize).filter((lemma): lemma is string => lemma !== null)
-    : [];
+  const recordIds = records.map((r) => r.id);
+
+  const { data: links, error: linksError } = await client
+    .from("work_record_students")
+    .select("work_record_id, enrollment_id")
+    .in("work_record_id", recordIds);
+  if (linksError) throw linksError;
+
+  const { data: statementRows, error: statementsError } = await client
+    .from("conflict_statements")
+    .select("work_record_id, speaker_label, content, created_at")
+    .in("work_record_id", recordIds)
+    .order("created_at");
+  if (statementsError) throw statementsError;
+  // conflict_statements 는 speaker_label 을 자유 텍스트로 남기므로 tone 색은 따로 없다 —
+  // RelationDetailPane 의 STATEMENT_COLOR.muted 로 통일해 둔다(색으로 판정을 덧붙이지 않는다).
+
+  const enrollmentIds = [...new Set((links ?? []).map((l) => l.enrollment_id))];
+  const { data: enrollments, error: enrollError } = await client
+    .from("enrollments")
+    .select("id, student_id")
+    .in("id", enrollmentIds.length ? enrollmentIds : ["00000000-0000-0000-0000-000000000000"]);
+  if (enrollError) throw enrollError;
+  const studentIdByEnrollment = new Map((enrollments ?? []).map((e) => [e.id, e.student_id as string]));
+
+  const linksByRecord = new Map<string, string[]>();
+  for (const link of links ?? []) {
+    const studentId = studentIdByEnrollment.get(link.enrollment_id);
+    if (!studentId) continue;
+    if (!linksByRecord.has(link.work_record_id)) linksByRecord.set(link.work_record_id, []);
+    linksByRecord.get(link.work_record_id)!.push(studentId);
+  }
+  const statementsByRecord = new Map<string, { who: string; text: string }[]>();
+  for (const row of statementRows ?? []) {
+    if (!statementsByRecord.has(row.work_record_id)) statementsByRecord.set(row.work_record_id, []);
+    statementsByRecord.get(row.work_record_id)!.push({ who: row.speaker_label, text: row.content });
+  }
+
+  const nameOf = new Map<string, string>();
+  for (const e of enrollments ?? []) nameOf.set(e.student_id, "");
+  if (nameOf.size) {
+    const { data: students, error: studentsError } = await client
+      .from("students")
+      .select("id, display_name")
+      .in("id", [...nameOf.keys()]);
+    if (studentsError) throw studentsError;
+    for (const s of students ?? []) nameOf.set(s.id, s.display_name);
+  }
+
+  const rows: ConflictRow[] = [];
+  for (const record of records) {
+    const pairIds = linksByRecord.get(record.id) ?? [];
+    // 진술이 없거나 학생이 정확히 둘로 연결되지 않은 기록은 지도에 올리지 않는다 —
+    // (봉인 전 진술 입력이 막혀 진술 없이 남은 시도분이 있을 수 있다. 그런 기록은 조용히 건너뛴다.)
+    if (pairIds.length !== 2) continue;
+    const statements = statementsByRecord.get(record.id) ?? [];
+    if (!statements.length) continue;
+
+    const date = toKstDate(record.occurred_at);
+    rows.push({
+      date,
+      label: `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`,
+      pair: pairIds.map((id) => nameOf.get(id) ?? "이름 없음").join(" ↔ "),
+      pairIds: [pairIds[0], pairIds[1]],
+      summary: record.title,
+      // 담임 중재·화해가 기록에 있으면 완료로, 아직이면 확인 중으로 — 두 표현 다 mock 이 쓰던 것과 같다.
+      status: /화해|사과|중재/.test(record.body) ? "담임 중재 완료" : "진술 확인 중",
+      statements: statements.map((s) => ({ who: s.who, tone: "muted" as const, text: s.text })),
+    });
+  }
+  return rows;
 }
 
 function buildClassroomPeriod(
@@ -675,28 +785,37 @@ function buildClassroomPeriod(
   sessions: DashboardSession[],
   dateKey: string,
   period: CheckinPeriod,
-  support: string,
 ): ClassroomPeriod {
   const students: StudentSignal[] = roster.map((student) => ({
     ...student,
     color: latestColor(sessions, student.enrollmentId, dateKey, period),
   }));
-  const weather = deriveWeather(moodIds(students));
+  const weather = deriveWeather(moodIds(students), students.length);
   // 질문 문장은 탭 위에 고정으로 뜨는 카드 인사말이라 등교/하교 둘 다 같은 문장을 쓴다
   const question = "우리 반 마음에는 어떤 날씨가 찾아왔을까요?";
-  return { weather: { ...weather, question, support }, mood: buildMood(students) };
+  return { weather: { ...weather, question }, mood: buildMood(students) };
 }
 
 export async function getDashboardDataFromSupabase(classId: string, dateKey: string): Promise<DashboardData> {
-  const roster = withFullNames(await loadRoster(classId), dateKey);
-  const maxRelationDays = Math.max(...RELATION_PERIODS.map((period) => period.days));
-  const sessions = await loadSessions(roster, addDays(dateKey, -(maxRelationDays - 1)), dateKey);
+  const roster = await loadRoster(classId);
+  // 브리핑의 개인 기준선·친구 언급 규칙은 최근 이력이 필요하다. 관계 지도보다 넓은 90일을 읽는다.
+  const sessions = await loadSessions(roster, addDays(dateKey, -89), dateKey);
   const students: StudentSignal[] = roster.map((student) => ({
     ...student,
     color: latestColor(sessions, student.enrollmentId, dateKey),
   }));
 
-  const relation = buildMockRelation(roster, dateKey);
+  // 감정 어휘는 관계 지도의 "최근 N일" 창과는 다른 값이다 — 학기 시작 이후 누적이라
+  // 90일(누적 관계 창)보다 앞선 세션도 셀 수 있어야 한다. 그래서 따로, 넓게 불러온다.
+  const vocabSessions = await loadSessions(roster, VOCAB_HISTORY_START, dateKey);
+
+  const conflicts = await loadConflicts(classId);
+  const relation = Object.fromEntries(
+    RELATION_PERIODS.map((period) => [
+      period.id,
+      buildRelation(roster, sessions, dateKey, period.days, conflicts),
+    ]),
+  ) as Record<RelationPeriod, RelationGraph>;
 
   // 탭 기본값 — 그날 더 최근에 기록이 쌓인 시간대. 아직 둘 다 없으면 등교부터 보여준다
   // (학교 하루가 등교로 시작하니, 텅 빈 하교 탭을 먼저 보여줄 이유가 없다).
@@ -708,11 +827,11 @@ export async function getDashboardDataFromSupabase(classId: string, dateKey: str
   return {
     dateKey,
     isToday: dateKey === dashboardToday(),
-    briefing: { watch: buildBriefing(students) },
+    briefing: { watch: await buildBriefing(roster, sessions, dateKey, conflicts) },
     classroom: {
       periods: {
-        morning: buildClassroomPeriod(roster, sessions, dateKey, "morning", "등교 때 응답을 모아 본 분위기예요."),
-        afternoon: buildClassroomPeriod(roster, sessions, dateKey, "afternoon", "하교 때 응답을 모아 본 분위기예요."),
+        morning: buildClassroomPeriod(roster, sessions, dateKey, "morning"),
+        afternoon: buildClassroomPeriod(roster, sessions, dateKey, "afternoon"),
       },
       defaultPeriod,
       delta: "학생들의 오늘 응답을 기준으로 집계했어요.",
@@ -720,7 +839,8 @@ export async function getDashboardDataFromSupabase(classId: string, dateKey: str
     },
     participation: buildParticipation(dateKey, roster, students),
     relation,
+    // "누적"(가장 넓은 기간) 그래프의 갈등 목록을 폴백으로 쓴다 — 옆 패널이 아무도 안 고른 동안 보여주는 값.
     conflicts: relation.all.conflicts,
-    vocab: await buildDashboardVocab(roster, dateKey),
+    vocab: await buildVocab(roster, vocabSessions, dateKey),
   };
 }

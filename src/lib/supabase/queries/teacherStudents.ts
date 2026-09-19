@@ -454,7 +454,9 @@ function buildInsights(studentId: string): { vocab: VocabInsight; relation: Rela
     .map((e) => {
       const otherId = e.from === dashboardId ? e.to : e.from;
       const other = relation.nodes.find((n) => n.studentId === otherId);
-      return other ? { studentId: mockStudentIdFromNumber(otherId), name: other.name, kind: e.kind } : null;
+      // relation.edges 의 from/to 는 실제 데이터(uuid 문자열)와 타입을 공유하느라 넓어졌지만,
+      // 이 파일은 mock 스냅샷만 쓰므로 여기서는 늘 숫자다.
+      return other ? { studentId: mockStudentIdFromNumber(Number(otherId)), name: other.name, kind: e.kind } : null;
     })
     .filter((c): c is { studentId: string; name: string; kind: "normal" | "conflict" } => c !== null);
 
