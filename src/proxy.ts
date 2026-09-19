@@ -3,8 +3,8 @@
 //
 // 역할은 딱 하나 — "기존 세션 쿠키 갱신 + 접근 확인"만 한다. 새 익명 계정 생성
 // (signInAnonymously)은 절대 여기서 안 한다 — 여기서도 부르면 페이지 로드마다 여러 요청이
-// 동시에 각자 새 계정을 만들어버리는 문제가 생긴다. 계정 생성은 /api/demo/init 한 곳으로만
-// 모은다(계획 문서 B항 "역할 확정표" 참고).
+// 동시에 각자 새 계정을 만들어버리는 문제가 생긴다. 계정 생성은 브라우저의 /demo-init 화면 한 곳으로만
+// 모은다(계획 문서 B항 "역할 확정표" 참고 — 서버 라우트에서 부르면 레이트리밋 IP가 서버 IP가 되고 캡차도 못 쓴다).
 //
 // Next.js 16에서 middleware.ts가 proxy.ts로 이름이 바뀌었다(공식 문서 확인 완료:
 // https://nextjs.org/docs/app/api-reference/file-conventions/proxy — 파일명·함수명·config
@@ -95,7 +95,7 @@ async function refreshSessionAndGate(request: NextRequest) {
 
   // 세션이 있으면(익명이든 아니든) 이 호출이 만료된 토큰을 갱신하고 위 setAll로 쿠키를 다시 쓴다.
   // 세션이 아예 없으면 계정을 만들지 않고 그대로 둔다 — /demo-init 화면으로 보내서
-  // /api/demo/init이 signInAnonymously()를 부르게 한다(계정 생성은 그쪽 책임).
+  // /demo-init(브라우저)이 signInAnonymously()를 부르게 한다(계정 생성은 그쪽 책임).
   const {
     data: { user },
   } = await supabase.auth.getUser();

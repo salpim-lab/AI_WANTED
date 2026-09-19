@@ -1,11 +1,13 @@
 // 담당: 이지현 (신규)
-// 공개 데모(Vercel) 방문자 세션 초기화 — 익명 계정 생성 + 프로필 준비를 이 한 곳으로 모은다.
-// signInAnonymously()를 부르는 곳은 이 파일이 유일하다(proxy.ts는 세션 갱신만, 계정 생성은 안 함).
+// 공개 데모(Vercel) 방문자 세션 초기화 — **이미 만들어진 익명 세션**에 프로필·담당 학급을 준비한다.
+// 이 파일은 로그인을 하지 않는다: signInAnonymously()는 브라우저의 /demo-init 화면 한 곳에서만 부른다.
+// (서버에서 부르면 Supabase가 보는 IP가 Vercel 서버 IP라 익명 로그인 레이트리밋을 전체 방문자가 공유하고,
+//  캡차(Turnstile) 토큰도 브라우저에서만 얻을 수 있다 — 세션 없이 여기 오면 401.)
 //
-// 왜 한 곳으로 모으나: profiles upsert의 on conflict do nothing은 "같은 user id의 프로필
+// 왜 진입점을 하나로 모으나: profiles upsert의 on conflict do nothing은 "같은 user id의 프로필
 // 중복 생성"만 막아줄 뿐, "쿠키 없는 첫 접속에서 여러 요청이 각자 signInAnonymously()를 불러
 // 서로 다른 user id를 여러 개 만드는 문제"는 못 막는다 — 그래서 공통 초기화 화면(/demo-init)이
-// 이 라우트 하나만 호출하고, 그게 끝난 뒤에야 학생·교사 화면으로 넘어가는 흐름을 강제한다.
+// 로그인과 이 라우트 호출을 한 번만 하고, 그게 끝난 뒤에야 학생·교사 화면으로 넘어가는 흐름을 강제한다.
 //
 // 학생 쪽은 여기서 따로 준비할 게 없다 — checkin_sessions.demo_owner_id에 auth.uid()를 그대로
 // 쓰기 때문에(민준 한 명을 공유, 계획 문서 "핵심 모델" 참고) 별도 연결 행이 필요 없다.
@@ -36,17 +38,12 @@ export async function POST() {
 
   const supabase = await createClient();
   const {
-    data: { user: existingUser },
+    data: { user },
   } = await supabase.auth.getUser();
 
-  let user = existingUser;
+  // 로그인은 /demo-init(브라우저)이 먼저 끝낸 뒤 이 라우트를 부른다. 세션이 없으면 계정을 만들지 않고 돌려보낸다.
   if (!user) {
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error || !data.user) {
-      console.error("[demo/init] 익명 로그인 실패", error?.message);
-      return respond({ error: "ANONYMOUS_SIGNIN_FAILED" }, 502);
-    }
-    user = data.user;
+    return respond({ error: "NO_SESSION" }, 401);
   }
 
   // ⚠️ 익명 세션에만 교사 프로필·담임 반 assistant 권한을 준다. 이미 정식 로그인된 계정(학생·교사)이 이 경로를
