@@ -19,12 +19,10 @@ import SeatingChart from "./SeatingChart";
 export default function StudentsSplitView({
   seats,
   grid,
-  date,
   children,
 }: {
   seats: SeatingStudent[];
   grid: SeatGrid;
-  date: string;
   children: React.ReactNode;
 }) {
   const selectedStudentId = useSelectedLayoutSegment();
@@ -56,7 +54,7 @@ export default function StudentsSplitView({
             isOpen ? "hidden lg:block lg:w-[340px]" : "w-full"
           }`}
         >
-          <SeatingChart seats={seats} grid={grid} date={date} selectedStudentId={selectedStudentId} compact={isOpen} />
+          <SeatingChart seats={seats} grid={grid} selectedStudentId={selectedStudentId} compact={isOpen} />
         </aside>
 
         {isOpen ? (

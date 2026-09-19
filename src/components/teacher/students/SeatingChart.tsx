@@ -14,7 +14,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatKstDate } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { SIGNAL_DOT, SIGNAL_LABEL, SIGNAL_SEAT_FILL } from "@/components/shared/signalStyles";
 import {
@@ -51,13 +50,11 @@ function colorOf(seat: SeatingStudent, period: Period): SignalColor | null {
 export default function SeatingChart({
   seats,
   grid,
-  date,
   selectedStudentId,
   compact,
 }: {
   seats: SeatingStudent[];
   grid: SeatGrid;
-  date: string;
   selectedStudentId: string | null;
   compact: boolean;
 }) {
@@ -87,7 +84,7 @@ export default function SeatingChart({
   // 넓은 화면에서는 오른쪽(시간대 버튼 앞), 좁은 열에서는 제목 아래
   const progress = (
     <>
-      {formatKstDate(date)} {PERIOD_LABEL[period]} -{" "}
+      {PERIOD_LABEL[period]} -{" "}
       <strong className="font-bold text-[#102a56]">
         {doneCount}/{seats.length}명
       </strong>{" "}
