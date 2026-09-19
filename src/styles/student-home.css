@@ -182,8 +182,12 @@
   font-weight: 400;
   color: #fff;
   white-space: nowrap;
-  background: linear-gradient(135deg, #6a63ff 0%, #5a52f0 100%);
-  box-shadow: 0 1.1cqh 2.6cqh rgba(90, 82, 240, 0.3);
+  /* 홈 화면은 파스텔 일러스트라, 진한 보라 그라데이션은 따로 놀았다.
+     봉투와 같은 계열의 밝은 라벤더에, 위쪽에 옅은 빛을 넣어 말랑하게 둔다. */
+  background: linear-gradient(180deg, #938cff 0%, #7c74f4 100%);
+  box-shadow:
+    inset 0 0.35cqh 0 rgba(255, 255, 255, 0.28),
+    0 0.9cqh 2.2cqh rgba(124, 116, 244, 0.24);
   transition: filter 0.15s, transform 0.1s;
 }
 .sh-cta:hover { filter: brightness(1.06); }
@@ -200,19 +204,51 @@
   85% { transform: translateY(-0.7cqh); }
   100% { transform: translateY(0); }
 }
-/* 첫 화면 등장 — 학생 화면에 들어오자마자 편지가 확 열리면 당황스러웠다. 두 단계로 나눈다.
-   0.00 봉투가 살짝 아래에서 떠오르며 또렷해진다 (1s). 바닥 그림자도 함께
-   1.05 봉투가 자리 잡은 뒤 편지지가 천천히 올라온다 (2s). 그 전까지는 봉투 안에 숨어 있다(both)
-   2.60 아래 "오늘의 마음 이야기하기" 버튼이 조용히 나타난다 */
+/* 첫 화면 등장 — "어제 선생님이 보낸 편지가 방금 도착했다".
+   닫을 때의 동작을 거꾸로 돌린다. 이미 있는 부품(닫힌 봉투·덮개·하트 봉인)을 그대로 쓴다.
+   0.00 하트로 봉인된 닫힌 봉투가 작은 크기에서 사르르 커지며 도착한다 (1.1s)
+   1.10 하트 봉인이 살짝 부풀며 사라진다 — 봉인을 뜯는 순간
+   1.20 덮개가 위로 젖혀진다: 닫힌 덮개가 접혀 올라가고(0.3s), 위로 넘어간 덮개가 펴진다(0.25s)
+   1.60 봉투가 열린 모양으로 바뀐다(닫힌 몸통 → 얕은 열린 몸통, 0.25s)
+   1.85 편지지가 천천히 올라온다 (2s). 그 전까지는 봉투 안에 숨어 있다(both)
+   3.40 아래 "오늘의 마음 이야기하기" 버튼이 조용히 나타난다
+   닫기(.sh-letter-leaving)의 규칙이 더 구체적이라, 닫을 때는 이 등장 동작을 자연히 덮어쓴다. */
 @keyframes shEnvelopeArrive {
-  from { opacity: 0; transform: translateY(5cqh) scale(0.96); }
+  from { opacity: 0; transform: translateY(3cqh) scale(0.35); }
+  60% { opacity: 1; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes shSoftAppear { from { opacity: 0; } to { opacity: 1; } }
-.sh-letter-entering {
-  animation: shLetterPullUp 2s cubic-bezier(0.22, 1, 0.36, 1) 1.05s both;
+/* 닫힌 봉투: 처음부터 보이다가, 덮개가 열린 뒤 얕은 열린 몸통으로 바뀌며 물러난다 */
+@keyframes shClosedOnArrive {
+  0%, 86% { opacity: 1; transform: scaleY(1); }
+  100% { opacity: 0; transform: scaleY(0.7104); }
 }
-.sh-letter-cta-in { animation: shSoftAppear 0.8s ease-out 2.6s both; }
+/* 닫힌 덮개: 접혀 위로 올라간다 */
+@keyframes shClosedFlapOpen {
+  0%, 80% { opacity: 1; transform: scaleY(1); }
+  100% { opacity: 1; transform: scaleY(0); }
+}
+/* 위로 젖혀진 덮개(뒤판): 닫힌 덮개가 다 접힌 뒤 펴진다 */
+@keyframes shOpenFlapUnfold {
+  0%, 84% { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
+/* 열린 몸통(앞·뒤판): 덮개가 열릴 때 나타나, 깊은 닫힌 몸통에서 얕은 열린 몸통으로 */
+@keyframes shDepthOnArrive {
+  0%, 70% { opacity: 0; transform: scaleY(1); }
+  86% { opacity: 1; transform: scaleY(1); }
+  100% { opacity: 1; transform: scaleY(0.7104); }
+}
+/* 하트 봉인: 도착할 때 붙어 있다가 열기 직전 살짝 부풀며 사라진다 */
+@keyframes shHeartUnseal {
+  0%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.18); }
+}
+.sh-letter-entering {
+  animation: shLetterPullUp 2s cubic-bezier(0.22, 1, 0.36, 1) 1.85s both;
+}
+.sh-letter-cta-in { animation: shSoftAppear 0.8s ease-out 3.4s both; }
 
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
 .sh-letter-scene { position: absolute; inset: 0; pointer-events: none; }
@@ -222,11 +258,16 @@
   height: 77.6cqh;
   overflow: hidden;
   pointer-events: auto;
-  transform-origin: 50% 100%;
-  animation: shEnvelopeArrive 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* 닫힌 봉투의 가운데(가로 50%, 세로 69%)를 중심으로 커진다 */
+  transform-origin: 50% 69%;
+  animation: shEnvelopeArrive 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* 뒤판·앞판·닫힌 덮개는 같은 바닥을 축으로 깊어진다. 종이는 별도로 내려간다. */
-.sh-envelope-depth { transform-origin: center bottom; transform: scaleY(0.7104); }
+.sh-envelope-depth {
+  transform-origin: center bottom;
+  transform: scaleY(0.7104);
+  animation: shDepthOnArrive 1.85s ease-in-out both;
+}
 .sh-envelope-rear { overflow: visible; }
 /* 봉투 아래 바닥 그림자 — 봉투가 살짝 떠 있어 보이게. 봉투 폭(78cqh)보다 조금 좁은 흐릿한 타원.
    닫기 시작하면 봉투보다 먼저 옅어진다(봉투는 내려가는데 그림자만 남으면 어색하다). */
@@ -244,17 +285,22 @@
 }
 @keyframes shFloorFade { to { opacity: 0; } }
 .sh-letter-leaving .sh-envelope-floor { animation: shFloorFade 0.35s 0.45s ease-out forwards; }
-.sh-envelope-open-flap { transform-origin: center 0; }
+.sh-envelope-open-flap {
+  transform-origin: center 0;
+  animation: shOpenFlapUnfold 1.6s ease-out both;
+}
 .sh-envelope-closed {
   opacity: 0;
   transform-origin: center bottom;
   transform: scaleY(0.7104);
+  animation: shClosedOnArrive 1.85s ease-in-out both;
 }
 .sh-envelope-closed-flap {
   transform-box: view-box;
   transform-origin: 50% 0%;
   transform: scaleY(0);
   opacity: 0;
+  animation: shClosedFlapOpen 1.5s ease-in both;
 }
 .sh-letter-paper {
   background: var(--sh-paper);
@@ -362,6 +408,7 @@
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
+  animation: shHeartUnseal 1.25s ease-out both;
 }
 @keyframes shHeartStick {
   0% { transform: scale(0.4); opacity: 0; }
@@ -438,6 +485,11 @@
   .sh-letter-assembly,
   .sh-envelope-floor,
   .sh-letter-cta-in,
+  .sh-envelope-depth,
+  .sh-envelope-open-flap,
+  .sh-envelope-closed,
+  .sh-envelope-closed-flap,
+  .sh-envelope-heart,
   .sh-letter-leaving .sh-envelope-floor,
   .sh-letter-cta-away,
   .sh-morning-intro-entering > .sh-intro,
@@ -468,18 +520,20 @@
 }
 @media (prefers-reduced-motion: reduce) { .sh-to-checkout { animation: none; transform: translateX(-50%); } }
 
-/* 주 버튼 + 보조 버튼을 같은 너비로 한 줄에 */
-.sh-cta-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2.4cqh;
+/* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */
+.sh-cta-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.8cqh;
 }
-.sh-cta-row > .sh-cta { width: 100%; }
-/* 보조 버튼: 같은 모양·크기, 흰 바탕에 보라 글씨 */
+.sh-cta-stack > .sh-cta { width: 100%; }
+/* 보조 버튼: 오른쪽 위 프로필 알약과 같은 반투명 흰색 — 배경 일러스트에 녹아든다 */
 .sh-cta--ghost {
-  background: rgba(255, 255, 255, 0.92);
-  color: #5a52f0;
-  box-shadow: inset 0 0 0 0.25cqh rgba(90, 82, 240, 0.28), 0 0.8cqh 2cqh rgba(60, 68, 110, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  color: #4d5480;
+  box-shadow: 0 0.6cqh 1.8cqh rgba(40, 48, 90, 0.12);
+  backdrop-filter: blur(0.6cqh);
 }
 
 .sh-profile {

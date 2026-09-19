@@ -30,9 +30,9 @@ export default function HomeIntro({
       <p className="mt-[2cqh] text-[3.2cqh] font-bold text-[var(--sh-muted)]">
         {subtitle}
       </p>
-      {/* 보조 버튼이 있으면 두 버튼을 같은 너비로 한 줄에 둔다 */}
-      <div className={secondary ? "sh-cta-row mt-[5.5cqh]" : "mt-[5.5cqh]"}>
-        <CtaButton onClick={onNext} />
+      {/* 보조 버튼이 있으면 두 버튼을 같은 너비로 위아래에 둔다. 이때는 화살표를 뺀다 */}
+      <div className={secondary ? "sh-cta-stack mt-[5cqh]" : "mt-[5.5cqh]"}>
+        <CtaButton onClick={onNext} arrow={!secondary} />
         {secondary}
       </div>
     </div>

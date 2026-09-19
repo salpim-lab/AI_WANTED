@@ -95,8 +95,8 @@ export default function MorningHome({
     setClosing(false);
     setHidden(false);
     setRun((r) => r + 1);
-    // 봉투 등장(1s) + 편지지 올라오기(1.05s 뒤 2s)가 끝난 다음에 닫는다
-    replayTimer.current = setTimeout(close, 3400);
+    // 닫힌 봉투 도착·덮개 열림(1.85s) + 편지지 올라오기(2s)가 끝난 다음에 닫는다
+    replayTimer.current = setTimeout(close, 4200);
   }
 
   const showIntro = !view || closing || hidden;

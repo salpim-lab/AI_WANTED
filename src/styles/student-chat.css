@@ -344,7 +344,7 @@
 }
 
 /* 힌트 흐름 — 한 문장을 줄마다 나눠, 한 줄씩 아래에서 천천히 떠올랐다가 위로 사라진다.
-   차례·쉬는 시간은 GuideChips 의 타이머가 정한다(줄 4.2초, 다 흘린 뒤 14초 쉼).
+   한 번만 흐르고, 다 흐르면 말하기 버튼 위에 말풍선(.guide-bubble)으로 정리돼 머문다.
    살핌 로고 글꼴(Jua). 굵기가 하나뿐이라 font-weight 를 올리지 않는다 — 올리면 가짜 굵기가 입혀진다. */
 .guide-flow {
   display: flex;
@@ -371,6 +371,41 @@
   20% { opacity: 1; transform: translateY(0); }
   78% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-1.2cqh); }
+}
+
+/* 다 흐른 뒤 머무는 말풍선. 아래로 뾰족한 꼬리가 말하기 버튼을 가리킨다.
+   테두리 없이 옅은 바탕 + 부드러운 그림자 — 버튼이 아니라 살핌이 건네는 한마디로 읽히게 한다. */
+@keyframes guideBubbleIn {
+  from { opacity: 0; transform: translateY(1cqh); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.guide-bubble {
+  position: relative;
+  max-width: 72%;
+  margin: 0 auto 1.4cqh;
+  padding: 1.4cqh 2.8cqh;
+  border-radius: 2.4cqh;
+  background: #f1f1f6;
+  box-shadow: 0 0.5cqh 1.4cqh rgba(60, 68, 110, 0.08);
+  font-family: var(--font-cute), var(--font-sans-kr), sans-serif;
+  font-weight: 400;
+  font-size: 2.4cqh;
+  line-height: 1.5;
+  color: #7a8097;
+  text-align: center;
+  animation: guideBubbleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.guide-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1cqh;
+  width: 2cqh;
+  height: 2cqh;
+  margin-left: -1cqh;
+  background: inherit;
+  transform: rotate(45deg);
+  border-radius: 0 0 0.4cqh 0;
 }
 
 /* 가이드 칩 — 망설일 때만 올라온다 */
@@ -547,9 +582,11 @@
   .guide-chips,
   .guide-chip--hint,
   .guide-flow,
-  .guide-flow__line { animation: none; }
+  .guide-flow__line,
+  .guide-bubble { animation: none; }
   /* 움직임을 줄이면 흘리지 않고 문장 전체를 한 줄로 보여준다 */
-  .guide-flow__stage { display: none; }
+  .guide-flow__stage,
+  .guide-bubble { display: none; }
   .guide-flow .sr-only { position: static; width: auto; height: auto; clip: auto; margin: 0; overflow: visible; white-space: normal; font-size: 2.3cqh; color: #7a8097; text-align: center; }
   .chat-typing span { animation: none; }
 }

@@ -17,39 +17,37 @@ import { hintLines } from "@/lib/chat/hints";
 
 /** 한 줄이 떠올라 머물다 사라지는 시간 */
 const LINE_MS = 4200;
-/** 문장을 다 흘린 뒤 다시 보여주기까지 쉬는 시간. 쉬지 않고 돌면 같은 말이 계속 떠서 피로했다 */
-const REST_MS = 14000;
 
 /**
- * 힌트 문장을 한 줄씩 흘려 보여준다. 다 흘리면 한참 쉬었다가 다시 흘린다.
- * CSS 무한 반복으로는 쉬는 시간을 줄 수 없어서 타이머로 차례를 넘긴다.
+ * 힌트 문장을 한 줄씩 **한 번만** 흘려 보여준 뒤, 말하기 버튼 위에 말풍선 하나로 정리해 둔다.
+ * 계속 흘리면 같은 말이 반복돼 피로했다. 다 흐른 뒤에는 움직이지 않는 말풍선으로 남는다.
  * 줄마다 key 를 바꿔 등장 애니메이션을 처음부터 다시 틀게 한다.
  */
 function HintFlow({ lines }: { lines: string[] }) {
-  // index: 지금 보여줄 줄. -1 이면 쉬는 중
-  const [state, setState] = useState({ index: 0, round: 0 });
+  // index: 지금 흘리는 줄. lines.length 에 닿으면 말풍선으로 정리된 상태
+  const [index, setIndex] = useState(0);
+  const settled = index >= lines.length;
   useEffect(() => {
-    const last = state.index === lines.length - 1;
-    const resting = state.index === -1;
-    const wait = resting ? REST_MS : LINE_MS;
-    const id = window.setTimeout(() => {
-      setState((s) =>
-        s.index === -1 ? { index: 0, round: s.round + 1 } : last ? { ...s, index: -1 } : { ...s, index: s.index + 1 },
-      );
-    }, wait);
+    if (settled) return;
+    const id = window.setTimeout(() => setIndex((i) => i + 1), LINE_MS);
     return () => window.clearTimeout(id);
-  }, [state, lines.length]);
+  }, [index, settled]);
 
   return (
     <div className="guide-flow" role="note">
       <span className="sr-only">{lines.join(" ")}</span>
-      <div className="guide-flow__stage" aria-hidden="true">
-        {state.index >= 0 && (
-          <p key={`${state.round}-${state.index}`} className="guide-flow__line">
-            {lines[state.index]}
+      {settled ? (
+        // 살핌이 건네는 한마디 — 아래(말하기 버튼)를 가리키는 꼬리. 누르는 것이 아니다.
+        <p className="guide-bubble" aria-hidden="true">
+          {lines.join(" ")}
+        </p>
+      ) : (
+        <div className="guide-flow__stage" aria-hidden="true">
+          <p key={index} className="guide-flow__line">
+            {lines[index]}
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
