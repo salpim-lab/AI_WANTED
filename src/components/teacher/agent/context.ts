@@ -68,11 +68,23 @@ export async function buildAgentContext(studentId: string | null, question: stri
   return buildClassContext(teacher.classId, today);
 }
 
-/** 질문에 학급 학생 이름이 정확히 한 명만 등장하면 그 학생으로 본다 — 여러 명이 겹치면 함부로 안 좁힌다. */
+/**
+ * 질문에 학급 학생 이름이 정확히 한 명만 등장하면 그 학생으로 본다 — 여러 명이 겹치면 함부로 안 좁힌다.
+ *
+ * (2026-09-19 수정) "민준이 오늘은 어때?"처럼 성 뺀 이름으로 부르면 전체 이름("김민준")과는 문자열이
+ * 아예 안 겹쳐서 매칭에 실패했다 — 그러면 학급 전체 모드로 빠지는데, 그 상태에서 도메인별 컨텍스트를
+ * 만들면 가정 연계 도메인은 필터 없이 "최근 학부모상담기록"을 가져와서 다른 학생(예: 이서연) 내용까지
+ * 섞여 나온다. 전체 이름과 성 뺀 이름(3글자 이상일 때, interpretation/dailyAnalysis.ts의 buildNameMask와
+ * 같은 방식) 둘 다 후보로 보되, 여러 학생이 겹치면 여전히 안 좁힌다(오매칭보다 안전한 쪽을 택함).
+ */
 async function resolveStudentIdByName(classId: string, question: string): Promise<string | null> {
   const students = await listClassStudents(classId);
-  const matches = students.filter((s) => question.includes(s.name));
-  return matches.length === 1 ? matches[0].studentId : null;
+  const matchedIds = new Set<string>();
+  for (const s of students) {
+    const surfaces = s.name.length >= 3 ? [s.name, s.name.slice(1)] : [s.name];
+    if (surfaces.some((surface) => question.includes(surface))) matchedIds.add(s.studentId);
+  }
+  return matchedIds.size === 1 ? [...matchedIds][0] : null;
 }
 
 async function buildStudentContext(classId: string, studentId: string, today: string): Promise<AgentContextBundle> {
