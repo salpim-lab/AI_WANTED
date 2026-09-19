@@ -5,10 +5,11 @@
 // 막대에 올리면 그 아이가 실제로 쓴 표제어를 펼친다 — "14개"라는 숫자만으로는
 // 교사가 무엇을 칭찬하고 무엇을 더 끌어낼지 알 수 없다. 이번 달 새로 쓴 말은 따로 표시한다.
 // (오늘의 교실 명단 툴팁과 같은 방식: JS 없이 :hover / :focus-within 으로만)
-// 툴팁은 막대 아래가 아니라 옆에 붙는다: 왼쪽 절반 막대는 오른쪽에, 오른쪽 절반 막대는 왼쪽에.
-// 아래에 두면 마지막 막대의 툴팁이 카드 밖으로 나가 화면 전체에 가로 스크롤이 생겼고,
-// 스무 개가 나란히 선 차트에서는 옆으로 펴는 편이 막대를 가리지도 않는다.
-// 어느 쪽에 펼지는 렌더할 때 정한다 — CSS 는 몇 번째 막대인지 알 수 없다.
+// 툴팁은 막대 위로 편다 — 숫자 바로 위, 스무 개가 모두 같은 높이에서 나온다.
+// 막대 높이를 따라 오르내리면 옆 아이와 견주려고 마우스를 옮길 때마다 눈이 툴팁을 다시 찾아야 한다.
+// 아래에 두면 마지막 막대의 툴팁이 카드 밖으로 나가 화면 전체에 가로 스크롤이 생기고,
+// 옆에 붙이면 툴팁이 바로 이웃 막대를 덮어 비교하던 것을 가린다.
+// 좌우로 잘리지 않게 양 끝 몇 칸만 안쪽으로 붙인다 — 몇 번째 막대인지는 CSS 가 알 수 없어 여기서 정한다.
 // 차트 라이브러리를 새로 설치하지 않고 CSS/SVG 로만 그린다 (package.json 변경 금지).
 // 데이터: page.tsx 가 "선택 날짜까지의 누적"으로 조립해 props 로 내려준다.
 //   실제로는 app/api/ai/vocab-growth/route.ts
@@ -28,8 +29,11 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
   const monthDelta = Math.round((thisMonth.average - lastMonth.average) * 10) / 10;
   const deltaLabel = `${monthDelta > 0 ? "+" : ""}${monthDelta}`;
 
-  // 차트 왼쪽 절반이면 툴팁을 오른쪽으로 편다 (그 반대도 마찬가지)
-  const half = students.length / 2;
+  /* 가운데 정렬이 기본이고, 양 끝 세 칸만 카드 안쪽으로 붙인다.
+     툴팁 폭이 230px 이라 막대 세 칸 남짓을 덮는다 — 그만큼만 끝에서 당기면 잘리지 않는다. */
+  const EDGE_BARS = 3;
+  const tipAlign = (index: number) =>
+    index < EDGE_BARS ? "tip-start" : index >= students.length - EDGE_BARS ? "tip-end" : "tip-center";
 
   return (
     <section className="card vocab-card">
@@ -49,7 +53,7 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
           const newFrom = d.count - d.delta;
           return (
             <li
-              className={"vocab-bar-group " + (index < half ? "tip-right" : "tip-left")}
+              className={"vocab-bar-group " + tipAlign(index)}
               key={d.studentId}
             >
               <button type="button" className="vocab-trigger">

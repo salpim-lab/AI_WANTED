@@ -169,6 +169,42 @@
   text-shadow: 0 0.2cqh 0.5cqh rgba(20, 40, 30, 0.35);
 }
 
+/* 학생 흐름의 이전 단계로 돌아가는 보조 동작. 화면 내용을 가리지 않게 모서리에 둔다. */
+.student-back {
+  position: absolute;
+  left: 1.2cqw;
+  top: 4.4cqh;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7cqh;
+  padding: 1cqh 0.8cqh;
+  border: 0;
+  background: transparent;
+  color: #b3bacb;
+  font-size: 2.2cqh;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.mood-screen.active .sh-header,
+.chat-screen.active .sh-header,
+.island-screen.active:not(.island-screen--preparing) .sh-header {
+  left: 5.2cqw;
+}
+.student-back__icon {
+  width: 3.8cqh;
+  height: 3.8cqh;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.student-back:hover { color: var(--sh-navy); }
+.student-back:active { transform: translateY(0.2cqh) scale(0.98); }
+.student-back:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+
 /* ── CTA ───────────────────────────────────────────────── */
 .sh-cta {
   display: inline-flex;
@@ -183,7 +219,10 @@
   color: #fff;
   white-space: nowrap;
   background: linear-gradient(135deg, #6a63ff 0%, #5a52f0 100%);
-  box-shadow: 0 1.1cqh 2.6cqh rgba(90, 82, 240, 0.3);
+  /* 입체감은 아래쪽에 — 한 톤 진한 턱을 버튼 밑에 깔아 눌리는 버튼처럼 보이게 한다 */
+  box-shadow:
+    inset 0 -0.45cqh 0 rgba(40, 30, 150, 0.28),
+    0 0.9cqh 2.2cqh rgba(90, 82, 240, 0.26);
   transition: filter 0.15s, transform 0.1s;
 }
 .sh-cta:hover { filter: brightness(1.06); }
@@ -195,17 +234,36 @@
 /* 편지지가 봉투 안에서 올라온다.
    시작값 60cqh — 편지지 윗변(11.5cqh)이 봉투 ∨ 안쪽(약 72cqh)까지 내려간 위치다.
    루트의 overflow:hidden 이 봉투 아래로 삐져나온 부분을 잘라준다. */
+/* 넘쳤다 돌아오지 않고 곧게 올라와 멈춘다(위로 넘쳤다 내려오는 동작이 어수선했다).
+   올라오기 전에는 보이지 않는다 — 봉투 안쪽 바닥에 편지지 윗단이 삐져나와 보였다. */
 @keyframes shLetterPullUp {
-  0% { transform: translateY(60cqh); }
-  85% { transform: translateY(-0.7cqh); }
-  100% { transform: translateY(0); }
+  0% { transform: translateY(60cqh); opacity: 0; }
+  1% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+/* 첫 화면 — 봉투는 처음부터 열린 채로 있고, 편지지만 곧바로 천천히 올라온다.
+   (닫힌 봉투가 도착해 열리는 연출도 해 봤지만, 바로 편지를 보여주는 쪽으로 돌아왔다 — 2026-09-19)
+   0.00 봉투 장면이 먼저 부드럽게 나타난다.
+   0.20 편지지가 올라오기 시작해 끝에서 천천히 멈춘다 (2.8s)
+        — 여러 요소가 한꺼번에 움직이지 않도록 짧은 호흡을 둔다.
+   2.65 아래 "오늘의 마음 이야기하기" 버튼이 조용히 나타난다 */
+@keyframes shSoftAppear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shLetterSceneIn {
+  from { opacity: 0; transform: translateY(1cqh); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .sh-letter-entering {
-  animation: shLetterPullUp 0.78s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: shLetterPullUp 2.8s 0.2s cubic-bezier(0.2, 0.75, 0.3, 1) both;
 }
+.sh-letter-cta-in { animation: shSoftAppear 1s ease-out 2.65s both; }
 
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
-.sh-letter-scene { position: absolute; inset: 0; pointer-events: none; }
+.sh-letter-scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: shLetterSceneIn 0.7s ease-out both;
+}
 .sh-letter-assembly {
   position: absolute;
   inset: 0 0 auto;
@@ -216,6 +274,22 @@
 /* 뒤판·앞판·닫힌 덮개는 같은 바닥을 축으로 깊어진다. 종이는 별도로 내려간다. */
 .sh-envelope-depth { transform-origin: center bottom; transform: scaleY(0.7104); }
 .sh-envelope-rear { overflow: visible; }
+/* 봉투 아래 바닥 그림자 — 봉투가 살짝 떠 있어 보이게. 봉투 폭(78cqh)보다 조금 좁은 흐릿한 타원.
+   닫기 시작하면 봉투보다 먼저 옅어진다(봉투는 내려가는데 그림자만 남으면 어색하다). */
+.sh-envelope-floor {
+  animation: shSoftAppear 1s ease-out both;
+  position: absolute;
+  left: 50%;
+  top: 77cqh;
+  width: 64cqh;
+  height: 3.4cqh;
+  margin-left: -32cqh;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(70, 60, 150, 0.2), rgba(70, 60, 150, 0));
+  pointer-events: none;
+}
+@keyframes shFloorFade { to { opacity: 0; } }
+.sh-letter-leaving .sh-envelope-floor { animation: shFloorFade 0.35s 0.45s ease-out forwards; }
 .sh-envelope-open-flap { transform-origin: center 0; }
 .sh-envelope-closed {
   opacity: 0;
@@ -287,8 +361,16 @@
 .sh-letter-close:hover { background: rgba(105, 112, 150, 0.22); }
 .sh-letter-close:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
 
-/* 450ms 종이 → 250ms 덮개(몸통 깊이 동시 변경) → 100ms 닫힌 봉투 → 300ms 퇴장 → 300ms 인사.
-   전체 1.4초. 뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
+/* ── 편지 닫기 ──────────────────────────────────────────
+   0.00 편지지가 봉투로 들어간다 (0.45s)
+   0.45 덮개가 닫힌다 (0.25s)
+   --lt-drop-delay 봉투가 아래로 미끄러져 내려간다 — 처음엔 천천히, 점점 빨리(떨어지는 물건처럼).
+        크기·회전은 바꾸지 않고 1~2° 만 기운다. 화면 아래 가장자리 밖으로 나가며 가려지고,
+        흐려지는 건 맨 끝에서만.
+   --lt-greet-delay 인사가 떠오른다 — 봉투가 내려가는 도중에 겹쳐 시작한다
+   값은 letterMotion.ts 한곳에서 오고, MorningHome 이 같은 값으로 장면을 치운다.
+   개발 중에는 /checkin?tune=1 에서 슬라이더로 맞춘다.
+   뒤판/종이/앞판/덮개는 한 조립체로 움직인다. */
 @keyframes shLetterTuck {
   from { transform: translateY(0); }
   to { transform: translateY(66.2cqh); }
@@ -314,13 +396,37 @@
   from { transform: scaleY(0); opacity: 0; }
   to { transform: scaleY(1); opacity: 1; }
 }
-@keyframes shLetterOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(48cqh); opacity: 0; }
+/* 사라락 — 급하게 떨어지지 않고 부드럽게 미끄러지며 점점 옅어진다.
+   처음 잠깐은 또렷하게 둔다 — 막 붙은 하트 스티커가 보일 틈이다. */
+@keyframes shEnvelopeDrop {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  22% { opacity: 1; }
+  100% { transform: translateY(var(--lt-drop-dist, 34cqh)) rotate(var(--lt-tilt, 1deg)); opacity: 0; }
 }
-@keyframes shMorningIntroIn {
-  from { transform: translateY(2cqh); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+/* 하트 스티커: 덮개가 거의 닫힐 때 작게 톡 붙는다 */
+.sh-envelope-heart {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes shHeartStick {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.sh-letter-leaving .sh-envelope-heart {
+  animation: shHeartStick 0.32s 0.62s cubic-bezier(0.3, 1.5, 0.5, 1) forwards;
+}
+@keyframes shLetterCtaAway {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(0.7cqh); }
+}
+/* 촤라라 — 제목 → 부제 → 버튼이 차례로, 흐릿하게 떠올라 또렷해진다.
+   한 덩어리를 잘라 드러내면 딱딱했다. 줄마다 조금씩 늦게, 흐림이 걷히며 올라와야 흘러나오는 느낌이 난다. */
+@keyframes shMorningGlow { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shMorningCascade {
+  0% { opacity: 0; transform: translateY(2.8cqh); filter: blur(0.6cqh); }
+  60% { filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 .sh-letter-leaving .sh-letter-paper {
   animation: shLetterTuck 0.45s ease-in forwards;
@@ -339,13 +445,109 @@
   animation: shEnvelopeClose 0.15s 0.55s ease-out forwards;
 }
 .sh-letter-leaving .sh-letter-assembly {
-  animation: shLetterOut 0.30s 0.8s ease-in forwards;
+  transform-origin: 50% 69%;
+  animation: shEnvelopeDrop var(--lt-drop-dur, 1.15s) var(--lt-drop-delay, 0.5s)
+    cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
+}
+/* 아래 버튼은 편지와 함께 조용히 빠진다. 인사 화면에 자기 버튼이 있다. */
+.sh-letter-cta-away {
+  animation: shLetterCtaAway 0.75s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+/* 첫 진입 때는 인사만 먼저 읽힌다. 기존 인사와 같은 흰 빛 무리로 배경과 대비를 만든다. */
+.sh-morning-prelude {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: max-content;
+  max-width: 90cqw;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  animation: shMorningPreludeIn 0.6s ease-out both;
+}
+.sh-morning-prelude--away {
+  animation: shMorningPreludeAway 0.5s ease-in-out both;
+  pointer-events: none;
+}
+@keyframes shMorningPreludeIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 1cqh)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+@keyframes shMorningPreludeAway {
+  from { opacity: 1; transform: translate(-50%, -50%); }
+  to { opacity: 0; transform: translate(-50%, calc(-50% - 1cqh)); }
+}
+/* 인사: 봉투가 내려가는 도중에 시작해, 제목 → 부제 → 버튼 순으로 떠오른다.
+   봉투보다 위 층에 둔다 — 반투명해진 봉투 위로 인사가 겹쳐 떠올라야 장면이 이어진다.
+   겹친 층이 편지를 가리지 않게 틀은 클릭을 통과시키고, 인사 자체만 누를 수 있게 한다. */
+.sh-morning-intro-entering {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
   pointer-events: none;
 }
 .sh-morning-intro-entering > .sh-intro {
-  animation: shMorningIntroIn 0.3s ease-out both;
+  pointer-events: auto;
+  /* 뒤의 빛 무리까지 함께 천천히 밝아진다 */
+  animation: shMorningGlow 1.4s var(--lt-greet-delay, 1.2s) ease-out both;
 }
+.sh-morning-intro-entering > .sh-intro > * {
+  animation: shMorningCascade 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: var(--lt-greet-delay, 1.2s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: calc(var(--lt-greet-delay, 1.2s) + 0.28s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: calc(var(--lt-greet-delay, 1.2s) + 0.56s); }
+
+/* 하교 랜딩 — 섬 배치 뒤 장면이 바뀌어도 한꺼번에 튀어나오지 않게
+   제목, 안내, 버튼과 주변 손글씨에 짧은 간격을 둔다. */
+.sh-afternoon-intro-entering {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.sh-afternoon-intro-entering > .sh-intro {
+  pointer-events: auto;
+  animation:
+    shAfternoonGlowIn 1.4s ease-out both,
+    shAfternoonIntroLift 1.2s 1.45s cubic-bezier(0.25, 0.7, 0.35, 1) both;
+}
+.sh-afternoon-intro-entering > .sh-intro > * {
+  animation: shAfternoonElementIn 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sh-afternoon-intro-entering > .sh-intro > :nth-child(1) { animation-delay: 0.2s; }
+.sh-afternoon-intro-entering > .sh-intro > :nth-child(2) { animation-delay: 0.2s; }
+/* 제목과 안내가 1.4s에 완성되고 0.3s 쉰 뒤 두 버튼이 함께 등장한다. */
+.sh-afternoon-intro-entering > .sh-intro > :nth-child(3) {
+  pointer-events: none;
+  animation: shAfternoonButtonsIn 1.1s 1.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes shAfternoonGlowIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shAfternoonElementIn {
+  from { opacity: 0; transform: translateY(1.4cqh); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shAfternoonIntroLift {
+  from { transform: translateY(12cqh); }
+  to { transform: translateY(0); }
+}
+@keyframes shAfternoonButtonsIn {
+  from { opacity: 0; transform: translateY(1.2cqh); pointer-events: none; }
+  to { opacity: 1; transform: translateY(0); pointer-events: auto; }
+}
+.sh-afternoon-note {
+  animation: shAfternoonElementIn 1.1s ease-out both;
+}
+.sh-afternoon-note--left { animation-delay: 2.15s; }
+.sh-afternoon-note--right { animation-delay: 2.4s; }
 @media (prefers-reduced-motion: reduce) {
+  .sh-letter-scene,
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,
   .sh-letter-leaving .sh-envelope-depth,
@@ -353,9 +555,88 @@
   .sh-letter-leaving .sh-envelope-closed,
   .sh-letter-leaving .sh-envelope-closed-flap,
   .sh-letter-leaving .sh-letter-paper,
-  .sh-morning-intro-entering > .sh-intro { animation: none; }
+  .sh-letter-leaving .sh-envelope-heart,
+  .sh-envelope-floor,
+  .sh-letter-cta-in,
+  .sh-letter-leaving .sh-envelope-floor,
+  .sh-letter-cta-away,
+  .sh-morning-prelude,
+  .sh-morning-prelude--away,
+  .sh-afternoon-intro-entering > .sh-intro,
+  .sh-afternoon-intro-entering > .sh-intro > *,
+  .sh-afternoon-note,
+  .sh-morning-intro-entering > .sh-intro,
+  .sh-morning-intro-entering > .sh-intro > * { animation: none; }
+  .sh-morning-prelude--away { opacity: 0; }
+  .sh-afternoon-intro-entering > .sh-intro > :nth-child(3) { pointer-events: auto; }
 }
 
+
+/* 등교 섬 배치를 마친 뒤 하교로 넘어가기 전 안내. 화면을 덮지 않고 아래에 조용히 뜬다 */
+@keyframes shToCheckoutIn {
+  from { opacity: 0; transform: translate(-50%, 1.5cqh); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.sh-to-checkout {
+  position: absolute;
+  left: 50%;
+  bottom: 6cqh;
+  z-index: 20;
+  padding: 1.6cqh 3.2cqh;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--sh-navy);
+  font-size: 2.4cqh;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0.8cqh 2.4cqh rgba(40, 48, 90, 0.16);
+  animation: shToCheckoutIn 0.5s ease-out both;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .sh-to-checkout { animation: none; transform: translateX(-50%); } }
+
+/* 하교 섬 배치 완료 후 교사 화면으로 넘어가는 짧은 연결 장면. */
+@keyframes shToTeacherIn {
+  from { opacity: 0; transform: translateY(1.2cqh); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sh-to-teacher {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2cqh;
+  background: rgba(250, 250, 255, 0.92);
+  color: var(--sh-navy);
+  text-align: center;
+  animation: shToTeacherIn 0.8s ease-out both;
+}
+.sh-to-teacher p { margin: 0; font-size: 5cqh; }
+.sh-to-teacher span { font-size: 2.6cqh; font-weight: 700; color: var(--sh-muted); }
+@media (prefers-reduced-motion: reduce) { .sh-to-teacher { animation: none; } }
+
+/* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */
+.sh-cta-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.8cqh;
+}
+.sh-cta-stack > .sh-cta { width: 100%; }
+/* 보조 버튼: 흰색과 연노랑 사이. 살짝 비치게 두어 뒤 배경과 어울리고, 음영은 아주 옅게만.
+   버터 노랑을 꽉 채우니 주 버튼만큼 짙어 보였다. */
+.sh-cta--ghost {
+  /* 바탕만 비치게(0.9 → 0.72 → 0.6). 색과 음영은 그대로 */
+  background: linear-gradient(180deg, rgba(255, 254, 247, 0.6) 0%, rgba(253, 243, 212, 0.58) 100%);
+  color: #6e6242;
+  box-shadow:
+    inset 0 -0.35cqh 0 rgba(170, 140, 60, 0.12),
+    0 0.8cqh 2cqh rgba(120, 100, 50, 0.12);
+  backdrop-filter: blur(0.6cqh);
+}
 
 .sh-profile {
   display: inline-flex;
@@ -373,4 +654,3 @@
   /* 흰 pill 위의 밝은 사진이 배경과 뭉개져서 테두리로 경계를 준다 */
   border: 0.3cqh solid #dfe3ee;
 }
-

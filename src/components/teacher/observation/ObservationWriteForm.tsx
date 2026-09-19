@@ -4,6 +4,7 @@
 // 위쪽 한 줄에 관찰한 아이 태그(@이름, 필수) · 제목 · 발생 일시를 두고, 아래에 본문을 넓게 쓴다.
 // 태그는 이름 문자열이 아니라 student_id로 제출된다 (TagInput). 저장에 성공하면 onSaved로 팝업을 닫는다.
 // 팝업이 닫히면 Modal이 내용을 언마운트하므로 다시 열 때마다 빈 폼으로 시작한다.
+// prefill(아이·일시)이 오면 그 값으로 시작한다 — 대시보드 "오늘 예정된 상담"에서 바로 넘어온 경우다.
 
 "use client";
 
@@ -39,29 +40,40 @@ const LABELS = {
 
 export type WriteKind = keyof typeof LABELS;
 
+/** 열릴 때 미리 채워 둘 값 — 예정돼 있던 상담을 기록하러 넘어온 경우 */
+export type WritePrefill = {
+  studentIds: string[];
+  /** <input type="datetime-local"> 값 ("2026-09-18T12:40") */
+  occurredAt: string;
+};
+
 export default function ObservationWriteForm({
   kind,
   students,
   date,
   today,
+  prefill,
   onSaved,
 }: {
   kind: WriteKind;
   students: ClassStudent[];
   date: string;
   today: string;
+  prefill?: WritePrefill;
   onSaved: () => void;
 }) {
   const labels = LABELS[kind];
   const options: TagOption[] = students.map((s) => ({ id: s.studentId, label: s.name }));
 
-  const [tags, setTags] = useState<TagOption[]>([]);
+  const [tags, setTags] = useState<TagOption[]>(
+    () => options.filter((o) => prefill?.studentIds.includes(o.id)),
+  );
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
   // 오늘 날짜면 지금 시각으로 채워서 발생 일시가 비어 보이지 않게 하고, 지난 날짜를 보는 중이면 그 날
   // 정오로 채운다 (안 그러면 지난 날짜를 쓰다가 빈칸으로 두면 "지금" 시각이 들어가 오늘 피드로 잡혀버린다)
-  const defaultOccurredAt = date === today ? nowKstLocalInput() : `${date}T12:00`;
+  const defaultOccurredAt = prefill?.occurredAt ?? (date === today ? nowKstLocalInput() : `${date}T12:00`);
 
   const [state, formAction, pending] = useActionState(async (previous: FormActionState, formData: FormData) => {
     const result = await createObservation(formData);

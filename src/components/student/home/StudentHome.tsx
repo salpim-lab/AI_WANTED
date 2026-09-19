@@ -43,10 +43,14 @@ export default function StudentHome({
 }) {
   const isMorning = mode === "morning";
   // letterText 가 없으면 편지를 띄우지 않는다 (빈 봉투나 "편지 없어요" 안내도 넣지 않는다).
-  const letter: LetterData | null =
-    letterText === null
-      ? null
-      : { teacherName, studentName, text: letterText };
+  // undefined는 아직 서버 응답을 기다리는 중이다. null(편지 없음)과 구분해
+  // 로딩 중 아침 인사가 잠깐 그려지는 것을 막는다.
+  const letter: LetterData | null | undefined =
+    letterText === undefined
+      ? undefined
+      : letterText === null
+        ? null
+        : { teacherName, studentName, text: letterText };
 
   return (
     <section
