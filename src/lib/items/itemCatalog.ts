@@ -99,7 +99,7 @@ export const ITEM_CATALOG: CatalogItem[] = [
       ballRing("seam-vertical", [1, 0, 0], Math.PI / 2, "#F7F7F2"),
       ballRing("seam-horizontal", [0, 1, 0], Math.PI / 2, "#F7F7F2"),
       ballRing("seam-front", [0, 0, 1], Math.PI / 2, "#F7F7F2"),
-    ], "medium"),
+    ], "small"),
     item("soccer_cleats", "축구화", { names: ["축구화", "축구 신발", "cleats"], concepts: [] }, [
       part({ id: "sole", shape: "box", size: [0.27, 0.05, 0.66], roundness: 0.02, position: [0, 0.055, 0], color: "#2F3440" }),
       ...[[-0.07, -0.22], [0.07, -0.22], [-0.07, 0], [0.07, 0], [-0.065, 0.22], [0.065, 0.22]].map(([x, z], i) => part({ id: `stud-${i + 1}`, shape: "cylinder", radius: 0.02, height: 0.04, position: [x, 0.02, z], color: "#F7F7F2" })),
@@ -482,7 +482,7 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "back-bar", shape: "cylinder", radius: 0.015, height: 0.56, mirror: "x", position: [-0.3, 0.25, -0.125], rotation: [0.4636, 0, 0], color: "#F7F7F2" }),
       part({ id: "net", shape: "box", size: [0.58, 0.56, 0.01], roundness: 0.004, position: [0, 0.25, -0.125], rotation: [0.4636, 0, 0], color: "#EEF2F5" }),
       part({ id: "ball", shape: "sphere", radius: 0.07, position: [0, 0.07, -0.02], color: "#F7F7F2" }),
-    ], "small"),
+    ], "large"),
     item("microphone", "마이크", { names: ["마이크", "microphone"], concepts: ["발표", "발표하기"] }, [
       part({ id: "cap", shape: "frustum", radiusTop: 0.05, radiusBottom: 0.07, height: 0.06, position: [0, 0.03, 0], color: "#2F3440" }),
       part({ id: "handle", shape: "cylinder", radius: 0.05, height: 0.46, position: [0, 0.29, 0], color: "#3A3A40" }),
@@ -497,8 +497,8 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "nose", shape: "cone", radius: 0.13, height: 0.28, position: [0, 0.84, 0], color: "#E4483F" }),
       part({ id: "window", shape: "cylinder", radius: 0.05, height: 0.03, position: [0, 0.56, 0.13], rotation: [Math.PI / 2, 0, 0], color: "#7FB7D8" }),
       part({ id: "stripe", shape: "cylinder", radius: 0.133, height: 0.05, position: [0, 0.32, 0], color: "#E4483F" }),
-      part({ id: "fin-side", shape: "box", size: [0.035, 0.24, 0.2], roundness: 0.01, mirror: "x", position: [-0.16, 0.3, 0], rotation: [0, 0, 0.3], color: "#E4483F" }),
-      part({ id: "fin-back", shape: "box", size: [0.035, 0.24, 0.2], roundness: 0.01, position: [0, 0.3, -0.16], rotation: [0, Math.PI / 2, 0], color: "#E4483F" }),
+      part({ id: "fin-side", shape: "extrudedShape", points: [[0, 0.28], [0, 0], [0.17, 0]], depth: 0.035, bevel: 0.006, mirror: "x", position: [0.12, 0.18, 0], color: "#E4483F" }),
+      part({ id: "fin-back", shape: "extrudedShape", points: [[0, 0.28], [0, 0], [0.17, 0]], depth: 0.035, bevel: 0.006, position: [0, 0.18, -0.12], rotation: [0, Math.PI / 2, 0], color: "#E4483F" }),
     ], "medium"),
     item("television", "TV", { names: ["TV", "텔레비전", "티비"], concepts: ["축구 경기 보기"] }, [
       part({ id: "base", shape: "box", size: [0.34, 0.04, 0.2], roundness: 0.012, position: [0, 0.02, 0], color: "#2F3440" }),
@@ -507,7 +507,7 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "screen", shape: "box", size: [0.62, 0.38, 0.02], roundness: 0.008, position: [0, 0.36, 0.052], color: "#7FC98A" }),
       part({ id: "halfway-line", shape: "box", size: [0.012, 0.38, 0.01], roundness: 0.002, position: [0, 0.36, 0.064], color: "#F7F7F2" }),
       part({ id: "center-circle", shape: "torus", radius: 0.07, tubeRadius: 0.006, position: [0, 0.36, 0.064], color: "#F7F7F2" }),
-    ], "small"),
+    ], "medium"),
     item("school_desk", "책상", { names: ["책상", "책걸상", "책상과 의자", "desk"], concepts: ["자리 바꾸기", "짝꿍"] }, [
       part({ id: "desktop", shape: "box", size: [0.62, 0.05, 0.42], roundness: 0.015, position: [0, 0.4, 0], color: "#D9B07A" }),
       part({ id: "desk-leg-1", shape: "cylinder", radius: 0.02, height: 0.38, position: [-0.27, 0.19, -0.17], color: "#8E969F" }),
@@ -521,7 +521,7 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "chair-leg-2", shape: "cylinder", radius: 0.015, height: 0.22, position: [0.12, 0.11, 0.33], color: "#8E969F" }),
       part({ id: "chair-leg-3", shape: "cylinder", radius: 0.015, height: 0.22, position: [-0.12, 0.11, 0.57], color: "#8E969F" }),
       part({ id: "chair-leg-4", shape: "cylinder", radius: 0.015, height: 0.22, position: [0.12, 0.11, 0.57], color: "#8E969F" }),
-    ], "medium"),
+    ], "large"),
     item("slide", "미끄럼틀", { names: ["미끄럼틀", "slide"], concepts: ["술래잡기"] }, [
       part({ id: "platform", shape: "box", size: [0.3, 0.04, 0.3], roundness: 0.01, position: [-0.3, 0.5, 0], color: "#F2C54E" }),
       part({ id: "post-1", shape: "cylinder", radius: 0.025, height: 0.5, position: [-0.4, 0.25, -0.12], color: "#8E969F" }),
@@ -530,14 +530,21 @@ export const ITEM_CATALOG: CatalogItem[] = [
       part({ id: "post-4", shape: "cylinder", radius: 0.025, height: 0.5, position: [-0.2, 0.25, 0.12], color: "#8E969F" }),
       part({ id: "ramp", shape: "box", size: [0.68, 0.03, 0.24], roundness: 0.01, position: [0.1, 0.27, 0], rotation: [0, 0, -0.744], color: "#E4483F" }),
       part({ id: "rail", shape: "box", size: [0.68, 0.05, 0.02], roundness: 0.005, position: [0.1, 0.29, 0.13], rotation: [0, 0, -0.744], color: "#C93A32", repeat: { count: 2, step: [0, 0, -0.26] } }),
-      part({ id: "ladder-rail", shape: "cylinder", radius: 0.015, height: 0.5, position: [-0.5, 0.25, 0.09], color: "#8E969F", repeat: { count: 2, step: [0, 0, -0.18] } }),
-      part({ id: "rung", shape: "box", size: [0.02, 0.02, 0.18], roundness: 0.005, position: [-0.5, 0.12, 0], color: "#8E969F", repeat: { count: 4, step: [0, 0.12, 0] } }),
-    ], "medium"),
+      part({ id: "rung", shape: "box", size: [0.02, 0.02, 0.27], roundness: 0.005, position: [-0.41, 0.12, 0], color: "#8E969F", repeat: { count: 4, step: [0, 0.12, 0] } }),
+    ], "large"),
     item("clothespin", "빨래집게", { names: ["빨래집게", "집게"], concepts: [] }, [
       part({ id: "leg-left", shape: "box", size: [0.07, 0.52, 0.035], roundness: 0.01, position: [-0.04, 0.3, 0], rotation: [0, 0, 0.05], color: "#E9B94D" }),
       part({ id: "leg-right", shape: "box", size: [0.07, 0.52, 0.035], roundness: 0.01, position: [0.04, 0.3, 0], rotation: [0, 0, -0.05], color: "#E9B94D" }),
       part({ id: "spring", shape: "torus", radius: 0.035, tubeRadius: 0.012, position: [0, 0.3, 0], rotation: [0, Math.PI / 2, 0], color: "#9AA3AE" }),
     ], "small"),
+    item("drying_rack", "빨래 건조대", { names: ["빨래 건조대", "건조대", "빨래대"], concepts: ["빨래"] }, [
+      part({ id: "leg-front", shape: "cylinder", radius: 0.02, height: 0.6, position: [-0.38, 0.3, 0.075], rotation: [-0.245, 0, 0], color: "#DCE3EA", repeat: { count: 2, step: [0.76, 0, 0] } }),
+      part({ id: "leg-back", shape: "cylinder", radius: 0.02, height: 0.6, position: [-0.38, 0.3, -0.075], rotation: [0.245, 0, 0], color: "#DCE3EA", repeat: { count: 2, step: [0.76, 0, 0] } }),
+      part({ id: "top-rod", shape: "cylinder", radius: 0.014, height: 0.84, position: [0, 0.6, 0], rotation: [0, 0, Math.PI / 2], color: "#8E969F" }),
+      part({ id: "low-rod", shape: "cylinder", radius: 0.012, height: 0.8, position: [0, 0.4, 0.05], rotation: [0, 0, Math.PI / 2], color: "#8E969F", repeat: { count: 2, step: [0, 0, -0.1] } }),
+      part({ id: "towel", shape: "box", size: [0.22, 0.3, 0.02], roundness: 0.006, position: [-0.2, 0.44, 0], color: "#5AA0E8" }),
+      part({ id: "shirt", shape: "box", size: [0.17, 0.22, 0.02], roundness: 0.006, position: [0.14, 0.48, 0], color: "#F29BB3" }),
+    ], "medium"),
     item("cookies", "과자", { names: ["과자", "쿠키", "비스킷"], concepts: [] }, [
       part({ id: "cookie-1", shape: "cylinder", radius: 0.17, height: 0.05, position: [-0.14, 0.03, 0], color: "#E5B36A" }),
       part({ id: "cookie-2", shape: "cylinder", radius: 0.17, height: 0.05, position: [0.14, 0.03, 0.03], color: "#E5B36A" }),
