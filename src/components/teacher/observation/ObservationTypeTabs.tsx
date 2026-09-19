@@ -26,14 +26,18 @@ export default function ObservationTypeTabs({ type }: { type: RecordTypeFilter }
   }
 
   return (
-    <div role="group" aria-label="기록 종류" className="flex shrink-0 rounded-lg border border-[#e6e2fb] bg-white p-0.5">
+    <div
+      role="group"
+      aria-label="기록 종류"
+      className="flex h-[39px] shrink-0 items-stretch rounded-xl border border-[#e6e2fb] bg-white p-[3px]"
+    >
       {TYPE_OPTIONS.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => navigate(opt.value)}
           aria-pressed={type === opt.value}
-          className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+          className={`rounded-lg px-3 text-[12.5px] font-semibold transition-colors ${
             type === opt.value ? "bg-[#ede9ff] text-[#635bff]" : "text-[#7d849b] hover:text-[#33405f]"
           }`}
         >

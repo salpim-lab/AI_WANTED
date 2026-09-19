@@ -1,8 +1,9 @@
 // 담당: 김현우
-// 학생관찰일지 — 하루 단위 작업 화면. 위쪽에서 "관찰일지 기록"/"학생 상담 기록" 버튼으로 아이를
+// 학생관찰일지 — 하루 단위 작업 화면. 위쪽에서 "관찰일지 작성"/"학생 상담 작성" 버튼으로 아이를
 // 태그하고 바로 적는 팝업을 열고(DailyObservationButton/StudentConsultationComposer), 아래는 그날의
-// 관찰·학생상담 기록을 모아 보는 피드다. 카드를 누르면 기록 전체가 모달로 열린다(ObservationFeedCard). 버튼은 지금 보는 종류 탭에 맞는 것만 보여준다 — 전체면 둘 다,
-// 관찰이면 관찰일지 기록만, 상담이면 학생 상담 기록만.
+// 관찰·학생상담 기록을 모아 보는 피드다. 카드를 누르면 기록 전체가 모달로 열린다(ObservationFeedCard). 작성 버튼 둘은 종류 탭과 상관없이
+// 항상 보인다 — 탭을 바꿀 때 버튼이 사라졌다 나타나면 머리줄이 흔들린다.
+// 머리줄 컨트롤(날짜·학생·키워드·탭·버튼)은 높이가 같다 — ui.ts의 boardControl / boardActionButton.
 // "상담"은 아이 본인과의 상담이다 — 학부모 상담(학부모상담기록 화면)은 여기서 다루지 않는다. 관찰과 학생상담은
 // 같은 work_records 테이블(recordType만 다름)이라 서로 다른 데이터 소스를 합칠 필요 없이 한 목록을 걸러서 쓴다.
 // 머리줄: [날짜] [학생 ▾] [키워드] 순서로 학부모상담기록과 같은 모양 — 검색(RecordSearch)은 버튼 없이 입력하는 대로 반영된다.
@@ -67,17 +68,8 @@ export default function ObservationBoard({
           <DateControl dateKey={date} today={today} basePath="/observation" maxDate={today} />
           <RecordSearch basePath="/observation" students={students} filter={{ keyword, studentId }} />
           <ObservationTypeTabs type={type} />
-          {type !== "consultation" && (
-            <DailyObservationButton students={students} date={date} today={today} />
-          )}
-          {type !== "observation" && (
-            <StudentConsultationComposer
-              students={students}
-              date={date}
-              today={today}
-              prefill={consultPrefill}
-            />
-          )}
+          <DailyObservationButton students={students} date={date} today={today} />
+          <StudentConsultationComposer students={students} date={date} today={today} prefill={consultPrefill} />
         </div>
       </div>
 

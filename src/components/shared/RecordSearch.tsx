@@ -8,7 +8,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { textInput } from "@/components/shared/ui";
+import { sortByKoreanName } from "@/components/shared/sortByKoreanName";
+import { boardControl } from "@/components/shared/ui";
 import type { ClassStudent } from "@/lib/types/teacherRecord";
 
 const DEBOUNCE_MS = 300;
@@ -60,9 +61,14 @@ export default function RecordSearch({
 
   return (
     <div role="search" className="flex flex-wrap items-center gap-2" aria-busy={pending}>
-      <select value={studentId} onChange={(e) => handleStudent(e.target.value)} aria-label="학생" className={textInput}>
+      <select
+        value={studentId}
+        onChange={(e) => handleStudent(e.target.value)}
+        aria-label="학생"
+        className={boardControl}
+      >
         <option value="">전체 학생</option>
-        {students.map((s) => (
+        {sortByKoreanName(students, (s) => s.name).map((s) => (
           <option key={s.studentId} value={s.studentId}>
             {s.name}
           </option>
@@ -74,7 +80,7 @@ export default function RecordSearch({
         onChange={(e) => handleKeyword(e.target.value)}
         placeholder="키워드 검색…"
         aria-label="키워드"
-        className={`${textInput} w-40`}
+        className={`${boardControl} w-40`}
       />
     </div>
   );

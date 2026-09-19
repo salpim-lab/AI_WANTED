@@ -9,7 +9,7 @@ import { useActionState, useState } from "react";
 import { scheduleConsultationAction } from "@/app/(teacher)/consultation/actions";
 import Modal from "@/components/shared/Modal";
 import TagInput, { type TagOption } from "@/components/shared/TagInput";
-import { errorText, fieldLabel, textInput } from "@/components/shared/ui";
+import { boardActionButton, errorText, fieldLabel, textInput } from "@/components/shared/ui";
 import type { ClassStudent, ConsultationMethod, FormActionState } from "@/lib/types/teacherRecord";
 import MethodPicker from "./MethodPicker";
 
@@ -55,7 +55,7 @@ export default function ScheduleConsultationComposer({ students }: { students: C
           ✓ {state.message}
         </span>
       )}
-      <button type="button" className="btn btn-primary btn-sm" onClick={openModal}>
+      <button type="button" className={boardActionButton} onClick={openModal}>
         상담 예약
       </button>
 
