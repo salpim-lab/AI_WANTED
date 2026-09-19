@@ -1716,7 +1716,7 @@ export default function IslandScene({
       model.position.copy(runtime.toDisplayedWorld(gift, runtime.surfaceAt(gift.x, gift.z) - scale * 0.02));
       model.scale.setScalar(scale);
       model.name = gift.name;
-      model.userData.sparkle = gift.id === gifts[gifts.length - 1]?.id;
+      model.userData.sparkle = !gift.locked && gift.id === gifts[gifts.length - 1]?.id;
       runtime.gifts.add(model);
     });
     runtime.render();

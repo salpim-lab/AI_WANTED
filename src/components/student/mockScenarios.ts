@@ -3,7 +3,7 @@
 // 실제로는 여기 값 대신 /api/ai/chat, /api/ai/item-extract 응답으로 대체할 것.
 // (색 선택 → AI 첫 질문 → 답변 옵션 → 후속 반응 → 아이템) 구조는 유지.
 
-export type Item = { emoji: string; name: string; reason: string; assetFormat?: "procedural"; geometrySpec?: unknown };
+export type Item = { emoji: string; name: string; reason: string; assetFormat?: "procedural"; geometrySpec?: unknown; /** 생성이 끝나 지급된 student_items.id — 섬 배치를 서버에 저장할 때 쓴다. */ studentItemId?: string };
 
 export type FollowUp = {
   ai?: string;

@@ -1,13 +1,17 @@
 // 담당: 강윤지 — 기존 등/하교 페이지의 props를 유지하는 3D 섬 진입점.
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import IslandExperience from "./island/IslandExperience";
 import SalpimHeader from "./home/SalpimHeader";
 import StudentProfile from "./home/StudentProfile";
+import type { IslandGift } from "./island/types";
 import type { Item } from "./mockScenarios";
 import { FALLBACK_ITEM_SPEC } from "@/lib/items/fallbackItem";
 import { findCatalogItem } from "@/lib/items/itemCatalog";
 import { MINJUN_DEMO_GIFTS } from "@/lib/items/minjunDemoIsland";
+
+type RemoteIsland = { persisted: boolean; gifts: IslandGift[] };
 
 export default function IslandBoard({
   active = true,
@@ -28,6 +32,33 @@ export default function IslandBoard({
   onComplete?: () => void;
   preparing?: boolean;
 }) {
+  // 서버(/api/island)가 주는 섬: 공용 데모 배치(locked) + 이 방문자의 개인 배치(체크인 여러 번 누적). DEMO_MODE가 아니면 persisted=false.
+  const [remote, setRemote] = useState<RemoteIsland | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    const controller = new AbortController();
+    fetch("/api/island", { cache: "no-store", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => { if (data) setRemote({ persisted: data.persisted === true, gifts: Array.isArray(data.gifts) ? data.gifts : [] }); })
+      .catch(() => { /* 섬 조회 실패는 화면을 막지 않는다 — 빈 섬으로 계속한다 */ });
+    return () => controller.abort();
+  }, [active]);
+
+  const incomingItemId = item?.studentItemId;
+  const placedGifts = useMemo(() => {
+    // 지금 놓으려는(또는 다시 놓는) 아이템은 씬이 따로 그리므로 이미 저장된 배치에서는 뺀다.
+    if (remote?.persisted) return remote.gifts.filter((gift) => gift.id !== incomingItemId);
+    return studentName === "민준" ? MINJUN_DEMO_GIFTS : undefined;
+  }, [remote, incomingItemId, studentName]);
+
+  // 내려놓은 자리를 서버에 저장한다. 서버가 소유자·좌표(공용+내 배치와 겹침)를 다시 검증한다. 실패해도 화면은 계속된다.
+  const savePlacement = useCallback((gift: IslandGift) => {
+    if (remote?.persisted === false || !incomingItemId) return;
+    fetch("/api/island", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_item_id: incomingItemId, x: gift.x, z: gift.z }) })
+      .then(async (response) => { if (!response.ok) console.warn("[island] 배치를 저장하지 못했어요", response.status, await response.json().catch(() => null)); })
+      .catch((error) => console.warn("[island] 배치 저장 요청 실패", error));
+  }, [remote?.persisted, incomingItemId]);
+
   if (!active) return null;
   // The mock item only carries a name; give the island the same catalog model
   // the generation pipeline would pick, or its fallback gift box.
@@ -36,6 +67,6 @@ export default function IslandBoard({
   return <div className={`screen active island-screen${preparing ? " island-screen--preparing" : ""}`} id="s5">
     <SalpimHeader />
     <StudentProfile name={studentFullName} />
-    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={studentName === "민준" ? MINJUN_DEMO_GIFTS : undefined} baseItemCount={baseItemCount} preparing={preparing} onComplete={onComplete}/>
+    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={placedGifts} baseItemCount={baseItemCount} preparing={preparing} onPlaced={savePlacement} onComplete={onComplete}/>
   </div>;
 }

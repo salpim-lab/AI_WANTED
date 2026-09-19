@@ -1,0 +1,123 @@
+{
+  "note": "자동 배치 결과 — 화면 확인 전에는 DB에 적용하지 않는다. 생성: npm run demo-island:coords (결정적). 좌표는 섬 데이터 좌표(IslandGift.x/z)이고 radius는 island_placements.footprint_radius에 넣는다.",
+  "algorithm": {
+    "gridStep": 0.1,
+    "innerKeepOut": 0.18,
+    "outerLimit": 0.8,
+    "method": "maximin"
+  },
+  "bounds": {
+    "minX": -10.78,
+    "maxX": 10.025,
+    "minZ": 0.066,
+    "maxZ": 26.01
+  },
+  "validGridPoints": 12825,
+  "placements": [
+    {
+      "dedupKey": "item:catalog:moon:procedural-v2",
+      "name": "달",
+      "x": 1.42,
+      "z": 13.566,
+      "radius": 0.114
+    },
+    {
+      "dedupKey": "item:피자:procedural-v2",
+      "name": "피자",
+      "x": -1.28,
+      "z": 4.766,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:bedding:procedural-v2",
+      "name": "이불과 베개",
+      "x": -5.78,
+      "z": 19.366,
+      "radius": 0.114
+    },
+    {
+      "dedupKey": "item:딸기:procedural-v2",
+      "name": "딸기",
+      "x": -8.38,
+      "z": 10.766,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:locked_box:procedural-v2",
+      "name": "자물쇠 상자",
+      "x": 1.72,
+      "z": 21.066,
+      "radius": 0.114
+    },
+    {
+      "dedupKey": "item:초콜릿케이크:procedural-v2",
+      "name": "초콜릿 케이크",
+      "x": 5.52,
+      "z": 7.466,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:star:procedural-v2",
+      "name": "별",
+      "x": 7.32,
+      "z": 16.166,
+      "radius": 0.114
+    },
+    {
+      "dedupKey": "item:닭갈비한점:procedural-v2",
+      "name": "닭갈비 한 점",
+      "x": -3.68,
+      "z": 9.166,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:question_sign:procedural-v2",
+      "name": "물음표 표지판",
+      "x": -5.08,
+      "z": 14.466,
+      "radius": 0.114
+    },
+    {
+      "dedupKey": "item:곰돌이젤리:procedural-v2",
+      "name": "곰돌이 젤리",
+      "x": -1.48,
+      "z": 17.566,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:notebook:procedural-v2",
+      "name": "공책",
+      "x": 7.22,
+      "z": 11.666,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:말랑이:procedural-v2",
+      "name": "말랑이",
+      "x": 1.22,
+      "z": 8.566,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:귀마개:procedural-v2",
+      "name": "귀마개",
+      "x": 2.82,
+      "z": 17.366,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:catalog:stone:procedural-v2",
+      "name": "돌멩이",
+      "x": -2.08,
+      "z": 21.166,
+      "radius": 0.063
+    },
+    {
+      "dedupKey": "item:자갈:procedural-v2",
+      "name": "자갈",
+      "x": -7.88,
+      "z": 16.566,
+      "radius": 0.063
+    }
+  ]
+}

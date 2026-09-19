@@ -1,0 +1,20 @@
+{
+  "note": "공용 데모 섬에 올릴 15종. 2026-09-20 공유 DB(읽기 전용 조회)에서 status=completed 이고 폴백(선물 상자)이 아닌 아이템의 asset_catalog를 자산 중복 제거해 옮겼다. dedupKey로 시드 시점에 asset_id를 찾는다(id는 DB마다 달라질 수 있어 담지 않는다). sizeClass는 점유 반경 계산용(null=medium).",
+  "candidates": [
+    { "dedupKey": "item:catalog:moon:procedural-v2", "name": "달", "sizeClass": null },
+    { "dedupKey": "item:피자:procedural-v2", "name": "피자", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:bedding:procedural-v2", "name": "이불과 베개", "sizeClass": null },
+    { "dedupKey": "item:딸기:procedural-v2", "name": "딸기", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:locked_box:procedural-v2", "name": "자물쇠 상자", "sizeClass": null },
+    { "dedupKey": "item:초콜릿케이크:procedural-v2", "name": "초콜릿 케이크", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:star:procedural-v2", "name": "별", "sizeClass": null },
+    { "dedupKey": "item:닭갈비한점:procedural-v2", "name": "닭갈비 한 점", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:question_sign:procedural-v2", "name": "물음표 표지판", "sizeClass": null },
+    { "dedupKey": "item:곰돌이젤리:procedural-v2", "name": "곰돌이 젤리", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:notebook:procedural-v2", "name": "공책", "sizeClass": "small" },
+    { "dedupKey": "item:말랑이:procedural-v2", "name": "말랑이", "sizeClass": "small" },
+    { "dedupKey": "item:귀마개:procedural-v2", "name": "귀마개", "sizeClass": "small" },
+    { "dedupKey": "item:catalog:stone:procedural-v2", "name": "돌멩이", "sizeClass": "small" },
+    { "dedupKey": "item:자갈:procedural-v2", "name": "자갈", "sizeClass": "small" }
+  ]
+}

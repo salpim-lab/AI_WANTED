@@ -127,5 +127,7 @@ export const config = {
     "/api/students/:path*",
     "/api/teacher/:path*",
     "/api/demo/:path*",
+    // 학생 섬 배치 조회·저장 — 방문자 세션 게이트(및 DEMO_LOCKDOWN/데모 종료 후 옛 세션 차단)를 다른 데이터 경로와 똑같이 적용한다.
+    "/api/island/:path*",
   ],
 };

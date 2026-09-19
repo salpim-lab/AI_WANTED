@@ -37,6 +37,7 @@ function toItem(job: ItemGenerationJobState | null, demoItem: Item | null): Item
     reason: fallback ? "네 이야기를 담은 선물을 준비하는 동안 이 선물을 먼저 받아줘." : inference?.studentMessage ?? demoItem?.reason ?? "오늘 네 이야기를 담았어.",
     assetFormat: job?.asset?.asset_format,
     geometrySpec: job?.asset?.geometry_spec,
+    studentItemId: job?.student_item_id ?? undefined,
   };
 }
 

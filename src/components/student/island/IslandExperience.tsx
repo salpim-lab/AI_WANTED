@@ -46,6 +46,8 @@ type Props = {
   baseItemCount?: number;
   /** Items already on the island (rendered and used for spacing checks). */
   placedGifts?: IslandGift[];
+  /** 오늘의 아이템을 내려놓은 직후(집으로 돌아가기 전) — 부모가 서버에 배치를 저장한다. */
+  onPlaced?: (placed: IslandGift) => void;
   onComplete?: (placed: IslandGift | null) => void;
 };
 
@@ -59,7 +61,7 @@ const WAITING_MESSAGES = [
   "위에서 보면 섬이 또 다르게 보여!",
 ] as const;
 
-export default function IslandExperience({ flow = "checkin", compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, placedGifts = NO_GIFTS, preparing = false, onComplete }: Props) {
+export default function IslandExperience({ flow = "checkin", compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, placedGifts = NO_GIFTS, preparing = false, onPlaced, onComplete }: Props) {
   const acquired = {
     kind: "star" as GiftKind,
     emoji: incomingItem?.emoji ?? "⭐",
@@ -158,7 +160,9 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
   function finishPuttingDown() {
     if (!proposal || phase !== "placing") return;
-    setGifts((current) => [...current, { ...proposal, id: `gift-${++giftId.current}` }]);
+    const placed = { ...proposal, id: `gift-${++giftId.current}` };
+    setGifts((current) => [...current, placed]);
+    onPlaced?.(placed);
     setPlacementNotice(null);
     setPhase("returning");
   }

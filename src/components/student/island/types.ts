@@ -10,6 +10,8 @@ export type IslandGift = {
   z: number;
   assetFormat?: "glb" | "procedural";
   geometrySpec?: unknown;
+  /** 공용 데모 배치: 이동·삭제할 수 없다(서버·DB도 막는다). */
+  locked?: boolean;
 };
 
 export type PlacementProposal = Omit<IslandGift, "id">;
