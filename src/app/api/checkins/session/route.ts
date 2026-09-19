@@ -39,11 +39,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { studentId } = await requireStudent();
+    const { studentId, demoOwnerId } = await requireStudent();
     const session = await startSignalCheckIn({
       studentId,
       period: period as CheckinPeriod,
       moodColor: moodColor as SignalColor,
+      demoOwnerId,
     });
     return json({ session_id: session.id, attempt: session.attempt });
   } catch (error) {

@@ -255,6 +255,12 @@ export type Database = {
           attempt: number
           completed_at: string | null
           created_at: string
+          // 이지현 (제안, 2026-09-20): 공개 데모 방문자 격리용 — 마이그레이션
+          // 20260920013300_1090_demo_owner_isolation.sql 참고. 이 필드는 이 파일이
+          // 원래 자동 생성(supabase gen types)되는 파일이라, 그 마이그레이션이 실제
+          // DB에 적용된 뒤 다시 생성하면 자동으로 반영된다 — 그 전까지 리뷰/빌드가
+          // 가능하도록 수동으로 추가해둔 것이다.
+          demo_owner_id: string | null
           enrollment_id: string
           id: string
           mood_color: string
@@ -270,6 +276,7 @@ export type Database = {
           attempt?: number
           completed_at?: string | null
           created_at?: string
+          demo_owner_id?: string | null
           enrollment_id: string
           id?: string
           mood_color: string
@@ -285,6 +292,7 @@ export type Database = {
           attempt?: number
           completed_at?: string | null
           created_at?: string
+          demo_owner_id?: string | null
           enrollment_id?: string
           id?: string
           mood_color?: string

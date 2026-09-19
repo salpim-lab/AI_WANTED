@@ -67,9 +67,21 @@ function titleOrFromBody(title: string | null, body: string): string {
   return firstLine.length > TITLE_FROM_BODY_LENGTH ? `${firstLine.slice(0, TITLE_FROM_BODY_LENGTH)}…` : firstLine;
 }
 
-export async function listObservationLogs(classId: string, filter: ObservationFilter = {}): Promise<ObservationLog[]> {
+/**
+ * (2026-09-20, 이지현 제안) viewerTeacherId — 공개 데모 방문자 격리용. 안 주면(기존 호출부
+ * 전부 해당) db.teacherId(시드 담임)만 보여서 지금까지 동작과 완전히 같다. DEMO_MODE에서
+ * getActingTeacher()가 돌려준 방문자 본인 id를 넘기면, 공용 시드 + 그 방문자가 새로 쓴 것만
+ * 보인다 — 다른 방문자가 쓴 건 후보 단계에서부터 제외된다(쿼리 자체의 조건).
+ */
+export async function listObservationLogs(
+  classId: string,
+  filter: ObservationFilter = {},
+  viewerTeacherId?: string,
+): Promise<ObservationLog[]> {
   const db = await recordDb(classId);
   if (!db) return [];
+
+  const visibleAuthors = [db.teacherId, ...(viewerTeacherId && viewerTeacherId !== db.teacherId ? [viewerTeacherId] : [])];
 
   const { data, error } = await db.client
     .from("work_records")
@@ -77,6 +89,7 @@ export async function listObservationLogs(classId: string, filter: ObservationFi
     .eq("class_id", db.classId)
     .eq("status", "sealed")
     .in("record_type", OBSERVATION_TYPES)
+    .in("created_by", visibleAuthors)
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -100,8 +113,9 @@ export async function listObservationLogsForStudent(
   studentId: string,
   to: string,
   days: number,
+  viewerTeacherId?: string,
 ): Promise<ObservationLog[]> {
-  return listObservationLogs(classId, { studentId, from: addDays(to, -(days - 1)), to });
+  return listObservationLogs(classId, { studentId, from: addDays(to, -(days - 1)), to }, viewerTeacherId);
 }
 
 export async function insertObservationLog(input: NewObservationLog): Promise<ObservationLog> {

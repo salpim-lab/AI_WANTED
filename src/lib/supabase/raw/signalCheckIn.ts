@@ -24,6 +24,10 @@ export type StartSignalCheckInInput = {
   period: CheckinPeriod;
   moodColor: SignalColor;
   sessionDate?: string;
+  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리용 — DEMO_MODE일 때 requireStudent()가
+  // 돌려주는 demoOwnerId(=auth.uid())를 그대로 전달한다. null/undefined면 기존과 동일하게
+  // 공용 행(demo_owner_id IS NULL)으로 취급한다.
+  demoOwnerId?: string | null;
 };
 
 export type AppendConversationMessageInput = {
@@ -106,13 +110,24 @@ export async function startSignalCheckIn(
   const supabase = createAdminClient();
   const enrollmentId = await findCurrentEnrollmentId(input.studentId);
   const sessionDate = input.sessionDate ?? todayInSeoul();
+  // null/undefined 둘 다 "공용 행"으로 통일 — DB의 부분 유니크 인덱스도 이 컬럼을
+  // IS NULL 기준으로 나누므로, 여기서도 undefined를 남기지 않고 null로 맞춘다.
+  const demoOwnerId = input.demoOwnerId ?? null;
 
-  const { data: previous, error: previousError } = await supabase
+  let previousQuery = supabase
     .from("checkin_sessions")
     .select("*")
     .eq("enrollment_id", enrollmentId)
     .eq("session_date", sessionDate)
-    .eq("period", input.period)
+    .eq("period", input.period);
+  // (2026-09-20, 이지현 제안) 데모 모드에서는 같은 enrollment_id(민준)를 여러 방문자가
+  // 공유하므로, "이전 세션"도 이 방문자(demo_owner_id) 것만 봐야 한다 — 안 그러면 다른
+  // 방문자가 이미 시작한 세션을 내가 이어 쓰게 된다.
+  previousQuery = demoOwnerId
+    ? previousQuery.eq("demo_owner_id", demoOwnerId)
+    : previousQuery.is("demo_owner_id", null);
+
+  const { data: previous, error: previousError } = await previousQuery
     .order("attempt", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -145,10 +160,16 @@ export async function startSignalCheckIn(
       attempt: (previous?.attempt ?? 0) + 1,
       mood_color: input.moodColor,
       status: "started",
+      demo_owner_id: demoOwnerId,
     })
     .select()
     .single();
 
+  // TODO(동시 클릭 경합): 이 select-then-insert 사이 짧은 경합 구간은 이 함수가 원래도
+  // 갖고 있던 특성이다(데모 모드로 새로 생긴 문제 아님) — DB의 부분 유니크 인덱스가 최종
+  // 방어선이라 진짜 중복 행은 안 생기지만, 그 경우 이 insert가 그냥 에러로 실패한다(재조회
+  // 안 함). 검증 계획에 "같은 방문자가 거의 동시에 두 번 클릭해도 세션 한 건만 생기는지"를
+  // 넣어뒀다 — 여기서 실패가 보이면 그때 select-then-insert를 insert-then-재조회로 바꾼다.
   if (error) dbError("체크인을 시작하지 못했습니다", error);
   return data;
 }

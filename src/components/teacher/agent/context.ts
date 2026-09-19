@@ -84,8 +84,8 @@ export async function buildAgentContext(studentId: string | null, question: stri
   const today = todayKst();
 
   const resolvedId = studentId ?? (await resolveStudentIdByName(teacher.classId, question));
-  if (resolvedId) return buildStudentContext(teacher.classId, resolvedId, today);
-  return buildClassContext(teacher.classId, today);
+  if (resolvedId) return buildStudentContext(teacher.classId, resolvedId, today, teacher.id);
+  return buildClassContext(teacher.classId, today, teacher.id);
 }
 
 /**
@@ -107,8 +107,17 @@ async function resolveStudentIdByName(classId: string, question: string): Promis
   return matchedIds.size === 1 ? [...matchedIds][0] : null;
 }
 
-async function buildStudentContext(classId: string, studentId: string, today: string): Promise<AgentContextBundle> {
+async function buildStudentContext(
+  classId: string,
+  studentId: string,
+  today: string,
+  viewerTeacherId?: string,
+): Promise<AgentContextBundle> {
   const from = addDays(today, -(REPORT_DEFAULT_DAYS - 1));
+  // (2026-09-20) getConsultationReport(김현우 소유, queries/teacherStudents.ts)는 아직
+  // viewerTeacherId를 안 받는다 — 내부에서 부르는 listObservationLogsForStudent에도 아직
+  // 안 흘러간다. 공개 데모 방문자 격리가 이 경로까지 완전해지려면 그쪽도 같이 고쳐야 해서
+  // PR에서 김현우와 같이 확인 필요(내 파일 밖이라 여기서 임의로 안 고침).
   const report = await getConsultationReport(classId, studentId, from, today);
   if (!report) {
     return {
@@ -164,7 +173,7 @@ async function buildStudentContext(classId: string, studentId: string, today: st
 
   // ── 가정 연계: 학부모상담기록 + 교우관계 ──────────────────────────
   const homeTag = DOMAIN_TAG.home;
-  const consultations = await listConsultationLogs(classId, { studentId: report.student.studentId });
+  const consultations = await listConsultationLogs(classId, { studentId: report.student.studentId }, viewerTeacherId);
   const recentConsultationsRaw = consultations.slice(0, 3);
   const recentConsultations = recentConsultationsRaw.map(
     (c, i) => `[${homeTag}${i + 1}] (${c.occurredAt.slice(0, 10)}) ${c.title}: ${c.body.slice(0, 80)}`,
@@ -193,7 +202,7 @@ async function buildStudentContext(classId: string, studentId: string, today: st
   };
 }
 
-async function buildClassContext(classId: string, today: string): Promise<AgentContextBundle> {
+async function buildClassContext(classId: string, today: string, viewerTeacherId?: string): Promise<AgentContextBundle> {
   // ── 정서: 오늘 등교 색 현황 + 살펴볼 아이 ──────────────────────
   const seating = await getSeatingChart(classId, today);
   const colorCounts: Partial<Record<SignalColor, number>> = {};
@@ -212,7 +221,7 @@ async function buildClassContext(classId: string, today: string): Promise<AgentC
 
   // ── 학교생활 관찰: 최근 7일 학생관찰일지 ─────────────────────────
   const lrnTag = DOMAIN_TAG.learning;
-  const recentObservationsRaw = await listObservationLogs(classId, { from: addDays(today, -6), to: today });
+  const recentObservationsRaw = await listObservationLogs(classId, { from: addDays(today, -6), to: today }, viewerTeacherId);
   const recentObservations = recentObservationsRaw.slice(0, 5);
   const obsLines = recentObservations.map(
     (o, i) =>
@@ -227,7 +236,7 @@ async function buildClassContext(classId: string, today: string): Promise<AgentC
   // listConsultationLogs는 날짜 필터가 없어서(ConsultationFilter에 from/to 없음) 전체를 받아
   // occurredAt 기준으로 여기서 직접 최신순 정렬해 최근 것만 자른다.
   const homeTag = DOMAIN_TAG.home;
-  const consultations = await listConsultationLogs(classId, {});
+  const consultations = await listConsultationLogs(classId, {}, viewerTeacherId);
   const sortedConsultations = [...consultations].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).slice(0, 3);
   const consultLines = sortedConsultations.map(
     (c, i) => `[${homeTag}${i + 1}] (${c.occurredAt.slice(0, 10)}) ${c.student.name} · ${c.title}: ${c.body.slice(0, 60)}`,

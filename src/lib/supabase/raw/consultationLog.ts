@@ -87,11 +87,21 @@ function matchesKeyword(log: ConsultationLog, keyword: string): boolean {
     .every((term) => haystack.includes(term));
 }
 
-async function listByStatus(db: RecordDb, status: "preparing" | "completed"): Promise<ConsultationRow[]> {
+/**
+ * (2026-09-20, 이지현 제안) viewerTeacherId — 공개 데모 방문자 격리용, listObservationLogs와
+ * 같은 방식. 안 주면 db.teacherId(시드 담임)만 보여서 기존 동작과 같다.
+ */
+async function listByStatus(
+  db: RecordDb,
+  status: "preparing" | "completed",
+  viewerTeacherId?: string,
+): Promise<ConsultationRow[]> {
+  const visibleAuthors = [db.teacherId, ...(viewerTeacherId && viewerTeacherId !== db.teacherId ? [viewerTeacherId] : [])];
   const { data, error } = await db.client
     .from("parent_consultations")
     .select(SELECT)
     .eq("status", status)
+    .in("teacher_id", visibleAuthors)
     .in("enrollment_id", [...db.studentByEnrollment.keys()]);
   if (error) throw error;
   return (data ?? []) as ConsultationRow[];
@@ -135,11 +145,15 @@ async function insertSealedConsultationRecord(
 }
 
 /** 완료한 상담만 — status='completed' */
-export async function listConsultationLogs(classId: string, filter: ConsultationFilter = {}): Promise<ConsultationLog[]> {
+export async function listConsultationLogs(
+  classId: string,
+  filter: ConsultationFilter = {},
+  viewerTeacherId?: string,
+): Promise<ConsultationLog[]> {
   const db = await recordDb(classId);
   if (!db) return [];
 
-  return (await listByStatus(db, "completed"))
+  return (await listByStatus(db, "completed", viewerTeacherId))
     .map((row) => toConsultationLog(db, row))
     .filter((log): log is ConsultationLog => log !== null)
     .filter((log) => {

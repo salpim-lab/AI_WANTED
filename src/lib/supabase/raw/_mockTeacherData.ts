@@ -19,6 +19,8 @@
 
 import { givenName } from "@/components/shared/names";
 import { createAdminClient } from "@/lib/supabase/admin";
+// (2026-09-20, 이지현 제안) 데모 모드 익명 세션 확인용 — 쓰기는 여전히 admin으로만 한다.
+import { createClient as createSessionClient } from "@/lib/supabase/server";
 import type { SignalColor } from "@/lib/types/signal";
 import type { EvidenceRef, StoredSessionProsody, WorkRecordType } from "@/lib/types/teacherRecord";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -39,8 +41,31 @@ export const MOCK_TEACHER = {
  * 모든 페이지 조회와 Server Action의 첫 줄에서 호출한다.
  * TODO(인증 연동): Supabase Auth 세션 → profiles + class_teachers로 교사·담당 학급을 확인하고, 실패하면 throw.
  * TODO(감사 로그): 쓰기 전에 set_config('app.actor_id', teacher.id)를 심는다 (DB 스키마 v0.3 §10.3).
+ *
+ * (2026-09-20, 이지현 제안 — 공개 데모 방문자 격리, 계획 문서 cozy-mixing-scone.md 참고)
+ * DEMO_MODE=true이고 익명 세션(src/proxy.ts + /api/demo/init이 준비)이면, 학급은 그대로
+ * 공유(MOCK_TEACHER.classId)하되 "누가 썼는지"만 이 방문자의 auth.uid()로 구분해 반환한다.
+ * dbTeacherId()는 `appTeacherId === MOCK_TEACHER.id`일 때만 번역표를 타므로, 여기서 실제
+ * user.id(항상 MOCK_TEACHER.id와 다른 값)를 돌려주면 observationLog.ts/consultationLog.ts의
+ * 기존 insert 코드가 그 값을 그대로 created_by/teacher_id에 써준다 — 그쪽 코드는 안 고쳐도 된다.
+ * 프로필 생성은 여기서 하지 않는다(/api/demo/init이 이미 끝냈다는 전제) — 세션은 있는데
+ * 아직 준비가 안 됐으면(레이스 등) 공용 MOCK_TEACHER로 조용히 대체하지 않고 에러를 던진다.
  */
 export async function getActingTeacher() {
+  if (process.env.DEMO_MODE === "true") {
+    const client = await createSessionClient();
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+    if (user?.is_anonymous) {
+      const admin = createAdminClient();
+      const { data: profile } = await admin.from("profiles").select("id").eq("id", user.id).maybeSingle();
+      if (!profile) {
+        throw new Error("데모 세션 초기화가 아직 끝나지 않았습니다. /demo-init에서 다시 시도해주세요.");
+      }
+      return { id: user.id, classId: MOCK_TEACHER.classId, displayName: MOCK_TEACHER.displayName };
+    }
+  }
   return MOCK_TEACHER;
 }
 
@@ -48,6 +73,11 @@ export async function getActingTeacher() {
  * 현재 요청의 학생 (학생 화면 인증 연동 전 고정값 — 김민준).
  * 학생 화면용 조회는 브라우저가 보낸 studentId를 믿지 않고 이 함수로 학생을 정한다 (다른 아이 편지를 못 보게).
  * TODO(학생 인증 연동): Supabase Auth 세션 → students.auth_user_id → 현재 enrollment.
+ *
+ * (2026-09-20) 데모 모드 격리는 이 함수를 건드리지 않았다 — 여기서 반환하는 id는
+ * mock 명단(00000000- 접두사, MOCK_STUDENTS 배열)과 맞춰진 값이라 checkin_sessions의 실제
+ * student_id(30000000- 접두사)와는 다른 스킴이고, 어디까지 영향이 퍼지는지 다 추적 못 했다
+ * (/api/student/letter만 확인함). 잘못 바꾸면 조용히 다른 걸 깨뜨릴 위험이 있어 범위 밖으로 둔다.
  */
 export async function getActingStudent() {
   return { studentId: "00000000-0000-4000-8000-000000000001", classId: MOCK_TEACHER.classId };
