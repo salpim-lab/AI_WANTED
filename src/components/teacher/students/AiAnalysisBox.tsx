@@ -81,7 +81,6 @@ export default function AiAnalysisBox({
       className="rounded-2xl border border-[#ded8ff] bg-[#f5f3ff] px-4 py-3.5 text-[13px] leading-[1.7] text-[#102a56]"
     >
       <div className="mb-1.5 flex items-center gap-1.5 font-[family-name:var(--font-cute)] text-[15px] text-[#635bff]">
-        <span aria-hidden>✨</span>
         AI 분석
       </div>
       {state.status === "loading" && <p>분석을 불러오는 중…</p>}

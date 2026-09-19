@@ -1,8 +1,8 @@
 // 담당: 김현우
 // 학부모상담기록 "예정된 상담" 카드. 카드 어디든 누르면 상담 내용 작성 모달이 열리고, 저장하면 완료로 넘어간다.
 // 이 저장이 이 상담의 work_records 원문이 처음이자 마지막으로 생기는 순간이다(이후 수정 불가).
-// 모양은 대시보드 아침 브리핑의 상담 행과 맞춘다 — 이름 + "학생/학부모 상담" 한 줄, 그 아래 "대상 - 방식"을 한 덩어리로
-// 묶고 바로 옆에 ✎(일정 변경), 오른쪽 위에 ↗(누르면 열린다는 표시).
+// 모양은 리스트 행 — 카드 테두리 안에 [이름 + "대상 - 방식" 위, 예정 일시 + ✎(일정 변경) 아래]를 두고 세로 가운데에 맞춘다. 누적 자료 보기는 오른쪽 끝, ↗(누르면 열린다는 표시)는 오른쪽 위 모서리에 둔다.
+// 좁은 화면에서는 줄이 바뀐다.
 // 누적 자료 보기는 카드에만 둔다 (작성 모달·완료한 상담 모달에는 없다).
 // 누적 자료 보기는 새 탭이 아니라 작성 모달과 같은 크기의 팝업(ConsultationReportModal)으로 연다.
 // 카드 전체를 덮는 버튼 위에 ✎ 버튼과 누적 자료 버튼을 z-10으로 띄운다 — 버튼 안에 버튼·링크를 넣을 수 없어서.
@@ -11,11 +11,12 @@
 
 import { useActionState, useState } from "react";
 import { completeConsultationAction } from "@/app/(teacher)/consultation/actions";
-import { formatKstDateTime, nowKstLocalInput } from "@/components/shared/datetime";
+import { formatKstDateTime, nowKstLocalInputQuarter, todayKst } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
-import { card, clickableCard, errorText, fieldLabel, helperNote, textArea, textInput, timestampText } from "@/components/shared/ui";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
+import { card, clickableCard, errorText, fieldLabel, helperNote, textArea, timestampText } from "@/components/shared/ui";
 import type { FormActionState, ScheduledConsultation } from "@/lib/types/teacherRecord";
-import { ArrowUpRightIcon, consultationKindLabel, METHOD_LABEL } from "./consultationCardParts";
+import { ArrowUpRightIcon, METHOD_LABEL } from "./consultationCardParts";
 import ConsultationReportModal from "./ConsultationReportModal";
 import EditScheduledConsultationButton from "./EditScheduledConsultationButton";
 
@@ -26,7 +27,7 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
   const [open, setOpen] = useState(false);
   const [openedAtSeq, setOpenedAtSeq] = useState(0);
   const [body, setBody] = useState("");
-  const [occurredAt, setOccurredAt] = useState(() => nowKstLocalInput());
+  const [occurredAt, setOccurredAt] = useState(() => nowKstLocalInputQuarter());
 
   const [state, formAction, pending] = useActionState(async (previous: FormActionState, formData: FormData) => {
     const result = await completeConsultationAction(formData);
@@ -42,7 +43,7 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
 
   function openModal() {
     setOpenedAtSeq(state.seq);
-    setOccurredAt(nowKstLocalInput());
+    setOccurredAt(nowKstLocalInputQuarter());
     setOpen(true);
   }
 
@@ -52,7 +53,7 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
 
   return (
     <>
-      <article className={`${card} ${clickableCard} group relative px-[18px] py-4`}>
+      <article className={`${card} ${clickableCard} group relative flex flex-wrap items-center gap-x-4 gap-y-2.5 py-3.5 pr-10 pl-[18px]`}>
         {/* 카드 전체를 누르는 영역 */}
         <button
           type="button"
@@ -61,24 +62,28 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
           className="absolute inset-0 rounded-[inherit]"
         />
 
-        <div className="flex items-start gap-2">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <strong className="text-sm font-extrabold tracking-[-0.2px] text-[#102a56]">{student.name}</strong>
-              <span className="text-xs font-bold text-[#7d849b]">
-                {consultationKindLabel(consultation.counterpart)}
-              </span>
-            </div>
-            <p className="mt-0.5 text-[11.5px] text-[#7d849b]">
+        {/* 위 줄: 이름 + "대상 - 방식" / 아래 줄: 예정 일시 + ✎(일정 변경, 시계 방향으로 90도 돌려 놓음). ✎은 카드 전체를 덮는 버튼 위로 z-10을 띄워 따로 눌리게 한다 */}
+        <div className="shrink-0">
+          <div className="flex items-baseline gap-2">
+            <strong className="text-sm font-extrabold tracking-[-0.2px] text-[#102a56]">{student.name}</strong>
+            <span className="text-xs font-bold text-[#7d849b]">
               {consultation.counterpart} - {METHOD_LABEL[consultation.method]}
-            </p>
+            </span>
           </div>
-          <EditScheduledConsultationButton consultation={consultation} variant="icon" className="relative z-10 -mt-1 shrink-0" />
-          <ArrowUpRightIcon />
+          <div className="mt-0.5 flex items-center gap-0.5">
+            <p className={timestampText}>예정 {formatKstDateTime(consultation.scheduledAt).slice(0, 16)}</p>
+            <EditScheduledConsultationButton
+              consultation={consultation}
+              variant="icon"
+              className="relative z-10 -my-1.5 shrink-0 rotate-90"
+            />
+          </div>
         </div>
 
-        <p className={`${timestampText} mt-2`}>예정 {formatKstDateTime(consultation.scheduledAt).slice(0, 16)}</p>
-        <ConsultationReportModal student={student} className="relative z-10 mt-2.5" />
+        <ConsultationReportModal student={student} className="relative z-10 ml-auto" />
+        <span className="absolute top-3 right-3.5">
+          <ArrowUpRightIcon />
+        </span>
       </article>
 
       <Modal open={open} title={`${student.name} 상담 내용 작성`} onClose={closeModal} size="wide">
@@ -95,13 +100,13 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
           <label htmlFor={`complete-occurred-at-${consultation.id}`} className={fieldLabel}>
             상담 일시
           </label>
-          <input
+          <QuarterHourDateTimeInput
             id={`complete-occurred-at-${consultation.id}`}
-            type="datetime-local"
             name="occurredAt"
             value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-            className={textInput}
+            onChange={setOccurredAt}
+            required={false}
+            max={todayKst()}
           />
 
           <label htmlFor={`complete-body-${consultation.id}`} className={fieldLabel}>

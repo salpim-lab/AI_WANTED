@@ -74,11 +74,6 @@ export default function CompletedConsultationCard({ entry, showDate }: { entry: 
           <p className={`${timestampText} mb-3`}>상담 일시 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
         )}
         <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-[#102a56]">{entry.body}</p>
-        <StudentTag entry={entry} className="mt-4 border-t border-[#e6e2fb] pt-3" />
-
-        {entry.evidenceRefs.length > 0 && (
-          <p className="mt-3 text-[11px] text-[#7d849b]">저장 당시 근거 기록 {entry.evidenceRefs.length}건 연결</p>
-        )}
       </Modal>
     </>
   );

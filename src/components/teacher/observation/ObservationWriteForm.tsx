@@ -1,7 +1,7 @@
 // 담당: 김현우
 // 학생관찰일지의 글쓰기 폼 — "관찰일지 기록"(DailyObservationButton)과 "학생 상담 기록"(StudentConsultationComposer)
 // 팝업이 같이 쓴다. kind로 라벨과 recordType만 바꾸고 배치는 똑같다.
-// 위쪽 한 줄에 관찰한 아이 태그(@이름, 필수) · 제목 · 발생 일시를 두고, 아래에 본문을 넓게 쓴다.
+// 위쪽 한 줄에 관찰한 아이 태그(@이름, 필수) · 제목, 그 아래 줄에 발생 일시(날짜 + 오전/오후 + 시 + 15분 단위 분)를 두고, 아래에 본문을 넓게 쓴다.
 // 태그는 이름 문자열이 아니라 student_id로 제출된다 (TagInput). 저장에 성공하면 onSaved로 팝업을 닫는다.
 // 팝업이 닫히면 Modal이 내용을 언마운트하므로 다시 열 때마다 빈 폼으로 시작한다.
 // prefill(아이·일시)이 오면 그 값으로 시작한다 — 대시보드 "오늘 예정된 상담"에서 바로 넘어온 경우다.
@@ -10,7 +10,8 @@
 
 import { useActionState, useState } from "react";
 import { createObservation } from "@/app/(teacher)/observation/actions";
-import { nowKstLocalInput } from "@/components/shared/datetime";
+import { nowKstLocalInputQuarter } from "@/components/shared/datetime";
+import QuarterHourDateTimeInput from "@/components/shared/QuarterHourDateTimeInput";
 import TagInput, { type TagOption } from "@/components/shared/TagInput";
 import { errorText, fieldLabel, helperNote, textArea, textInput } from "@/components/shared/ui";
 import type { ClassStudent, FormActionState } from "@/lib/types/teacherRecord";
@@ -43,7 +44,7 @@ export type WriteKind = keyof typeof LABELS;
 /** 열릴 때 미리 채워 둘 값 — 예정돼 있던 상담을 기록하러 넘어온 경우 */
 export type WritePrefill = {
   studentIds: string[];
-  /** <input type="datetime-local"> 값 ("2026-09-18T12:40") */
+  /** "YYYY-MM-DDTHH:mm" (한국 시각, 예 "2026-09-18T12:40") */
   occurredAt: string;
 };
 
@@ -71,9 +72,11 @@ export default function ObservationWriteForm({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
 
-  // 오늘 날짜면 지금 시각으로 채워서 발생 일시가 비어 보이지 않게 하고, 지난 날짜를 보는 중이면 그 날
-  // 정오로 채운다 (안 그러면 지난 날짜를 쓰다가 빈칸으로 두면 "지금" 시각이 들어가 오늘 피드로 잡혀버린다)
-  const defaultOccurredAt = prefill?.occurredAt ?? (date === today ? nowKstLocalInput() : `${date}T12:00`);
+  // 오늘 날짜면 지금 시각(15분 단위로 내림)으로 채워서 발생 일시가 비어 보이지 않게 하고, 지난 날짜를 보는 중이면
+  // 그 날 정오로 채운다 (안 그러면 지난 날짜를 쓰다가 빈칸으로 두면 "지금" 시각이 들어가 오늘 피드로 잡혀버린다)
+  const [occurredAt, setOccurredAt] = useState(
+    () => prefill?.occurredAt ?? (date === today ? nowKstLocalInputQuarter() : `${date}T12:00`),
+  );
 
   const [state, formAction, pending] = useActionState(async (previous: FormActionState, formData: FormData) => {
     const result = await createObservation(formData);
@@ -84,7 +87,7 @@ export default function ObservationWriteForm({
   return (
     <form action={formAction}>
       {kind === "student_consultation" && <input type="hidden" name="recordType" value="student_consultation" />}
-      <div className="grid gap-x-3 gap-y-3.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_200px]">
+      <div className="grid gap-x-3 gap-y-3.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div>
           <label htmlFor="obs-tags" className={topFieldLabel}>
             {labels.tags}
@@ -105,16 +108,17 @@ export default function ObservationWriteForm({
             className={`${textInput} w-full`}
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label htmlFor="obs-occurred-at" className={topFieldLabel}>
             {labels.occurredAt}
           </label>
-          <input
+          <QuarterHourDateTimeInput
             id="obs-occurred-at"
-            type="datetime-local"
             name="occurredAt"
-            defaultValue={defaultOccurredAt}
-            className={`${textInput} w-full`}
+            value={occurredAt}
+            onChange={setOccurredAt}
+            required={false}
+            max={today}
           />
         </div>
       </div>

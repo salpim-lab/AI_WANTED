@@ -1,5 +1,5 @@
 // 담당: 김현우
-// 학부모상담기록 "예정된 상담" 칼럼의 "상담 예약" 버튼과 모달. 아직 상담 전이라 내용은 받지 않고
+// 학부모상담기록 "예정된 상담" 목록 위의 "상담 예약" 버튼과 모달. 아직 상담 전이라 내용은 받지 않고
 // 학생(@태그, 한 명)·상담 대상·방식·예정 일시만 받는다 — 저장은 Server Action(scheduleConsultationAction).
 // 참고: docs/prototype/prototype-teacher.html #modal-consult
 

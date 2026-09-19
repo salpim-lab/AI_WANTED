@@ -80,10 +80,6 @@ export default function StudentDetailPanel({
           <StudentAvatar name={student.name} initial={shortName.slice(0, 1)} />
           <div className="min-w-0 flex-1">
             <h2 className={`${salpimTitle} text-[26px] leading-tight`}>{shortName}의 하루</h2>
-            <p className={`mt-0.5 text-xs ${salpimMuted}`}>
-              {student.name} - {formatKstDate(date)}
-              {isToday && " - 오늘"}
-            </p>
           </div>
           <DateControl
             dateKey={date}
@@ -108,7 +104,6 @@ export default function StudentDetailPanel({
 
         {sessions.length === 0 ? (
           <div className={`mt-4 border-t border-[#e6e2fb] py-10 text-center ${salpimMuted}`}>
-            <div className="mb-2.5 text-[32px]">🌱</div>
             <div>이 날은 쌓인 기록이 없어요.</div>
           </div>
         ) : (
@@ -171,10 +166,7 @@ function SentLetterCard({ date, final }: { date: string; final: string }) {
   return (
     <section className={`${salpimPaperCard} px-6 py-5`}>
       <div className="mb-2 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <h3 className={`${salpimTitle} flex items-center gap-1.5 text-xl`}>
-          <span aria-hidden>✉️</span>
-          선생님의 한마디
-        </h3>
+        <h3 className={`${salpimTitle} text-xl`}>선생님의 한마디</h3>
         <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">
           ✓ {formatKstDate(delivered)} 등교 때 전달됨
         </span>
@@ -215,7 +207,7 @@ function PeriodSection({
       >
         {icon}
       </div>
-      <div className={`min-w-0 flex-1 rounded-2xl ${active ? "bg-[#f5f3ff] px-3.5 py-3 ring-1 ring-[#ded8ff]" : "pt-0.5"}`}>
+      <div className={`min-w-0 flex-1 rounded-2xl ${active ? "bg-white px-3.5 py-3 ring-1 ring-[#ded8ff]" : "pt-0.5"}`}>
         <div className="flex items-center gap-2">
           <h3 className={`${salpimTitle} text-[17px]`}>{label}</h3>
           {latest ? (

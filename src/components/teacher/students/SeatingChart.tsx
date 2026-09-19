@@ -15,7 +15,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { givenName } from "@/components/shared/names";
-import { SIGNAL_DOT, SIGNAL_LABEL, SIGNAL_SEAT_FILL } from "@/components/shared/signalStyles";
+import {
+  SIGNAL_DOT,
+  SIGNAL_MOOD_LABEL,
+  SIGNAL_SEAT_FILL,
+  SIGNAL_SEAT_FILL_SELECTED,
+} from "@/components/shared/signalStyles";
 import {
   emptyState,
   salpimMuted,
@@ -26,7 +31,6 @@ import {
   seatCellHeight,
   seatChartCard,
 } from "@/components/shared/ui";
-import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import type { SeatGrid, SeatingStudent } from "@/lib/types/teacherRecord";
 import type { SignalColor } from "@/lib/types/signal";
 import ClassroomFront from "./ClassroomFront";
@@ -40,7 +44,8 @@ const PERIOD_LABEL = { morning: "등교", afternoon: "하교" } as const;
 type Period = keyof typeof PERIOD_LABEL;
 
 /** 아직 체크인 안 한 아이 — 회색 카드와 범례 점 */
-const NOT_YET_CARD = "border border-[#e4e6ec] bg-[#f1f2f5] text-[#7d849b]";
+const NOT_YET_CARD = "border border-[#e4e6ec] bg-[#f1f2f5] text-black";
+const NOT_YET_CARD_SELECTED = "border border-[#a9afc0] bg-[#b4b9c8] text-black";
 const NOT_YET_DOT = "border-[#d5d8e0] bg-[#e4e6ec]";
 
 function colorOf(seat: SeatingStudent, period: Period): SignalColor | null {
@@ -167,7 +172,7 @@ export default function SeatingChart({
         {LEGEND_ORDER.map((color) => (
           <span key={color} className="flex items-center gap-1">
             <span aria-hidden className={`inline-block size-2.5 rounded-full ${SIGNAL_DOT[color]}`} />
-            {SIGNAL_COLORS[color].label}
+            {SIGNAL_MOOD_LABEL[color]}
           </span>
         ))}
         <span className="flex items-center gap-1">
@@ -193,13 +198,14 @@ function SeatCard({
   className: string;
 }) {
   const mainColor = colorOf(seat, period);
-  const amLabel = seat.todayMorning ? SIGNAL_LABEL[seat.todayMorning] : "아직 안 함";
-  const pmLabel = seat.todayAfternoon ? SIGNAL_LABEL[seat.todayAfternoon] : "아직 안 함";
+  const amLabel = seat.todayMorning ? SIGNAL_MOOD_LABEL[seat.todayMorning] : "아직 안 함";
+  const pmLabel = seat.todayAfternoon ? SIGNAL_MOOD_LABEL[seat.todayAfternoon] : "아직 안 함";
 
-  const tone = selected
-    ? "bg-[#ede9ff] ring-2 ring-[#635bff] text-[#3f37c9]"
-    : mainColor
-      ? `${SIGNAL_SEAT_FILL[mainColor]} shadow-[0_1px_2px_rgba(0,0,0,.06)]`
+  // 선택돼도 배경색 계열은 그대로, 테두리 없이 같은 색이 진해지는 것으로만 표시한다
+  const tone = mainColor
+    ? `${selected ? SIGNAL_SEAT_FILL_SELECTED[mainColor] : SIGNAL_SEAT_FILL[mainColor]} shadow-[0_1px_2px_rgba(0,0,0,.06)]`
+    : selected
+      ? NOT_YET_CARD_SELECTED
       : NOT_YET_CARD;
 
   return (
