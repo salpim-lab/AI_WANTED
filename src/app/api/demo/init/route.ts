@@ -25,9 +25,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // 같은 반으로" 체험하는 것이 목표라 학생/학급 자체는 바꾸지 않는다.
 const DEMO_CLASS_ID = "20000000-0000-4000-8000-000000000001";
 
+// 세션 쿠키를 발급·갱신하는 응답이라 중간 캐시에 남으면 안 된다(방문자 간 세션·메타데이터가 섞이는 문제 방지).
+const NO_STORE = { "Cache-Control": "no-store" };
+const respond = (body: Record<string, unknown>, status = 200) => NextResponse.json(body, { status, headers: NO_STORE });
+
 export async function POST() {
   if (process.env.DEMO_MODE !== "true") {
-    return NextResponse.json({ error: "DEMO_MODE_DISABLED" }, { status: 404 });
+    return respond({ error: "DEMO_MODE_DISABLED" }, 404);
   }
 
   const supabase = await createClient();
@@ -39,9 +43,16 @@ export async function POST() {
   if (!user) {
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error || !data.user) {
-      return NextResponse.json({ error: "ANONYMOUS_SIGNIN_FAILED" }, { status: 502 });
+      console.error("[demo/init] 익명 로그인 실패", error?.message);
+      return respond({ error: "ANONYMOUS_SIGNIN_FAILED" }, 502);
     }
     user = data.user;
+  }
+
+  // ⚠️ 익명 세션에만 교사 프로필·담임 반 assistant 권한을 준다. 이미 정식 로그인된 계정(학생·교사)이 이 경로를
+  // 부르면 그 계정에 권한이 얹히는 권한 상승이 되므로 거부한다.
+  if (user.is_anonymous !== true) {
+    return respond({ error: "NOT_ANONYMOUS_SESSION" }, 403);
   }
 
   // 교사 쪽 FK(work_records.created_by 등)를 만족시키기 위한 프로필 준비.
@@ -52,7 +63,8 @@ export async function POST() {
     .from("profiles")
     .upsert({ id: user.id, role: "teacher", display_name: "체험 선생님" }, { onConflict: "id", ignoreDuplicates: true });
   if (profileError) {
-    return NextResponse.json({ error: "PROFILE_SETUP_FAILED", detail: profileError.message }, { status: 502 });
+    console.error("[demo/init] 프로필 준비 실패", profileError.message);
+    return respond({ error: "PROFILE_SETUP_FAILED" }, 502);
   }
 
   // role은 'homeroom'을 쓰면 안 된다 — _mockTeacherData.ts의 recordDb()가
@@ -66,8 +78,9 @@ export async function POST() {
       { onConflict: "class_id,teacher_id", ignoreDuplicates: true },
     );
   if (classTeacherError) {
-    return NextResponse.json({ error: "CLASS_TEACHER_SETUP_FAILED", detail: classTeacherError.message }, { status: 502 });
+    console.error("[demo/init] 담당 학급 등록 실패", classTeacherError.message);
+    return respond({ error: "CLASS_TEACHER_SETUP_FAILED" }, 502);
   }
 
-  return NextResponse.json({ ok: true });
+  return respond({ ok: true });
 }

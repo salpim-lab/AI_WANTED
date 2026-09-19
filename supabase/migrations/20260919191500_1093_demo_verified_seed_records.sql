@@ -139,3 +139,62 @@ using (
       and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
   )
 );
+
+-- ==== (2026-09-20 추가) 익명 사용자 점검으로 찾은 나머지 직접 접근 표면 ====
+-- 익명 로그인 사용자도 Postgres 역할은 `authenticated`라서 "그 반 교사/학생이면 읽기" 류 기존 정책이 그대로 적용된다.
+-- 실제 DB 전수 조회(pg_policies + 권한)에서 1092가 덮지 않은 테이블을 찾았다.
+
+-- (1) item_generation_jobs(44건)·student_items(42건): AI가 학생 대화에서 만든 추론 결과·학생 메시지가 들어 있고
+--     전부 테스트 체크인(현재 개발 계정 소유)에 붙은 것이다. 기존 정책은 enrollment 담당 교사면 전체 읽기라 방문자가
+--     REST로 전부 읽을 수 있었다. 다른 부모 연결 테이블과 같은 방식으로 부모 세션 소유자로 좁힌다.
+create policy item_generation_jobs_demo_owner_restrict on public.item_generation_jobs
+as restrictive
+for select to authenticated
+using (
+  source_session_id is not null
+  and exists (
+    select 1 from public.checkin_sessions cs
+    where cs.id = item_generation_jobs.source_session_id
+      and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+create policy student_items_demo_owner_restrict on public.student_items
+as restrictive
+for select to authenticated
+using (
+  source_session_id is not null
+  and exists (
+    select 1 from public.checkin_sessions cs
+    where cs.id = student_items.source_session_id
+      and (cs.demo_owner_id is null or cs.demo_owner_id = (select auth.uid()))
+  )
+);
+
+-- (2) 방문자가 직접 읽을 이유가 없고 소유자 컬럼도 없는 테이블: 익명 사용자는 접근 자체를 막는다.
+--     JWT의 is_anonymous 클레임으로 구분(정식 로그인 사용자는 false, 클레임이 없어도 true가 아니면 통과).
+--     consents(보호자 동의 상태), feedback_drafts/sources(교사 코멘트 — 앱은 DB가 아니라 서버 메모리로 쓴다),
+--     islands/island_placements(학생 섬 배치). 앱 서버 경로는 service_role이라 영향 없다.
+create policy consents_no_anonymous on public.consents
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy feedback_drafts_no_anonymous on public.feedback_drafts
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy feedback_sources_no_anonymous on public.feedback_sources
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy islands_no_anonymous on public.islands
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+create policy island_placements_no_anonymous on public.island_placements
+as restrictive for select to authenticated
+using (((select auth.jwt()) ->> 'is_anonymous')::boolean is not true);
+
+-- (3) 1091이 만든 ai_rate_limits는 Supabase 기본값으로 anon/authenticated에 전체 DML 권한이 붙어 있다.
+--     RLS가 켜져 있고 정책이 없어 지금도 거부되지만, 권한 자체도 걷어낸다(서버는 service_role/security definer 함수 경유).
+revoke all on table public.ai_rate_limits from anon, authenticated;
