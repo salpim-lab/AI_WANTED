@@ -169,6 +169,42 @@
   text-shadow: 0 0.2cqh 0.5cqh rgba(20, 40, 30, 0.35);
 }
 
+/* 학생 흐름의 이전 단계로 돌아가는 보조 동작. 화면 내용을 가리지 않게 모서리에 둔다. */
+.student-back {
+  position: absolute;
+  left: 1.2cqw;
+  top: 4.4cqh;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7cqh;
+  padding: 1cqh 0.8cqh;
+  border: 0;
+  background: transparent;
+  color: #b3bacb;
+  font-size: 2.2cqh;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.mood-screen.active .sh-header,
+.chat-screen.active .sh-header,
+.island-screen.active:not(.island-screen--preparing) .sh-header {
+  left: 5.2cqw;
+}
+.student-back__icon {
+  width: 3.8cqh;
+  height: 3.8cqh;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.student-back:hover { color: var(--sh-navy); }
+.student-back:active { transform: translateY(0.2cqh) scale(0.98); }
+.student-back:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+
 /* ── CTA ───────────────────────────────────────────────── */
 .sh-cta {
   display: inline-flex;

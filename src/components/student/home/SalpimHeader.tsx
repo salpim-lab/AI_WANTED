@@ -4,7 +4,7 @@ import SalpimFace from "../SalpimFace";
 export default function SalpimHeader() {
   return (
     <div
-      className="absolute left-[2.4cqw] top-[4.4cqh] z-[2] flex items-center gap-[2.2cqw]"
+      className="sh-header absolute left-[2.4cqw] top-[4.4cqh] z-[2] flex items-center gap-[2.2cqw]"
     >
       <div className="flex items-end gap-[0.5cqw]">
         <span className="sh-cute text-[5.6cqh] leading-none tracking-tight text-[var(--sh-navy)]">

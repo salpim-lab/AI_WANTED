@@ -12,6 +12,7 @@ import { useCheckinFlow } from "@/components/student/useCheckinFlow";
 import { CHECKOUT_SCENARIO } from "@/components/student/mockScenarios";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
 import StudentHome from "@/components/student/home/StudentHome";
+import StudentBackButton from "@/components/student/home/StudentBackButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
@@ -54,6 +55,15 @@ export default function CheckoutPage() {
         color={flow.color}
       />
       {(flow.step === 4 || flow.step === 5) && <ItemPreparation flow="checkout" sessionId={flow.sessionId} item={flow.item} onReady={enterIsland} />}
+      {(
+        flow.step === 2 ||
+        flow.step === 5 ||
+        (flow.step === 3 && !flow.typing && !flow.thinking && !flow.conversationOver && flow.consultState === "hidden")
+      ) && (
+        <StudentBackButton
+          onBack={() => flow.goTo(flow.step - 1)}
+        />
+      )}
     </>
   );
 }
