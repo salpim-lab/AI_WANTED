@@ -216,8 +216,9 @@ t('받아주는 말에 질문이 섞이거나 선택지로 물으면 선택지 �
   assert.equal(a.reply, '그렇구나. 기분이 안 좋아진 일이 있었어?');
   const b = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나! 그때 마음이 어땠어?', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
   assert.equal(b.reply, '피구 했구나! 그때 마음이 어땠어?');
+  // 선택지 질문만 있으면 빠진 조각(마음)에 맞는 질문으로 바꾼다
   const c = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나!', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
-  assert.equal(c.reply, `피구 했구나! ${turn.FALLBACK_QUESTION}`);
+  assert.equal(c.reply, '피구 했구나! 그때 마음이 어땠어?');
 });
 
 t('맞장구 뒤에 내용 있는 받아주기가 오면 맞장구를 뗀다', () => {
@@ -230,8 +231,12 @@ t('맞장구 뒤에 내용 있는 받아주기가 오면 맞장구를 뗀다', (
 });
 
 t('이유를 따지는 질문은 걸러낸다', () => {
-  const a = turn.parseChatTurn({ missing: 'cause', ack: '졸렸나 봐.', question: '졸린 이유가 뭐였어?', sufficient: false, risk: 'none' });
-  assert.equal(a.reply, `졸렸나 봐. ${turn.FALLBACK_QUESTION}`);
+  // 걸러낸 뒤에는 빠진 조각에 맞는 질문으로 바꾼다(한 문장 고정이면 맥락이 어긋났다)
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '졸리네.', question: '졸린 이유가 뭐였어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '졸리네. 어떤 일이 있었는지 들려줄래?');
+  // "이유가 있었어?" 처럼 부드럽게 여는 질문은 통과한다
+  const c = turn.parseChatTurn({ missing: 'cause', ack: '피곤하네.', question: '피곤한 이유가 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(c.reply, '피곤하네. 피곤한 이유가 있었어?');
   // 마음의 계기를 여는 모양은 통과한다
   const b = turn.parseChatTurn({ missing: 'cause', ack: '화났나 봐.', question: '어떤 일이 있어서 화가 났어?', sufficient: false, risk: 'none' });
   assert.equal(b.reply, '화났나 봐. 어떤 일이 있어서 화가 났어?');

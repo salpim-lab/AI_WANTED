@@ -55,13 +55,25 @@ export const CHAT_TURN_SCHEMA = {
  */
 export const FALLBACK_QUESTION = "그 얘기 조금만 더 해줄래?";
 
+/**
+ * 빠진 조각에 맞춘 예비 질문. 한 문장으로 고정하면 "졸려서 기분이 안 좋아요" 에
+ * "그 얘기 조금만 더 해줄래?" 가 붙어 맥락이 어긋났다(실측 15번 중 3번).
+ */
+const FALLBACK_BY_MISSING: Record<string, string> = {
+  situation: "어떤 일이 있었는지 들려줄래?",
+  feeling: "그때 마음이 어땠어?",
+  cause: "어떤 일이 있어서 그런 마음이 들었어?",
+  detail: FALLBACK_QUESTION,
+};
+
 const isQuestion = (text: string) => /[?？]\s*$/.test(text.trim());
 
 /**
  * 이유를 따지는 질문. 프롬프트가 금지하지만 "졸린 이유가 뭐였어?" 가 실측에서 새어 나왔다.
- * 마음의 계기는 "어떤 일이 있어서 ~" 모양으로만 묻는다(그건 여기 걸리지 않는다).
+ * "왜" "이유가 뭐" "뭐 때문에" 처럼 따지는 모양만 막는다. "이유가 있었어?" 처럼 부드럽게 여는 질문과
+ * "어떤 일이 있어서 ~" 는 통과시킨다 — 너무 넓게 막으면 멀쩡한 질문까지 예비 질문으로 바뀌었다.
  */
-const isWhyQuestion = (text: string) => /왜|이유가|이유는|뭐 때문에|무엇 때문에/.test(text);
+const isWhyQuestion = (text: string) => /왜|이유가 뭐|이유는 뭐|뭐 때문에|무엇 때문에/.test(text);
 
 /** 내용 없이 끄덕이기만 하는 맞장구 */
 const isFiller = (line: string) => /^(그랬구나|그렇구나|그랬어|알겠어|응|그래)[.!~]*$/.test(line.trim());
@@ -222,7 +234,8 @@ export function parseChatTurn(raw: unknown, previousAssistant?: string): ChatTur
   const sentences = (text: string) => text.trim().split(/(?<=[.!?？])\s+/).filter(Boolean);
   const all = [...sentences(o.ack), ...sentences(o.question)];
   const asked = all.filter(isQuestion);
-  const question = asked.find((q) => !isChoiceQuestion(q) && !isWhyQuestion(q)) ?? FALLBACK_QUESTION;
+  const fallback = (typeof o.missing === "string" && FALLBACK_BY_MISSING[o.missing]) || FALLBACK_QUESTION;
+  const question = asked.find((q) => !isChoiceQuestion(q) && !isWhyQuestion(q)) ?? fallback;
   // 받아주는 말은 ack 칸의 서술문만. question 칸에 섞여 온 서술문("정말 기분 좋았겠네.")은 버린다 —
   // 그건 대개 마무리 인사처럼 쓴 공감이라 질문 앞에 붙이면 말이 길어지고 끝맺는 느낌이 난다.
   // 맞장구("그랬구나.")로 먼저 끄덕이고 아이 말을 또 "~구나" 로 받으면 두 번 끄덕이는 말투가 된다.

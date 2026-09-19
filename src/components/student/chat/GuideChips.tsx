@@ -12,6 +12,7 @@
 // 항상 떠 있으면 말하기 버튼과 비중이 같아져 주객이 바뀐다.
 // 그래서 AI 가 물어본 뒤 잠시 아무 반응이 없을 때만 올라온다.
 import type { Reply } from "../mockScenarios";
+import { hintLines } from "@/lib/chat/hints";
 
 export default function GuideChips({
   hints,
@@ -36,17 +37,20 @@ export default function GuideChips({
 }) {
   if (!selectable) {
     if (!hints.length) return null;
+    const lines = hintLines(hints);
+    // 말풍선·칩으로 두면 누르는 버튼처럼 읽혔다. 이제 문장 하나를 줄마다 나눠
+    // 아래에서 천천히 떠올랐다가 위로 사라지게 차례로 흘려 보여준다(누를 것이 없다).
+    // 화면 읽기 프로그램에는 문장 전체를 한 번에 준다.
     return (
-      <div className="guide-chips">
-        <p className="guide-chips__label">이런 이야기를 해도 좋아요</p>
-        <ul className="guide-chips__row">
-          {/* 생각 풍선 — 누르는 게 아니라 떠 있는 생각이다. 버튼처럼 보이면 아이가 누르려 한다 */}
-          {hints.map((text) => (
-            <li key={text} className="guide-chip guide-chip--hint">
-              {text}
-            </li>
+      <div className="guide-flow" role="note">
+        <span className="sr-only">{lines.join(" ")}</span>
+        <div className="guide-flow__stage" aria-hidden="true" style={{ ["--n" as string]: lines.length }}>
+          {lines.map((line, i) => (
+            <p key={line} className="guide-flow__line" style={{ ["--i" as string]: i }}>
+              {line}
+            </p>
           ))}
-        </ul>
+        </div>
       </div>
     );
   }

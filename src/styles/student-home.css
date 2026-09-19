@@ -202,7 +202,7 @@
 }
 .sh-letter-entering {
   /* 아이 눈으로는 0.78초가 정신없었다. 천천히 꺼내 올린다 */
-  animation: shLetterPullUp 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: shLetterPullUp 2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* 닫기 전후 동일한 좌표계를 유지한다. 클립 바닥 계산은 TeacherLetter 참고. */
@@ -359,15 +359,13 @@
   animation: shHeartStick 0.32s 0.62s cubic-bezier(0.3, 1.5, 0.5, 1) forwards;
 }
 @keyframes shLetterCtaAway { to { opacity: 0; transform: translateY(1cqh); } }
-/* 새싹 — 봉투 쪽(아래)에서 위로 자라난다. 아래를 축으로 세로로 조금 눌린 채 올라오고,
-   아래부터 위로 드러나며(clip-path), 다 자라면 살짝 기지개를 켰다가 자리 잡는다. */
-@keyframes shMorningSprout {
-  /* 옆·아래는 뒤의 빛 무리(sh-intro::before, 위아래 20cqh·좌우 30cqh 넘침)보다 넓게 열어 둔다.
-     inset(0) 으로 끝내면 빛 무리가 영구히 잘린다. */
-  0% { transform: translateY(9cqh) scale(0.92, 0.7); opacity: 0; clip-path: inset(100% -35cqh -25cqh -35cqh); }
-  45% { opacity: 1; }
-  80% { transform: translateY(-0.4cqh) scale(1, 1.02); clip-path: inset(-25cqh -35cqh -25cqh -35cqh); }
-  100% { transform: translateY(0) scale(1); opacity: 1; clip-path: inset(-25cqh -35cqh -25cqh -35cqh); }
+/* 촤라라 — 제목 → 부제 → 버튼이 차례로, 흐릿하게 떠올라 또렷해진다.
+   한 덩어리를 잘라 드러내면 딱딱했다. 줄마다 조금씩 늦게, 흐림이 걷히며 올라와야 흘러나오는 느낌이 난다. */
+@keyframes shMorningGlow { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shMorningCascade {
+  0% { opacity: 0; transform: translateY(2.8cqh); filter: blur(0.6cqh); }
+  60% { filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 .sh-letter-leaving .sh-letter-paper {
   animation: shLetterTuck 0.45s ease-in forwards;
@@ -407,9 +405,15 @@
 }
 .sh-morning-intro-entering > .sh-intro {
   pointer-events: auto;
-  transform-origin: 50% 100%;
-  animation: shMorningSprout 1.6s var(--lt-greet-delay, 1.2s) cubic-bezier(0.25, 0.9, 0.3, 1) both;
+  /* 뒤의 빛 무리까지 함께 천천히 밝아진다 */
+  animation: shMorningGlow 1.4s var(--lt-greet-delay, 1.2s) ease-out both;
 }
+.sh-morning-intro-entering > .sh-intro > * {
+  animation: shMorningCascade 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sh-morning-intro-entering > .sh-intro > :nth-child(1) { animation-delay: var(--lt-greet-delay, 1.2s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(2) { animation-delay: calc(var(--lt-greet-delay, 1.2s) + 0.28s); }
+.sh-morning-intro-entering > .sh-intro > :nth-child(3) { animation-delay: calc(var(--lt-greet-delay, 1.2s) + 0.56s); }
 @media (prefers-reduced-motion: reduce) {
   .sh-letter-entering,
   .sh-letter-leaving .sh-letter-assembly,
@@ -449,24 +453,19 @@
 }
 @media (prefers-reduced-motion: reduce) { .sh-to-checkout { animation: none; transform: translateX(-50%); } }
 
-/* 하교 홈의 "교사 시점으로 전환하기" — 주 버튼보다 한참 조용한 보조 버튼 */
-.sh-switch-teacher {
-  display: inline-flex;
-  align-items: center;
-  padding: 1.2cqh 2.8cqh;
-  border-radius: 999px;
-  border: 0.2cqh solid rgba(108, 99, 255, 0.22);
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--sh-muted);
-  font-size: 2.1cqh;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 0.4cqh 1.2cqh rgba(40, 48, 90, 0.08);
-  backdrop-filter: blur(0.6cqh);
-  transition: background 0.15s, color 0.15s;
+/* 주 버튼 + 보조 버튼을 같은 너비로 한 줄에 */
+.sh-cta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.4cqh;
 }
-.sh-switch-teacher:hover { background: #fff; color: var(--sh-navy); }
-.sh-switch-teacher:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
+.sh-cta-row > .sh-cta { width: 100%; }
+/* 보조 버튼: 같은 모양·크기, 흰 바탕에 보라 글씨 */
+.sh-cta--ghost {
+  background: rgba(255, 255, 255, 0.92);
+  color: #5a52f0;
+  box-shadow: inset 0 0 0 0.25cqh rgba(90, 82, 240, 0.28), 0 0.8cqh 2cqh rgba(60, 68, 110, 0.1);
+}
 
 .sh-profile {
   display: inline-flex;

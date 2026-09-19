@@ -148,7 +148,7 @@
 .chat-bubble--navy-msg { background: #fbfbff; }
 /* 아이 말은 연보라. 화면에서 자기 말이 눈에 먼저 들어오게 한다 */
 .chat-bubble--user {
-  background: #ddd8fb;
+  background: #ebe8fd;
   color: #2f2a63;
   box-shadow: 0 0.6cqh 1.6cqh rgba(96, 88, 200, 0.16);
 }
@@ -342,6 +342,40 @@
   color: #64748b;
 }
 
+/* 힌트 흐름 — 한 문장을 줄마다 나눠 아래에서 떠올랐다가 위로 사라지게 차례로 보여준다.
+   한 줄 3.2초. 모든 줄이 같은 자리에 겹쳐 있고, 각자 제 차례에만 보인다(--i 번째 × 3.2초 지연). */
+.guide-flow {
+  display: flex;
+  justify-content: center;
+  animation: guideRise 0.28s ease-out both;
+}
+.guide-flow__stage {
+  position: relative;
+  width: 100%;
+  height: 4.2cqh;
+  --step: 3.2s;
+}
+.guide-flow__line {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 2.5cqh;
+  font-weight: 600;
+  color: #7a8097;
+  opacity: 0;
+  animation: guideLine calc(var(--step) * var(--n)) ease-in-out calc(var(--step) * var(--i)) infinite both;
+}
+/* 한 바퀴(줄 수 × 3.2초) 중 자기 몫(1/n)만 보인다. 떠오르기·머물기·사라지기를 그 안에서 나눈다.
+   퍼센트는 줄 3개 기준(한 줄 = 33%). 줄 수가 달라도 자연스럽게 겹치지 않을 만큼 여유를 둔다. */
+@keyframes guideLine {
+  0% { opacity: 0; transform: translateY(1.6cqh); }
+  7% { opacity: 1; transform: translateY(0); }
+  24% { opacity: 1; transform: translateY(0); }
+  31% { opacity: 0; transform: translateY(-1.6cqh); }
+  100% { opacity: 0; transform: translateY(-1.6cqh); }
+}
+
 /* 가이드 칩 — 망설일 때만 올라온다 */
 .guide-chips {
   display: flex;
@@ -514,7 +548,11 @@
   .chat-modal__card { animation: none; }
   .chat-bubble--pending span { animation: none; }
   .guide-chips,
-  .guide-chip--hint { animation: none; }
+  .guide-chip--hint,
+  .guide-flow { animation: none; }
+  /* 움직임을 줄이면 흘리지 않고 문장 전체를 한 줄로 보여준다 */
+  .guide-flow__stage { display: none; }
+  .guide-flow .sr-only { position: static; width: auto; height: auto; clip: auto; margin: 0; overflow: visible; white-space: normal; font-size: 2.3cqh; color: #7a8097; text-align: center; }
   .chat-typing span { animation: none; }
 }
 
