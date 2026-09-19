@@ -136,10 +136,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "question이 필요합니다." }, { status: 400 });
   }
 
+  // (2026-09-20 수정) 호출 제한 확인 자체가 실패해도(DB 오류 등) 그냥 통과시키지 않는다 —
+  // AI 호출을 막고, 재시도 가능한 오류(502)로 응답한다. "확인 못 하면 그냥 보내준다"는
+  // 사실상 무제한 호출을 허용하는 것과 같아서 비용 통제 목적에 안 맞는다.
   const rateLimitSubject = await resolveRateLimitSubject(request);
-  const withinLimit = await checkAndIncrementRateLimit(rateLimitSubject, { windowSeconds: 3600, maxCalls: 30 });
-  if (!withinLimit) {
-    return NextResponse.json({ message: "잠시 후 다시 시도해주세요 (요청이 너무 많아요)." }, { status: 429 });
+  try {
+    const withinLimit = await checkAndIncrementRateLimit(rateLimitSubject, { windowSeconds: 3600, maxCalls: 30 });
+    if (!withinLimit) {
+      return NextResponse.json({ message: "잠시 후 다시 시도해주세요 (요청이 너무 많아요)." }, { status: 429 });
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("[teacher-agent] 호출 제한 확인 실패:", detail);
+    return NextResponse.json(
+      { message: "잠시 후 다시 시도해주세요 (일시적인 오류예요)." },
+      { status: 502 },
+    );
   }
   const studentId = typeof body.studentId === "string" && body.studentId.trim() ? body.studentId.trim() : null;
   const requestedDomains = parseDomains(body.domains);
