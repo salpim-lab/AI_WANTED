@@ -151,10 +151,6 @@ export default function TeacherLetter({
             </p>
           ))}
         </div>
-
-        <p className="mt-[1.1cqh] pr-[1.2cqh] text-right text-[2cqh] text-[var(--sh-muted)]">
-          – {data.teacherName} –
-        </p>
       </div>
 
       {/* 봉투 앞판 — 편지지 "앞"(z-3).

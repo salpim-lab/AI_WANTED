@@ -29,7 +29,7 @@ export default function TeacherComment({
           선생님은 민준이가 포기하지 않고 끝까지 해내는 걸 보면 항상 뿌듯해.
           오늘도 그 마음으로 시작해보자! 😊
         </div>
-        <div className="from-name">— 이선생님</div>
+        <div className="from-name">— 선생님</div>
       </div>
 
       <div className="s1-bottom">
