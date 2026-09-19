@@ -29,6 +29,8 @@ function load(file) {
 }
 
 const openers = load('src/lib/chat/openers.ts');
+const hints = load('src/lib/chat/hints.ts');
+const stepUrl = load('src/components/student/useStepUrl.ts');
 const gates = load('src/lib/chat/gates.ts');
 const prosody = load('src/lib/chat/prosody.ts');
 const turn = load('src/lib/chat/chatTurn.ts');
@@ -60,11 +62,67 @@ t('요일이 다르면 문장이 돈다', () => {
   assert.ok(seen.size >= 2, '변주가 없다');
 });
 
+t('등교 첫 질문이 "어제" 로만 한정되지 않는다', () => {
+  // 오늘 아침 일이나 지금 마음도 말할 자리가 있어야 한다
+  const all = Object.values(openers.OPENERS.checkin).flat();
+  const yesterday = all.filter((s) => s.includes('어제')).length;
+  assert.ok(yesterday <= 2, `"어제" 로 묻는 첫 질문이 ${yesterday}개다`);
+});
+
+t('첫 질문 안에서 같은 어미가 잇달아 나오지 않는다', () => {
+  // "빨강이구나. 오늘 하루가 힘들었구나." 는 끄덕임을 두 번 하는 말투라 우스웠다
+  const ending = (x) => (x.match(/(구나|네|보네|싶네|봐|같아|있지)$/) || [''])[0];
+  for (const flow of ['checkin', 'checkout']) {
+    for (const list of Object.values(openers.OPENERS[flow])) {
+      for (const s of list) {
+        const parts = s.split(/[.!?\n,]+/).map((x) => x.replace(/[^가-힣 ]/g, '').trim()).filter(Boolean);
+        for (let i = 1; i < parts.length; i++) {
+          const a = ending(parts[i - 1]), b = ending(parts[i]);
+          const nod = (e) => e === '구나' || e === '네';
+          assert.ok(!(a && b && nod(a) && nod(b)), `어미가 겹친다: ${s}`);
+        }
+      }
+    }
+  }
+});
+
+t('첫 질문은 아이 하루를 짐작해 평가하지 않고, 초록은 힘든 일을 전제하지 않는다', () => {
+  for (const flow of ['checkin', 'checkout']) {
+    for (const [color, list] of Object.entries(openers.OPENERS[flow])) {
+      for (const s of list) {
+        // "괜찮았나 봐" "힘든가 봐" "하루였나 싶네" "안 좋은 것 같아" — 어른이 아이 하루를 매기는 말투
+        assert.ok(!/나 봐|가 봐|나 싶네|것 같아/.test(s), `짐작하는 말투: ${s}`);
+        if (color === 'green') assert.ok(!s.includes('털어놓'), `초록에 "털어놓고": ${s}`);
+      }
+    }
+  }
+});
+
+t('힌트 말풍선이 한 줄로 이어 읽히고, 흐르는 문장은 조사가 받침에 맞는다', () => {
+  assert.deepEqual(hints.bubbleTexts(['지금 마음', '요즘 있었던 일', '하고 싶은 말']), ['지금 마음,', '요즘 있었던 일이나', '하고 싶은 말']);
+  assert.deepEqual(hints.hintLines(['오늘 하루', '지금 마음', '하고 싶은 말']), ['오늘 하루나', '지금 마음이나', '하고 싶은 말을 이야기해도 좋아']);
+});
+
+t('학생 단계와 주소가 서로 맞는다', () => {
+  for (const base of ['/checkin', '/checkout']) {
+    for (let step = 1; step <= 5; step++) {
+      const path = stepUrl.pathForStep(base, step);
+      assert.equal(stepUrl.stepFromPath(base, path), step, `${base} ${step}단계 ↔ ${path}`);
+    }
+  }
+  assert.equal(stepUrl.pathForStep('/checkin', 1), '/checkin');
+  assert.equal(stepUrl.pathForStep('/checkin', 3), '/checkin/talk');
+  // 모르는 주소·끝 슬래시는 홈 / 제대로 읽는다
+  assert.equal(stepUrl.stepFromPath('/checkin', '/checkin/nope'), 1);
+  assert.equal(stepUrl.stepFromPath('/checkout', '/checkout/island/'), 5);
+});
+
 t('남색은 "왜 혼자 있고 싶은지" 를 묻지 않는다', () => {
   for (const flow of ['checkin', 'checkout']) {
     for (const s of openers.OPENERS[flow].navy) {
       assert.ok(!/왜.*혼자|혼자.*왜/.test(s), `남색 문구가 이유를 캐묻는다: ${s}`);
-      assert.ok(/어땠|어떤 하루/.test(s), `남색도 하루를 물어야 한다: ${s}`);
+      // 남색이 도피처가 되지 않게 하루나 지금 마음을 묻는지 본다("어제" 로 한정할 필요는 없다)
+      assert.ok(/어때|어땠|어떻게|어떤 하루/.test(s), `남색도 하루나 마음을 물어야 한다: ${s}`);
     }
   }
 });
@@ -174,6 +232,51 @@ t('sufficient 여도 질문은 남는다 — 첫 턴에 공감만 하고 끝나�
   assert.ok(out.reply.endsWith('?'));
 });
 
+t('받아주는 말에 질문이 섞이거나 선택지로 물으면 선택지 아닌 첫 질문 하나만 남긴다', () => {
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '그렇구나. 기분이 안 좋아진 일이 있었어?', question: '어떤 일이 있어서 그런 기분이 들었어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '그렇구나. 기분이 안 좋아진 일이 있었어?');
+  const b = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나! 그때 마음이 어땠어?', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '피구 했구나! 그때 마음이 어땠어?');
+  // 선택지 질문만 있으면 빠진 조각(마음)에 맞는 질문으로 바꾼다
+  const c = turn.parseChatTurn({ missing: 'feeling', ack: '피구 했구나!', question: '재미있었어, 아니면 다른 기분이었어?', sufficient: false, risk: 'none' });
+  assert.equal(c.reply, '피구 했구나! 그때 마음이 어땠어?');
+});
+
+t('맞장구 뒤에 내용 있는 받아주기가 오면 맞장구를 뗀다', () => {
+  // "그랬구나. 몸이 조금 안 좋구나." 는 두 번 끄덕이는 말투라 어색했다
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '그랬구나. 몸이 조금 안 좋구나.', question: '몸이 안 좋게 된 일이 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '몸이 조금 안 좋구나. 몸이 안 좋게 된 일이 있었어?');
+  // 맞장구 하나뿐이면 그대로 둔다
+  const b = turn.parseChatTurn({ missing: 'situation', ack: '그랬구나.', question: '어떤 일이 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '그랬구나. 어떤 일이 있었어?');
+});
+
+t('이유를 따지는 질문은 걸러낸다', () => {
+  // 걸러낸 뒤에는 빠진 조각에 맞는 질문으로 바꾼다(한 문장 고정이면 맥락이 어긋났다)
+  const a = turn.parseChatTurn({ missing: 'situation', ack: '졸리네.', question: '졸린 이유가 뭐였어?', sufficient: false, risk: 'none' });
+  assert.equal(a.reply, '졸리네. 어떤 일이 있었는지 들려줄래?');
+  // "이유가 있었어?" 처럼 부드럽게 여는 질문은 통과한다
+  const c = turn.parseChatTurn({ missing: 'cause', ack: '피곤하네.', question: '피곤한 이유가 있었어?', sufficient: false, risk: 'none' });
+  assert.equal(c.reply, '피곤하네. 피곤한 이유가 있었어?');
+  // 마음의 계기를 여는 모양은 통과한다
+  const b = turn.parseChatTurn({ missing: 'cause', ack: '화났나 봐.', question: '어떤 일이 있어서 화가 났어?', sufficient: false, risk: 'none' });
+  assert.equal(b.reply, '화났나 봐. 어떤 일이 있어서 화가 났어?');
+});
+
+t('앞 말이 "구나" 로 끝났으면 받아주기의 "구나" 를 "네" 로 바꾼다', () => {
+  const prev = '빨강이구나, 오늘 하루가 힘들었나 싶네.\n학교에서 털어놓고 싶은 일 있어?';
+  assert.equal(turn.avoidRepeatedGuna('친구랑 싸웠구나.', prev), '친구랑 싸웠네.');
+  assert.equal(turn.avoidRepeatedGuna('급식을 맛있게 먹는구나!', prev), '급식을 맛있게 먹네!');
+  assert.equal(turn.avoidRepeatedGuna('마음이 무거웠겠구나.', prev), '마음이 무거웠겠네.');
+  // "구나" 자체는 괜찮다 — 앞 말이 "구나" 가 아니면 그대로 둔다
+  assert.equal(turn.avoidRepeatedGuna('친구랑 싸웠구나.', '그래, 오늘은 그냥 둘게.\n어땠어?'), '친구랑 싸웠구나.');
+});
+
+t('질문을 두 번 하면 첫 질문만 남긴다', () => {
+  const out = turn.parseChatTurn({ missing: 'feeling', ack: '공기놀이 했구나!', question: '그때 마음이 어땠어? 공기놀이 할 때 기분이 어땠어?', sufficient: false, risk: 'none' });
+  assert.equal(out.reply, '공기놀이 했구나! 그때 마음이 어땠어?');
+});
+
 t('질문이 빠지거나 물음표가 없으면 기본 질문으로 바꾼다', () => {
   for (const q of ['', '정말 기분 좋았겠네.', '   ']) {
     const out = turn.parseChatTurn({ ack: '그랬구나.', question: q, sufficient: true, risk: 'none' });
@@ -199,11 +302,15 @@ t('잘못된 응답은 거부한다', () => {
   }
 });
 
-t('종료 문구가 모든 사유에 있다', () => {
-  for (const r of ['sufficient', 'max_turns', 'avoidance']) {
-    assert.ok(gates.CLOSING_MESSAGES[r]);
+t('종료 문구가 모든 사유·등하교에 있고, 아이템 안내가 아니다', () => {
+  for (const flow of ['checkin', 'checkout']) {
+    for (const r of ['sufficient', 'max_turns', 'avoidance']) {
+      const lines = gates.closingLines(r, flow);
+      assert.ok(lines.length >= 1);
+      // 마무리 인사는 안부·응원이어야 한다. "아이템을 만들고 있어" 는 인사로 들리지 않았다
+      assert.ok(lines.every((l) => !l.includes('아이템')), `${flow}/${r}: ${lines.join(' / ')}`);
+    }
   }
-  assert.ok(gates.HANDOFF_MESSAGE.includes('선생님'));
 });
 
 console.log(`PASS: ${n} checks — 첫 질문 변주, 게이트 우선순위, 파생 수치, 요청/응답 계약. 네트워크·키 사용 없음.`);

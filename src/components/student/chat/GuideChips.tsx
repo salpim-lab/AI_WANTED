@@ -12,9 +12,61 @@
 // 항상 떠 있으면 말하기 버튼과 비중이 같아져 주객이 바뀐다.
 // 그래서 AI 가 물어본 뒤 잠시 아무 반응이 없을 때만 올라온다.
 import type { Reply } from "../mockScenarios";
+import { useEffect, useState } from "react";
+import { bubbleTexts, hintLines } from "@/lib/chat/hints";
+
+/** 한 줄이 떠올라 머물다 사라지는 시간 */
+const LINE_MS = 2100;
+
+/**
+ * 힌트를 한 문장으로 이어 한 줄씩 **한 번만** 흘린 뒤, 주제마다 구름 말풍선으로 흩어 둔다.
+ * 계속 흘리면 같은 말이 반복돼 피로했다. 다 흐른 뒤에는 말풍선들이 조용히 떠 있다.
+ * 줄마다 key 를 바꿔 등장 애니메이션을 처음부터 다시 틀게 한다.
+ */
+function HintFlow({ topics, flowFirst }: { topics: string[]; flowFirst: boolean }) {
+  const lines = hintLines(topics);
+  // index: 지금 흘리는 줄. lines.length 에 닿으면 말풍선으로 정리된 상태.
+  // flowFirst 가 false 면(두 번째 턴) 흘리지 않고 곧바로 말풍선이다.
+  const [index, setIndex] = useState(flowFirst ? 0 : lines.length);
+  const settled = index >= lines.length;
+  useEffect(() => {
+    if (settled) return;
+    const id = window.setTimeout(() => setIndex((i) => i + 1), LINE_MS);
+    return () => window.clearTimeout(id);
+  }, [index, settled]);
+
+  if (settled) {
+    // 주제마다 구름 말풍선. 누르는 것이 아니다.
+    return (
+      <div className="guide-chips" role="note">
+        <p className="guide-chips__label">이런 얘기를 해도 좋아</p>
+        <span className="sr-only">{lines.join(" ")}</span>
+        {/* 말풍선끼리 한 줄로 이어 읽히게: "지금 마음," "요즘 있었던 일이나" "하고 싶은 말" */}
+        <ul className="guide-chips__row" aria-hidden="true">
+          {bubbleTexts(topics).map((t) => (
+            <li key={t} className="guide-chip guide-chip--hint">
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <div className="guide-flow" role="note">
+      <span className="sr-only">{lines.join(" ")}</span>
+      <div className="guide-flow__stage" aria-hidden="true">
+        <p key={index} className="guide-flow__line">
+          {lines[index]}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function GuideChips({
   hints,
+  flowFirst = true,
   replies,
   replies2,
   /**
@@ -28,6 +80,8 @@ export default function GuideChips({
 }: {
   /** 주제 힌트. 답변 문장이 아니다 */
   hints: string[];
+  /** 첫 턴에는 문장을 한 줄씩 흘린 뒤 말풍선으로. 두 번째 턴부터는 말풍선만 */
+  flowFirst?: boolean;
   replies: Reply[] | null;
   replies2: { text: string; next2: string }[] | null;
   selectable?: boolean;
@@ -36,18 +90,7 @@ export default function GuideChips({
 }) {
   if (!selectable) {
     if (!hints.length) return null;
-    return (
-      <div className="guide-chips">
-        <p className="guide-chips__label">이런 이야기를 해도 좋아요</p>
-        <ul className="guide-chips__row">
-          {hints.map((text) => (
-            <li key={text} className="guide-chip">
-              {text}
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
+    return <HintFlow topics={hints} flowFirst={flowFirst} />;
   }
 
   if (!replies?.length && !replies2?.length) return null;

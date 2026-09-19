@@ -13,15 +13,21 @@ import {
   findClassStudent,
   getColorHistory,
   getMockAiPreview,
+  getPrecomputedDayAi,
   getStudentDaySessions,
 } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { recordView } from "@/lib/supabase/raw/viewLog";
 
 /** 달력에 보여줄 최근 일수 */
 const CALENDAR_DAYS = 14;
 
-export default async function StudentDetailPage({ params, searchParams }: PageProps<"/students/[id]">) {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export default async function StudentDetailPage(...args: Parameters<typeof StudentDetailPageInMockScope>) {
+  return withTeacherMockFixture(() => StudentDetailPageInMockScope(...args));
+}
+
+async function StudentDetailPageInMockScope({ params, searchParams }: PageProps<"/students/[id]">) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const teacher = await getActingTeacher();
 
@@ -32,10 +38,11 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const requestedDate = dateParam(query.date);
   const date = requestedDate && requestedDate <= today ? requestedDate : today;
 
-  const [sessions, history, preview] = await Promise.all([
+  const [sessions, history, preview, precomputed] = await Promise.all([
     getStudentDaySessions(teacher.classId, student.studentId, date),
     getColorHistory(teacher.classId, student.studentId, today, CALENDAR_DAYS),
     getMockAiPreview(teacher.classId, student.studentId, date),
+    getPrecomputedDayAi(teacher.classId, student.studentId, date),
   ]);
 
   after(() => recordView({ viewerId: teacher.id, entityType: "student_detail", entityId: student.studentId }));
@@ -48,6 +55,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
       sessions={sessions}
       history={history}
       preview={preview}
+      precomputed={precomputed}
     />
   );
 }

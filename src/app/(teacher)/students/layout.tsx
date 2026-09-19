@@ -10,10 +10,15 @@ import { connection } from "next/server";
 import StudentsSplitView from "@/components/teacher/students/StudentsSplitView";
 import { todayKst } from "@/components/shared/datetime";
 import { getSeatingChart } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { getSeatLayout } from "@/lib/supabase/raw/seatLayout";
 
-export default async function StudentsLayout({ children }: LayoutProps<"/students">) {
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export default async function StudentsLayout(...args: Parameters<typeof StudentsLayoutInMockScope>) {
+  return withTeacherMockFixture(() => StudentsLayoutInMockScope(...args));
+}
+
+async function StudentsLayoutInMockScope({ children }: LayoutProps<"/students">) {
   // "오늘" 색은 요청 시각 기준이어야 한다 — 빌드 시점 날짜로 굳지 않게 요청 시 렌더링
   await connection();
   const teacher = await getActingTeacher();

@@ -16,6 +16,7 @@ import "@/styles/teacher-shell-tone.css";
 import TabNav from "@/components/teacher/TabNav";
 import CurrentDate from "@/components/teacher/CurrentDate";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";
+import SalpimLogo from "@/components/shared/SalpimLogo";
 
 export default function TeacherLayout({
   children,
@@ -26,8 +27,9 @@ export default function TeacherLayout({
     <div className="teacher-app">
       <div className="app">
         <header className="app-header">
+          {/* 학생 화면과 같은 로고(글자·얼굴·문구 구성과 비율). components/shared/SalpimLogo */}
           <div className="logo">
-            살<span>핌</span>
+            <SalpimLogo />
           </div>
           <div className="meta">
             <strong>3학년 2반</strong> · <CurrentDate /> · 이선생님

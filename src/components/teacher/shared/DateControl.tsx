@@ -86,7 +86,7 @@ export default function DateControl({
 
   /* 주말도 고를 수 있다. 예전에는 막아 뒀는데(수업일에만 기록이 쌓인다는 이유),
      정작 오늘이 토요일이면 "오늘"을 못 고르고 달력이 금요일에 멈춰 있었다.
-     토·일 글자는 옅게 남긴다 — 고를 수 있지만 수업일이 아니라는 표시다. */
+     주말도 등교일로 친다 (2026-09-19 결정). 토·일 글자는 색만 구분한다. */
   const outOfRange = (key: string) =>
     (maxDate !== undefined && key > maxDate) ||
     (minDate !== undefined && key < minDate);

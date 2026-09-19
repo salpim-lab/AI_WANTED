@@ -9,11 +9,16 @@ import { after } from "next/server";
 import ConsultationReportView from "@/components/teacher/consultation/ConsultationReportView";
 import { dateParam } from "@/components/shared/params";
 import { getConsultationReport } from "@/lib/supabase/queries/teacherStudents";
-import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
+import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import { recordView } from "@/lib/supabase/raw/viewLog";
 import { resolveReportRange } from "../../_lib/reportRange";
 
-export default async function ConsultationReportPage({
+// 목업 범위(withTeacherMockFixture) 안에서 조회·저장한다 — 에이전트·대시보드는 이 범위 밖이라 영향이 없다
+export default async function ConsultationReportPage(...args: Parameters<typeof ConsultationReportPageInMockScope>) {
+  return withTeacherMockFixture(() => ConsultationReportPageInMockScope(...args));
+}
+
+async function ConsultationReportPageInMockScope({
   params,
   searchParams,
 }: PageProps<"/consultation/report/[studentId]">) {

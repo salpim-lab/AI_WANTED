@@ -4,18 +4,23 @@
 // insert만 있다. update/delete 함수를 추가하지 말 것.
 // 서버 전용 — 페이지에서는 next/server의 after() 안에서 호출해 응답을 늦추지 않는다.
 //
-// 지금은 mock 저장소(_mockTeacherData.ts) 구현이다. Supabase 연결 시 view_log insert로 교체한다.
+// Supabase 연결 (2026-09-19). entity_id는 DB student_id, viewer_id는 DB 교사 id로 바꿔 저장한다 (recordDb).
+// viewed_at은 DB default now().
 
-import { mockStore } from "./_mockTeacherData";
+import { dbTeacherId, MOCK_TEACHER, recordDb } from "./_mockTeacherData";
 
 export type ViewEntityType = "student_detail" | "consultation_report";
 
 export async function recordView(input: { viewerId: string; entityType: ViewEntityType; entityId: string }): Promise<void> {
-  mockStore().viewLog.push({
-    id: crypto.randomUUID(),
-    viewer_id: input.viewerId,
+  // 열람 대상은 모두 아이(student_id)다. 앱이 아는 학급은 아직 mock 교사의 학급 하나뿐이다
+  const db = await recordDb(MOCK_TEACHER.classId);
+  const studentId = db?.dbStudentOf.get(input.entityId);
+  if (!db || !studentId) throw new Error(`열람 기록 대상 학생을 찾을 수 없습니다: ${input.entityId}`);
+
+  const { error } = await db.client.from("view_log").insert({
+    viewer_id: dbTeacherId(db, input.viewerId),
     entity_type: input.entityType,
-    entity_id: input.entityId,
-    viewed_at: new Date().toISOString(),
+    entity_id: studentId,
   });
+  if (error) throw error;
 }

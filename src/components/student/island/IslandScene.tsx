@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CARRY_HEIGHT, CARRY_WIDTH, CHARACTER_MODEL_HEIGHT, createChildCharacter, LIFT_GRAB, liftRise, createPopBurst, type ChildCharacter } from "./character";
@@ -19,12 +19,14 @@ import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementPropo
 
 type Props = {
   mode: ViewMode;
+  /** Checkout (하교) turns the sky and light to sunset. */
+  sunset?: boolean;
   gifts: IslandGift[];
   incomingAsset?: Pick<IslandGift, "name" | "assetFormat" | "geometrySpec">;
   /** Today's item is generated: it drops in front of the character. */
   itemReady?: boolean;
-  /** Why today's item was made; a bubble shows it beside the dropped item. */
-  itemReason?: string;
+  /** Bubble beside the dropped item: its name, why it was made, and the place button. */
+  itemBubble?: ReactNode;
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
@@ -77,6 +79,9 @@ const POP_OVERSHOOT = 2.165;
 const DROP_MS = 800;
 const LIFT_MS = 1400;
 const PUT_DOWN_MS = 1500;
+// The first share of the put-down is a walk to the side, still holding the item up; the rest bends and sets it down.
+const PUT_DOWN_STEP = 0.3;
+const putDownLower = (progress: number) => Math.max(0, (progress - PUT_DOWN_STEP) / (1 - PUT_DOWN_STEP));
 // Once grabbed, it settles into the hands over this share of the lift.
 const GRAB_SETTLE = 0.2;
 const UPRIGHT = new THREE.Quaternion();
@@ -111,10 +116,11 @@ const CLASSROOM_SPACING = 33;
 
 export default function IslandScene({
   mode,
+  sunset = false,
   gifts,
   incomingAsset,
   itemReady = false,
-  itemReason,
+  itemBubble,
   selected,
   proposal,
   phase,
@@ -270,9 +276,9 @@ export default function IslandScene({
 
     // Hemisphere + a warm ambient floor keep shaded rock mid-toned instead of green-black.
     // Warm late-morning sun over a soft sky/earth bounce; shadows stay soft.
-    scene.add(new THREE.HemisphereLight("#cdeaf5", "#9a7550", 1.15));
-    scene.add(new THREE.AmbientLight("#fff1dc", 0.38));
-    const sunlight = new THREE.DirectionalLight("#ffd8a3", 2.7);
+    scene.add(new THREE.HemisphereLight(sunset ? "#f4b39a" : "#cdeaf5", sunset ? "#7a4a52" : "#9a7550", 1.15));
+    scene.add(new THREE.AmbientLight(sunset ? "#ffd2b0" : "#fff1dc", 0.38));
+    const sunlight = new THREE.DirectionalLight(sunset ? "#ff9a55" : "#ffd8a3", 2.7);
     sunlight.castShadow = true;
     sunlight.shadow.mapSize.set(2048, 2048);
     const islandSize = Math.max(islandBox.getSize(new THREE.Vector3()).x, islandBox.getSize(new THREE.Vector3()).z);
@@ -294,7 +300,7 @@ export default function IslandScene({
     scene.add(sunlight, sunlight.target);
 
     // Soft sky bounce from the viewer's lower right keeps the hanging rock readable.
-    const fill = new THREE.DirectionalLight("#bfe0ee", 0.6);
+    const fill = new THREE.DirectionalLight(sunset ? "#c98bb5" : "#bfe0ee", 0.6);
     const fillOffset = new THREE.Vector3(6, -3.5, 9);
     fill.target.position.copy(target);
     scene.add(fill, fill.target);
@@ -365,9 +371,6 @@ export default function IslandScene({
       lift?: { start: number; from: THREE.Vector3; carryScale: number; carryHeight: number; grabbed?: { position: THREE.Vector3; rotation: THREE.Quaternion; scale: number } };
     } | null = null;
     let characterBaseY = initialCharacterPosition.y;
-    // The reason bubble: the zoom it first showed at, and whether it's gone for good.
-    let reasonZoom: number | null = null;
-    let reasonDismissed = false;
     // Clicks and the bubble wait until the pop-in has landed.
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
@@ -494,7 +497,6 @@ export default function IslandScene({
 
     function startLift() {
       if (!character || !item) return;
-      reasonDismissed = true;
       character.setPose("carrying");
       item.drop = undefined;
       item.object.visible = true;
@@ -823,8 +825,13 @@ export default function IslandScene({
         const inside = home.localToWorld(localDoor.clone().add(new THREE.Vector3(0, 0, -0.65)));
         // With decorations ignored, head directly to the doorstep, without a yard detour.
         const route = findWalkingPath({ ...pieceLandscape, canWalk: pieceLandscape.canWalkHome }, displayedCoordinates.fromDisplayedWorld(current.root.position), displayedCoordinates.fromDisplayedWorld(threshold), radius);
-        if (!route) { homeCallbacksRef.current.onHomeBlocked(); return; }
-        const points = route.slice(1).map((p) => displayedCoordinates.toDisplayedWorld(p, pieceLandscape.walkHeightAt(p.x, p.z) + 0.02));
+        if (!route) {
+          // No walkable way home: pop straight onto the doorstep and carry on from there.
+          current.root.position.copy(threshold);
+          characterBaseY = threshold.y;
+          placementNoticeCallbackRef.current("길이 막혀서 순간 이동 했어!");
+        }
+        const points = route ? route.slice(1).map((p) => displayedCoordinates.toDisplayedWorld(p, pieceLandscape.walkHeightAt(p.x, p.z) + 0.02)) : [threshold.clone()];
         points[points.length - 1].copy(threshold);
         let length = 0;
         points.reduce((a, b) => { length += Math.hypot(b.x - a.x, b.z - a.z); return b; }, current.root.position);
@@ -865,22 +872,31 @@ export default function IslandScene({
       render();
     }
 
-    // Guidance is a fixed overlay card; only the item's reason follows the scene,
-    // to the left of the item while it rests on the ground.
+    // The item bubble follows the scene, to the left of the item while it rests
+    // on the ground; it holds the place button, so it stays inside the view.
     function updateBubble() {
       const bubble = reasonBubbleRef.current;
       if (!bubble) return;
       const onGround = !!item && !classroom && item.object.parent === scene && item.object.visible
         && !item.drop && !item.lift && stateRef.current.phase === "ready";
-      // Shown once, from the landing until the pick-up; zooming out dismisses it for good.
-      if (onGround && reasonZoom === null) reasonZoom = camera.zoom;
-      if (reasonZoom !== null && camera.zoom < reasonZoom * 0.95) reasonDismissed = true;
-      const show = onGround && !reasonDismissed;
-      bubble.style.display = show ? "" : "none";
-      if (!show) return;
-      const rect = projectedBoxRect(new THREE.Box3().setFromObject(item!.object), camera, canvas.clientWidth, canvas.clientHeight);
-      bubble.style.left = `${rect.left - 10}px`;
-      bubble.style.top = `${(rect.top + rect.bottom) / 2}px`;
+      // While confirming, the same bubble asks beside the character holding the item.
+      const anchor = onGround ? item!.object : !classroom && stateRef.current.phase === "confirming" ? character?.root : undefined;
+      bubble.style.display = anchor ? "" : "none";
+      if (!anchor) return;
+      const rect = projectedBoxRect(new THREE.Box3().setFromObject(anchor), camera, canvas.clientWidth, canvas.clientHeight);
+      // Confirming: centred above the character (tail down); otherwise left of the item (tail right).
+      const above = !onGround;
+      bubble.dataset.tail = above ? "" : "left";
+      bubble.style.translate = above ? "-50% -100%" : "";
+      if (above) {
+        const halfWidth = bubble.offsetWidth / 2;
+        bubble.style.left = `${THREE.MathUtils.clamp((rect.left + rect.right) / 2, halfWidth + 8, canvas.clientWidth - halfWidth - 8)}px`;
+        bubble.style.top = `${Math.max(rect.top - 12, bubble.offsetHeight + 8)}px`;
+        return;
+      }
+      const halfHeight = bubble.offsetHeight / 2;
+      bubble.style.left = `${THREE.MathUtils.clamp(rect.left - 10, bubble.offsetWidth + 8, canvas.clientWidth - 8)}px`;
+      bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
     }
 
     function render() {
@@ -949,7 +965,7 @@ export default function IslandScene({
       if (character) {
         const root = character.root;
         const seconds = calm ? 0 : now / 1000;
-        character.setLift(settingDown ? 1 - Math.min((now - settingDown.start) / (calm ? 350 : PUT_DOWN_MS), 1) : liftProgress(now));
+        character.setLift(settingDown ? 1 - putDownLower(Math.min((now - settingDown.start) / (calm ? 350 : PUT_DOWN_MS), 1)) : liftProgress(now));
         character.setDoorReach(0);
         character.setRunning(!calm && !!(activeWalk?.run || (homecoming?.stage === "walking" && homecoming.run)));
         if (entrance) {
@@ -975,17 +991,23 @@ export default function IslandScene({
         } else if (settingDown && item) {
           const motion = settingDown;
           const progress = Math.min((now - motion.start) / (calm ? 350 : PUT_DOWN_MS), 1);
-          const reverse = 1 - progress;
-          const retreat = easeInOutCubic(Math.min(progress / 0.45, 1));
+          const reverse = 1 - putDownLower(progress);
+          const stepping = progress < PUT_DOWN_STEP;
+          const retreat = easeInOutCubic(Math.min(progress / PUT_DOWN_STEP, 1));
           root.position.lerpVectors(motion.from, motion.stand, retreat);
           const ground = displayedCoordinates.fromDisplayedWorld(root.position);
           characterBaseY = pieceLandscape.walkHeightAt(ground.x, ground.z) + 0.02;
-          root.position.y = characterBaseY;
+          // Real steps while sidestepping, so the feet do not skate.
+          const stride = stepping && !calm ? Math.sin(progress * PUT_DOWN_MS / 1000 * 12) : 0;
+          root.position.y = characterBaseY + Math.abs(stride) * characterScale * 0.08;
           // Ease the view along the side step, so the walk home starts already centred.
           centreOn(new THREE.Vector3(root.position.x, characterBaseY + characterScale * CHARACTER_MODEL_HEIGHT / 2, root.position.z),
             calm ? 1 : 1 - Math.exp(-6 * deltaSeconds));
-          root.rotation.y = Math.atan2(motion.to.x - motion.stand.x, motion.to.z - motion.stand.z);
-          character.animate(seconds, 0);
+          // Face the way it steps, then turn to the item to bend over it.
+          const step = Math.atan2(motion.stand.x - motion.from.x, motion.stand.z - motion.from.z);
+          const toItem = Math.atan2(motion.to.x - motion.stand.x, motion.to.z - motion.stand.z);
+          root.rotation.y = stepping && motion.stand.distanceTo(motion.from) > 1e-3 ? step : toItem;
+          character.animate(seconds, stride);
           const object = item.object;
           if (reverse > LIFT_GRAB) {
             object.position.set(0, THREE.MathUtils.lerp(-motion.height / 2, GRIP_OFFSET.y, liftRise(reverse)), 0);
@@ -1704,17 +1726,27 @@ export default function IslandScene({
     runtimeRef.current?.setCharacterState(phase, proposal);
   }, [proposal, phase, mode]);
 
+  const bubbleContent = mode === "island" && phase === "confirming" ? <>
+    <p className="text-[14px] font-bold tracking-[-0.35px] break-keep">여기로 정할까?</p>
+    <p className="mt-0.5 break-keep">정하면 수정 못 해!</p>
+    <button onClick={onConfirm} className="mt-2 h-[30px] w-full rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white">확정하기</button>
+  </> : itemBubble;
+
+  // A bubble mounted while the scene is idle still needs a frame to be placed.
+  const hasItemBubble = !!bubbleContent;
+  useEffect(() => { if (hasItemBubble) runtimeRef.current?.render(); }, [hasItemBubble, phase]);
+
   useEffect(() => {
     itemReadyRef.current = itemReady;
     runtimeRef.current?.syncItem();
   }, [itemReady]);
 
   // Only choices that need a tap live here; progress messages are in IslandExperience's top notice.
-  const bubbleVisible = mode === "island" && (phase === "confirming" || phase === "farewell");
+  const bubbleVisible = mode === "island" && phase === "farewell";
 
   return <div
     ref={hostRef}
-    className="absolute inset-0 bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)] [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]"
+    className={`absolute inset-0 ${sunset ? "bg-[linear-gradient(180deg,#5b5a9c_0%,#c9739a_38%,#f6a06b_72%,#ffd59a_100%)]" : "bg-[linear-gradient(180deg,#9fd3ea_0%,#c9e8f0_52%,#e4f3ec_100%)]"} [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:h-full [&_canvas]:w-full [&_canvas]:touch-none [&_canvas]:outline-offset-[-4px]`}
     style={{ cursor: selected && (phase === "choosing" || phase === "confirming") ? "crosshair" : "grab" }}
   >
     {bubbleVisible && <div
@@ -1723,24 +1755,20 @@ export default function IslandScene({
       role="status"
       aria-live="polite"
     >
-      {phase === "confirming" && <>
-        <div className="min-w-0 flex-1"><p className="text-[15px] font-bold tracking-[-0.35px]">여기로 정할까?</p><p className="text-[12px] text-[#7d849b]">정하면 수정 못 해!</p></div>
-        <button onClick={onConfirm} className="h-[30px] shrink-0 rounded-full bg-[#5a52f0] px-2 text-[12px] font-semibold text-white">확정하기</button>
-      </>}
       {phase === "farewell" && <>
         <div className="min-w-0 flex-1"><p className="text-[15px] font-bold text-[#5a52f0]">집으로 가는 길을 찾지 못했어</p><p className="text-[12px] text-[#7d849b]">다시 한 번 시도해 줘.</p></div>
         <button onClick={onRetryHome} className="h-[30px] shrink-0 rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white">다시 집으로 가기</button>
       </>}
     </div>}
 
-    {itemReason && <div
+    {bubbleContent && <div
       ref={reasonBubbleRef}
-      className="island-bubble pointer-events-none absolute z-20 max-w-[180px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
+      className="island-bubble absolute z-20 w-max max-w-[220px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
       data-tail="left"
       style={{ display: "none" }}
       role="status"
     >
-      {itemReason}
+      {bubbleContent}
       <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-white/70 bg-white/55" />
     </div>}
 

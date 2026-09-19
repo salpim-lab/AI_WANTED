@@ -222,16 +222,35 @@ function house(variant: number, entrance = false) {
   } else model.add(box(0.05), s.walls, [0, base + s.wall / 2, 0], [w, s.wall, d]);
   for (const x of [-1, 1]) for (const z of [-1, 1]) model.add(box(0.02), s.beams, [x * w / 2, base + s.wall / 2, z * d / 2], [0.12, s.wall, 0.12]);
   model.add(box(0.02), s.beams, [0, top - 0.04, d / 2], [w, 0.09, 0.1]);
-  // Gable prism in wall colour, then two roof slabs with a generous overhang.
+  // Gable prism in wall colour, a thin roof deck, then overlapping shingle
+  // courses tilted a touch steeper so each lower edge lifts into a lip.
   const gable = new THREE.Shape();
   gable.moveTo(-d / 2, 0); gable.lineTo(d / 2, 0); gable.lineTo(0, s.rise); gable.closePath();
   model.add(new THREE.ExtrudeGeometry(gable, { depth: w, bevelEnabled: false }).translate(0, 0, -w / 2), s.walls, [0, top, 0], [1, 1, 1], [0, Math.PI / 2, 0]);
   const halfSpan = s.depth / 2 + 0.12, rise = s.rise + 0.1;
   const angle = Math.atan2(rise, halfSpan), slab = Math.hypot(rise, halfSpan) + 0.05;
+  const roofWidth = s.width + 0.3, courses = Math.max(4, Math.round(slab / 0.17)), course = slab / courses;
+  const roofDark = new THREE.Color(s.roof).multiplyScalar(0.72);
+  const random = seededRandom(809 + variant);
+  const tiles = Math.max(4, Math.round(roofWidth / 0.3)), tile = roofWidth / tiles;
   for (const side of [-1, 1]) {
-    model.add(box(0.05), s.roof, [0, top - 0.02 + rise / 2, side * halfSpan / 2], [s.width + 0.3, 0.14, slab], [side * angle, 0, 0]);
+    const cy = top - 0.02 + rise / 2, cz = side * halfSpan / 2;
+    const down = [-Math.sin(angle), side * Math.cos(angle)], up = [Math.cos(angle), side * Math.sin(angle)];
+    model.add(cube, roofDark, [0, cy, cz], [roofWidth - 0.04, 0.06, slab], [side * angle, 0, 0]);
+    for (let k = 0; k < courses; k++) {
+      const t = -slab / 2 + (k + 0.5) * course, lift = 0.06;
+      const y = cy + t * down[0] + lift * up[0], z = cz + t * down[1] + lift * up[1];
+      // Staggered, slightly uneven tiles with small gaps that show the dark deck.
+      for (let j = k % 2 ? -0.5 : 0; j < tiles; j++) {
+        const x0 = Math.max(0, j) * tile, x1 = Math.min(tiles, j + 1) * tile;
+        const shade = new THREE.Color(s.roof).multiplyScalar(0.92 + random() * 0.16);
+        model.add(box(0.02), shade, [-roofWidth / 2 + (x0 + x1) / 2, y, z], [x1 - x0 - 0.025, 0.06, course * 1.35], [side * (angle + 0.12), 0, (random() - 0.5) * 0.04]);
+      }
+    }
+    // Barge boards trim both gable ends so the roof reads as built, not a plank.
+    for (const x of [-1, 1]) model.add(box(0.02), s.beams, [x * (roofWidth / 2 + 0.02), cy + 0.03 * up[0], cz + 0.03 * up[1]], [0.07, 0.16, slab + 0.04], [side * angle, 0, 0]);
   }
-  model.add(box(0.03), s.beams, [0, top + rise + 0.02, 0], [s.width + 0.34, 0.1, 0.12]);
+  model.add(box(0.04), s.beams, [0, top + rise + 0.05, 0], [roofWidth + 0.08, 0.14, 0.2]);
   // Door, windows and a little porch step.
   if (!entrance) model.add(box(0.03), "#8a4f2c", [w * 0.18, base + 0.42, d / 2 + 0.03], [0.46, 0.8, 0.06]);
   if (!entrance) model.add(new THREE.SphereGeometry(0.035, 6, 4), "#f2c54e", [w * 0.18 + 0.14, base + 0.42, d / 2 + 0.07]);
