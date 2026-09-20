@@ -110,7 +110,7 @@
 - [ ] **`DEMO_MODE=true` 확인** — 정확히 문자열 `true`. 없으면 격리·`/api/demo/init`·공용 섬이 모두 꺼진다.
 - [ ] **Supabase·AI 환경변수를 배포 전에 등록** — `NEXT_PUBLIC_*`는 빌드 때 고정된다(변경하면 재배포).
 - [ ] **Preview는 Deployment Protection 유지** (끄지 않는다).
-- [ ] **Production 공개 전에 `/item-lab/*` 차단** — 현재 프로덕션 빌드에서도 페이지가 열린다(`/item-lab`, `/pipeline`, `/village`, `/wait`, `/minjun-island`, `/demo-island-preview`). 404 처리(`notFound()`) 또는 인증/접근 제한. **이번 작업에서는 구현하지 않았다.**
+- [x] **Production 공개 전에 `/item-lab/*`·`/island` 차단 — ✅ 완료(2026-09-20)**: `src/app/item-lab/layout.tsx`·`src/app/island/layout.tsx`가 `NODE_ENV=production`에서 `notFound()`(로컬 `next dev`에서만 열림, Preview도 404). `next start`로 `/island`·`/item-lab`·`/item-lab/village`·`/item-lab/pipeline` 404, `/api/island` 200 확인. `/api/island`는 실제 섬 화면이 쓰므로 막지 않는다. 학생 등교 홈의 '섬 화면 테스트하기' 버튼도 제거. (아래는 차단 전 상황 기록 — `/item-lab`, `/pipeline`, `/village`, `/wait`, `/minjun-island`, `/demo-island-preview`). 404 처리(`notFound()`) 또는 인증/접근 제한. **이번 작업에서는 구현하지 않았다.**
 - [ ] **`/api/dev/*`가 Production에서 404인지 확인** — 라우트 5개(`login`, `reset-today`, `item-inference`, `demo-placements`, `demo-island-preview`)는 `NODE_ENV=production`에서 404(`demo-island-preview`는 `DEMO_ISLAND_PREVIEW=1`이면 열리므로 **그 변수 미설정**). 현재 확인은 Preview의 `/api/dev/login`뿐(§10).
 - [ ] **Turnstile/CAPTCHA 구현·설정·검증** — 코드는 있다(`/demo-init`이 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`가 있으면 위젯 사용). **미활성, 브라우저 쪽(위젯 렌더→토큰→로그인) 미검증.** 순서 규칙: **① Cloudflare Turnstile 위젯 생성(도메인: 실제 Production 도메인·localhost) → ② 사이트 키를 Vercel에 등록한 배포를 먼저 완료 → ③ Supabase Anonymous Sign-Ins는 켠 상태로 Authentication → Attack Protection → CAPTCHA를 켜고 시크릿 키 입력(시크릿은 **앱/Vercel이 아니라 Supabase 대시보드에만**).** 순서를 뒤집으면 **모든 방문자의 로그인이 실패**한다. 캡차를 켜면 서버 밖 익명 로그인이 막혀 **`test:demo-ab`·라이브 REST 스크립트는 캡차 꺼진 환경 전제라 그대로는 못 돌린다**(캡차 켠 뒤의 검증 방법은 별도로 정할 것).
 - [ ] **실제 Production 도메인 설정** (현재 없음 — §10).
@@ -187,7 +187,7 @@
 2. **GitHub `main` 연결**(먼저 Vercel GitHub 앱의 저장소 접근 권한 부여). 환경변수를 등록하기 **전에** 연결하면 변수 없는 자동 빌드가 생길 수 있으니 3번 뒤에 연결해도 된다.
 3. **Preview/Production 환경변수 구분 등록**(§5).
 4. **Deployment Protection 설정**(Preview 보호 유지 + Production 공개 정책 결정).
-5. **`/item-lab/*` 차단과 CAPTCHA 코드 반영**(P0. 캡차는 순서 규칙 준수).
+5. **CAPTCHA 코드 반영**(P0. 캡차는 순서 규칙 준수). `/item-lab/*`·`/island` 차단은 코드 반영 완료.
 6. **타입체크·린트·빌드·비파괴 테스트**(§7).
 7. **Preview 배포**.
 8. **Preview 스모크**(§8의 항목을 Preview 도메인에서).
@@ -240,7 +240,7 @@
 - [ ] **교사 화면 공용 시드와 개인 데이터 구분**(공용 기록은 둘 다, 개인 기록은 본인에게만).
 - [ ] **`/api/island` 응답 위생**(`name`·모양·좌표·`locked` 외 세션·job·발화 정보 없음).
 - [ ] **`/api/dev/*` 404**(`login`, `reset-today`, `item-inference`, `demo-placements`, `demo-island-preview` 각각).
-- [ ] **`/item-lab/*` 차단**(404 또는 인증).
+- [x] **`/item-lab/*`·`/island` 차단**(코드 반영 완료 — 배포본에서 404 재확인만).
 - [ ] **CAPTCHA 정상·실패·우회 시도**(토큰 없이 익명 로그인 시도가 거부되는지 포함).
 - [ ] **AI 호출 제한 및 폴백**(teacher-agent 30회/시간 429, 한도·키 문제 시 폴백 동작).
 - [ ] **오류 로그와 비용 증가 확인**(Vercel Runtime Logs, OpenAI·Anthropic 사용량).
