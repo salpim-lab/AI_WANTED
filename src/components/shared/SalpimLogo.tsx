@@ -4,49 +4,39 @@ import Image from "next/image";
 
 export default function SalpimLogo({
   size = 26,
-  tagline = true,
-  taglineSize,
-  gap,
 }: {
   /** 로고 본체 높이. 학생 스테이지에서는 cqh 단위를 쓴다. */
   size?: number | string;
-  tagline?: boolean;
-  taglineSize?: number | string;
-  gap?: number | string;
 }) {
   const unit = typeof size === "number" ? `${size}px` : size;
-  const textSize = taglineSize ?? (typeof size === "number" ? Math.max(11, Math.round(size * 0.375)) : `calc(${unit} * 0.375)`);
 
   return (
-    <div className="flex items-center" style={{ gap: gap ?? `calc(${unit} * 0.63)` }}>
-      <span className="relative block shrink-0 overflow-hidden" style={{ width: `calc(${unit} * 2.25)`, height: unit }}>
-        <Image
-          src="/brand/salpim-logo.png"
-          alt="살핌"
-          width={1536}
-          height={1024}
-          sizes="(max-width: 600px) 180px, 240px"
-          priority
-          className="absolute max-w-none"
-          style={{ width: `calc(${unit} * 3)`, height: "auto", left: `calc(${unit} * -0.4)`, top: `calc(${unit} * -0.5)` }}
-        />
+    <div className="flex items-center">
+      {/* 캐릭터 + 워드마크: 각 PNG의 투명 여백을 잘라내고, 둘 사이는 살짝만 띄운다. */}
+      <span className="flex shrink-0 items-center" style={{ gap: `calc(${unit} * 0.12)` }}>
+        <span className="relative block shrink-0 overflow-hidden" style={{ width: `calc(${unit} * 0.99)`, height: `calc(${unit} * 1.075)` }}>
+          <Image
+            src="/brand/salpim-signal-character.png"
+            alt=""
+            width={1254}
+            height={1254}
+            priority
+            className="absolute max-w-none"
+            style={{ width: "137.6%", height: "auto", left: "-18.9%", top: "-15.1%" }}
+          />
+        </span>
+        <span className="relative block shrink-0 overflow-hidden" style={{ width: `calc(${unit} * 1.555)`, height: `calc(${unit} * 0.804)` }}>
+          <Image
+            src="/brand/salpim-wordmark.png"
+            alt="살핌"
+            width={1774}
+            height={887}
+            priority
+            className="absolute max-w-none"
+            style={{ width: "147.8%", height: "auto", left: "-25.5%", top: "-29.7%" }}
+          />
+        </span>
       </span>
-      {tagline && (
-        <p
-          style={{
-            margin: 0,
-            fontSize: textSize,
-            fontWeight: 500,
-            lineHeight: 1.45,
-            color: "var(--sh-muted, #7d849b)",
-            whiteSpace: "nowrap",
-          }}
-        >
-          오늘도,
-          <br />
-          너의 마음을 들어요
-        </p>
-      )}
     </div>
   );
 }

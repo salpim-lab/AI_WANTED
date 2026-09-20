@@ -487,7 +487,13 @@
   gap: 3cqh;
   text-align: center;
 }
-.item-prep__face { width: 12cqh; height: 12cqh; }
+.item-prep__face { display: block; width: 28cqh; height: 28cqh; }
+.item-prep__character {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .item-prep__title {
   margin: 0 0 1.2cqh;
   font-family: var(--font-cute), var(--font-sans-kr), sans-serif;

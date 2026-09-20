@@ -21,6 +21,7 @@ import StudentHomeButton from "@/components/student/home/StudentHomeButton";
 import MoodPicker from "@/components/student/mood/MoodPicker";
 import ChatScreen from "@/components/student/chat/ChatScreen";
 import ItemPreparation from "@/components/student/ItemPreparation";
+import { ITEM_CATALOG } from "@/lib/items/itemCatalog";
 import type { Item } from "@/components/student/mockScenarios";
 
 export default function CheckinPage() {
@@ -38,6 +39,13 @@ export default function CheckinPage() {
     [flow.messages.length, flow.sessionId, flow.item],
   );
   const { back } = useStepUrl({ base: "/checkin", step: flow.step, goTo, canShow: canShowStep });
+  // 섬 화면 테스트용 — 대화·아이템 준비를 건너뛰고 카탈로그 아이템 하나로 바로 섬에 들어간다.
+  const [testItem, setTestItem] = useState<Item | null>(null);
+  const enterTestIsland = () => {
+    const pick = ITEM_CATALOG[Math.floor(Math.random() * ITEM_CATALOG.length)];
+    setTestItem({ emoji: "🎁", name: pick.displayName, reason: "섬 화면 테스트용 아이템이야. ".repeat(3).trim(), geometrySpec: pick.spec });
+  };
+
   // 섬 배치를 마치면 잠시 안내를 띄우고 하교 화면으로 넘긴다.
   // 공개 링크로 들어온 사람이 등교 → 섬 → 하교를 한 흐름으로 겪게 하려는 것이다(2026-09-19).
   const router = useRouter();
@@ -76,7 +84,8 @@ export default function CheckinPage() {
   // 홈 버튼: 서비스 첫 화면(학생/교사 고르는 페이지)으로 나간다
   const goHome = useCallback(() => router.push("/"), [router]);
 
-  // 섬 배치를 마친 뒤 하교로 넘어가는 장면.
+  // 섬 배치를 마친 뒤 하교로 넘어가는 장면. 섬 테스트 경로에서도 같은 장면을 보여준다
+  // — 빠져 있으면 장면 없이 갑자기 하교 화면으로 바뀌었다.
   const checkoutHandOff = toCheckout && (
     <div className="sh-to-checkout" role="status" aria-live="polite">
       <p className="sh-cute">오늘 아침 이야기 고마워!</p>
@@ -84,8 +93,24 @@ export default function CheckinPage() {
     </div>
   );
 
+  if (testItem) {
+    return (
+      <>
+        {/* 대기(아이템 준비) 화면을 먼저 보여 준 뒤 섬으로 넘어간다. sessionId가 없으면 시간만 흐르는 시연 모드다. */}
+        <ItemPreparation flow="checkin" sessionId={null} item={testItem} onReady={() => {}} onIslandComplete={goToCheckout} />
+        {checkoutHandOff}
+        {!toCheckout && <StudentHomeButton onHome={goHome} />}
+      </>
+    );
+  }
+
   return (
     <>
+      {flow.step === 1 && (
+        <button type="button" onClick={enterTestIsland} style={{ position: "fixed", right: 16, bottom: 16, zIndex: 100, padding: "8px 14px", borderRadius: 999, border: "1px solid #ccc", background: "#fff", fontSize: 14 }}>
+          섬 화면 테스트하기
+        </button>
+      )}
       <StudentHome
         mode="morning"
         active={flow.step === 1}

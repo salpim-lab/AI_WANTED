@@ -29,7 +29,6 @@ const gaegu = Gaegu({
 
 export const metadata: Metadata = {
   title: "살핌",
-  description: "오늘도, 너의 마음을 들어요",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

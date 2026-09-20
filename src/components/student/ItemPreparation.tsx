@@ -1,23 +1,23 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ISLAND_ITEM_WAIT_MS, pollItemGeneration, requestItemGeneration, type ItemGenerationJobState } from "@/lib/items/itemGenerationClient";
 import type { Item } from "./mockScenarios";
 import { preloadIsland } from "./island/preloadIsland";
 import IslandBoard from "./IslandBoard";
-import SalpimFace from "./SalpimFace";
 import SalpimHeader from "./home/SalpimHeader";
 import StudentProfile from "./home/StudentProfile";
 
 const MESSAGE_CHANGE_MS = 2_000;
 const DEMO_ISLAND_WAIT_MS = 15_000;
 const PREPARATION_MESSAGES = [
-  ["오늘 이야기, 잘 들었어!", "네 이야기를 담을 아이템을 준비할게."],
-  ["어떤 아이템이 어울릴까?", "오늘 가장 기억에 남는 순간을 떠올려 봐."],
-  ["이야기가 아이템이 되는 중!", "섬에 놓으면 오늘을 다시 기억할 수 있어."],
-  ["아이템은 어디에 놓을까?", "마당도 좋고, 나무 옆도 좋겠다."],
-  ["이제 섬으로 가 볼까?", "아이템이 준비되는 동안 섬을 먼저 둘러보자."],
-  ["섬에서 조금 더 기다려 줘", "아이템 준비가 끝나면 알려줄게."],
+  { title: "오늘 이야기, 잘 들었어!", sub: "네 이야기를 담을 아이템을 준비할게.", image: "/brand/salpim-signal-character.png" },
+  { title: "어떤 아이템이 어울릴까?", sub: "오늘 가장 기억에 남는 순간을 떠올려 봐.", image: "/brand/salpim-wait-thinking.png" },
+  { title: "이야기가 아이템이 되는 중!", sub: "섬에 놓으면 오늘을 다시 기억할 수 있어.", image: "/brand/salpim-wait-star.png" },
+  { title: "아이템은 어디에 놓을까?", sub: "마당도 좋고, 나무 옆도 좋겠다.", image: "/brand/salpim-wait-gift.png" },
+  { title: "이제 섬으로 가 볼까?", sub: "아이템이 준비되는 동안 섬을 먼저 둘러보자.", image: "/brand/salpim-wait-star.png" },
+  { title: "섬에서 조금 더 기다려 줘", sub: "아이템 준비가 끝나면 알려줄게.", image: "/brand/salpim-wait-gift.png" },
 ] as const;
 
 function toItem(job: ItemGenerationJobState | null, demoItem: Item | null): Item {
@@ -88,6 +88,7 @@ export default function ItemPreparation({ sessionId, item, onReady, flow = "chec
   }, [sessionId, item, onReady, retry, readyItem]);
 
   const retryButton = <button type="button" className="talk-btn item-prep__retry" onClick={() => { setError(false); setMessageIndex(0); setRetry(v => v + 1); }}><span className="talk-btn__row">다시 준비하기</span></button>;
+  const message = PREPARATION_MESSAGES[messageIndex];
 
   // Keep the same island mounted when generation finishes so its intro and camera persist.
   if (browseIsland || readyItem) return <>
@@ -100,10 +101,12 @@ export default function ItemPreparation({ sessionId, item, onReady, flow = "chec
     <SalpimHeader />
     <StudentProfile name="김민준" />
     <div className="item-prep__body">
-      <span className="chat-avatar chat-avatar--ai item-prep__face" aria-hidden="true"><SalpimFace className="chat-avatar__face" withSparkles={false} /></span>
+      <span className="item-prep__face" aria-hidden="true">
+        <Image src={message.image} alt="" width={1254} height={1254} priority className="item-prep__character" />
+      </span>
       <div role="status" aria-live="polite">
-        <h2 className="item-prep__title">{error ? "잠깐, 준비가 멈췄어" : PREPARATION_MESSAGES[messageIndex][0]}</h2>
-        <p className="item-prep__sub">{error ? "한 번 더 준비해 볼까?" : PREPARATION_MESSAGES[messageIndex][1]}</p>
+        <h2 className="item-prep__title">{error ? "잠깐, 준비가 멈췄어" : message.title}</h2>
+        <p className="item-prep__sub">{error ? "한 번 더 준비해 볼까?" : message.sub}</p>
       </div>
       {error && retryButton}
     </div>

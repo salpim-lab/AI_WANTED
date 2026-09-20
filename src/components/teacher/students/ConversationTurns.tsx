@@ -6,7 +6,6 @@
 // 학생 화면 CSS는 화면 높이 비율(cqh) 단위라 교사 화면에서 그대로 못 쓴다 — 같은 색·모양을 고정 크기 Tailwind로 옮겼다.
 // 말풍선 사이 간격은 예전 그대로다 (space-y-2).
 
-import SalpimFace from "@/components/student/SalpimFace";
 import type { ConversationTurn } from "@/lib/types/teacherRecord";
 import StudentAvatar from "./StudentAvatar";
 
@@ -37,12 +36,8 @@ export default function ConversationTurns({ turns, studentName }: { turns: Conve
         const avatar = mine ? (
           showAvatar ? <StudentAvatar name={studentName} initial={initial} size="chat" /> : <span aria-hidden className={AVATAR_SLOT} />
         ) : showAvatar ? (
-          <span
-            aria-hidden
-            className={`${AVATAR_SLOT} flex items-center justify-center rounded-full border border-[#dfe3ee] bg-white shadow-[0_2px_6px_rgba(60,68,110,.1)]`}
-          >
-            <SalpimFace className="size-[78%]" withSparkles={false} />
-          </span>
+          // 동그라미로 자르지 않고 아바타 그림 그대로 보인다
+          <img src="/brand/salpim-chatbot-avatar.png" alt="" aria-hidden className={`${AVATAR_SLOT} object-contain`} />
         ) : (
           <span aria-hidden className={AVATAR_SLOT} />
         );

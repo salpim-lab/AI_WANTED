@@ -129,7 +129,7 @@ export default function StudentDetailPanel({
                 isLast
               />
             </div>
-            <div className="mt-1">
+            <div className="mt-5">
               <AiAnalysisBox
                 key={`analysis-${student.studentId}-${date}`}
                 studentId={student.studentId}
@@ -197,47 +197,45 @@ function PeriodSection({
   studentName: string;
   /** 두 시간대 중 가장 최근 기록이 있는 쪽 — ClassPlaybook류 타임라인처럼 강조 표시 */
   active: boolean;
-  /** 마지막 항목이면 아래로 이어지는 연결선을 그리지 않는다 */
+  /** 마지막 항목이면 구분선 아래 간격을 두지 않는다 (AI 분석 칸이 바로 이어진다) */
   isLast: boolean;
 }) {
   return (
-    <section className="relative flex gap-3 pb-5">
-      {!isLast && <span aria-hidden className="absolute top-9 bottom-0 left-[15px] w-0.5 rounded-full bg-[#ded8ff]" />}
-      <div
-        aria-hidden
-        className={`relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full ${
-          active ? "bg-[#635bff] text-white shadow-[0_4px_12px_rgba(99,91,255,.35)]" : "bg-[#ede9ff] text-[#8b83ff]"
-        }`}
-      >
-        {icon}
-      </div>
-      <div className={`min-w-0 flex-1 rounded-2xl ${active ? "bg-white px-3.5 py-3 ring-1 ring-[#ded8ff]" : "pt-0.5"}`}>
-        <div className="flex items-center gap-2">
-          <h3 className={`${salpimTitle} text-[17px]`}>{label}</h3>
-          {latest ? (
-            <span className="ml-auto flex items-center gap-1.5 text-xs text-[#7d849b]">
-              <span className={timestampText}>{formatKstDateTime(latest.startedAt).slice(11, 16)}</span>
-              <span className={`inline-block size-2 rounded-full ${SIGNAL_DOT[latest.color]}`} />
-              {SIGNAL_LABEL[latest.color]}
-            </span>
-          ) : (
-            <span className="ml-auto text-xs text-[#aab0c4]">기록 없음</span>
-          )}
+    <section className={`border-b border-[#e6e2fb] pb-5 ${isLast ? "" : "mb-5"}`}>
+      {/* 아이콘과 대화 속 AI 아바타가 같은 왼쪽 선에 서도록, 대화는 들여쓰지 않고 머리글 아래로 내린다 */}
+      <div className="flex items-center gap-3">
+        <div
+          aria-hidden
+          className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
+            active ? "bg-[#635bff] text-white shadow-[0_4px_12px_rgba(99,91,255,.35)]" : "bg-[#ede9ff] text-[#8b83ff]"
+          }`}
+        >
+          {icon}
         </div>
-
-        {!latest ? (
-          <p className="mt-2 rounded-2xl border border-dashed border-[#ded8ff] bg-white/60 px-4 py-3 text-[13px] text-[#aab0c4]">이 시간대에는 체크인하지 않았어요.</p>
+        <h3 className={`${salpimTitle} text-[17px]`}>{label}</h3>
+        {latest ? (
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-[#7d849b]">
+            <span className={timestampText}>{formatKstDateTime(latest.startedAt).slice(11, 16)}</span>
+            <span className={`inline-block size-2 rounded-full ${SIGNAL_DOT[latest.color]}`} />
+            {SIGNAL_LABEL[latest.color]}
+          </span>
         ) : (
-          <div className="mt-2">
-            {latest.status === "stopped" && (
-              <div className={`mb-1.5 text-[11px] ${salpimMuted}`}>
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-gray-600">중단됨</span>
-              </div>
-            )}
-            <ConversationTurns key={latest.sessionId} turns={latest.turns} studentName={studentName} />
-          </div>
+          <span className="ml-auto text-xs text-[#aab0c4]">기록 없음</span>
         )}
       </div>
+
+      {!latest ? (
+        <p className="mt-3 rounded-2xl border border-dashed border-[#ded8ff] bg-white/60 px-4 py-3 text-[13px] text-[#aab0c4]">이 시간대에는 체크인하지 않았어요.</p>
+      ) : (
+        <div className="mt-3">
+          {latest.status === "stopped" && (
+            <div className={`mb-1.5 text-[11px] ${salpimMuted}`}>
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-gray-600">중단됨</span>
+            </div>
+          )}
+          <ConversationTurns key={latest.sessionId} turns={latest.turns} studentName={studentName} />
+        </div>
+      )}
     </section>
   );
 }
