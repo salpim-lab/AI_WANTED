@@ -80,7 +80,12 @@ export default function ObservationFeedCard({ entry, showDate }: { entry: Observ
           ]}
           bodyLabel={typeLabel === "상담" ? "상담 내용" : "관찰 내용"}
           body={entry.body}
-          footer={entry.taggedStudents.length > 0 ? <TagLinks tags={entry.taggedStudents} className="" /> : undefined}
+          // @아이 태그는 관찰 기록에만 둔다. 학생 상담·학부모 상담 모달에는 태그 줄이 없다
+          footer={
+            entry.recordType !== "student_consultation" && entry.taggedStudents.length > 0 ? (
+              <TagLinks tags={entry.taggedStudents} className="" />
+            ) : undefined
+          }
         />
       </Modal>
     </>

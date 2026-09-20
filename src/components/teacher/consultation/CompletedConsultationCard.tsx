@@ -71,7 +71,6 @@ export default function CompletedConsultationCard({ entry, showDate }: { entry: 
           ]}
           bodyLabel="상담 내용"
           body={entry.body}
-          footer={<StudentTag entry={entry} className="" />}
         />
       </Modal>
     </>
