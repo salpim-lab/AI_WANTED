@@ -18,7 +18,7 @@ const BASE = process.argv[2] || "http://localhost:3000";
 const SEEDED = process.env.SEEDED === "1"; // 공용 시드 INSERT 이후에 실행할 때 1
 const SEED_COUNT = 15;
 const FAKE = "00000000-0000-4000-8000-000000000001"; // 없는 id — 필터 없는 UPDATE/DELETE는 PostgREST가 400으로 막으므로 필터를 붙여 권한(403)을 확인한다
-// 기존(레거시) 42건이 참조하는 자산 — 방문자가 직접 조회하면 안 된다(공용 시드 후에는 공용 15종 중 일부와 겹칠 수 있어 제외)
+// 기존(레거시) 42건이 참조하는 자산 — 방문자가 직접 조회하면 안 된다(공용 시드 후에는 공용 15종과 이름이 겹치는 것은 건너뛴다)
 const KNOWN_ASSET_NAMES = ["선물 상자", "돌멩이", "귀마개", "피자"];
 
 let pass = 0, fail = 0;
@@ -49,7 +49,8 @@ for (const v of [A, B]) {
   check(`${v.label}: asset_catalog — 공용/내 아이템이 참조하는 자산만${SEEDED ? `(공용 ${SEED_COUNT}종)` : " (0건 — 1094 전에는 전체 조회됐다)"}`, assets.rows !== null && assets.rows.length === (SEEDED ? SEED_COUNT : 0), `n=${assets.rows?.length}`);
   for (const name of KNOWN_ASSET_NAMES) {
     const byName = await rows(v, `asset_catalog?select=id&name=eq.${encodeURIComponent(name)}`);
-    if (SEEDED && name === "피자") continue; // 공용 15종에 포함되는 이름
+    // 시드 후에는 공용 15종에 든 이름(돌멩이·귀마개·피자)은 방문자에게 보이는 것이 정상이다 — 공용에 없는 이름(선물 상자)만 0건이어야 한다.
+    if (SEEDED && (assets.rows || []).some((row) => row.name === name)) continue;
     check(`${v.label}: asset_catalog를 name=${name}으로 직접 조회 → 0건`, byName.rows !== null && byName.rows.length === 0);
   }
   const islands = await rows(v, "islands?select=id"), placements = await rows(v, "island_placements?select=student_item_id");
