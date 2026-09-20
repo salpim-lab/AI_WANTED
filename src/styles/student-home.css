@@ -68,6 +68,9 @@
   position: absolute;
   inset: 0;
   display: none;
+  /* 화면마다 자기만의 층을 갖게 한다. 없으면 안쪽의 z-index(칠판 손글씨 z-[2] 등)가 바깥 층에서 비교돼서,
+     다음 화면(마음 신호등)이 위로 떠오르는 동안 이 화면의 글씨만 그 위에 남아 늦게 빠져 보였다. */
+  isolation: isolate;
 }
 .home-screen.active { display: block; }
 
@@ -690,16 +693,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .sh-teacher-tip { transition: none; }
-}
-
-/* 칠판 손글씨("오늘도 좋은 하루 보내자!")는 편지를 닫기 시작하면 봉투보다 먼저 빠진다 */
-@keyframes shHandAway {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-.sh-hand--away { animation: shHandAway 0.45s ease-out forwards; }
-@media (prefers-reduced-motion: reduce) {
-  .sh-hand--away { animation: none; opacity: 0; }
 }
 
 /* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 도중에 마음 신호등 화면이 랜딩 화면처럼 사악 떠오른다.
