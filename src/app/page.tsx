@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import "@/styles/landing.css";
 import SalpimLogo from "@/components/shared/SalpimLogo";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
+import { prewarmTurnstile } from "@/lib/demo/turnstile";
+import { createClient } from "@/lib/supabase/client";
 
 type Role = "student" | "teacher";
 
@@ -45,6 +47,24 @@ export default function Home() {
   const [hovered, setHovered] = useState(false); // 사용자가 직접 올리면 자동 시연을 멈춘다
   const hoveredRef = useRef(false);
   const optionRefs = useRef<Partial<Record<Role, HTMLDivElement | null>>>({});
+
+  // 첫 진입 지연 개선: 새 방문자는 카드를 누른 뒤 "사람 확인"을 기다리느라 3~7초가 걸렸다(실측).
+  // 카드를 누르기 전에 그 확인을 뒤에서 끝내 토큰만 받아 둔다 — 익명 가입(계정 생성)은 하지 않는다.
+  // 이미 세션이 있는 재방문자는 확인이 필요 없으니 건너뛴다. 어떤 실패도 화면에 드러내지 않는다(demo-init이 평소대로 처리).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await createClient().auth.getSession();
+        if (!cancelled && !data.session) void prewarmTurnstile();
+      } catch {
+        // 세션을 확인하지 못하면 미리 받기는 건너뛴다
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 자동 시연: 민준 → 선생님 순서로 한 번씩
   useEffect(() => {
