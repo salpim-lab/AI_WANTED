@@ -25,5 +25,5 @@ const transcript = process.argv[2] ? JSON.parse(fs.readFileSync(process.argv[2],
   { speaker: 'assistant', content: '친구 도움도 받고 끝까지 해냈구나. 오늘 이야기 고마워.', input_method: 'text' },
 ];
 const t = Date.now();
-inferItem(transcript).then(r => console.log(JSON.stringify(r, null, 2), `\n${Date.now() - t}ms, model=${process.env.ANTHROPIC_ITEM_MODEL || 'claude-sonnet-4-6'}`))
+inferItem(transcript).then(r => console.log(JSON.stringify(r, null, 2), `\n${Date.now() - t}ms, model=${process.env.ANTHROPIC_ITEM_MODEL || 'claude-haiku-4-5-20251001'}`))
   .catch(e => { console.error('FAIL', e.code, e.httpStatus, e.message, JSON.stringify(e.detail ?? {}).slice(0, 800)); process.exit(1); });

@@ -13,7 +13,7 @@
 // lib/supabase/interpretation/{teacherComment,dailyAnalysis}.ts는 직접 import하지 말 것.
 // (참고: docs/planning/살핌_DB_스키마_v0.3.md §13 담당자별 작업 경계)
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { addDays, formatKstDate, formatKstDateTime } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { SIGNAL_DOT, SIGNAL_LABEL } from "@/components/shared/signalStyles";
@@ -92,14 +92,14 @@ export default function StudentDetailPanel({
             maxDate={today}
             label="기록 날짜 선택"
           />
-          <Link
+          <NavLink
             href="/students"
             scroll={false}
             aria-label="상세 닫기"
             className="rounded-full px-2.5 py-1 text-lg text-[#7d849b] transition-colors hover:bg-[#ede9ff] hover:text-[#102a56]"
           >
             ✕
-          </Link>
+          </NavLink>
         </header>
 
         <div className="mt-4">

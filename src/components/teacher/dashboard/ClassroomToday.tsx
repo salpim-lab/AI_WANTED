@@ -23,7 +23,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import WeatherIcon from "./WeatherIcon";
 import { SIGNAL_DISPLAY, type CheckinPeriod, type DashboardData } from "./mockData";
 
@@ -91,9 +91,9 @@ export default function ClassroomToday({
               <ul className="mood-name-list">
                 {absentStudents.map((s) => (
                   <li key={s.studentId}>
-                    <Link href={`/students/${s.studentId}`} className="mood-name">
+                    <NavLink href={`/students/${s.studentId}`} className="mood-name">
                       {s.name}
-                    </Link>
+                    </NavLink>
                   </li>
                 ))}
               </ul>
@@ -148,9 +148,9 @@ export default function ClassroomToday({
                   <ul className="mood-name-list">
                     {m.students.map((s) => (
                       <li key={s.studentId}>
-                        <Link href={`/students/${s.studentId}`} className="mood-name">
+                        <NavLink href={`/students/${s.studentId}`} className="mood-name">
                           {s.name}
-                        </Link>
+                        </NavLink>
                       </li>
                     ))}
                   </ul>

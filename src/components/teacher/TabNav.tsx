@@ -16,7 +16,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { usePathname } from "next/navigation";
 import "@/styles/prototype-teacher-sidebar.css";
 
@@ -123,7 +123,7 @@ export default function TabNav() {
         const active =
           pathname === tab.href || pathname?.startsWith(tab.href + "/");
         return (
-          <Link
+          <NavLink
             key={tab.href}
             href={tab.href}
             aria-current={active ? "page" : undefined}
@@ -137,7 +137,7 @@ export default function TabNav() {
               </svg>
             </span>
             <span className="side-nav-text">{tab.label}</span>
-          </Link>
+          </NavLink>
         );
       })}
       <div className="side-nav-foot">

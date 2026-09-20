@@ -4,7 +4,7 @@
 // 캐릭터가 카드 위에 서 있고, 카드에 마우스를 올리면(모바일은 화면에 들어오면) 말풍선으로 화면을 소개한다.
 // 처음 열면 두 말풍선이 차례로 한 번씩 저절로 나와 "여기서 말을 건다"는 걸 보여준다.
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import "@/styles/landing.css";
@@ -120,7 +120,7 @@ export default function Home() {
                 </span>
 
                 {/* 카드 전체가 하나의 링크: 위는 장면, 아래 띠에 이름·설명·꺾쇠 */}
-                <Link href={option.href} className="landing-card" aria-label={`${option.label} 화면 시작하기`} {...hoverProps(option.role)}>
+                <NavLink href={option.href} className="landing-card" aria-label={`${option.label} 화면 시작하기`} {...hoverProps(option.role)}>
                   {option.role === "student" ? (
                     <>
                       {/* 평소: 게시판 윗변에 두 손으로 매달려 눈만 빼꼼. 호버: 눈은 들어가고 같은 자리에서 얼굴과 어깨가 더 나와 손을 흔든다 */}
@@ -184,7 +184,7 @@ export default function Home() {
                       <path d="m9 5 7 7-7 7" />
                     </svg>
                   </span>
-                </Link>
+                </NavLink>
               </div>
             ))}
           </div>

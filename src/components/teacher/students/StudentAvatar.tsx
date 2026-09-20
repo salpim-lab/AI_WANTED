@@ -12,6 +12,7 @@ import { studentPhotoPath } from "@/lib/students/photo";
 const SIZE = {
   lg: { box: "size-14 rounded-[20px]", text: "text-2xl" },
   sm: { box: "size-8 rounded-xl", text: "text-sm" },
+  seat: { box: "size-9 rounded-xl lg:h-[44%] lg:w-auto lg:aspect-square lg:rounded-2xl", text: "text-sm lg:text-2xl" },
   chat: { box: "size-9 rounded-full", text: "text-base" },
 } as const;
 

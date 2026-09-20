@@ -10,7 +10,7 @@
 // (공용 layout/CSS 파일은 건드리지 않는다).
 
 import Form from "next/form";
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { backButton, card, pageContainer, textInput } from "@/components/shared/ui";
 import type { ConsultationReport } from "@/lib/types/teacherRecord";
 import ConsultationReportBody from "./ConsultationReportBody";
@@ -34,9 +34,9 @@ export default function ConsultationReportView({ report }: { report: Consultatio
       <style>{PRINT_STYLES}</style>
 
       <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
-        <Link href="/consultation" className={backButton}>
+        <NavLink href="/consultation" className={backButton}>
           ← 학부모상담기록
-        </Link>
+        </NavLink>
         <Form
           action={`/consultation/report/${report.student.studentId}`}
           aria-label="기간"

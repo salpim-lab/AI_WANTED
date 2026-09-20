@@ -47,10 +47,10 @@ export default function StudentsSplitView({
 
   return (
     <SalpimBackdrop>
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-5 px-6 py-5 lg:flex-row lg:items-start">
+      <div className={`mx-auto flex flex-col ${isOpen ? "max-w-[1280px]" : "max-w-[1760px]"} gap-5 px-6 py-5 lg:flex-row lg:items-start`}>
         <aside
           aria-label="자리 배치도"
-          className={`shrink-0 transition-[width] duration-300 ease-out lg:sticky lg:top-5 ${
+          className={`shrink-0 transition-[width] duration-300 ease-out lg:sticky lg:top-[72px] lg:max-h-[calc(100dvh-92px)] lg:overflow-y-auto ${
             isOpen ? "hidden lg:block lg:w-[340px]" : "w-full"
           }`}
         >
