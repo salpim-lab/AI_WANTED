@@ -235,6 +235,30 @@ t('말 모양 힌트: 같은 말에는 같은 힌트, 다른 말에는 골고루
   assert.ok(JSON.parse(req.messages[0].content).style_hint, '요청에 style_hint 가 없다');
 });
 
+const sttClean = load('src/lib/checkins/sttClean.ts');
+t('전사: 무음·잡음에서 만들어 낸 조각(no_speech_prob 높음)을 뺀다', () => {
+  // 실측 값(2026-09-20): 무음 0.92, 잡음 0.63~0.88, 실제 말소리 0.00~0.08
+  assert.equal(sttClean.cleanTranscript({ segments: [{ text: ' 수고하셨습니다.', no_speech_prob: 0.92 }] }).text, '');
+  // 잡음: no_speech 0.43 은 0.5 를 못 넘지만 avg_logprob -0.90 으로 자신감이 낮다 (실측)
+  assert.equal(sttClean.cleanTranscript({ segments: [{ text: ' 시청해주셔서 감사합니다.', no_speech_prob: 0.43, avg_logprob: -0.9 }] }).text, '');
+  // 조금 애매해도 자신감이 충분하면 말소리로 본다
+  assert.equal(sttClean.cleanTranscript({ segments: [{ text: ' 작게 말했어요', no_speech_prob: 0.35, avg_logprob: -0.4 }] }).text, '작게 말했어요');
+  const mixed = sttClean.cleanTranscript({ segments: [
+    { text: ' Q. 요즘에 가장 즐거운 시간은?', no_speech_prob: 0.8 },
+    { text: ' 그냥 오늘 창체 시간에 블록 조립을 했어요.', no_speech_prob: 0.02 },
+  ] });
+  assert.equal(mixed.text, '그냥 오늘 창체 시간에 블록 조립을 했어요.');
+  assert.equal(mixed.dropped.length, 1);
+});
+
+t('전사: 반복 환각(compression_ratio 높음)은 빼고, 말소리와 정보 없는 응답은 그대로 둔다', () => {
+  assert.equal(sttClean.cleanTranscript({ segments: [{ text: '아 아 아 아 아 아', no_speech_prob: 0.1, compression_ratio: 3.1 }] }).text, '');
+  assert.equal(sttClean.cleanTranscript({ segments: [{ text: '피구 했어요', no_speech_prob: 0.05, compression_ratio: 1.0 }] }).text, '피구 했어요');
+  // 조각 정보가 없으면 있는 그대로(없는 정보로 지우지 않는다)
+  assert.equal(sttClean.cleanTranscript({ text: ' 안녕 ' }).text, '안녕');
+  assert.equal(sttClean.cleanTranscript({}).text, '');
+});
+
 t('위험 판단 요청은 오늘 대화만 보고 temperature 0 이다', () => {
   const tr = [{ speaker: 'student', content: '싸웠어요', input_method: 'voice' }];
   const req = turn.buildRiskCheckRequest({ transcript: tr });
