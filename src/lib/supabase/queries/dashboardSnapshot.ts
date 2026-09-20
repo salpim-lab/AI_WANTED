@@ -537,10 +537,10 @@ export function buildRelation(
   const aliases = roster.map((student) => ({ student, aliases: aliasesFor(student.name) }));
   const mentioned = new Map<string, number>(roster.map((student) => [student.studentId, 0]));
   const pairCount = new Map<string, number>();
-  const studentQuotes = new Map<string, { from: string; date: string; text: string }[]>(
-    roster.map((student) => [student.studentId, []]),
-  );
-  const pairQuotes = new Map<string, { from: string; date: string; text: string }[]>();
+  type Quote = { from: string; date: string; text: string };
+  const pairQuotes = new Map<string, Quote[]>();
+  // 아이(받은 쪽) → 그 아이를 말한 아이(말한 쪽)별 대목. 아이 상세는 이걸로 만든다.
+  const mentionsOf = new Map<string, Map<string, Quote[]>>(roster.map((student) => [student.studentId, new Map()]));
 
   for (const session of windowSessions) {
     const speaker = byEnrollment.get(session.enrollment_id);
@@ -556,7 +556,9 @@ export function buildRelation(
         pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
 
         const quote = { from: speaker.name, date: session.session_date, text };
-        studentQuotes.get(target.studentId)!.push(quote);
+        const bySpeaker = mentionsOf.get(target.studentId)!;
+        if (!bySpeaker.has(speaker.studentId)) bySpeaker.set(speaker.studentId, []);
+        bySpeaker.get(speaker.studentId)!.push(quote);
         if (!pairQuotes.has(key)) pairQuotes.set(key, []);
         pairQuotes.get(key)!.push(quote);
       }
@@ -615,6 +617,15 @@ export function buildRelation(
     }
   }
 
+  // 아이 한 명의 대화 발췌 — 다른 아이가 말하면서 그 아이 이름을 부른 대목이다("N번 나왔어요"와 같은 출처).
+  // 예전에는 그중 최근 3개만 보여서, 최근 3개가 한 친구 이야기면 그 친구 이야기만 떴다.
+  // 이제는 그 아이를 언급한 친구마다 최근 것을 QUOTES_PER_SPEAKER 개씩 골라 담아 여러 친구가 다 보이게 한다.
+  const QUOTES_PER_SPEAKER = 2;
+  const quotesOf = (studentId: string) =>
+    [...(mentionsOf.get(studentId) ?? new Map<string, Quote[]>()).values()]
+      .flatMap((quotes) => quotes.slice(-QUOTES_PER_SPEAKER))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
   const details = Object.fromEntries(
     roster.map((student) => [
       student.studentId,
@@ -622,7 +633,7 @@ export function buildRelation(
         studentId: student.studentId,
         name: student.name,
         mentionCount: mentioned.get(student.studentId) ?? 0,
-        quotes: (studentQuotes.get(student.studentId) ?? []).slice().reverse().slice(0, 3),
+        quotes: quotesOf(student.studentId),
         conflicts: records.filter((c) => c.pairIds.includes(student.studentId)),
       },
     ]),

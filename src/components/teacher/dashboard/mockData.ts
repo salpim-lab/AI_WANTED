@@ -168,7 +168,7 @@ export type RelationDetail = {
   name: string;
   /** 다른 아이 대화에 이 아이 이름이 나온 횟수 — 지도의 원 크기와 같은 수 */
   mentionCount: number;
-  /** 대화에서 이 아이 이름이 나온 대목. 실제로는 전사에서 그대로 잘라 온다 */
+  /** 다른 아이가 말하면서 이 아이 이름을 부른 대목 — 말한 친구마다 골라 담는다. 실제로는 전사에서 그대로 잘라 온다 */
   quotes: { from: string; date: string; text: string }[];
   /** 이 아이가 낀 갈등 (최근 것부터) */
   conflicts: ConflictRow[];
@@ -874,8 +874,8 @@ function buildRelationDetails(
   window: string[],
   records: ConflictRow[],
 ): { details: Record<number, RelationDetail>; pairs: Record<string, RelationPairDetail> } {
-  const byStudent = new Map<number, RelationDetail["quotes"]>(ids.map((id) => [id, []]));
   const byPair = new Map<string, RelationPairDetail["quotes"]>();
+  const byMentioned = new Map<number, Map<number, RelationDetail["quotes"]>>();
 
   for (const date of window) {
     for (const { from, to } of mentionsOn(date)) {
@@ -886,8 +886,12 @@ function buildRelationDetails(
         date,
         text: template.replace("{to}", callName(STUDENT_NAMES[to].slice(1))),
       };
-      byStudent.get(to)!.push(quote);
       const key = pairKey(from, to);
+      // 받은 쪽(to) 기준으로, 말한 쪽(from)별로 모은다 — 아이 상세용
+      if (!byMentioned.has(to)) byMentioned.set(to, new Map());
+      const bySpeaker = byMentioned.get(to)!;
+      if (!bySpeaker.has(from)) bySpeaker.set(from, []);
+      bySpeaker.get(from)!.push(quote);
       if (!byPair.has(key)) byPair.set(key, []);
       byPair.get(key)!.push(quote);
     }
@@ -899,9 +903,11 @@ function buildRelationDetails(
       {
         studentId,
         name: STUDENT_NAMES[studentId],
-        mentionCount: byStudent.get(studentId)!.length,
-        // 최근 것부터 3개까지 — 더 보여줘도 패널에서 읽히지 않는다
-        quotes: byStudent.get(studentId)!.slice().reverse().slice(0, 3),
+        mentionCount: [...(byMentioned.get(studentId)?.values() ?? [])].reduce((sum, list) => sum + list.length, 0),
+        // 그 아이를 언급한 친구마다 최근 것 둘씩 — 한 친구 이야기만 뜨지 않게(실제 집계와 같은 방식)
+        quotes: [...(byMentioned.get(studentId)?.values() ?? [])]
+          .flatMap((list) => list.slice(-2))
+          .sort((a, b) => (a.date < b.date ? 1 : -1)),
         conflicts: records.filter((c) => c.pairIds.includes(studentId)),
       },
     ]),
