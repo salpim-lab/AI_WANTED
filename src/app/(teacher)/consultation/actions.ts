@@ -23,7 +23,7 @@ import {
   listClassStudents,
   REPORT_DEFAULT_DAYS,
 } from "@/lib/supabase/queries/teacherStudents";
-import { getOrCreatePeriodSummary, PeriodSummaryUnavailableError } from "./_lib/periodSummary";
+import { findSeedPeriodSummary, getOrCreatePeriodSummary, PeriodSummaryUnavailableError } from "./_lib/periodSummary";
 import { resolveReportRange } from "./_lib/reportRange";
 import { getActingTeacher, mockFixturePeriodSummary, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
 import {
@@ -238,14 +238,14 @@ async function getReportAiSummaryActionInMockScope(
   if (!report) return { status: "error" };
   if (report.analyses.length === 0 && report.observations.length === 0) return { status: "empty" };
 
-  // 실제로 쓰는 아이(김민준)가 아니면 배포 전 목업에 미리 넣어 둔 기간 요약을 쓴다 — AI를 부르지 않는다
+  // 로컬 목업 파일(mock-data/out)이 켜져 있으면 그게 먼저다. 배포에는 그 파일이 없어 건너뛴다.
   const mockSummary = mockFixturePeriodSummary(report.student.studentId);
   if (mockSummary) return { status: "ready", summary: mockSummary };
 
-  // 테스트 중 토큰 절약 — /api/ai/daily-analysis와 같은 설정을 따른다
-  const onlyIds = process.env.DAILY_ANALYSIS_ONLY_STUDENT_IDS?.split(",").map((id) => id.trim()).filter(Boolean);
-  if (onlyIds?.length && !onlyIds.includes(report.student.studentId)) return { status: "unavailable" };
-
+  // 아래는 순서가 곧 정책이다:
+  //   ① 저장된 요약(이 기간·이 입력으로 만든 것, 공용 또는 본인)  ② 배포 전 시드  ③ AI 생성(대상 아이만)
+  // ①과 ③은 getOrCreatePeriodSummary 안에 있고, 둘 다 안 되면 PeriodSummaryUnavailableError가 온다.
+  // 그때 ②로 물러난다 — 민준은 시드가 없어서 그대로 unavailable이고, 나머지 아이는 시드 문장을 본다.
   try {
     const result = await getOrCreatePeriodSummary({
       student: report.student,
@@ -258,7 +258,10 @@ async function getReportAiSummaryActionInMockScope(
     });
     return result ? { status: "ready", summary: result.summary } : { status: "empty" };
   } catch (error) {
-    if (error instanceof PeriodSummaryUnavailableError) return { status: "unavailable" };
+    if (error instanceof PeriodSummaryUnavailableError) {
+      const seeded = await findSeedPeriodSummary(report.student.studentId);
+      return seeded ? { status: "ready", summary: seeded.summary } : { status: "unavailable" };
+    }
     console.error("[getReportAiSummaryAction]", error);
     return { status: "error" };
   }
