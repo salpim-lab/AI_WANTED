@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { formatKstDateTime } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
+import RecordDetail from "@/components/shared/RecordDetail";
 import { card, clickableCard, immutableBadge, timestampText } from "@/components/shared/ui";
 import type { ObservationLog, TaggedStudent } from "@/lib/types/teacherRecord";
 
@@ -70,20 +71,19 @@ export default function ObservationFeedCard({ entry, showDate }: { entry: Observ
       </article>
 
       <Modal open={open} title={entry.title ?? `${typeLabel} 기록`} onClose={() => setOpen(false)}>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${RECORD_TYPE_TAG[entry.recordType]}`}>
-            {typeLabel}
-          </span>
-          <span className={immutableBadge}>🔒 수정 불가</span>
-        </div>
-        <p className={`${timestampText} mb-1`}>기록 {formatKstDateTime(entry.createdAt)}</p>
-        {showOccurredAt && (
-          <p className={`${timestampText} mb-3`}>발생 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
-        )}
-        <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-[#102a56]">{entry.body}</p>
-        {entry.taggedStudents.length > 0 && (
-          <TagLinks tags={entry.taggedStudents} className="mt-4 border-t border-[#e6e2fb] pt-3" />
-        )}
+        <RecordDetail
+          kind={typeLabel}
+          kindClassName={RECORD_TYPE_TAG[entry.recordType]}
+          fields={[
+            ...(entry.taggedStudents.length > 0
+              ? [{ label: "관찰한 아이", value: <TagLinks tags={entry.taggedStudents} className="" />, wide: true }]
+              : []),
+            { label: "기록 시각", value: formatKstDateTime(entry.createdAt) },
+            ...(showOccurredAt ? [{ label: "발생 시각", value: formatKstDateTime(entry.occurredAt).slice(0, 16) }] : []),
+          ]}
+          bodyLabel={typeLabel === "상담" ? "상담 내용" : "관찰 내용"}
+          body={entry.body}
+        />
       </Modal>
     </>
   );

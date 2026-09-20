@@ -3,7 +3,8 @@
 // 날짜를 안 골랐으면(기본) "전체" — 모든 기간의 관찰·학생상담 기록 피드를 보여주고, 날짜를 고르면 그날 하루의 기록만 보여준다.
 // 위쪽 버튼으로 아이를 태그해 새 기록을 쓴다 (글쓰기 폼의 발생 일시 기본값은 고른 날짜, "전체"면 오늘).
 // "관찰/상담/전체" 탭으로 거른다(상담 = 아이 본인과의 상담 — 학부모 상담과는 다른
-// 화면/기록). 학생(?student=)·키워드(?q=)로 검색하면 날짜 제한 없이 전체 기간에서 찾는다. URL searchParams(date, type, student, q)를 서버에서 읽는다.
+// 화면/기록). 날짜(?date=)·학생(?student=)·키워드(?q=)는 함께 적용된다 — 날짜를 고르고 학생을 고르면 그 학생의 그날 기록만 남는다.
+// 날짜를 안 골랐으면 전체 기간에서 찾는다. URL searchParams(date, type, student, q)를 서버에서 읽는다.
 // ?consult=<student_id>&at=<ISO> 로 들어오면 학생 상담 기록 팝업이 그 아이·그 시각으로 채워진 채 바로 열린다
 // (대시보드 "오늘 예정된 상담"의 학생 상담 줄에서 넘어오는 길이다).
 // 쓰기는 ./actions.ts
@@ -53,7 +54,6 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
   const keyword = firstParam(params.q);
   const requestedStudentId = firstParam(params.student);
   const studentId = students.some((s) => s.studentId === requestedStudentId) ? requestedStudentId : undefined;
-  const searching = Boolean(keyword || studentId);
 
   // 예정된 상담에서 넘어온 경우 — 우리 반 아이이고 시각을 읽을 수 있을 때만 팝업을 연다
   const consultStudentId = firstParam(params.consult);
@@ -68,7 +68,9 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
   // 다른 방문자가 새로 쓴 기록은 이 목록에 안 보이게 한다. 자세한 내용은 observationLog.ts 참고.
   const feedObservations = await listObservationLogs(
     teacher.classId,
-    searching || !date ? { keyword, studentId } : { from: date, to: date },
+    // 날짜·학생·키워드는 서로 겹쳐서 적용한다(AND). 예전에는 학생·키워드가 있으면 날짜를 무시해서
+    // 학생을 고른 뒤 어느 날짜를 눌러도 그 학생의 전체 기록이 떴다.
+    { keyword, studentId, ...(date ? { from: date, to: date } : {}) },
     teacher.id,
   );
 

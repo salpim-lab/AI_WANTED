@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { formatKstDateTime } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
+import RecordDetail from "@/components/shared/RecordDetail";
 import { card, clickableCard, immutableBadge, studentTagLink, timestampText } from "@/components/shared/ui";
 import type { ConsultationLog } from "@/lib/types/teacherRecord";
 import { consultationKindLabel, isStudentSelfConsultation, parseConsultationTitle } from "./consultationCardParts";
@@ -60,20 +61,18 @@ export default function CompletedConsultationCard({ entry, showDate }: { entry: 
       </article>
 
       <Modal open={open} title={`${entry.student.name} 상담 내용`} onClose={() => setOpen(false)}>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${kindTag}`}>{kindLabel}</span>
-          {entry.title && (
-            <span className="rounded-full bg-amber-100 px-[9px] py-0.5 text-xs font-bold text-amber-800">
-              {entry.title}
-            </span>
-          )}
-          <span className={immutableBadge}>🔒 수정 불가</span>
-        </div>
-        <p className={`${timestampText} mb-1`}>기록 {formatKstDateTime(entry.createdAt)}</p>
-        {showOccurredAt && (
-          <p className={`${timestampText} mb-3`}>상담 일시 {formatKstDateTime(entry.occurredAt).slice(0, 16)}</p>
-        )}
-        <p className="whitespace-pre-wrap text-[13px] leading-[1.8] text-[#102a56]">{entry.body}</p>
+        <RecordDetail
+          kind={kindLabel}
+          kindClassName={kindTag}
+          fields={[
+            { label: "상담한 아이", value: <StudentTag entry={entry} className="" /> },
+            ...(entry.title ? [{ label: "상담 대상 · 방식", value: parseConsultationTitle(entry.title).line }] : []),
+            { label: "기록 시각", value: formatKstDateTime(entry.createdAt) },
+            ...(showOccurredAt ? [{ label: "상담 일시", value: formatKstDateTime(entry.occurredAt).slice(0, 16) }] : []),
+          ]}
+          bodyLabel="상담 내용"
+          body={entry.body}
+        />
       </Modal>
     </>
   );
