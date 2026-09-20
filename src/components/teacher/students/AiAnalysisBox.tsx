@@ -8,6 +8,8 @@
 // 라우트가 501(키 미설정·테스트 대상 아님)이면 서버가 넘겨준 mock 결과(fallback)를 그대로 보여준다 — 따로 "예시" 표시는 하지 않는다.
 // 날짜가 바뀌면 부모가 key를 바꿔 새로 마운트한다 (이전 날짜 결과가 남지 않게).
 // precomputed(배포 전 목업에 미리 넣어 둔 결과)가 오면 라우트를 부르지 않고 그 결과를 바로 보여준다 — 추론이 일어나지 않는다.
+// stored(DB에 이미 저장된 요약 — 서버가 렌더 때 챗봇·상담 리포트와 같은 조회 함수로 읽어 온다)로 필요한 요약이 다 채워지면 마찬가지로
+// 라우트를 부르지 않는다. 저장된 요약이 없거나 하나라도 모자랄 때만 라우트를 부르고, 라우트는 부족한 것만 만들어 DB에 저장한다.
 
 "use client";
 
@@ -28,23 +30,32 @@ export default function AiAnalysisBox({
   hasMorning,
   hasAfternoon,
   precomputed = null,
+  stored = null,
 }: {
   studentId: string;
   date: string;
   fallback: string | null;
   /** 미리 추론해 둔 결과 (목업) — 있으면 fetch하지 않는다 */
   precomputed?: { morning: string | null; full: string | null } | null;
+  /** DB에 저장돼 있던 요약 — 있으면(필요한 만큼 다 있으면) fetch하지 않는다 */
+  stored?: { morning: string | null; full: string | null } | null;
   /** 그 날 등교 기록이 있는지 — 없으면 등교 기준 분석을 내지 않는다 */
   hasMorning: boolean;
   /** 그 날 하교 기록이 있는지 — 없으면 통합 분석을 내지 않는다 */
   hasAfternoon: boolean;
 }) {
+  // 저장된 요약이 "지금 보여줄 것"을 다 채우면 API를 부르지 않는다(등교 기준은 등교 기록이 있을 때, 통합은 등교·하교가 다 있을 때 필요).
+  const storedComplete = Boolean(stored) && (!hasMorning || Boolean(stored?.morning)) && (!(hasMorning && hasAfternoon) || Boolean(stored?.full));
   const [state, setState] = useState<AnalysisState>(() =>
-    precomputed ? readyState(precomputed, hasMorning, hasAfternoon) : { status: "loading" },
+    precomputed
+      ? readyState(precomputed, hasMorning, hasAfternoon)
+      : stored && storedComplete
+        ? readyState(stored, hasMorning, hasAfternoon)
+        : { status: "loading" },
   );
 
   useEffect(() => {
-    if (precomputed) return;
+    if (precomputed || storedComplete) return;
     const controller = new AbortController();
 
     fetch("/api/ai/daily-analysis", {
@@ -73,7 +84,7 @@ export default function AiAnalysisBox({
       });
 
     return () => controller.abort();
-  }, [studentId, date, fallback, hasMorning, hasAfternoon, precomputed]);
+  }, [studentId, date, fallback, hasMorning, hasAfternoon, precomputed, storedComplete]);
 
   return (
     <section

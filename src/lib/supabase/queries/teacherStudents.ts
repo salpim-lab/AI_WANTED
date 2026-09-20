@@ -16,6 +16,14 @@ import { addDays } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { getDemoScope, ownerOrFilter, scopedKey } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveAnalysisTargets } from "@/lib/supabase/interpretation/analysisTargets";
+import {
+  isRealSessionId,
+  loadSessionSummaries,
+  pickDayAnalysis,
+  pickSummary,
+  type StoredSessionSummary,
+} from "@/lib/supabase/queries/sessionSummaries";
 // 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
 // mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
 // 바뀌면 buildInsights()도 그쪽을 부르도록 바꾸고, 이 import는 없앤다.
@@ -117,6 +125,7 @@ type RealRow = {
   started_at: string;
   transcript: unknown;
   prosody: unknown;
+  demo_owner_id: string | null;
 };
 
 type RawUtterance = {
@@ -229,7 +238,7 @@ async function loadRealSessions(
     // 근거(evidenceRefs)로 전부 흘러간다. 후보 단계에서 "공용 시드 + 현재 방문자 것"만 읽는다(lib/demo/scope.ts).
     let sessionQuery = client
       .from("checkin_sessions")
-      .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript, prosody")
+      .select("id, enrollment_id, session_date, period, attempt, mood_color, status, started_at, transcript, prosody, demo_owner_id")
       .in("enrollment_id", [...rowByDbId.keys()])
       .gte("session_date", addDays(from, -BASELINE_WINDOW_DAYS))
       .lte("session_date", to);
@@ -261,6 +270,7 @@ async function loadRealSessions(
         startedAt: r.started_at,
         turns: transcriptTurns(r.id, r.transcript),
         prosody: interpretProsody(r, history),
+        ownerId: r.demo_owner_id ?? null,
       });
       result.set(key, list);
     }
@@ -274,6 +284,29 @@ async function loadRealSessions(
     }
   }
   return result;
+}
+
+/** DEMO_MODE의 현재 방문자 id. 스코프가 꺼졌거나 방문자를 못 찾으면 null. */
+const viewerIdOf = (scope: Awaited<ReturnType<typeof getDemoScope>>): string | null => (scope.active ? scope.viewerId : null);
+
+let warnedStoredSummaries = false;
+
+/**
+ * 세션들의 저장된 AI 하루 요약(analysis_runs) — 상세 화면·상담 리포트·협진 챗봇이 **같은 함수(sessionSummaries.loadSessionSummaries)**로 읽는다.
+ * 스코프(공용 + 현재 방문자)와 sourceSessionIds 전체 검증은 그 함수가 한다. DB를 못 읽으면 빈 결과 — 화면과 챗봇은 요약 없이(색만) 계속 간다.
+ */
+async function loadStoredSummaries(sessionIds: string[]): Promise<StoredSessionSummary[]> {
+  const real = sessionIds.filter(isRealSessionId);
+  if (real.length === 0 || !realCheckinsEnabled()) return [];
+  try {
+    return await loadSessionSummaries(createAdminClient(), real, await getDemoScope());
+  } catch (error) {
+    if (!warnedStoredSummaries) {
+      warnedStoredSummaries = true;
+      console.warn("[teacherStudents] 저장된 AI 요약을 읽지 못해 요약 없이 보여줍니다:", error instanceof Error ? error.message : error);
+    }
+    return [];
+  }
 }
 
 type SessionSource = (row: MockStudentRow, date: string) => AnalysisInputSession[];
@@ -341,6 +374,28 @@ export async function getStudentDaySessions(classId: string, studentId: string, 
 }
 
 /**
+ * 상세 화면이 렌더 때 미리 읽는 "이미 저장된" 그날 AI 요약(등교 기준·등교-하교 기준). 새로고침해도 같은 DB 요약이 보이고,
+ * 저장된 게 없을 때만 화면이 분석 API를 부른다. 챗봇·상담 리포트와 같은 loadSessionSummaries를 쓴다(요약 대상 세션 선택 규칙도 같다).
+ * 목업 세션(uuid 아님)의 요약은 DB에 없으므로 null — 그 경우 화면은 기존처럼 분석 API를 부른다.
+ */
+export async function getStoredDayAnalyses(
+  classId: string,
+  studentId: string,
+  date: string,
+): Promise<{ morning: string | null; full: string | null }> {
+  const row = await findRow(classId, studentId);
+  if (!row) return { morning: null, full: null };
+  const demoScope = await getDemoScope();
+  const targets = resolveAnalysisTargets((await loadSessions([row], date, date))(row, date), demoScope.active ? demoScope.viewerId : null);
+  const sourceIds = [targets.morning?.sourceId, targets.full?.sourceId].filter((id): id is string => Boolean(id));
+  const stored = await loadStoredSummaries(sourceIds);
+  return {
+    morning: targets.morning ? (pickSummary(stored, targets.morning.sourceId, "morning")?.summary ?? null) : null,
+    full: targets.full ? (pickSummary(stored, targets.full.sourceId, "full")?.summary ?? null) : null,
+  };
+}
+
+/**
  * AI 하루 분석(/api/ai/daily-analysis)의 입력 — 그날 세션별 색·대화 전문·발화 측정값 + 이름 치환용 학급 명단.
  * 실제 세션(checkin_sessions의 mood_color·transcript(1060)·prosody(1080))이 있으면 그걸, 없으면 mock.
  * prosody가 없으면 null — 분석은 그 경우 전문과 색만 쓴다.
@@ -354,15 +409,16 @@ export async function getDailyAnalysisInput(
   const row = await findRow(classId, studentId);
   if (!row) return null;
   const sessionsOf = await loadSessions([row], addDays(date, -ANALYSIS_PAST_DAYS), date);
-  const pastDays = dateRange(addDays(date, -1), ANALYSIS_PAST_DAYS).map((day) => {
-    const sessions = sessionsOf(row, day);
-    return {
-      date: day,
-      morning: latestColor(sessions, "morning"),
-      afternoon: latestColor(sessions, "afternoon"),
-      stateEstimate: latestStateEstimate(sessions.map((s) => s.sessionId)),
-    };
-  });
+  const pastSessions = dateRange(addDays(date, -1), ANALYSIS_PAST_DAYS).map((day) => ({ day, sessions: sessionsOf(row, day) }));
+  // 과거 7일의 저장된 요약을 한 번에(배치로) 읽는다 — 그날 추정 상태를 다음 분석의 흐름 입력으로 쓴다.
+  const stored = await loadStoredSummaries(pastSessions.flatMap(({ sessions }) => sessions.map((s) => s.sessionId)));
+  const viewerId = viewerIdOf(await getDemoScope());
+  const pastDays = pastSessions.map(({ day, sessions }) => ({
+    date: day,
+    morning: latestColor(sessions, "morning"),
+    afternoon: latestColor(sessions, "afternoon"),
+    stateEstimate: latestStateEstimate(sessions, stored, viewerId),
+  }));
   return {
     student: toClassStudent(row),
     classmates: (await classRows(classId)).map(toClassStudent),
@@ -380,7 +436,12 @@ const ANALYSIS_PAST_DAYS = 7;
  * Supabase 연결 시: analysis_runs where source_type='session' and source_id in (...) and status='completed'
  *   order by created_at desc limit 1 → result->>'stateEstimate'
  */
-function latestStateEstimate(sessionIds: string[]): string | null {
+function latestStateEstimate(sessions: DaySession[], stored: StoredSessionSummary[], viewerId: string | null): string | null {
+  const sessionIds = sessions.map((s) => s.sessionId);
+  // 실제 세션은 DB 요약에서(현재 방문자 본인 세션 우선, 그 부류의 마지막 세션에 붙은 것 우선, 그다음 최신 — 다음 분석의 흐름 입력이라
+  // 하교 전 등교 요약도 허용한다). 목업 세션만 아래 서버 메모리 경로.
+  const fromDb = pickDayAnalysis(stored.filter((r) => r.stateEstimate), sessions, viewerId, { requireFullWhenAfternoon: false })?.stateEstimate;
+  if (fromDb) return fromDb;
   // 하루의 마지막 세션(하교)까지 본 분석을 우선 — 등교만 본 분석은 그게 없을 때만
   const coversLast = (sourceId: string) => sessionIds.indexOf(sourceId) === sessionIds.length - 1;
   const run = mockAnalysisRuns()
@@ -482,8 +543,14 @@ function existingDayAnalysis(
   enrollmentId: string,
   date: string,
   sessions: DaySession[],
+  stored: StoredSessionSummary[],
+  viewerId: string | null,
 ): ConsultationReport["analyses"][number] | null {
   const sessionIds = sessions.map((s) => s.sessionId);
+  // 실제 세션의 요약은 DB(스코프·소유 검증을 거친 것)에서 — 상세 화면과 같은 함수가 읽어 온 결과다. 목업 세션만 아래 메모리·시드 경로.
+  // 현재 방문자 본인 세션이 있으면 본인 요약만(공용 요약이 대신하지 않음), 하교가 있는 날은 통합 요약만 하루 요약으로 쓴다.
+  const fromDb = pickDayAnalysis(stored, sessions, viewerId);
+  if (fromDb) return { analysisId: fromDb.id, sessionId: fromDb.sourceId, date, summary: fromDb.summary };
   const lastSessionId = sessionIds.at(-1);
   const generated = mockAnalysisRuns()
     .filter(
@@ -529,10 +596,13 @@ export async function getConsultationReport(
   const analyses: ConsultationReport["analyses"] = [];
 
   const sessionsOf = await loadSessions([row], from, to);
-  for (const date of dates) {
-    const daily = sessionsOf(row, date);
+  const perDate = dates.map((date) => ({ date, daily: sessionsOf(row, date) }));
+  // 기간 전체의 저장된 요약을 한 번에(배치로) 읽는다 — 날짜마다 조회하지 않는다.
+  const stored = await loadStoredSummaries(perDate.flatMap(({ daily }) => daily.map((s) => s.sessionId)));
+  const viewerId = viewerIdOf(await getDemoScope());
+  for (const { date, daily } of perDate) {
     sessions.push(...daily.map((s) => ({ ...s, date })));
-    const analysis = existingDayAnalysis(row.enrollment_id, date, daily);
+    const analysis = existingDayAnalysis(row.enrollment_id, date, daily, stored, viewerId);
     if (analysis) analyses.push(analysis);
   }
 

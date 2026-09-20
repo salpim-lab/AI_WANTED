@@ -12,12 +12,18 @@
 //   → 등교만 있을 때는 등교 기준 분석(오늘 수업 중 살필 점), 하교가 들어오면 등교+하교 분석(내일 등교 때 살필 점)이 새로 생긴다.
 // 서버 전용 — OPENAI_API_KEY를 쓴다. Route Handler에서만 import.
 //
-// 지금은 mock 저장소(_mockTeacherData.mockAnalysisRuns)에 쓴다. Supabase 연결 시 findDailyAnalysis/insertDailyAnalysis
-// 본문만 analysis_runs select/insert로 교체한다.
+// 저장: 실제 체크인 세션(uuid)의 요약은 analysis_runs(session_summary)에 저장·재사용한다(queries/sessionSummaries.ts — 상세 화면·상담 리포트·협진
+//   챗봇이 같은 함수로 읽는다). 목업 세션(id가 "mock-…")은 uuid가 아니라 DB에 못 넣으므로 기존처럼 서버 메모리(mockAnalysisRuns)를 쓴다.
+// 격리: 한 요약의 입력 세션은 소유자가 전부 같아야 한다(analysisTargets.ts). 소유자는 요약 행에 쓰지 않고 부모 세션에서 파생한다.
+// 재사용: 프롬프트 버전이 달라도 유효한 최신 완료 요약이 있으면 그것을 쓴다(자동 재생성 없음). AI 성공 뒤에만 INSERT하고 기존 행은 수정·삭제하지 않는다.
 
 import "server-only";
 
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
+import { getDemoScope } from "@/lib/demo/scope";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveAnalysisTargets, type AnalysisTarget, type SummaryScope } from "@/lib/supabase/interpretation/analysisTargets";
+import { insertSessionSummary, isRealSessionId, loadSessionSummaries, pickSummary } from "@/lib/supabase/queries/sessionSummaries";
 import { mockAnalysisRuns, type AnalysisRunRow } from "@/lib/supabase/raw/_mockTeacherData";
 import type {
   AnalysisInputSession,
@@ -48,11 +54,18 @@ export type DailyAnalysis = {
  * 분석 범위 — "등교만"과 "등교·하교"는 마지막 세션이 같아도 다른 분석이다
  * (예: 하교 뒤에 등교를 다시 한 날은 두 분석의 마지막 세션이 같은 등교 세션이 된다).
  */
-type AnalysisScope = "morning" | "full";
-const scopeOf = (input: DailyAnalysisInput): AnalysisScope => (hasAfternoon(input) ? "full" : "morning");
+type AnalysisScope = SummaryScope;
 
-async function findDailyAnalysis(sourceSessionId: string, scope: AnalysisScope): Promise<AnalysisRunRow | null> {
-  return (
+type StoredAnalysis = { summary: string; analysisId: string };
+
+/** 이미 만든 요약. 실제 세션은 DB(프롬프트 버전 무관 최신 유효 요약), 목업 세션은 서버 메모리(현재 프롬프트 버전만). */
+async function findDailyAnalysis(sourceSessionId: string, scope: AnalysisScope): Promise<StoredAnalysis | null> {
+  if (isRealSessionId(sourceSessionId)) {
+    const rows = await loadSessionSummaries(createAdminClient(), [sourceSessionId], await getDemoScope());
+    const found = pickSummary(rows, sourceSessionId, scope);
+    return found ? { summary: found.summary, analysisId: found.id } : null;
+  }
+  const mock =
     mockAnalysisRuns()
       .filter(
         (r) =>
@@ -62,15 +75,50 @@ async function findDailyAnalysis(sourceSessionId: string, scope: AnalysisScope):
           r.prompt_version === DAILY_ANALYSIS_PROMPT_VERSION &&
           r.status === "completed",
       )
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null
-  );
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+  return mock ? { summary: String(mock.result.summary), analysisId: mock.id } : null;
 }
 
-async function insertDailyAnalysis(row: Omit<AnalysisRunRow, "id" | "created_at">): Promise<AnalysisRunRow> {
+type NewDailyAnalysis = {
+  target: AnalysisTarget;
+  model: string;
+  result: Record<string, unknown> & { summary: string };
+};
+
+/** AI 성공 뒤에만 호출한다. 실제 세션은 DB에 INSERT(같은 키가 이미 있으면 이긴 행을 돌려줌), 목업 세션은 서버 메모리. */
+async function insertDailyAnalysis({ target, model, result }: NewDailyAnalysis): Promise<StoredAnalysis> {
+  if (isRealSessionId(target.sourceId)) {
+    const { summary } = await insertSessionSummary(createAdminClient(), await getDemoScope(), {
+      sourceId: target.sourceId,
+      sessionIds: target.sessionIds,
+      scope: target.scope,
+      provider: "openai",
+      model,
+      promptVersion: DAILY_ANALYSIS_PROMPT_VERSION,
+      result,
+    });
+    return { summary: summary.summary, analysisId: summary.id };
+  }
   // created_at은 서버 시각 (Supabase에서는 DB default now())
-  const saved: AnalysisRunRow = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+  const saved: AnalysisRunRow = {
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    analysis_type: "session_summary",
+    source_type: "session",
+    source_id: target.sourceId,
+    provider: "openai",
+    model,
+    prompt_version: DAILY_ANALYSIS_PROMPT_VERSION,
+    schema_version: 1,
+    category_tags: [],
+    moderation_flag: false,
+    needs_followup: false,
+    result: { ...result, scope: target.scope, sourceSessionIds: target.sessionIds },
+    status: "completed",
+    error_message: null,
+  };
   mockAnalysisRuns().push(saved);
-  return saved;
+  return { summary: result.summary, analysisId: saved.id };
 }
 
 // ── 이름 치환 (기획안 8.9) ─────────────────────────────────
@@ -341,10 +389,17 @@ const inflight = (globalForInflight.__salpimDailyAnalysisInflight ??= new Map())
 export async function getOrCreateDayAnalyses(
   input: DailyAnalysisInput,
 ): Promise<{ morning: DailyAnalysis | null; full: DailyAnalysis | null }> {
-  const morningInput = { ...input, sessions: input.sessions.filter((s) => s.period === "morning") };
+  // 요약 대상: DEMO_MODE에서는 현재 방문자 본인의 세션을 먼저 고르고 그 안에서 등교/통합 대상을 정한다(더 늦은 공용 세션이 있어도 본인 요약이
+  // 누락되지 않는다). 소유자가 같은 세션끼리만 묶으므로 공용 시드 세션과 방문자 세션(또는 서로 다른 방문자)이 한 요약에 섞이지 않는다.
+  const demoScope = await getDemoScope();
+  const targets = resolveAnalysisTargets(input.sessions, demoScope.active ? demoScope.viewerId : null);
+  const inputFor = (target: AnalysisTarget): DailyAnalysisInput => ({
+    ...input,
+    sessions: input.sessions.filter((s) => target.sessionIds.includes(s.sessionId)),
+  });
   const [morning, full] = await Promise.all([
-    morningInput.sessions.length ? getOrCreateDailyAnalysis(morningInput) : null,
-    hasAfternoon(input) ? getOrCreateDailyAnalysis(input) : null,
+    targets.morning ? getOrCreateDailyAnalysis(inputFor(targets.morning), targets.morning) : null,
+    targets.full ? getOrCreateDailyAnalysis(inputFor(targets.full), targets.full) : null,
   ]);
   return { morning, full };
 }
@@ -352,17 +407,17 @@ export async function getOrCreateDayAnalyses(
 /**
  * 주어진 세션들로 요약 하나를 돌려준다. 이미 만든 게 있으면 재사용, 없으면 만들어서 저장한다.
  * 아이 음성 발화가 하나도 없으면(세션 없음, 남색만 등) 요약하지 않고 null.
+ * input.sessions는 target.sessionIds와 같은 세션들(소유자 동일)이다.
  */
-async function getOrCreateDailyAnalysis(input: DailyAnalysisInput): Promise<DailyAnalysis | null> {
+async function getOrCreateDailyAnalysis(input: DailyAnalysisInput, target: AnalysisTarget): Promise<DailyAnalysis | null> {
   const hasStudentSpeech = input.sessions.some((s) => s.turns.some((t) => t.speaker === "student"));
   if (!hasStudentSpeech) return null;
 
-  // 입력의 "버전" = 그날 마지막 세션. 하교 세션이 생기면 새 분석을 만든다.
-  const source = input.sessions[input.sessions.length - 1];
-  const scope = scopeOf(input);
-  const cacheKey = `${source.sessionId}|${scope}`;
-  const existing = await findDailyAnalysis(source.sessionId, scope);
-  if (existing) return { summary: String(existing.result.summary), analysisId: existing.id, periods: analysisPeriods(input) };
+  // 입력의 "버전" = 묶음의 마지막 세션(대표). 하교 세션이 생기면 새 분석을 만든다.
+  const scope = target.scope;
+  const cacheKey = `${target.sourceId}|${scope}`;
+  const existing = await findDailyAnalysis(target.sourceId, scope);
+  if (existing) return { summary: existing.summary, analysisId: existing.analysisId, periods: analysisPeriods(input) };
 
   const pending = inflight.get(cacheKey);
   if (pending) return pending;
@@ -374,36 +429,25 @@ async function getOrCreateDailyAnalysis(input: DailyAnalysisInput): Promise<Dail
     const output = await callModel(model, buildUserMessage(input, mask, lineIdToMessageId));
 
     const summary = mask.unmask(output.summary);
+    // AI가 성공한 뒤에만 저장한다. 이미 다른 요청이 같은 요약을 저장했으면 그 행이 돌아온다(기존 요약은 수정·삭제하지 않는다).
     const saved = await insertDailyAnalysis({
-      analysis_type: "session_summary",
-      source_type: "session",
-      source_id: source.sessionId,
-      provider: "openai",
+      target,
       model,
-      prompt_version: DAILY_ANALYSIS_PROMPT_VERSION,
-      schema_version: 1,
-      category_tags: [],
-      moderation_flag: false,
-      needs_followup: false,
       result: {
         summary,
         stateEstimate: mask.unmask(output.state_estimate),
         periods: analysisPeriods(input),
-        scope,
         keywords: output.keywords.map(mask.unmask),
         evidenceMessageIds: output.evidence_message_ids
           .map((id) => lineIdToMessageId.get(id))
           .filter((id): id is string => Boolean(id)),
-        sourceSessionIds: input.sessions.map((s) => s.sessionId),
         mentionedStudentIds: mask.mentionedStudentIds(),
         prosodyUsed: input.sessions.some(
           (s) => s.prosody !== null && s.prosody.baseline_days >= MIN_BASELINE_DAYS && s.prosody.utterances.length > 0,
         ),
       },
-      status: "completed",
-      error_message: null,
     });
-    return { summary, analysisId: saved.id, periods: analysisPeriods(input) };
+    return { summary: saved.summary, analysisId: saved.analysisId, periods: analysisPeriods(input) };
   })();
 
   inflight.set(cacheKey, task);

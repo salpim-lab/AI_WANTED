@@ -14,6 +14,7 @@ import {
   getColorHistory,
   getMockAiPreview,
   getPrecomputedDayAi,
+  getStoredDayAnalyses,
   getStudentDaySessions,
 } from "@/lib/supabase/queries/teacherStudents";
 import { getActingTeacher, withTeacherMockFixture } from "@/lib/supabase/raw/_mockTeacherData";
@@ -38,11 +39,13 @@ async function StudentDetailPageInMockScope({ params, searchParams }: PageProps<
   const requestedDate = dateParam(query.date);
   const date = requestedDate && requestedDate <= today ? requestedDate : today;
 
-  const [sessions, history, preview, precomputed] = await Promise.all([
+  // stored: 이미 DB에 저장된 그날 AI 요약 — 챗봇·상담 리포트와 같은 조회 함수(sessionSummaries)로 읽는다. 있으면 화면이 분석 API를 다시 부르지 않는다.
+  const [sessions, history, preview, precomputed, stored] = await Promise.all([
     getStudentDaySessions(teacher.classId, student.studentId, date),
     getColorHistory(teacher.classId, student.studentId, today, CALENDAR_DAYS),
     getMockAiPreview(teacher.classId, student.studentId, date),
     getPrecomputedDayAi(teacher.classId, student.studentId, date),
+    getStoredDayAnalyses(teacher.classId, student.studentId, date),
   ]);
 
   after(() => recordView({ viewerId: teacher.id, entityType: "student_detail", entityId: student.studentId }));
@@ -56,6 +59,7 @@ async function StudentDetailPageInMockScope({ params, searchParams }: PageProps<
       history={history}
       preview={preview}
       precomputed={precomputed}
+      stored={stored}
     />
   );
 }

@@ -50,6 +50,11 @@ export type DaySession = {
   status: "started" | "completed" | "stopped";
   startedAt: string; // ISO
   turns: ConversationTurn[];
+  /**
+   * 이 세션의 소유 방문자(checkin_sessions.demo_owner_id). null=공용 시드·정식 로그인 흐름. 목업 세션엔 없다(=공용).
+   * AI 하루 분석이 공용 세션과 방문자 세션(또는 서로 다른 방문자)을 한 요약에 섞지 않으려고 쓴다 — 화면에 그리지 않는다.
+   */
+  ownerId?: string | null;
 };
 
 /**

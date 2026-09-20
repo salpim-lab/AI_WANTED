@@ -1,0 +1,3 @@
+# 이 SQL은 scripts/generate-demo-island-seed-sql.mjs의 생성 결과(LF)와 바이트 단위로 비교하는 테스트(test:1094-local)가 있어 작업 사본도 LF로 유지한다.
+# 저장소 전체 줄바꿈 정책은 바꾸지 않는다(이 파일 한 개에만 적용).
+scripts/demo-island-seed/seed-public-island.sql text eol=lf
