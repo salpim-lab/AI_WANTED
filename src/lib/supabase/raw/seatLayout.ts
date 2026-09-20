@@ -9,7 +9,7 @@
 
 import { getDemoScope, scopedKey } from "@/lib/demo/scope";
 import type { SeatLayout } from "@/lib/types/teacherRecord";
-import { MOCK_STUDENTS, mockSeatLayouts } from "./_mockTeacherData";
+import { MOCK_STUDENTS, loadDbSeats, mockSeatLayouts } from "./_mockTeacherData";
 
 function activeRows(classId: string) {
   return MOCK_STUDENTS.filter((s) => s.class_id === classId && s.status === "active");
@@ -20,9 +20,16 @@ export async function getSeatLayout(classId: string): Promise<SeatLayout> {
   // (2026-09-20, 이지현 제안) 공개 데모: 저장소가 서버 메모리 전역이라 키에 방문자를 붙인다 — 한 방문자가 바꾼
   // 자리 배치가 다른 방문자에게 보이면 안 된다(방문자가 저장한 적 없으면 공용 초기 배치).
   const saved = mockSeatLayouts()[scopedKey(await getDemoScope(), classId)];
+  // 저장한 적 없으면 DB(v_students_current)의 자리, DB를 못 읽는 환경이면 mock 초기 자리
+  const dbSeats = await loadDbSeats(classId);
   const seats = activeRows(classId).map((row) => {
     const seat = saved?.seats[row.enrollment_id];
-    return { studentId: row.student_id, row: seat?.seat_row ?? row.seat_row, col: seat?.seat_col ?? row.seat_col };
+    const base = dbSeats?.get(row.student_id);
+    return {
+      studentId: row.student_id,
+      row: seat?.seat_row ?? base?.seat_row ?? row.seat_row,
+      col: seat?.seat_col ?? base?.seat_col ?? row.seat_col,
+    };
   });
   return {
     rows: Math.max(saved?.rows ?? 1, ...seats.map((s) => s.row)),

@@ -13,7 +13,7 @@
 // - 배포 전 목업 데이터(루트 mock-data/out/*.json, 로컬 전용)는 "목업 범위" 안에서만 쓴다 — withTeacherMockFixture.
 //   김현우 화면(아이 상세·관찰일지·학부모상담)의 페이지·Server Action만 이 범위로 감싸서 조회한다.
 //   같은 조회 함수를 쓰는 에이전트·대시보드는 범위 밖이라 지금까지의 mock을 그대로 본다.
-//   파일이 없거나(다른 팀원 PC) TEACHER_MOCK_FIXTURE=off면 범위 안에서도 예전 mock을 쓴다.
+//   (2026-09-20) 이제 TEACHER_MOCK_FIXTURE=on일 때만 켜진다 — 기본은 DB. 파일이 없어도(다른 팀원 PC) 예전 mock으로 간다.
 //   단 실제로 쓰는 아이(DAILY_ANALYSIS_ONLY_STUDENT_IDS, 지금은 김민준)는 범위 안에서도 목업을 쓰지 않는다 —
 //   실제 체크인만 보고, AI 분석·누적 자료 요약도 실제 AI로 만든다. 나머지 아이는 AI 결과까지 목업을 쓴다.
 
@@ -117,16 +117,20 @@ export type RecordDb = {
   /** mock student_id → DB enrollment_id / student_id */
   enrollmentOf: Map<string, string>;
   dbStudentOf: Map<string, string>;
+  /** mock student_id → DB 자리(v_students_current.seat_row/seat_col) */
+  seatOf: Map<string, { seat_row: number; seat_col: number }>;
 };
 
 const RECORD_DB_TTL_MS = 5 * 60 * 1000;
+/** 연결표에 담는 내용이 바뀌면 올린다 — 이미 떠 있는 서버의 캐시(globalThis)가 옛 모양으로 남지 않게 */
+const RECORD_DB_SHAPE = 2;
 const globalForRecordDb = globalThis as typeof globalThis & {
-  __salpimRecordDb?: { at: number; value: Promise<Omit<RecordDb, "client">> };
+  __salpimRecordDb?: { at: number; shape?: number; value: Promise<Omit<RecordDb, "client">> };
 };
 
 async function loadRecordDb(client: RecordDb["client"]): Promise<Omit<RecordDb, "client">> {
   const [{ data: students, error: studentError }, { data: teachers, error: teacherError }] = await Promise.all([
-    client.from("v_students_current").select("student_id, enrollment_id, display_name").eq("class_id", MOCK_DB_CLASS_ID),
+    client.from("v_students_current").select("student_id, enrollment_id, display_name, seat_row, seat_col").eq("class_id", MOCK_DB_CLASS_ID),
     client.from("class_teachers").select("teacher_id").eq("class_id", MOCK_DB_CLASS_ID).eq("role", "homeroom").limit(1),
   ]);
   if (studentError) throw studentError;
@@ -138,6 +142,7 @@ async function loadRecordDb(client: RecordDb["client"]): Promise<Omit<RecordDb, 
   const studentByEnrollment = new Map<string, MockStudentRow>();
   const enrollmentOf = new Map<string, string>();
   const dbStudentOf = new Map<string, string>();
+  const seatOf = new Map<string, { seat_row: number; seat_col: number }>();
   for (const mock of MOCK_STUDENTS) {
     // DB 이름이 성 포함("김민준")이든 성 뺀 이름("민준", 시드)이든 잇는다
     const db = dbByName.get(mock.display_name) ?? dbByName.get(givenName(mock.display_name));
@@ -145,8 +150,11 @@ async function loadRecordDb(client: RecordDb["client"]): Promise<Omit<RecordDb, 
     studentByEnrollment.set(db.enrollment_id, mock);
     enrollmentOf.set(mock.student_id, db.enrollment_id);
     dbStudentOf.set(mock.student_id, db.student_id);
+    if (typeof db.seat_row === "number" && typeof db.seat_col === "number") {
+      seatOf.set(mock.student_id, { seat_row: db.seat_row, seat_col: db.seat_col });
+    }
   }
-  return { classId: MOCK_DB_CLASS_ID, teacherId, studentByEnrollment, enrollmentOf, dbStudentOf };
+  return { classId: MOCK_DB_CLASS_ID, teacherId, studentByEnrollment, enrollmentOf, dbStudentOf, seatOf };
 }
 
 /** 앱 학급 id로 DB 연결표를 얻는다. 담당 학급이 아니면 null. 명단·담임은 5분 동안 재사용한다 */
@@ -154,15 +162,33 @@ export async function recordDb(appClassId: string): Promise<RecordDb | null> {
   if (appClassId !== MOCK_TEACHER.classId) return null;
   const client = createAdminClient();
   const cached = globalForRecordDb.__salpimRecordDb;
-  if (!cached || Date.now() - cached.at > RECORD_DB_TTL_MS) {
+  if (!cached || cached.shape !== RECORD_DB_SHAPE || Date.now() - cached.at > RECORD_DB_TTL_MS) {
     const value = loadRecordDb(client);
-    globalForRecordDb.__salpimRecordDb = { at: Date.now(), value };
+    globalForRecordDb.__salpimRecordDb = { at: Date.now(), shape: RECORD_DB_SHAPE, value };
     // 실패한 조회는 캐시에 남기지 않는다 — 다음 요청에서 다시 시도
     value.catch(() => {
       if (globalForRecordDb.__salpimRecordDb?.value === value) globalForRecordDb.__salpimRecordDb = undefined;
     });
   }
   return { client, ...(await globalForRecordDb.__salpimRecordDb!.value) };
+}
+
+/**
+ * DB(v_students_current)의 자리 — 명단 전원의 자리가 DB에 있을 때만 돌려준다(일부만 덮으면 자리가 겹친다).
+ * env가 없거나(TEACHER_REAL_CHECKINS=off 포함) DB 조회에 실패하면 null — 호출부는 mock 자리로 간다.
+ */
+export async function loadDbSeats(appClassId: string): Promise<Map<string, { seat_row: number; seat_col: number }> | null> {
+  if (process.env.TEACHER_REAL_CHECKINS === "off" || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) return null;
+  try {
+    const db = await recordDb(appClassId);
+    const seats = db?.seatOf;
+    if (!seats) return null;
+    const active = MOCK_STUDENTS.filter((s) => s.class_id === appClassId && s.status === "active");
+    return active.every((s) => seats.has(s.student_id)) ? seats : null;
+  } catch (error) {
+    console.warn("[mockTeacherData] DB 자리를 읽지 못해 mock 자리로 보여줍니다:", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 /** 앱 교사 id → DB 교사 id. mock 교사만 DB 담임으로 바꾼다 (그 외는 그대로 — 인증 연동 후의 실제 교사 id) */
@@ -886,7 +912,9 @@ export function withTeacherMockFixture<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 function activeFixture(): TeacherMockFixture | null {
-  if (!fixtureScope.getStore() || process.env.TEACHER_MOCK_FIXTURE === "off") return null;
+  // (2026-09-20) 기본은 꺼짐 — 공유 DB에 목업과 같은 내용이 이미 들어 있어(1093 시드 등) 교사 화면은 DB를 읽는다.
+  // 로컬에서 mock-data/out 파일을 직접 보고 싶을 때만 TEACHER_MOCK_FIXTURE=on
+  if (!fixtureScope.getStore() || process.env.TEACHER_MOCK_FIXTURE !== "on") return null;
   // mock-data/build.mjs를 다시 돌리면 서버 재시작 없이 새 목업을 읽는다 (그동안 범위 안에서 새로 쓴 기록은 버려진다)
   const version = fixtureVersion();
   const cached = globalForFixture.__salpimTeacherFixture;
