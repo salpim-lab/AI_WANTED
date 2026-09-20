@@ -692,6 +692,24 @@
   .sh-teacher-tip { transition: none; }
 }
 
+/* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 도중에 마음 신호등 화면이 랜딩 화면처럼 사악 떠오른다.
+   바탕은 제자리에서 나타나고(아래 홈이 비쳐 보인다), 글과 판만 아래에서 위로 살짝 올라온다.
+   ⚠️ 시간은 MorningHome 의 CROSSFADE_LEAD_MS · StudentHome 의 LINGER_MS 와 맞춘다.
+   fill 은 backwards — both 로 두면 끝난 뒤에도 transform/filter 가 남아 자식 배치가 바뀐다. */
+@keyframes shMoodFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shMoodRise {
+  from { opacity: 0; transform: translateY(3.2cqh); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mood-screen.active { animation: shMoodFade 0.75s ease-out backwards; }
+.mood-screen.active .mood-rise { animation: shMoodRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .mood-screen.active, .mood-screen.active .mood-rise { animation: none; }
+}
+
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */
 .sh-cta-stack {
   display: flex;
