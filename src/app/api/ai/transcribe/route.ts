@@ -21,6 +21,7 @@ import { NextResponse } from "next/server";
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
 import { CheckinAuthError, requireOwnStartedSession } from "@/lib/checkins/authorize";
 import { buildSttPrompt } from "@/lib/checkins/classRoster";
+import { cleanTranscript } from "@/lib/checkins/sttClean";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -89,7 +90,8 @@ export async function POST(request: Request) {
     upstream.set("model", process.env.STT_MODEL || "whisper-1");
     // 한국어를 명시하면 짧은 발화에서 언어를 잘못 잡는 일이 없어진다.
     upstream.set("language", "ko");
-    upstream.set("response_format", "json");
+    // verbose_json: 조각마다 "말소리가 아닐 확률"이 함께 온다. 무음·잡음에서 만들어 낸 글을 걷어 내는 데 쓴다(sttClean).
+    upstream.set("response_format", "verbose_json");
 
     // 같은 반 아이 이름과 교실 어휘를 힌트로 넘긴다.
     // ⚠️ 이건 인식을 돕는 것이지 결과를 고치는 것이 아니다.
@@ -115,8 +117,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const data = (await response.json()) as { text?: unknown };
-    const text = typeof data.text === "string" ? data.text.trim() : "";
+    const data = (await response.json()) as { text?: unknown; segments?: unknown };
+    // 무음·잡음 구간에서 Whisper 가 만들어 낸 글("수고하셨습니다" 등)을 뺀다. 남는 게 없으면 빈 전사가 된다.
+    const { text, dropped } = cleanTranscript(data);
+    if (dropped.length) console.info("[transcribe] 말소리가 아닌 조각을 뺐습니다:", dropped);
     // 빈 전사는 실패가 아니다. 아이가 말을 안 했거나 너무 작게 말한 것이다.
     return NextResponse.json({ text }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
