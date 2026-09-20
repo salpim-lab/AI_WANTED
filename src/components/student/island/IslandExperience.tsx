@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createHeldWalk } from "./heldWalk";
+import styles from "./IslandExperience.module.css";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
 
 const IslandScene = dynamic(() => import("./IslandScene"), {
@@ -44,6 +45,8 @@ type Props = {
   studentName?: string;
   incomingItem?: { emoji: string; name: string; reason: string; assetFormat?: "glb" | "procedural"; geometrySpec?: unknown } | null;
   baseItemCount?: number;
+  /** 인트로 확대와 배치 후 귀가 연출을 빼고, 놓는 즉시 onComplete로 넘긴다. */
+  plain?: boolean;
   /** Items already on the island (rendered and used for spacing checks). */
   placedGifts?: IslandGift[];
   /** 오늘의 아이템을 내려놓은 직후(집으로 돌아가기 전) — 부모가 서버에 배치를 저장한다. */
@@ -52,21 +55,21 @@ type Props = {
 };
 
 const NO_GIFTS: IslandGift[] = [];
+const AFTER_PUT_DOWN_PAUSE_MS = 800;
 const WAITING_MESSAGES = [
-  "선물이 준비되면 놓기 버튼이 켜질 거야.",
+  "아이템이 준비되면 알려줄게.",
   "화면을 움직여서 섬을 둘러봐!",
-  "선물을 놓고 싶은 자리를 골라 볼까?",
+  "아이템을 놓고 싶은 자리를 골라 볼까?",
   "멀리 보고 싶으면 - 버튼을 눌러 봐!",
-  "바닷가와 나무 옆, 어디가 더 좋을까?",
   "위에서 보면 섬이 또 다르게 보여!",
 ] as const;
 
-export default function IslandExperience({ flow = "checkin", compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, placedGifts = NO_GIFTS, preparing = false, onPlaced, onComplete }: Props) {
+export default function IslandExperience({ flow = "checkin", compact = false, studentName = "민준", incomingItem = null, baseItemCount = 0, plain = false, placedGifts = NO_GIFTS, preparing = false, onPlaced, onComplete }: Props) {
   const acquired = {
     kind: "star" as GiftKind,
     emoji: incomingItem?.emoji ?? "⭐",
     name: incomingItem?.name ?? "반짝이는 별",
-    description: incomingItem?.reason ?? "오늘의 이야기가 담긴 선물",
+    description: incomingItem?.reason ?? "오늘의 이야기가 담긴 아이템",
     assetFormat: incomingItem?.assetFormat,
     geometrySpec: incomingItem?.geometrySpec,
   };
@@ -82,24 +85,37 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   const [placementNotice, setPlacementNotice] = useState<string | null>(null);
   const [homeGreeting, setHomeGreeting] = useState<"none" | "greeting" | "closed">("none");
   const [completionNoticeVisible, setCompletionNoticeVisible] = useState(true);
-  const [entryStage, setEntryStage] = useState<"intro" | "cta" | "exiting" | "popping" | "placement">("intro");
+  const [itemView, setItemView] = useState<"choice" | "approaching" | "exploring" | "reason">("choice");
+  const [exploredDuringPreparation, setExploredDuringPreparation] = useState(false);
+  const [entryStage, setEntryStage] = useState<"intro" | "cta" | "exiting" | "popping" | "placement">(plain ? "cta" : "intro");
   const sceneRef = useRef<SceneHandle>(null);
+  const waitingViewChangedRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   const [heldWalk] = useState(() => createHeldWalk());
   const giftId = useRef(0);
   const hasIncomingItem = incomingItem !== null;
+  const lastNameCharacter = acquired.name.trim().at(-1)?.charCodeAt(0) ?? 0;
+  const itemNameWithParticle = `${acquired.name}${lastNameCharacter >= 0xac00 && lastNameCharacter <= 0xd7a3 && (lastNameCharacter - 0xac00) % 28 !== 0 ? "을" : "를"}`;
 
   useEffect(() => {
     if (preparing || !hasIncomingItem || entryStage === "intro") return;
     const timer = window.setTimeout(() => setCompletionNoticeVisible(false), 3_000);
     return () => window.clearTimeout(timer);
-  }, [preparing, hasIncomingItem, entryStage === "intro"]);
+  }, [preparing, hasIncomingItem, entryStage]);
 
   useEffect(() => {
     if (!preparing) return;
     const timer = window.setInterval(() => setWaitingTick(tick => tick + 1), 5_000);
     return () => window.clearInterval(timer);
   }, [preparing]);
+
+  useEffect(() => {
+    if (!preparing) { waitingViewChangedRef.current = false; return; }
+    if (waitingViewChangedRef.current || waitingTick < 1 || entryStage === "intro" || mode !== "island") return;
+    waitingViewChangedRef.current = true;
+    sceneRef.current?.camera("placement");
+    setCameraView("free");
+  }, [preparing, waitingTick, entryStage, mode]);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -113,22 +129,24 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
     timersRef.current.push(timer);
   };
 
-  const propose = useCallback((kind: GiftKind, x: number, z: number, alreadyAtPosition = false) => {
+  function propose(kind: GiftKind, x: number, z: number, alreadyAtPosition = false) {
     if (phase !== "choosing" && phase !== "confirming") return;
     // The placed item must keep its procedural spec, or it falls back to the preset star.
     setProposal({ kind, name: acquired.name, x, z, assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec });
     setPhase(alreadyAtPosition ? "confirming" : "moving");
-  }, [acquired.name, acquired.assetFormat, acquired.geometrySpec, phase]);
+  }
 
-  const arrive = useCallback(() => {
+  function arrive() {
     setPhase((current) => current === "moving" ? "confirming" : current);
-  }, []);
+  }
 
   // The character picks up the dropped item and carries it on its head.
   function startPlacement() {
     if (preparing || phase !== "ready" || entryStage !== "cta" || baseItemCount > 0) return;
     setPlacementInteractionStarted(false);
     setPlacementNotice(null);
+    sceneRef.current?.camera("character");
+    setCameraView("free");
     setEntryStage("exiting");
     after(200, () => {
       setEntryStage("popping");
@@ -138,6 +156,36 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
         setEntryStage("placement");
       });
     });
+  }
+
+  function showItemReason() {
+    setCompletionNoticeVisible(false);
+    setItemView("reason");
+  }
+
+  function beginItemApproach() {
+    setCompletionNoticeVisible(false);
+    setItemView("approaching");
+  }
+
+  function inspectIncomingItem() {
+    beginItemApproach();
+    sceneRef.current?.inspectIncomingItem();
+  }
+
+  function exploreIsland() {
+    sceneRef.current?.camera("placement");
+    setCameraView("free");
+    setItemView("exploring");
+  }
+
+  function handlePreparingMovement() {
+    setExploredDuringPreparation(true);
+    if (!waitingViewChangedRef.current) {
+      waitingViewChangedRef.current = true;
+      sceneRef.current?.camera("placement");
+      setCameraView("free");
+    }
   }
 
   function cancelPlacement() {
@@ -152,6 +200,15 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
   function confirmPlacement() {
     if (!proposal || phase !== "confirming") return;
+    if (plain) {
+      const placed = { ...proposal, id: `gift-${++giftId.current}` };
+      setGifts((current) => [...current, placed]);
+      setPhase("complete");
+      onComplete?.(placed);
+      return;
+    }
+    sceneRef.current?.camera("character");
+    setCameraView("free");
     setSelected(null);
     setPhase("placing");
     setOverview(false);
@@ -160,11 +217,15 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
   function finishPuttingDown() {
     if (!proposal || phase !== "placing") return;
-    const placed = { ...proposal, id: `gift-${++giftId.current}` };
-    setGifts((current) => [...current, placed]);
-    onPlaced?.(placed);
-    setPlacementNotice(null);
-    setPhase("returning");
+    const placed = proposal;
+    // 서버 저장은 내려놓는 즉시(연출 대기 중에 화면을 떠나도 잃지 않도록). 화면 반영은 main의 연출 대기 뒤.
+    const gift = { ...placed, id: `gift-${++giftId.current}` };
+    onPlaced?.(gift);
+    after(AFTER_PUT_DOWN_PAUSE_MS, () => {
+      setGifts((current) => [...current, gift]);
+      setPlacementNotice(null);
+      setPhase("returning");
+    });
   }
 
   function chooseAgain() {
@@ -239,11 +300,18 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
           gifts={sceneGifts}
           incomingAsset={{ name: acquired.name, assetFormat: acquired.assetFormat, geometrySpec: acquired.geometrySpec }}
           itemReady={!preparing && baseItemCount === 0}
-          itemBubble={showPlacementCta && !preparing && <>
-            <p className="text-[14px] font-bold tracking-[-0.35px] break-keep">{`${acquired.emoji} ${acquired.name}`}</p>
-            <p className="mt-0.5 whitespace-pre-line break-keep font-[family-name:var(--font-hand)] text-[15px]">{(incomingItem?.reason ?? "오늘 받은 아이템을 섬에 놓아 볼까?").replace(/,\s*/g, ",\n")}</p>
+          preparing={preparing}
+          itemBubble={showPlacementCta && !preparing && itemView !== "exploring" && itemView !== "approaching" && (itemView === "choice" ? <div className="flex flex-col gap-2">
+            <button onClick={inspectIncomingItem} className="h-[30px] w-full rounded-full bg-[#5a52f0] px-3 text-[12px] font-semibold text-white">아이템 확인하기</button>
+            <button onClick={exploreIsland} className="h-[30px] w-full rounded-full border border-[#5a52f0]/30 bg-white/70 px-3 text-[12px] font-semibold text-[#5a52f0]">{exploredDuringPreparation ? "섬 더 구경하기" : "섬 구경하기"}</button>
+          </div> : <>
+            <p className="text-center font-[family-name:var(--font-cute)] text-[18px] tracking-[-0.35px] break-keep">{acquired.name}</p>
+            <hr className="mt-1.5 border-0 border-t-[0.5px] border-[#3c445e]/25" />
+            <p className="mt-0.5 whitespace-pre-line break-keep text-center font-[family-name:var(--font-hand)] text-[17px]">{(incomingItem?.reason ?? "오늘 받은 아이템을 섬에 놓아 볼까?").replace(/,\s*/g, ",\n")}</p>
             <button onClick={startPlacement} disabled={entryStage === "exiting"} className="mt-2 h-[30px] w-full rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white disabled:opacity-40">내 섬에 놓기</button>
-          </>}
+          </>)}
+          onIncomingItemClick={showItemReason}
+          onIncomingItemApproach={beginItemApproach}
           selected={selected}
           proposal={proposal}
           phase={phase}
@@ -260,6 +328,8 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
           onPlacementNoticeChange={setPlacementNotice}
           onHomeGreetingChange={setHomeGreeting}
           onPlacementInteraction={() => setPlacementInteractionStarted(true)}
+          onPreparingMovement={handlePreparingMovement}
+          skipIntro={plain}
           onIntroComplete={() => setEntryStage((current) => current === "intro" ? "cta" : current)}
         />
 
@@ -278,8 +348,8 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
 
         {mode === "classroom" && <div className="pointer-events-none absolute inset-x-0 bottom-8 z-10 text-center text-xs text-[#688774]">한 학기가 끝나면 친구들의 섬이 한 하늘에 모여요.</div>}
 
-        {mode === "island" && entryStage !== "intro" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && incomingItem && completionNoticeVisible)) && <div className={`pointer-events-none absolute inset-x-3 z-30 mx-auto flex w-fit max-w-[calc(100%-24px)] items-center px-4 text-center text-black font-[family-name:var(--font-cute)] font-normal top-[22%]`} role="status" aria-live="polite">
-          <div className="relative min-w-0"><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : `${acquired.name} 생성 완료!`}</p><div className="absolute inset-x-0 top-full">{phase === "choosing" && placementNotice && <p className="mt-0.5 text-[clamp(16px,2.5cqh,21px)] font-normal text-black">{placementNotice}</p>}{progressNotice?.[1] && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="relative left-1/2 mt-0.5 w-max -translate-x-1/2 whitespace-nowrap text-[clamp(16px,2.5cqh,21px)] text-black">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}</div></div>
+        {mode === "island" && entryStage !== "intro" && ((phase === "choosing" && !placementInteractionStarted) || progressNotice || preparing || (phase === "ready" && ((itemView === "exploring" && !preparing) || (incomingItem && completionNoticeVisible)))) && <div className="pointer-events-none absolute inset-x-3 top-[22%] z-30 flex justify-center text-center text-black font-[family-name:var(--font-cute)] font-normal" role="status" aria-live="polite">
+          <div className={`${styles.progressNotice} max-w-full`}><p className="text-[clamp(24px,4cqh,34px)] font-normal tracking-[-0.35px] break-keep">{phase === "choosing" ? `${acquired.name} 놓을 자리를 골라 줘!` : progressNotice ? progressNotice[0] : preparing ? waitingTick >= 6 ? "생각보다 준비가 오래 걸리고 있어" : "아이템 생성 중…" : itemView === "exploring" ? "섬을 천천히 구경해 봐!" : `${acquired.name} 생성 완료!`}</p>{phase === "choosing" && placementNotice && <p className="text-[clamp(16px,2.5cqh,21px)] font-normal break-keep">{placementNotice}</p>}{progressNotice?.[1] && <p className="text-[clamp(16px,2.5cqh,21px)] break-keep">{progressNotice[1]}</p>}{preparing && phase !== "choosing" && !progressNotice && <p className="text-[clamp(16px,2.5cqh,21px)] break-keep">{WAITING_MESSAGES[waitingTick % WAITING_MESSAGES.length]}</p>}{phase === "ready" && itemView === "exploring" && !preparing && <p className="text-[clamp(16px,2.5cqh,21px)] break-keep">아이템을 놓고 싶으면 {itemNameWithParticle} 눌러 줘!</p>}</div>
         </div>}
 
         {phase !== "moving" && showSceneControls && <div className={`pointer-events-none [&>button]:pointer-events-auto absolute inset-x-0 bottom-0 z-10 flex flex-col items-start gap-4 ${showBottomCard ? "max-[900px]:bottom-[76px]" : ""} ${compact ? "px-3 pb-3 pt-6" : "px-5 pb-5 pt-10"}`}>

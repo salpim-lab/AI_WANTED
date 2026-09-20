@@ -28,9 +28,19 @@ export default function AfternoonHome({
           subtitle="지금 네 마음을 들려줘!"
           onNext={onNext}
           secondary={
-            <Link href="/dashboard" className="sh-cta sh-cta--ghost px-[7cqh] py-[2.4cqh] text-[3.1cqh]">
-              교사 시점으로 전환하기
-            </Link>
+            // 마우스를 올리면 하교 기록이 남지 않는다고 먼저 알려 준다(키보드 포커스에도 뜬다)
+            <span className="sh-teacher-switch">
+              <Link
+                href="/dashboard"
+                className="sh-cta sh-cta--ghost px-[7cqh] py-[2.4cqh] text-[3.1cqh]"
+                aria-describedby="sh-teacher-switch-tip"
+              >
+                교사 시점으로 전환하기
+              </Link>
+              <span id="sh-teacher-switch-tip" role="tooltip" className="sh-teacher-tip">
+                {studentName}이의 하교 마음이 기록되지 않아요!
+              </span>
+            </span>
           }
         />
       </div>

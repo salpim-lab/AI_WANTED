@@ -141,23 +141,22 @@ export const CLASS_SIZE = Object.keys(STUDENT_NAMES).length;
 /* ── 관계 지도 (최근 4주 누적이라 날짜별로 크게 변하지 않는다) ─────────
    → lib/supabase/queries/relationshipMap.ts
    좌표는 mock. 외부 graph 패키지를 쓰지 않고 SVG 로 직접 그린다. */
+/** studentId 는 mock 에서는 1~20 번호, 실제 데이터에서는 students.id(uuid) 문자열이다 —
+    화면·계산은 어느 쪽이든 값을 비교·조회 키로만 쓰지 산술은 하지 않아서 그대로 받는다. */
 export type RelationNode = {
-  studentId: number;
+  studentId: string | number;
   name: string;
   x: number;
   y: number;
-  /** 원 반지름. 자리(x·y)는 "얼마나 많이 불렸나", 크기는 "얼마나 살펴볼 일이 있나"를 말한다.
-      둘을 같은 값으로 두면 가운데 큰 원이 곧 인기 많은 아이가 되는데, 지도가 찾아야 하는
-      아이는 그 반대편(아무도 이름을 안 부른 아이)이라 기준을 갈라 뒀다 — attentionOf 참고. */
-  r: number;
-  /** 점선으로 그릴지(이름이 안 나온 아이) 여부. 원 아래 붙던 설명 한 줄은 뺐다 —
-      아래 범례가 점선 하나로 같은 말을 하고 있었다 (RelationshipMap 참고). */
+  /** 원 크기는 여기서 숫자로 정하지 않는다. RelationshipMap 이 이 값 하나로 1·2·3단계 중
+      고른다 — "normal" 은 평소 크기, "conflict"·"isolated" 는 소외·갈등이라 주의해서
+      볼 아이(2단계), 지금 고른 아이는 tone 과 무관하게 3단계로 부푼다. */
   tone: "normal" | "conflict" | "isolated";
 };
 
 export type RelationEdge = {
-  from: number;
-  to: number;
+  from: string | number;
+  to: string | number;
   kind: "normal" | "conflict";
   /** 그 기간에서 가장 자주 오간 짝을 1 로 둔 상대값 — 선 굵기에 쓴다 */
   strength: number;
@@ -165,7 +164,7 @@ export type RelationEdge = {
 
 /** 관계 지도에서 아이를 눌렀을 때 옆에 펼칠 내용. 아이 상세로 넘어가지 않고 여기서 끝난다. */
 export type RelationDetail = {
-  studentId: number;
+  studentId: string | number;
   name: string;
   /** 다른 아이 대화에 이 아이 이름이 나온 횟수 — 지도의 원 크기와 같은 수 */
   mentionCount: number;
@@ -177,8 +176,8 @@ export type RelationDetail = {
 
 /** 선 하나를 눌렀을 때 — "이 선이 왜 생겼나"에 답하는 데 필요한 것만. */
 export type RelationPairDetail = {
-  a: { studentId: number; name: string };
-  b: { studentId: number; name: string };
+  a: { studentId: string | number; name: string };
+  b: { studentId: string | number; name: string };
   /** 두 아이가 서로를 말한 총 횟수 */
   mentionCount: number;
   quotes: { from: string; date: string; text: string }[];
@@ -226,7 +225,7 @@ export const DEFAULT_RELATION_PERIOD: RelationPeriod = "2w";
 export type RelationGraph = {
   nodes: RelationNode[];
   edges: RelationEdge[];
-  details: Record<number, RelationDetail>;
+  details: Record<string, RelationDetail>;
   pairs: Record<string, RelationPairDetail>;
   /** 이 기간 안의 갈등 기록 — 아무도 고르지 않았을 때 옆 패널이 보여준다.
       기간 토글과 따로 놀면 "누적"으로 넓혀도 건수가 그대로라 토글이 거짓말을 한다. */
@@ -282,7 +281,7 @@ export type ConflictRow = {
   date: string;
   label: string;
   pair: string;
-  pairIds: [number, number];
+  pairIds: [string | number, string | number];
   summary: string;
   status: string;
   statements: ConflictStatement[];
@@ -352,7 +351,7 @@ function conflictLedger(): ConflictRow[] {
 /* ── 감정 어휘 (누적값. 날짜별로는 스냅샷의 growthStep 만큼 낮춰 쓴다) ──
    → app/api/ai/vocab-growth/route.ts */
 export type VocabStudent = {
-  studentId: number;
+  studentId: string | number;
   name: string;
   /** 막대 아래에는 학생 명단의 이름만 쓴다. */
   shortName?: string;
@@ -426,7 +425,7 @@ export type MoodShare = {
   students: StudentRef[];
 };
 
-export type WeatherKind = "sunny" | "partly" | "cloudy" | "rainy";
+export type WeatherKind = "sunny" | "partly" | "cloudy" | "rainy" | "stormy" | "quiet";
 
 export type ClassroomWeather = {
   kind: WeatherKind;
@@ -439,46 +438,52 @@ export type ClassroomWeather = {
    그날 등교 체크인 색 분포 하나로 정한다. 손으로 적지 않는다 —
    mood 를 고치면 날씨도 따라 움직여야 "교실의 상태"를 보여준다고 말할 수 있다.
 
-   남색은 계산에서 뺀다. "혼자 있을래요"는 나쁜 하루가 아니라 필요한 거리라서,
-   부정으로 세면 조용한 아이가 많은 반은 늘 비가 온다.
-   (살핌_기획안.md 8.5 "색 앵커: 초록/노랑/빨강 3단계 · 남색은 제외")
+   전체 응답 수 = 초록+노랑+빨강+남색. 색마다 무게를 둬서 "흐림 지수"를 만든다
+   (초록 0 · 노랑 0.4 · 남색 0.7 · 빨강 1.0 — 남색도 이번엔 셈에 넣는다).
+   흐림지수 = (노랑×0.4 + 남색×0.7 + 빨강×1.0) / 전체 응답 수
 
-   점수 = (초록 + 노랑×0.5) / (초록+노랑+빨강),  0(전원 빨강) ~ 1(전원 초록)
-     0.80 이상  맑음        0.70 이상  대체로 맑음
-     0.55 이상  구름 조금   0.35 이상  흐림        그 미만  비
-
-   빨강 비중 단서 조항: 초록이 많아도 속상한 아이가 몰려 있으면 맑다고 하지 않는다.
-     빨강 30% 이상 → 최소 흐림,  45% 이상 → 비 */
+   맑음    초록 ≥ 70% AND 빨강 < 10% AND 남색 < 10%
+   구름조금 위 맑음이 아니면서, 흐림지수 < 0.35 인 나머지
+   흐림    흐림지수 0.35~0.55, 또는 (빨강+남색) ≥ 30%
+   비      흐림지수 ≥ 0.55, 또는 빨강 ≥ 30%
+   비가 많이 와요  빨강 ≥ 45%  — "비" 조건의 부분집합이라 먼저 검사해야 묻히지 않는다.
+   응답이 적어요   응답률(전체 응답 수/학급 인원) < 30% — 다른 판정보다 먼저 가른다. */
 
 export const WEATHER_QUESTION = "우리 반 마음에는 어떤 날씨가 찾아왔을까요?";
 
-export function deriveWeather(mood: Record<SignalColor, number[]>): {
+export function deriveWeather(mood: Record<SignalColor, number[]>, totalRoster: number): {
   kind: WeatherKind;
   headline: string;
+  support: string;
 } {
   const green = mood.green.length;
   const yellow = mood.yellow.length;
   const red = mood.red.length;
-  const anchored = green + yellow + red;
+  const navy = mood.navy.length;
+  const total = green + yellow + red + navy;
 
-  // 남색만 있거나 아무도 체크인하지 않은 날은 판정하지 않는다.
-  if (anchored === 0) return { kind: "cloudy", headline: "아직 알 수 없음" };
+  if (totalRoster <= 0 || total / totalRoster < 0.3) {
+    return { kind: "quiet", headline: "응답이 적어요", support: "아직 오늘의 마음을 알려준 친구가 많지 않아요." };
+  }
 
-  const score = (green + yellow * 0.5) / anchored;
-  const redShare = red / anchored;
+  const gloom = (yellow * 0.4 + navy * 0.7 + red * 1.0) / total;
+  const greenShare = green / total;
+  const redShare = red / total;
+  const navyShare = navy / total;
 
-  let kind: WeatherKind =
-    score >= 0.7 ? "sunny" : score >= 0.55 ? "partly" : score >= 0.35 ? "cloudy" : "rainy";
-  if (redShare >= 0.45) kind = "rainy";
-  else if (redShare >= 0.3 && (kind === "sunny" || kind === "partly")) kind = "cloudy";
-
-  const headline =
-    kind === "sunny" ? (score >= 0.8 ? "맑음" : "대체로 맑음")
-    : kind === "partly" ? "구름 조금"
-    : kind === "cloudy" ? "흐림"
-    : "비";
-
-  return { kind, headline };
+  if (redShare >= 0.45) {
+    return { kind: "stormy", headline: "비가 많이 와요", support: "오늘은 마음이 무거운 친구들이 비교적 많이 보여요." };
+  }
+  if (gloom >= 0.55 || redShare >= 0.3) {
+    return { kind: "rainy", headline: "비가 내려요", support: "속상하거나 혼자 있고 싶은 마음이 평소보다 많아요." };
+  }
+  if (gloom >= 0.35 || redShare + navyShare >= 0.3) {
+    return { kind: "cloudy", headline: "조금 흐려요", support: "평소보다 조심스러운 마음이 조금 더 보여요." };
+  }
+  if (greenShare >= 0.7 && redShare < 0.1 && navyShare < 0.1) {
+    return { kind: "sunny", headline: "맑아요", support: "오늘은 편안하고 좋은 마음이 많은 날이에요." };
+  }
+  return { kind: "partly", headline: "구름이 조금 있어요", support: "대체로 편안하지만, 여러 감정이 함께 보여요." };
 }
 
 export type ClassroomDay = {
@@ -507,8 +512,7 @@ export type ParticipationSummary = {
 
 /** 하루치 중 "손으로 적는" 부분. 색 분포는 여기 없다 — 아래 moodOn 이 아이별 성향에서 만든다. */
 type DayNarrative = {
-  /** 날씨 아래 한 줄. kind/headline 은 mood 에서 유도하므로 여기 적지 않는다. */
-  weatherSupport: string;
+  /** kind/headline/support 는 이제 전부 mood 에서 deriveWeather 가 유도하므로 여기 적지 않는다. */
   classroomDelta: string;
   /** 스냅샷이 없는 과거 수업일의 날씨 (오래된 날 → 선택 날짜 순).
       SNAPSHOTS 에 있는 날은 이 값 대신 그날 mood 에서 유도한다. */
@@ -535,7 +539,6 @@ function schoolDayBefore(ref: string, k: number): string {
 
 function profileA(ref: string, vocabStep: number): DayNarrative {
   return {
-    weatherSupport: "아이들 각자의 마음도 함께 살펴주세요.",
     classroomDelta: "오후에는 초록이 2명 줄고 속상해요가 1명 늘었어요.",
     recentWeather: ["partly", "cloudy", "sunny", "partly", "sunny"],
     vocabStep,
@@ -544,7 +547,6 @@ function profileA(ref: string, vocabStep: number): DayNarrative {
 
 function profileB(ref: string, vocabStep: number): DayNarrative {
   return {
-    weatherSupport: "속상한 아이가 어제보다 한 명 더 있었어요.",
     classroomDelta: "하교에는 초록이 1명 늘었어요. 오후가 오전보다 나은 날이었어요.",
     recentWeather: ["sunny", "partly", "cloudy", "sunny", "partly"],
     vocabStep,
@@ -553,7 +555,6 @@ function profileB(ref: string, vocabStep: number): DayNarrative {
 
 function profileC(ref: string, vocabStep: number): DayNarrative {
   return {
-    weatherSupport: "한 주를 가볍게 시작한 날이었어요.",
     classroomDelta: "등교와 하교의 색이 거의 같았어요. 큰 변화가 없던 날이에요.",
     recentWeather: ["partly", "sunny", "partly", "cloudy", "sunny"],
     vocabStep,
@@ -720,14 +721,20 @@ function buildBriefingFacts(dateKey: string): StudentFacts[] {
 
 /* ══ 조립 ════════════════════════════════════════════════════════════ */
 
+/** 등교/하교 한 시간대의 날씨+감정 분포 — 아이 상세의 "등교 마음 기록/하교 마음 기록"과 같은 구분이다.
+    mock 은 시간대를 나눠 기록하지 않는 구조라 두 탭에 같은 값을 담는다 —
+    실제 등교/하교 구분은 lib/supabase/queries/dashboardSnapshot.ts(체크인의 period 컬럼)에서만 진짜로 갈린다. */
+export type ClassroomPeriod = { weather: ClassroomWeather; mood: MoodShare[] };
+export type CheckinPeriod = "morning" | "afternoon";
+
 export type DashboardData = {
   dateKey: string;
   isToday: boolean;
   briefing: { watch: BriefingStudent[] };
   classroom: {
-    weather: ClassroomWeather;
+    periods: Record<CheckinPeriod, ClassroomPeriod>;
+    defaultPeriod: CheckinPeriod;
     delta: string;
-    mood: MoodShare[];
     recentDays: ClassroomDay[];
   };
   participation: ParticipationSummary;
@@ -754,10 +761,11 @@ function buildMood(snapshot: DaySnapshot): MoodShare[] {
    반 전체가 나온다. 9명만 그리면 빠진 11명이 "관계가 없는 아이"인지 "안 그린 아이"인지
    교사가 알 수 없고, 정작 찾아야 할 조용한 아이가 거기 숨는다.
 
-   원 크기 = 중요도. 최근 2주 동안
-     · 다른 아이 대화에 이름이 오른 횟수 (발화 추출)
-     · 업무기록에 이름이 오른 건수 (갈등·관찰) — 기록에 남은 건 더 무겁게 센다
-   인기 순위가 아니다. "이 아이 이야기가 교실에서 얼마나 오갔나"의 양이다. */
+   자리(중앙일수록 안쪽 고리) = 최근 2주 동안 다른 아이 대화에 이름이 오른 횟수. 인기 순위가
+   아니다. "이 아이 이야기가 교실에서 얼마나 오갔나"의 양이다.
+
+   원 크기는 여기서 숫자로 정하지 않는다 — tone(정상/소외/갈등)만 가른다.
+   실제 반지름(1·2·3단계)은 RelationshipMap 이 고정값으로 그린다 (그 파일 참고). */
 
 /** 업무기록 한 건은 언급 몇 번만큼 무겁게 볼 것인가 */
 const RECORD_WEIGHT = 3;
@@ -766,24 +774,10 @@ const RECORD_WEIGHT = 3;
 const EDGE_MIN_MENTIONS = 2;
 
 /** viewBox 0 0 660 380. 중요도 순으로 안쪽부터 채운다 — 가운데가 가장 많이 오르내린 아이다.
-    고리를 조금씩 좁혔다(288→268, 152→142): RelationshipMap 이 원을 1.8 배로 키우면서
-    바깥 고리 끝의 원이 지도 테두리를 넘어 잘렸다. */
-const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 148, ry: 82 }, { count: 13, rx: 268, ry: 142 }] };
-
-/* 원 크기 (RelationshipMap 이 여기에 BASE_SCALE 1.8 을 곱해 그린다).
-   살펴볼 일이 없는 아이를 12 까지 내렸다 — 16 일 때는 한 점 차이가 눈에 안 띄어
-   "원이 클수록 살펴볼 일이 많다"는 규칙이 지도에서 읽히지 않았다.
-   대신 한 점당 5 씩 벌려, 가장 작은 원과 가장 큰 원이 두 배 넘게 차이 나게 한다.
-   점당 고정폭인 이유는 그대로다: 기간 토글(1주·2주·4주)을 오갈 때 같은 아이가
-   같은 크기로 남아야 크기가 뜻을 갖는다. 최댓값에 맞춰 늘리면 기준이 기간마다 달라진다. */
-const NODE_MIN_R = 12;
-const NODE_MAX_R = 28;
-const NODE_R_STEP = 5;
-/** 아무도 이름을 부르지 않은 아이에게 주는 점수 — 갈등 두 건과 같은 무게로 둔다.
-    소외는 갈등처럼 기록으로 남지 않아서, 세지 않으면 지도에서 가장 작게 그려진 채 묻힌다. */
-const ISOLATED_ATTENTION = 2;
-/** 갈등 건수는 여기서 멈춘다 */
-const CONFLICT_ATTENTION_CAP = 3;
+    두 고리 사이 간격은 RelationshipMap 의 2단계 원 크기(반지름 30 안팎)가 서로 안
+    겹치도록 안쪽 고리를 좁히고 바깥 고리를 넓혀 뒀다 — 스무 명 기준 가장 가까운
+    두 점 사이가 항상 72px 이상이 되도록 스크립트로 맞춘 값이다. */
+const LAYOUT = { cx: 330, cy: 190, rings: [{ count: 6, rx: 125, ry: 78 }, { count: 13, rx: 282, ry: 150 }] };
 
 function buildRelation(dateKey: string, windowDays: number): RelationGraph {
   const window = recentSchoolDays(dateKey, windowDays);
@@ -808,19 +802,11 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
   const oldest = window[0];
   const records = conflictLedger().filter((c) => c.date >= oldest && c.date <= dateKey);
   const recordCount = new Map<number, number>(ids.map((id) => [id, 0]));
-  for (const c of records) for (const id of c.pairIds) recordCount.set(id, (recordCount.get(id) ?? 0) + 1);
+  // pairIds 타입은 실제 데이터(문자열 id)와 공유하느라 넓혔지만, 이 mock 자체는 늘 숫자만 담는다
+  for (const c of records) for (const id of c.pairIds) recordCount.set(Number(id), (recordCount.get(Number(id)) ?? 0) + 1);
 
   // 가운데 자리를 누구에게 줄지 — 이름이 많이 불린 순서다 (배치 전용)
   const weightOf = (id: number) => (mentioned.get(id) ?? 0) + (recordCount.get(id) ?? 0) * RECORD_WEIGHT;
-
-  /* 원 크기는 정반대를 본다: "교사가 살펴볼 일이 얼마나 되나".
-     언급이 많아 가운데 앉은 아이는 이미 눈에 띄고, 지도가 찾아 줘야 하는 건
-     아무도 이름을 부르지 않은 아이와 갈등이 잦은 아이다. 그 둘을 크게 그린다.
-     갈등은 건수를 세되 세 건에서 멈춘다 — 그 위로는 크기 차이가 뜻을 더하지 않고
-     원이 이웃을 덮기만 한다. */
-  const attentionOf = (id: number) =>
-    ((mentioned.get(id) ?? 0) === 0 ? ISOLATED_ATTENTION : 0) +
-    Math.min(recordCount.get(id) ?? 0, CONFLICT_ATTENTION_CAP);
 
   const conflictIds = new Set(records.flatMap((c) => c.pairIds));
   const isConflictPair = (a: number, b: number) =>
@@ -847,7 +833,6 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
       name: STUDENT_NAMES[studentId],
       x,
       y,
-      r: Math.min(NODE_MAX_R, NODE_MIN_R + attentionOf(studentId) * NODE_R_STEP),
       tone: weight === 0 ? "isolated" : conflictIds.has(studentId) ? "conflict" : "normal",
     };
   });
@@ -881,7 +866,7 @@ function buildRelation(dateKey: string, windowDays: number): RelationGraph {
 }
 
 /** 짝 키는 늘 작은 번호가 앞이다 — 방향이 달라도 같은 선을 가리키게 */
-export const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+export const pairKey = (a: string | number, b: string | number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 
 /** 아이별·짝별 관계 상세. 언급을 한 번만 모아서 두 갈래로 나눠 담는다. */
 function buildRelationDetails(
@@ -974,18 +959,17 @@ export function getDashboardSnapshot(dateKey: string): DashboardData {
     isToday: key === today,
     briefing: { watch: buildBriefingRows(buildBriefingFacts(key), key) },
     classroom: {
-      weather: {
-        ...deriveWeather(snapshot.mood),
-        question: WEATHER_QUESTION,
-        support: snapshot.weatherSupport,
+      periods: {
+        morning: { weather: { ...deriveWeather(snapshot.mood, CLASS_SIZE), question: WEATHER_QUESTION }, mood: buildMood(snapshot) },
+        afternoon: { weather: { ...deriveWeather(snapshot.mood, CLASS_SIZE), question: WEATHER_QUESTION }, mood: buildMood(snapshot) },
       },
+      defaultPeriod: "morning",
       delta: snapshot.classroomDelta,
-      mood: buildMood(snapshot),
       // 스냅샷이 있는 날은 큰 아이콘과 같은 규칙으로 유도한다 — 둘이 어긋나면 안 된다.
       recentDays: schoolDays.map((date, i) => ({
         date: shortDate(date),
         weekday: weekdayOf(date),
-        kind: snapshots[date] ? deriveWeather(snapshots[date].mood).kind : snapshot.recentWeather[i],
+        kind: snapshots[date] ? deriveWeather(snapshots[date].mood, CLASS_SIZE).kind : snapshot.recentWeather[i],
         isToday: date === key,
       })),
     },
@@ -1054,10 +1038,7 @@ export function mergeLiveVocab(
 /* ── 사용 중단 (기존 ColorSummaryBar.tsx 가 아직 import 하고 있어 유지) ──
    대시보드에서는 "오늘의 교실" 카드가 같은 집계를 흡수했다. */
 export function colorStats() {
-  const mood = getDashboardSnapshot(dashboardToday()).classroom.mood.map((m) => ({
-    color: m.color,
-    count: m.count,
-    pct: m.pct,
-  }));
-  return { morning: mood, afternoon: mood };
+  const { periods } = getDashboardSnapshot(dashboardToday()).classroom;
+  const asStats = (moods: MoodShare[]) => moods.map((m) => ({ color: m.color, count: m.count, pct: m.pct }));
+  return { morning: asStats(periods.morning.mood), afternoon: asStats(periods.afternoon.mood) };
 }

@@ -1,5 +1,5 @@
 export type ViewMode = "island" | "classroom";
-export type CameraPreset = "home" | "top" | "left" | "right" | "in" | "out" | "character";
+export type CameraPreset = "home" | "top" | "left" | "right" | "in" | "out" | "character" | "placement";
 export type GiftKind = "sprout" | "flower" | "star";
 
 export type IslandGift = {
@@ -12,6 +12,8 @@ export type IslandGift = {
   geometrySpec?: unknown;
   /** 공용 데모 배치: 이동·삭제할 수 없다(서버·DB도 막는다). */
   locked?: boolean;
+  /** 배치된 아이템을 눌렀을 때 보여 줄 발화 시점과 생성 사유. */
+  note?: { when: string; reason: string };
 };
 
 export type PlacementProposal = Omit<IslandGift, "id">;
@@ -20,8 +22,8 @@ export type PlacementPhase = "ready" | "choosing" | "moving" | "confirming" | "p
 
 export type SceneHandle = {
   camera: (preset: CameraPreset) => void;
+  inspectIncomingItem: () => void;
   walk: (key: string, pressed: boolean, seconds?: number) => void;
   placeSuggested: () => void;
   toggleOverview: () => void;
 };
-

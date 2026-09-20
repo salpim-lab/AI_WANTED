@@ -48,7 +48,7 @@ export default function IslandBoard({
   const placedGifts = useMemo(() => {
     // 지금 놓으려는(또는 다시 놓는) 아이템은 씬이 따로 그리므로 이미 저장된 배치에서는 뺀다.
     if (remote?.persisted) return remote.gifts.filter((gift) => gift.id !== incomingItemId);
-    return studentName === "민준" ? MINJUN_DEMO_GIFTS : undefined;
+    return studentName === "민준" || studentName === "김민준" ? MINJUN_DEMO_GIFTS : undefined;
   }, [remote, incomingItemId, studentName]);
 
   // 내려놓은 자리를 서버에 저장한다. 서버가 소유자·좌표(공용+내 배치와 겹침)를 다시 검증한다. 실패해도 화면은 계속된다.

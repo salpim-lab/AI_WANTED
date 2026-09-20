@@ -71,6 +71,18 @@ export const textInput =
 export const textArea =
   "w-full resize-none rounded-2xl border-[1.5px] border-[#e6e2fb] bg-white/90 px-3.5 py-2.5 text-[13px] leading-[1.7] text-[#102a56] outline-none transition-colors focus:border-[#8b83ff]";
 
+/**
+ * 게시판 머리줄(날짜·학생 선택·검색·종류 탭·기록 버튼)이 같이 쓰는 높이·모양.
+ * 날짜 칸(DateControl의 .date-field, 진승혜 소유라 못 고친다)의 높이 39px·모서리 12px에 맞춘다.
+ * 버튼은 .btn을 쓰지 않는다 — .btn은 레이어 밖이라 Tailwind로 모서리·높이를 덮을 수 없다.
+ */
+export const boardControl =
+  "h-[39px] rounded-xl border border-[#e6e2fb] bg-white px-3.5 text-[12.5px] font-semibold text-[#102a56] outline-none transition-colors hover:border-[#c9c3f5] focus:border-[#8b83ff]";
+
+/** 머리줄 기록 버튼 (상담 예약·상담 기록·관찰일지 기록 …) */
+export const boardActionButton =
+  "inline-flex h-[39px] shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#635bff] px-4 text-[12.5px] font-bold text-white transition-colors hover:bg-[#4f46e5]";
+
 export const timestampText = "font-mono text-[11px] text-[#7d849b]";
 
 export const immutableBadge = "ml-auto rounded-full bg-[#f1efff] px-2 py-0.5 text-[10px] font-semibold text-[#7d849b]";

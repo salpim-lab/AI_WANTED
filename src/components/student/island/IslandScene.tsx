@@ -25,8 +25,11 @@ type Props = {
   incomingAsset?: Pick<IslandGift, "name" | "assetFormat" | "geometrySpec">;
   /** Today's item is generated: it drops in front of the character. */
   itemReady?: boolean;
+  preparing?: boolean;
   /** Bubble beside the dropped item: its name, why it was made, and the place button. */
   itemBubble?: ReactNode;
+  onIncomingItemClick?: () => void;
+  onIncomingItemApproach?: () => void;
   selected: GiftKind | null;
   proposal: PlacementProposal | null;
   phase: PlacementPhase;
@@ -40,14 +43,18 @@ type Props = {
   onHomeBlocked: () => void;
   controlsRef: Ref<SceneHandle>;
   onIntroComplete?: () => void;
+  /** 시작 카메라 확대 연출 없이 바로 홈 뷰로 시작한다. */
+  skipIntro?: boolean;
   onOverviewChange?: (overview: boolean) => void;
   onPlacementNoticeChange: (notice: string | null) => void;
   onHomeGreetingChange: (greeting: "none" | "greeting" | "closed") => void;
   onPlacementInteraction: () => void;
+  onPreparingMovement?: () => void;
 };
 
 type Runtime = {
   camera: (preset: CameraPreset) => void;
+  inspectIncomingItem: () => void;
   walk: (key: string, pressed: boolean, seconds?: number) => void;
   suggested: () => void;
   gifts: THREE.Group;
@@ -77,6 +84,7 @@ const POP_OVERSHOOT = 2.165;
 // Today's item falls and bounces in front of the character, which later
 // bends, grabs it and raises it onto its head.
 const DROP_MS = 800;
+const DROP_FRONT_DELAY_MS = 400;
 const LIFT_MS = 1400;
 const PUT_DOWN_MS = 1500;
 // The first share of the put-down is a walk to the side, still holding the item up; the rest bends and sets it down.
@@ -111,6 +119,9 @@ const USER_ZOOM_RESPONSE = 18;
 const USER_ZOOM_EPSILON = 0.0001;
 // Once home, the island settles at this fraction of the home zoom; it is also the furthest the student can zoom out. Larger = bigger island.
 const FINAL_ZOOM_RATIO = 0.4;
+// The closing zoom-out ends on a diagonal view: rotated round the island and dipped a little lower.
+const FINAL_SWING = THREE.MathUtils.degToRad(-40);
+const FINAL_TILT = THREE.MathUtils.degToRad(8);
 const DRAG_THRESHOLD = 8;
 const CLASSROOM_SPACING = 33;
 
@@ -120,7 +131,10 @@ export default function IslandScene({
   gifts,
   incomingAsset,
   itemReady = false,
+  preparing = false,
   itemBubble,
+  onIncomingItemClick,
+  onIncomingItemApproach,
   selected,
   proposal,
   phase,
@@ -134,10 +148,12 @@ export default function IslandScene({
   onHomeBlocked,
   controlsRef,
   onIntroComplete,
+  skipIntro,
   onOverviewChange,
   onPlacementNoticeChange,
   onHomeGreetingChange,
   onPlacementInteraction,
+  onPreparingMovement,
 }: Props) {
   const itemPlacedRef = useRef(onItemPlaced);
   useEffect(() => { itemPlacedRef.current = onItemPlaced; }, [onItemPlaced]);
@@ -150,7 +166,19 @@ export default function IslandScene({
   const incomingAssetRef = useRef(incomingAsset);
   useEffect(() => { incomingAssetRef.current = incomingAsset; }, [incomingAsset]);
   const itemReadyRef = useRef(itemReady);
+  const preparingRef = useRef(preparing);
+  useEffect(() => { preparingRef.current = preparing; }, [preparing]);
+  const onPreparingMovementRef = useRef(onPreparingMovement);
+  useEffect(() => { onPreparingMovementRef.current = onPreparingMovement; }, [onPreparingMovement]);
+  const onIncomingItemClickRef = useRef(onIncomingItemClick);
+  useEffect(() => { onIncomingItemClickRef.current = onIncomingItemClick; }, [onIncomingItemClick]);
+  const onIncomingItemApproachRef = useRef(onIncomingItemApproach);
+  useEffect(() => { onIncomingItemApproachRef.current = onIncomingItemApproach; }, [onIncomingItemApproach]);
   const reasonBubbleRef = useRef<HTMLDivElement>(null);
+  const giftBubbleRef = useRef<HTMLDivElement>(null);
+  // 배치된 아이템을 눌러 말풍선(발화 시점·사유)을 띄운 아이템 id.
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const inspectedIdRef = useRef<string | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const stateRef = useRef({ gifts, selected, proposal, phase, onPropose, onArrive, onChooseAgain });
   // When the intro began: it plays once per visit, and a rebuilt scene
@@ -178,6 +206,7 @@ export default function IslandScene({
 
   useImperativeHandle(controlsRef, () => ({
     camera: (preset) => runtimeRef.current?.camera(preset),
+    inspectIncomingItem: () => runtimeRef.current?.inspectIncomingItem(),
     walk: (key, pressed, seconds) => runtimeRef.current?.walk(key, pressed, seconds),
     placeSuggested: () => runtimeRef.current?.suggested(),
     toggleOverview: () => runtimeRef.current?.toggleOverview(),
@@ -260,7 +289,7 @@ export default function IslandScene({
     controls.enablePan = false;
     controls.enableRotate = true;
     controls.minPolarAngle = THREE.MathUtils.degToRad(30);
-    controls.maxPolarAngle = THREE.MathUtils.degToRad(65);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(88);
     controls.minZoom = homeFit.minZoom;
     controls.maxZoom = homeFit.maxZoom;
     controls.rotateSpeed = 0.65;
@@ -332,10 +361,22 @@ export default function IslandScene({
     const pointer = new THREE.Vector2();
     const ringFacing = new THREE.Vector3(0, 0, 1);
     const groundNormal = new THREE.Vector3();
-    // The character stands at the island's centre, which is also where the camera looks.
+    // Start on walkable ground in front of the main house's doorway.
     const islandCentre = displayedCoordinates.fromDisplayedWorld(target);
-    const initialCharacterPosition = displayedCoordinates.toDisplayedWorld(islandCentre, heightAt(islandCentre.x, islandCentre.z) + 0.02);
+    const startHome = island.props.getObjectByName("homecoming-house");
+    const startDoor = startHome?.userData.doorway as THREE.Vector3 | undefined;
+    startHome?.updateWorldMatrix(true, true);
+    const startPoint = startHome && startDoor
+      ? [1.3, 1.5, 1.7].map((distance) => displayedCoordinates.fromDisplayedWorld(
+          startHome.localToWorld(startDoor.clone().add(new THREE.Vector3(0, 0, distance))),
+        )).find((point) => pieceLandscape.canWalk(point.x, point.z, characterScale * 0.45)) ?? islandCentre
+      : islandCentre;
+    const initialCharacterPosition = displayedCoordinates.toDisplayedWorld(startPoint, pieceLandscape.walkHeightAt(startPoint.x, startPoint.z) + 0.02);
     const homeOffset = new THREE.Spherical().setFromVector3(home.clone().sub(target));
+    // Character close-ups look almost straight at Minjun's face, rather than
+    // reusing the elevated island overview angle.
+    const characterOffset = homeOffset.clone();
+    characterOffset.phi = THREE.MathUtils.degToRad(85);
     const introOffset = new THREE.Spherical();
     let pointerDown: { x: number; y: number; id: number; dragged: boolean } | null = null;
     const activePointers = new Set<number>();
@@ -374,7 +415,13 @@ export default function IslandScene({
     // Clicks and the bubble wait until the pop-in has landed.
     let characterReadyAt = 0;
     let entrance: { start: number; burst: ReturnType<typeof createPopBurst> } | null = null;
-    let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number; route: { points: THREE.Vector3[]; distances: number[]; length: number }; run?: boolean; clickData?: { x: number; z: number }; farewell?: boolean; pickup?: boolean } | null = null;
+    let walk: { from: THREE.Vector3; to: THREE.Vector3; start: number; duration: number; route: { points: THREE.Vector3[]; distances: number[]; length: number }; run?: boolean; clickData?: { x: number; z: number }; farewell?: boolean; pickup?: boolean; inspectIncoming?: "front" | "reason"; inspectGift?: string } | null = null;
+    let reportedPreparingMovement = false;
+    function reportPreparingMovement() {
+      if (reportedPreparingMovement || !preparingRef.current || stateRef.current.phase !== "ready") return;
+      reportedPreparingMovement = true;
+      onPreparingMovementRef.current?.();
+    }
     let settingDown: { start: number; from: THREE.Vector3; stand: THREE.Vector3; to: THREE.Vector3; scale: number; height: number; released?: { from: THREE.Vector3; scale: number; rotation: THREE.Quaternion } } | null = null;
     let homecoming: { points: THREE.Vector3[]; index: number; from: THREE.Vector3; start: number; facingFrom: number; stage: "facing" | "walking" | "greeting" | "opening" | "entering" | "closing"; threshold: THREE.Vector3; inside: THREE.Vector3; run: boolean } | null = null;
     let overview = false;
@@ -383,7 +430,7 @@ export default function IslandScene({
     let zoomedOut = false;
     let placementCamera = false;
     let tween: { from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; target: THREE.Vector3; start: number; duration: number; zoom: number; nextZoom: number; home: boolean; easeInOut?: boolean; onDone?: () => void } | null = null;
-    introStartRef.current ??= calm ? -Infinity : performance.now();
+    introStartRef.current ??= calm || skipIntro ? -Infinity : performance.now();
     let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
     if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
     else queueMicrotask(() => { if (!disposed) onIntroCompleteRef.current?.(); });
@@ -463,6 +510,8 @@ export default function IslandScene({
       const root = character.root;
       item ??= { object: createItem() };
       const from = item.object.parent ? item.object.getWorldPosition(new THREE.Vector3()) : null;
+      // A new item stops the character where it stands.
+      if (!from) { walk = null; movementKeys.clear(); buttonWalking = false; }
       scene.attach(item.object);
       item.object.scale.setScalar(giftScale * (item.object.userData.sizeScale ?? 1));
       // Beside the character across the view, never between it and the camera,
@@ -471,10 +520,14 @@ export default function IslandScene({
       camera.updateMatrixWorld(true);
       const screenLeft = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize().negate();
       const standOff = itemStandOff(item.object);
+      // Never on the right: if straight left is blocked, fan out within the left half,
+      // and if nothing is free, still land straight left.
       let to = root.position.clone().addScaledVector(screenLeft, standOff);
-      if (!validPoint(to.x, to.z)) {
-        const right = root.position.clone().addScaledVector(screenLeft, -standOff);
-        if (validPoint(right.x, right.z)) to = right;
+      for (const deg of [15, -15, 30, -30, 45, -45, 60, -60, 75, -75]) {
+        if (validPoint(to.x, to.z)) break;
+        const dir = screenLeft.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(deg));
+        const candidate = root.position.clone().addScaledVector(dir, standOff);
+        if (validPoint(candidate.x, candidate.z)) to = candidate;
       }
       const data = displayedCoordinates.fromDisplayedWorld(to);
       to.y = pieceLandscape.surfaceAt(data.x, data.z) - item.object.scale.x * 0.02;
@@ -482,6 +535,8 @@ export default function IslandScene({
       const start = intro ? intro.start + INTRO_MS + CHARACTER_ZOOM_IN_MS : performance.now();
       item.drop = { from: from ?? to.clone().setY(to.y + characterScale * CHARACTER_MODEL_HEIGHT * 2), to, start };
       item.lift = undefined;
+      // A fresh drop: a beat after it lands, swing to the front view of the character.
+      if (!from && !intro) setTimeout(() => { if (character && !characterShot && !walk && stateRef.current.phase === "ready") focusTarget(characterCentre(), FOCUS_TWEEN_MS, undefined, true, characterOffset); }, DROP_FRONT_DELAY_MS);
       render();
     }
 
@@ -555,17 +610,17 @@ export default function IslandScene({
         THREE.MathUtils.clamp(candidate.z, bounds.min.z, bounds.max.z),
       );
     };
-    const poseForTarget = (nextTarget: THREE.Vector3, zoom: number) => {
-      const offset = homeOffset.clone();
+    const poseForTarget = (nextTarget: THREE.Vector3, zoom: number, offset = homeOffset) => {
       return { position: new THREE.Vector3().setFromSpherical(offset).add(nextTarget), zoom };
     };
-    const correctFocusTarget = (candidate: THREE.Vector3, zoom: number) => {
+    const correctFocusTarget = (candidate: THREE.Vector3, zoom: number, offset: THREE.Spherical) => {
       let corrected = clampPlacementTarget(candidate);
       const centre = target.clone();
       const visibleEnough = (point: THREE.Vector3) => {
         const probe = camera.clone();
-        const pose = poseForTarget(point, zoom);
+        const pose = poseForTarget(point, zoom, offset);
         probe.position.copy(pose.position);
+        probe.lookAt(point);
         probe.zoom = zoom;
         probe.updateProjectionMatrix();
         return projectedBoxRect(islandBox, probe, canvas.clientWidth, canvas.clientHeight).left <= canvas.clientWidth * 0.25
@@ -595,11 +650,12 @@ export default function IslandScene({
         .addScaledVector(new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 1), -(camera.top + camera.bottom) / 2);
     };
     // `exact` centres on the point itself instead of nudging it back toward the island.
-    const focusTarget = (worldTarget: THREE.Vector3, duration = FOCUS_TWEEN_MS, onDone?: () => void, exact = false) => {
+    const focusTarget = (worldTarget: THREE.Vector3, duration = FOCUS_TWEEN_MS, onDone?: () => void, exact = false, forcedOffset?: THREE.Spherical) => {
       if (classroom || !character) { onDone?.(); return; }
       const desiredZoom = characterZoom();
-      const nextTarget = exact ? centredTarget(worldTarget, new THREE.Vector3().setFromSpherical(homeOffset)) : correctFocusTarget(worldTarget, desiredZoom);
-      const pose = poseForTarget(nextTarget, desiredZoom);
+      const offset = forcedOffset ?? (stateRef.current.phase === "ready" ? characterOffset : homeOffset);
+      const nextTarget = exact ? centredTarget(worldTarget, new THREE.Vector3().setFromSpherical(offset)) : correctFocusTarget(worldTarget, desiredZoom, offset);
+      const pose = poseForTarget(nextTarget, desiredZoom, offset);
       overview = false;
       onOverviewChangeRef.current?.(false);
       controls.enabled = false;
@@ -648,11 +704,11 @@ export default function IslandScene({
       controls.enabled = false;
       marker.visible = false;
       const zoom = THREE.MathUtils.clamp(closeZoom, controls.minZoom, controls.maxZoom);
-      const focus = centredTarget(worldFocus, new THREE.Vector3().setFromSpherical(homeOffset));
+      const focus = centredTarget(worldFocus, new THREE.Vector3().setFromSpherical(characterOffset));
       userZoom = null;
-      shotEnd = stay ? { position: poseForTarget(focus, zoom).position, target: focus.clone(), zoom } : null;
-      const transition = (nextTarget: THREE.Vector3, nextZoom: number, duration: number, onDone: () => void) => {
-        const pose = poseForTarget(nextTarget, nextZoom);
+      shotEnd = stay ? { position: poseForTarget(focus, zoom, characterOffset).position, target: focus.clone(), zoom } : null;
+      const transition = (nextTarget: THREE.Vector3, nextZoom: number, duration: number, onDone: () => void, offset = characterOffset) => {
+        const pose = poseForTarget(nextTarget, nextZoom, offset);
         controls.enabled = false;
         tween = { from: camera.position.clone(), to: pose.position, fromTarget: controls.target.clone(), target: nextTarget.clone(), start: performance.now(), duration, zoom: camera.zoom, nextZoom, home: false, easeInOut: true, onDone };
         render();
@@ -665,7 +721,7 @@ export default function IslandScene({
           transition(target, homeFit.homeZoom, CHARACTER_ZOOM_OUT_MS, () => {
             characterShot = false;
             controls.enabled = true;
-          });
+          }, homeOffset);
         });
       });
     }
@@ -771,7 +827,7 @@ export default function IslandScene({
       subjects.expandByScalar(characterScale * 0.5);
       const centre = subjects.getCenter(new THREE.Vector3());
       const probe = camera.clone();
-      probe.position.copy(poseForTarget(centre, 1).position);
+      probe.position.copy(poseForTarget(centre, 1, characterOffset).position);
       probe.lookAt(centre);
       probe.zoom = 1;
       probe.updateProjectionMatrix();
@@ -899,6 +955,20 @@ export default function IslandScene({
       bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
     }
 
+    // 눌러 본 배치 아이템 위에 말풍선을 붙인다.
+    function updateGiftBubble() {
+      const bubble = giftBubbleRef.current;
+      if (!bubble) return;
+      const anchor = inspectedIdRef.current && !classroom ? giftGroup.children.find(child => child.userData.giftId === inspectedIdRef.current) : undefined;
+      bubble.style.display = anchor ? "" : "none";
+      if (!anchor) return;
+      const rect = projectedBoxRect(new THREE.Box3().setFromObject(anchor), camera, canvas.clientWidth, canvas.clientHeight);
+      // 새 아이템의 사유 박스와 같은 자리: 아이템 왼쪽, 꼬리는 오른쪽.
+      const halfHeight = bubble.offsetHeight / 2;
+      bubble.style.left = `${THREE.MathUtils.clamp(rect.left - 10, bubble.offsetWidth + 8, canvas.clientWidth - 8)}px`;
+      bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
+    }
+
     function render() {
       if (disposed || !visible || document.hidden || frame) return;
       frame = requestAnimationFrame(animate);
@@ -913,7 +983,7 @@ export default function IslandScene({
       const deltaSeconds = Math.min(Math.max((now - lastFrameAt) / 1000, 0), 0.05);
       lastFrameAt = now;
 
-      if (!current.selected || current.phase === "moving" || current.phase === "farewell" || current.phase === "complete") marker.visible = false;
+      if (current.phase !== "ready" && !(current.selected && (current.phase === "choosing" || current.phase === "confirming"))) marker.visible = false;
 
       if (intro) {
         const progress = Math.min((now - intro.start) / INTRO_MS, 1);
@@ -940,7 +1010,9 @@ export default function IslandScene({
           // framings share, instead of drifting to centre first and then sliding left.
           const zoom = tween.zoom * Math.pow(tween.nextZoom / tween.zoom, eased);
           if (tween.zoom !== tween.nextZoom) pan = (tween.zoom / zoom - 1) / (tween.zoom / tween.nextZoom - 1);
-          pose = { position: tween.from.clone().lerp(tween.to, pan), zoom };
+          // Swing the viewing direction round as well, so the island ends up seen on the diagonal.
+          const swing = tween.from.clone().sub(tween.fromTarget).lerp(tween.to.clone().sub(tween.target), eased);
+          pose = { position: tween.fromTarget.clone().lerp(tween.target, pan).add(swing), zoom };
         } else pose = tween.easeInOut
           ? { position: tween.from.clone().lerp(tween.to, eased), zoom: THREE.MathUtils.lerp(tween.zoom, tween.nextZoom, eased) }
           : tweenCameraPose(tween.from, tween.to, tween.zoom, tween.nextZoom, progress);
@@ -1094,7 +1166,8 @@ export default function IslandScene({
               const finalZoom = homeFit.homeZoom * FINAL_ZOOM_RATIO;
               controls.minZoom = Math.min(homeFit.minZoom, finalZoom);
               const probe = camera.clone();
-              probe.position.copy(home);
+              const finalDir = new THREE.Vector3().setFromSpherical(new THREE.Spherical(homeOffset.radius, homeOffset.phi + FINAL_TILT, homeOffset.theta + FINAL_SWING));
+              probe.position.copy(target).add(finalDir);
               probe.lookAt(target);
               probe.zoom = finalZoom;
               probe.updateProjectionMatrix();
@@ -1103,7 +1176,7 @@ export default function IslandScene({
               const offset = new THREE.Vector3()
                 .addScaledVector(new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 0), (rect.left - canvas.clientWidth * 0.07) * (camera.right - camera.left) / (finalZoom * canvas.clientWidth))
                 .addScaledVector(new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 1), (canvas.clientHeight * 0.95 - rect.bottom) * (camera.top - camera.bottom) / (finalZoom * canvas.clientHeight));
-              tween = { from: camera.position.clone(), to: home.clone().add(offset), fromTarget: controls.target.clone(), target: target.clone().add(offset), start: now, duration: calm ? 150 : 2400, zoom: camera.zoom, nextZoom: finalZoom, home: false, easeInOut: true, onDone: () => { finishingHome = false; homeCallbacksRef.current.onHomeEntered(); } };
+              tween = { from: camera.position.clone(), to: target.clone().add(finalDir).add(offset), fromTarget: controls.target.clone(), target: target.clone().add(offset), start: now, duration: calm ? 150 : 2400, zoom: camera.zoom, nextZoom: finalZoom, home: false, easeInOut: true, onDone: () => { finishingHome = false; homeCallbacksRef.current.onHomeEntered(); } };
             }
           }
           if (homecoming) {
@@ -1127,6 +1200,7 @@ export default function IslandScene({
           const segmentLength = route.distances[segment] - route.distances[segment - 1];
           const fraction = segmentLength > 0 ? (distance - route.distances[segment - 1]) / segmentLength : 1;
           root.position.lerpVectors(facingFrom, facingTo, THREE.MathUtils.clamp(fraction, 0, 1));
+          if (Math.hypot(root.position.x - activeWalk.from.x, root.position.z - activeWalk.from.z) > 1e-4) reportPreparingMovement();
           const walkPoint = displayedCoordinates.fromDisplayedWorld(root.position);
           const groundY = pieceLandscape.walkHeightAt(walkPoint.x, walkPoint.z) + 0.02;
           root.position.y = groundY + (calm ? 0 : Math.abs(stride) * characterScale * (activeWalk.run ? 0.14 : 0.08));
@@ -1151,6 +1225,9 @@ export default function IslandScene({
             }));
             if (activeWalk.farewell) beginFarewellWave();
             else if (activeWalk.pickup) startLift();
+            else if (activeWalk.inspectGift) showGiftBubble(activeWalk.inspectGift);
+            else if (activeWalk.inspectIncoming === "front") focusTarget(characterCentre(), FOCUS_TWEEN_MS, () => onIncomingItemClickRef.current?.(), true, characterOffset);
+            else if (activeWalk.inspectIncoming) onIncomingItemClickRef.current?.();
             else current.onArrive();
           } else {
             keepAnimating = true;
@@ -1200,7 +1277,10 @@ export default function IslandScene({
             object.quaternion.slerpQuaternions(lift.grabbed.rotation, UPRIGHT, t);
             object.scale.setScalar(THREE.MathUtils.lerp(lift.grabbed.scale, lift.carryScale, t));
           }
-          if (progress === 1) item.lift = undefined;
+          if (progress === 1) {
+            item.lift = undefined;
+            moveCamera("placement");
+          }
           else keepAnimating = true;
         }
       }
@@ -1232,19 +1312,46 @@ export default function IslandScene({
       screenSunPosition(camera, controls.target, sunDistance / 16, sunlight.position);
       fill.position.copy(fillOffset).applyQuaternion(camera.quaternion).add(controls.target);
       updateBubble();
+      updateGiftBubble();
       renderer.render(scene, camera);
       if (changing || tween || keepAnimating) render();
     }
 
     function moveCamera(preset: CameraPreset) {
       if (finishingHome) return;
-      if (characterShot) { finishCharacterShot(); return; }
+      if (characterShot) {
+        finishCharacterShot();
+        if (preset !== "placement" && preset !== "character") return;
+      }
       intro = null;
       userZoom = null;
+      if (preset === "placement") {
+        zoomedOut = false;
+        overview = false;
+        onOverviewChangeRef.current?.(false);
+        const offset = new THREE.Vector3().setFromSpherical(homeOffset);
+        const nextTarget = centredTarget(characterCentre(), offset);
+        if (movementKeys.size || walk) {
+          // Walking must own the camera from its first frame. A preset tween
+          // would otherwise keep replacing the follow position until it ends.
+          tween = null;
+          camera.position.copy(nextTarget).add(offset);
+          camera.zoom = characterZoom();
+          controls.target.copy(nextTarget);
+          camera.updateProjectionMatrix();
+          controls.enabled = true;
+          render();
+          return;
+        }
+        controls.enabled = false;
+        tween = { from: camera.position.clone(), to: nextTarget.clone().add(offset), fromTarget: controls.target.clone(), target: nextTarget, start: performance.now(), duration: HOME_TWEEN_MS, zoom: camera.zoom, nextZoom: characterZoom(), home: false };
+        render();
+        return;
+      }
       if (preset === "out") zoomedOut = true;
       if (preset === "character") {
         zoomedOut = false;
-        focusTarget(characterCentre(), FOCUS_TWEEN_MS, undefined, true);
+        focusTarget(characterCentre(), FOCUS_TWEEN_MS, undefined, true, characterOffset);
         return;
       }
       controls.enabled = false;
@@ -1252,7 +1359,7 @@ export default function IslandScene({
       if (!zoomedOut && !overview && character && !classroom && preset !== "in") {
         const offset = preset === "top" ? new THREE.Vector3().setFromSphericalCoords(viewDistance, controls.minPolarAngle, 0)
           : preset === "left" || preset === "right" ? camera.position.clone().sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), preset === "left" ? -Math.PI / 6 : Math.PI / 6)
-          : new THREE.Vector3().setFromSpherical(homeOffset);
+          : new THREE.Vector3().setFromSpherical(characterOffset);
         const nextTarget = centredTarget(characterCentre(), offset);
         tween = { from: camera.position.clone(), to: nextTarget.clone().add(offset), fromTarget: controls.target.clone(), target: nextTarget, start: performance.now(), duration: HOME_TWEEN_MS, zoom: camera.zoom, nextZoom: characterZoom(), home: false };
         render();
@@ -1313,16 +1420,24 @@ export default function IslandScene({
       return hit && (hit.point.y >= SURFACE_Y - 0.01 || hit.object.userData.surfaceKind === "water") ? hit : undefined;
     };
 
-    const canChooseLocation = () => {
+    const canPreviewLocation = () => {
       const current = stateRef.current;
-      return !!current.selected && !classroom && !!character && performance.now() >= characterReadyAt
-        && !overview && !tween && (current.phase === "choosing" || current.phase === "confirming");
+      return !classroom && !!character && performance.now() >= characterReadyAt && !overview
+        && ((current.phase === "ready" && !intro && !characterShot)
+          || (!!current.selected && (current.phase === "choosing" || current.phase === "confirming")));
     };
+    const canChooseLocation = () => canPreviewLocation() && !!stateRef.current.selected && !tween;
 
     const onMove = (event: PointerEvent) => {
       hoverPointer = event;
       if (pointerDown && Math.hypot(event.clientX - pointerDown.x, event.clientY - pointerDown.y) >= DRAG_THRESHOLD) pointerDown.dragged = true;
-      if (!canChooseLocation()) return;
+      // 눌러 볼 수 있는 배치 아이템 위에서는 손가락 커서로 바꾼다.
+      const current = stateRef.current;
+      const picked = !pointerDown && !classroom && (current.phase === "ready" || current.phase === "complete") ? pickGiftId(event) : null;
+      const incomingPicked = pickIncomingItem(event);
+      const giftPicked = !!picked && !!current.gifts.find(gift => gift.id === picked)?.note;
+      canvas.style.cursor = incomingPicked || giftPicked ? "pointer" : "";
+      if (!canPreviewLocation() || incomingPicked || giftPicked) { marker.visible = false; render(); return; }
       const hit = intersect(event);
       marker.visible = !!hit;
       marker.scale.setScalar(assetSizeScale(incomingAssetRef.current ?? {}));
@@ -1344,6 +1459,95 @@ export default function IslandScene({
       if (event.button === 0) pointerDown = { x: event.clientX, y: event.clientY, id: event.pointerId, dragged: false };
     };
 
+    // 배치된 아이템을 눌렀는지 확인한다. 아이템 모델의 최상위 그룹에서 giftId를 찾는다.
+    const pickGiftId = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      scene.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
+      raycaster.setFromCamera(pointer, camera);
+      let object: THREE.Object3D | null = raycaster.intersectObjects(giftGroup.children, true)[0]?.object ?? null;
+      while (object && object.parent !== giftGroup) object = object.parent;
+      return (object?.userData.giftId as string | undefined) ?? null;
+    };
+
+    const pickIncomingItem = (event: PointerEvent) => {
+      if (classroom || stateRef.current.phase !== "ready" || !item || item.drop || item.lift || !item.object.visible || item.object.parent !== scene) return false;
+      const rect = canvas.getBoundingClientRect();
+      pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+      scene.updateMatrixWorld(true);
+      camera.updateMatrixWorld(true);
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObject(item.object, true).length > 0;
+    };
+
+    const walkToIncomingItem = (faceOnArrival = false) => {
+      if (!character || !item || walk?.inspectIncoming) return;
+      const reveal = () => {
+        if (faceOnArrival) focusTarget(characterCentre(), FOCUS_TWEEN_MS, () => onIncomingItemClickRef.current?.(), true, characterOffset);
+        else onIncomingItemClickRef.current?.();
+      };
+      const itemAt = item.object.position;
+      camera.updateMatrixWorld(true);
+      const screenRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+      const bodyRadius = characterScale * 0.45;
+      for (const scale of [1.15, 1.5, 2]) {
+        const radius = itemStandOff(item.object) * scale;
+        for (const angle of [35, -35, 0, 50, -50, 75, -75]) {
+          const destination = itemAt.clone().addScaledVector(screenRight.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(angle)), radius);
+          const data = displayedCoordinates.fromDisplayedWorld(destination);
+          if (!pieceLandscape.canWalk(data.x, data.z, bodyRadius)) continue;
+          destination.y = pieceLandscape.walkHeightAt(data.x, data.z) + 0.02;
+          const nextWalk = createClickWalk(destination);
+          if (!nextWalk) continue;
+          tween = null;
+          controls.enabled = true;
+          character.setPose("walking");
+          walk = { ...nextWalk, inspectIncoming: faceOnArrival ? "front" : "reason" };
+          render();
+          return;
+        }
+      }
+      reveal();
+    };
+
+    const showGiftBubble = (id: string | null) => {
+      inspectedIdRef.current = id;
+      setInspectedId(id);
+      render();
+    };
+
+    // 배치된 아이템 옆으로 걸어가서, 도착하면 발화 시점·사유 말풍선을 띄운다.
+    // 사유 박스가 아이템 왼쪽에 뜨니 화면 오른쪽 자리부터 찾고, 막혀 있으면 점점 돌려 가며 찾는다.
+    const walkToGift = (id: string) => {
+      const gift = stateRef.current.gifts.find(entry => entry.id === id);
+      if (!character || !gift) return;
+      const giftAt = displayedCoordinates.toDisplayedWorld(gift);
+      camera.updateMatrixWorld(true);
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+      const bodyRadius = characterScale * 0.45;
+      const clear = (data: { x: number; z: number }) => stateRef.current.gifts.every(other =>
+        Math.hypot(data.x - other.x, data.z - other.z) >= giftRadius(other) * 1.6 + bodyRadius);
+      for (const scale of [1.1, 1.5, 2]) {
+        const radius = (giftRadius(gift) * 1.6 + bodyRadius) * scale;
+        for (const angle of [0, 25, -25, 50, -50, 75, -75, 100, -100, 130, -130, 180]) {
+          const destination = giftAt.clone().addScaledVector(right.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(angle)), radius);
+          const data = displayedCoordinates.fromDisplayedWorld(destination);
+          if (!pieceLandscape.canWalk(data.x, data.z, bodyRadius) || !clear(data)) continue;
+          destination.y = pieceLandscape.walkHeightAt(data.x, data.z) + 0.02;
+          const nextWalk = createClickWalk(destination);
+          if (!nextWalk) continue;
+          tween = null;
+          controls.enabled = true;
+          character.setPose("walking");
+          walk = { ...nextWalk, inspectGift: id };
+          render();
+          return;
+        }
+      }
+      showGiftBubble(id);
+    };
+
     const onUp = (event: PointerEvent) => {
       activePointers.delete(event.pointerId);
       const down = pointerDown;
@@ -1352,6 +1556,21 @@ export default function IslandScene({
       if (!down || down.id !== event.pointerId || down.dragged || activePointers.size) return;
       if (Math.hypot(event.clientX - down.x, event.clientY - down.y) >= DRAG_THRESHOLD) return;
       if (overview && current.phase === "choosing") { focusTarget(character?.root.position ?? initialCharacterPosition); return; }
+      if (pickIncomingItem(event)) {
+        onIncomingItemApproachRef.current?.();
+        walkToIncomingItem(true);
+        return;
+      }
+      if (!classroom && (current.phase === "ready" || current.phase === "complete")) {
+        const picked = pickGiftId(event);
+        const giftId = picked && current.gifts.find(gift => gift.id === picked)?.note ? picked : null;
+        const wasOpen = inspectedIdRef.current;
+        if (giftId || wasOpen) showGiftBubble(null);
+        if (giftId) {
+          if (giftId !== wasOpen) walkToGift(giftId);
+          return;
+        }
+      }
       // Before placement starts, a tap on the island just walks the character there.
       if (current.phase === "ready" && character && !classroom && !intro) {
         const point = intersect(event)?.point;
@@ -1395,8 +1614,11 @@ export default function IslandScene({
       }
     };
 
-    const onLeave = () => { hoverPointer = null; marker.visible = false; render(); };
+    const onLeave = () => { hoverPointer = null; marker.visible = false; canvas.style.cursor = ""; render(); };
     const onCancel = (event: PointerEvent) => { activePointers.delete(event.pointerId); pointerDown = null; onLeave(); };
+    const onOtherElementPointerDown = (event: PointerEvent) => {
+      if (inspectedIdRef.current && event.target !== canvas) showGiftBubble(null);
+    };
     function advanceHeldWalk(deltaSeconds: number) {
       if (!movementKeys.size || !canMoveWithKeyboard() || !character) return false;
       const root = character.root;
@@ -1429,6 +1651,7 @@ export default function IslandScene({
         }
         root.rotation.set(0, Math.atan2(keyboardDirection.x, keyboardDirection.z), 0);
       }
+      if (moved) reportPreparingMovement();
       return moved;
     }
 
@@ -1470,7 +1693,7 @@ export default function IslandScene({
         || event.altKey || event.ctrlKey || event.metaKey || !visible || document.hidden) return;
       if (arrowKeys.has(event.key)) {
         event.preventDefault();
-        startWalking(event.key);
+        if (!event.repeat) startWalking(event.key);
         return;
       }
       if (event.target !== canvas) return;
@@ -1518,10 +1741,6 @@ export default function IslandScene({
       controls.maxZoom = homeFit.maxZoom;
       camera.zoom = THREE.MathUtils.clamp(camera.zoom, controls.minZoom, controls.maxZoom);
       if (tween) tween.nextZoom = THREE.MathUtils.clamp(tween.nextZoom, controls.minZoom, controls.maxZoom);
-      if (tween) {
-        const pose = poseForTarget(tween.target, tween.nextZoom);
-        tween.to.copy(pose.position);
-      }
       camera.updateProjectionMatrix();
       render();
     };
@@ -1594,6 +1813,7 @@ export default function IslandScene({
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("pointercancel", onCancel);
+    document.addEventListener("pointerdown", onOtherElementPointerDown);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", clearMovementKeys);
@@ -1610,6 +1830,7 @@ export default function IslandScene({
 
     runtimeRef.current = {
       camera: moveCamera,
+      inspectIncomingItem: () => walkToIncomingItem(true),
       walk: (key, pressed, seconds) => {
         if (!pressed) {
           buttonWalking = false;
@@ -1691,7 +1912,8 @@ export default function IslandScene({
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointerleave", onLeave);
-      canvas.removeEventListener("pointercancel", onCancel);
+    canvas.removeEventListener("pointercancel", onCancel);
+    document.removeEventListener("pointerdown", onOtherElementPointerDown);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", clearMovementKeys);
@@ -1716,6 +1938,7 @@ export default function IslandScene({
       model.position.copy(runtime.toDisplayedWorld(gift, runtime.surfaceAt(gift.x, gift.z) - scale * 0.02));
       model.scale.setScalar(scale);
       model.name = gift.name;
+      model.userData.giftId = gift.id;
       model.userData.sparkle = !gift.locked && gift.id === gifts[gifts.length - 1]?.id;
       runtime.gifts.add(model);
     });
@@ -1727,14 +1950,21 @@ export default function IslandScene({
   }, [proposal, phase, mode]);
 
   const bubbleContent = mode === "island" && phase === "confirming" ? <>
-    <p className="text-[14px] font-bold tracking-[-0.35px] break-keep">여기로 정할까?</p>
-    <p className="mt-0.5 break-keep">정하면 수정 못 해!</p>
+    <p className="text-center font-[family-name:var(--font-cute)] text-[18px] tracking-[-0.35px] break-keep">여기로 정할까?</p>
+    <p className="mt-0.5 break-keep text-center font-[family-name:var(--font-hand)] text-[17px]">정하면 수정 못 해!</p>
     <button onClick={onConfirm} className="mt-2 h-[30px] w-full rounded-full bg-[#5a52f0] px-2.5 text-[12px] font-semibold text-white">확정하기</button>
   </> : itemBubble;
 
+  const inspectedGift = inspectedId ? gifts.find(gift => gift.id === inspectedId) : undefined;
+  const inspectedNote = inspectedGift?.note;
+  useEffect(() => {
+    inspectedIdRef.current = inspectedNote ? inspectedId : null;
+    runtimeRef.current?.render();
+  }, [inspectedId, inspectedNote]);
+
   // A bubble mounted while the scene is idle still needs a frame to be placed.
   const hasItemBubble = !!bubbleContent;
-  useEffect(() => { if (hasItemBubble) runtimeRef.current?.render(); }, [hasItemBubble, phase]);
+  useEffect(() => { if (hasItemBubble) runtimeRef.current?.render(); }, [hasItemBubble, itemBubble, phase]);
 
   useEffect(() => {
     itemReadyRef.current = itemReady;
@@ -1763,12 +1993,26 @@ export default function IslandScene({
 
     {bubbleContent && <div
       ref={reasonBubbleRef}
-      className="island-bubble absolute z-20 w-max max-w-[220px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-3 py-2 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
+      className="island-bubble absolute z-20 w-max max-w-[280px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-4 py-3 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
       data-tail="left"
       style={{ display: "none" }}
       role="status"
     >
       {bubbleContent}
+      {mode === "island" && phase === "confirming" && <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-white/70 bg-white/55" />}
+    </div>}
+
+    {inspectedNote && <div
+      ref={giftBubbleRef}
+      className="island-bubble absolute z-20 w-max max-w-[280px] -translate-x-full -translate-y-1/2 rounded-2xl border border-white/70 bg-white/55 px-4 py-3 text-[12px] leading-snug text-[#3c445e] shadow-[0_8px_24px_rgba(60,68,110,0.18)] backdrop-blur-md"
+      data-tail="left"
+      style={{ display: "none" }}
+      role="status"
+    >
+      <p className="text-center font-[family-name:var(--font-cute)] text-[18px] tracking-[-0.35px] break-keep">{inspectedGift?.name}</p>
+      <p className="mt-0.5 text-center text-[11px] text-[#7d849b]">{inspectedNote.when}</p>
+      <hr className="mt-1.5 border-0 border-t-[0.5px] border-[#3c445e]/25" />
+      <p className="mt-0.5 whitespace-pre-line break-keep text-center font-[family-name:var(--font-hand)] text-[17px]">{inspectedNote.reason.replace(/,\s*/g, ",\n")}</p>
       <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-white/70 bg-white/55" />
     </div>}
 
