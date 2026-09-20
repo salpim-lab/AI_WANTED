@@ -5,7 +5,7 @@
 // 메모 "3개 system prompt 병렬 호출 후 합치는 구조").
 //
 // 데이터는 김현우가 이미 만들어둔 조회 함수(getConsultationReport/getSeatingChart/listObservationLogs/
-// listConsultationLogs/listClassStudents)를 그대로 가져다 쓴다 — 이 함수들은 "지금은 mock, Supabase
+// listConsultationLogs/listScheduledConsultations/listOpenStudentRequests/listClassStudents)를 그대로 가져다 쓴다 — 이 함수들은 "지금은 mock, Supabase
 // 연결 시 시그니처 그대로 내부만 교체"라고 그쪽 파일에 적혀 있어서, 여기는 고칠 일이 없다. 남의 파일은
 // 절대 이 안에서 수정하지 않는다.
 //
@@ -17,19 +17,46 @@
 
 import "server-only";
 
-import { addDays, todayKst } from "@/components/shared/datetime";
+import { addDays, formatKstDateTime, toKstDate, todayKst } from "@/components/shared/datetime";
 import { getActingTeacher } from "@/lib/supabase/raw/_mockTeacherData";
 import { listObservationLogs } from "@/lib/supabase/raw/observationLog";
-import { listConsultationLogs } from "@/lib/supabase/raw/consultationLog";
+import { listConsultationLogs, listScheduledConsultations } from "@/lib/supabase/raw/consultationLog";
 import {
   getConsultationReport,
   getSeatingChart,
   listClassStudents,
+  listOpenStudentRequests,
   REPORT_DEFAULT_DAYS,
 } from "@/lib/supabase/queries/teacherStudents";
 import type { SignalColor } from "@/lib/types/signal";
 
 const COLOR_LABEL: Record<SignalColor, string> = { green: "초록", yellow: "노랑", red: "빨강", navy: "남색" };
+
+const METHOD_LABEL = { phone: "전화", visit: "방문", online: "온라인" } as const;
+
+/** 한국 시각 "2026-09-21 15:00" — 예정 상담 줄에 쓴다 */
+const kstMinute = (iso: string) => formatKstDateTime(iso).slice(0, 16);
+
+/**
+ * 오늘 이후로 예정된 학부모 상담 — 가까운 순. 상담 대상이 "학생 본인"인 예약은 학부모 상담이 아니라서 뺀다.
+ * studentId를 주면 그 아이 것만. 조회에 실패해도 챗봇 답변 전체가 막히지 않게 빈 목록으로 물러난다.
+ * (방문자 격리는 listScheduledConsultations가 이미 건다.)
+ */
+async function upcomingParentConsultations(classId: string, today: string, studentId?: string) {
+  try {
+    return (await listScheduledConsultations(classId)).filter(
+      (c) =>
+        c.counterpart !== "학생 본인" &&
+        toKstDate(c.scheduledAt) >= today &&
+        (!studentId || c.student.studentId === studentId),
+    );
+  } catch (error) {
+    console.warn("[agent] 예정된 학부모 상담을 읽지 못했습니다:", error instanceof Error ? error.message : error);
+    return [];
+  }
+}
+
+const urgentMark = (priority: "normal" | "high") => (priority === "high" ? " · 급한 일로 표시됨" : "");
 
 export type AgentDomain = "emotion" | "learning" | "home";
 
@@ -133,6 +160,13 @@ async function buildStudentContext(
   // "오늘"을 무시하고 최근 며칠을 통째로 요약했다).
   const header = `[학생] ${report.student.name} (자리 ${report.student.seatRow}행 ${report.student.seatCol}열)\n[오늘] ${today}`;
 
+  // 이 아이가 낸 상담 신청(정서 도메인)과 예정된 학부모 상담(가정 연계 도메인) — 서로 무관하니 동시에 읽는다.
+  const [studentRequestsAll, upcomingParent] = await Promise.all([
+    listOpenStudentRequests(classId),
+    upcomingParentConsultations(classId, today, report.student.studentId),
+  ]);
+  const studentRequests = studentRequestsAll.filter((r) => r.studentId === report.student.studentId).slice(0, 3);
+
   // ── 정서: 신호등 색 + AI 대화 요약 + 감정 어휘 ─────────────────────
   // 각 줄 앞 [EM숫자] 태그는 emotionEvidence의 같은 순번과 짝이다 — 모델이 실제로 인용한
   // 태그만 [USED]로 돌려주면 route.ts가 evidence 배열에서 그만큼만 골라 보여준다.
@@ -145,15 +179,22 @@ async function buildStudentContext(
   const recentAnalyses = recentAnalysesRaw.map(
     (a, i) => `[${emoTag}${recentSessions.length + i + 1}] (${a.date}) ${a.summary}`,
   );
+  // 태그 번호는 위 색·요약에 이어서 매긴다 — emotionEvidence의 같은 순번과 짝이어야 한다.
+  const requestLines = studentRequests.map(
+    (r, i) =>
+      `[${emoTag}${recentSessions.length + recentAnalysesRaw.length + i + 1}] (${toKstDate(r.requestedAt)} 신청) 선생님과 이야기하고 싶다는 신청이 들어와 있고 아직 처리되지 않았어요${urgentMark(r.priority)}`,
+  );
   const emotionLines = [
     header,
     recentColors.length ? `[최근 신호등 색]\n${recentColors.join("\n")}` : "",
     recentAnalyses.length ? `[AI 대화 요약]\n${recentAnalyses.join("\n")}` : "",
+    requestLines.length ? `[선생님과의 대화 신청 (대기 중)]\n${requestLines.join("\n")}` : "",
     `[감정 어휘] 이 학생 ${report.vocabInsight.studentCount}개 · 학급 평균 ${report.vocabInsight.classAverage}개`,
   ].filter(Boolean);
   const emotionEvidence = [
     ...recentSessions.map((s) => `체크인 · ${s.date} ${s.period === "morning" ? "등교" : "하교"}`),
     ...recentAnalysesRaw.map((a) => `AI 대화 요약 · ${a.date}`),
+    ...studentRequests.map((r) => `대화 신청 · ${toKstDate(r.requestedAt)}`),
   ];
 
   // ── 학교생활 관찰: 학생관찰일지 ────────────────────────────────
@@ -177,14 +218,21 @@ async function buildStudentContext(
   const relationLine = report.relationInsight.connections.length
     ? `[${homeTag}${recentConsultationsRaw.length + 1}] [교우관계] ${report.relationInsight.connections.map((c) => `${c.name}${c.kind === "conflict" ? "(갈등 관계)" : ""}`).join(", ")}`
     : "";
+  // 예정된 학부모 상담 — 태그는 위 기록·교우관계(있으면 1줄)에 이어서 매긴다.
+  const homeUsed = recentConsultationsRaw.length + (relationLine ? 1 : 0);
+  const upcomingLines = upcomingParent
+    .slice(0, 3)
+    .map((c, i) => `[${homeTag}${homeUsed + i + 1}] (${kstMinute(c.scheduledAt)} 예정) ${c.counterpart} · ${METHOD_LABEL[c.method]} 상담`);
   const homeLines = [
     header,
     recentConsultations.length ? `[학부모상담기록]\n${recentConsultations.join("\n")}` : "",
     relationLine,
+    upcomingLines.length ? `[예정된 학부모 상담]\n${upcomingLines.join("\n")}` : "",
   ].filter(Boolean);
   const homeEvidence = [
     ...recentConsultationsRaw.map((c) => `학부모상담기록 · ${c.occurredAt.slice(0, 10)}`),
     ...(report.relationInsight.connections.length ? ["관계 지도 (대시보드 스냅샷)"] : []),
+    ...upcomingParent.slice(0, 3).map((c) => `예정된 학부모 상담 · ${toKstDate(c.scheduledAt)}`),
   ];
 
   return {
@@ -209,11 +257,24 @@ async function buildClassContext(classId: string, today: string, viewerTeacherId
     .map(([color, count]) => `${COLOR_LABEL[color]} ${count}명`)
     .join(", ");
   const watchList = seating.filter((s) => s.badge === "watch").map((s) => s.name);
+  // 학생이 낸 상담 신청 — 아이마다 가장 최근(급한 것 우선) 하나씩, 최대 5명. 태그는 위 색 현황(EM1)에 이어서 매긴다.
+  const seenRequester = new Set<string>();
+  const classRequests = (await listOpenStudentRequests(classId))
+    .filter((r) => (seenRequester.has(r.studentId) ? false : (seenRequester.add(r.studentId), true)))
+    .slice(0, 5);
+  const requestLines = classRequests.map(
+    (r, i) =>
+      `[${DOMAIN_TAG.emotion}${i + 2}] (${toKstDate(r.requestedAt)} 신청) ${r.name} · 선생님과의 대화 신청이 아직 처리되지 않았어요${urgentMark(r.priority)}`,
+  );
   const emotionLines = [
     `[${DOMAIN_TAG.emotion}1] [오늘(${today}) 등교 색 현황] ${colorLine || "기록 없음"}`,
     watchList.length ? `[오늘 살펴볼 아이] ${watchList.join(", ")}` : "",
+    requestLines.length ? `[선생님과의 대화 신청 (대기 중)]\n${requestLines.join("\n")}` : "",
   ].filter(Boolean);
-  const emotionEvidence = [`오늘(${today}) 등교 체크인 집계`];
+  const emotionEvidence = [
+    `오늘(${today}) 등교 체크인 집계`,
+    ...classRequests.map((r) => `대화 신청 · ${toKstDate(r.requestedAt)} (${r.name})`),
+  ];
 
   // ── 학교생활 관찰: 최근 7일 학생관찰일지 ─────────────────────────
   const lrnTag = DOMAIN_TAG.learning;
@@ -237,8 +298,24 @@ async function buildClassContext(classId: string, today: string, viewerTeacherId
   const consultLines = sortedConsultations.map(
     (c, i) => `[${homeTag}${i + 1}] (${c.occurredAt.slice(0, 10)}) ${c.student.name} · ${c.title}: ${c.body.slice(0, 60)}`,
   );
-  const homeLines = consultLines.length ? [`[오늘] ${today}`, `[최근 학부모상담기록]\n${consultLines.join("\n")}`] : [];
-  const homeEvidence = sortedConsultations.map((c) => `학부모상담기록 · ${c.occurredAt.slice(0, 10)} (${c.student.name})`);
+  // 예정된 학부모 상담 — 오늘 이후 가까운 순 5건. 태그는 위 기록에 이어서 매긴다.
+  const upcomingClass = (await upcomingParentConsultations(classId, today)).slice(0, 5);
+  const upcomingLines = upcomingClass.map(
+    (c, i) =>
+      `[${homeTag}${sortedConsultations.length + i + 1}] (${kstMinute(c.scheduledAt)} 예정) ${c.student.name} · ${c.counterpart} · ${METHOD_LABEL[c.method]} 상담`,
+  );
+  const homeLines =
+    consultLines.length || upcomingLines.length
+      ? [
+          `[오늘] ${today}`,
+          consultLines.length ? `[최근 학부모상담기록]\n${consultLines.join("\n")}` : "",
+          upcomingLines.length ? `[예정된 학부모 상담]\n${upcomingLines.join("\n")}` : "",
+        ].filter(Boolean)
+      : [];
+  const homeEvidence = [
+    ...sortedConsultations.map((c) => `학부모상담기록 · ${c.occurredAt.slice(0, 10)} (${c.student.name})`),
+    ...upcomingClass.map((c) => `예정된 학부모 상담 · ${toKstDate(c.scheduledAt)} (${c.student.name})`),
+  ];
 
   return {
     classId,
