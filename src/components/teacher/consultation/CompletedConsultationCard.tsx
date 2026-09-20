@@ -65,13 +65,13 @@ export default function CompletedConsultationCard({ entry, showDate }: { entry: 
           kind={kindLabel}
           kindClassName={kindTag}
           fields={[
-            { label: "상담한 아이", value: <StudentTag entry={entry} className="" /> },
-            ...(entry.title ? [{ label: "상담 대상 · 방식", value: parseConsultationTitle(entry.title).line }] : []),
+            ...(entry.title ? [{ label: "상담 대상 · 방식", value: parseConsultationTitle(entry.title).line, wide: true }] : []),
             { label: "기록 시각", value: formatKstDateTime(entry.createdAt) },
             ...(showOccurredAt ? [{ label: "상담 일시", value: formatKstDateTime(entry.occurredAt).slice(0, 16) }] : []),
           ]}
           bodyLabel="상담 내용"
           body={entry.body}
+          footer={<StudentTag entry={entry} className="" />}
         />
       </Modal>
     </>

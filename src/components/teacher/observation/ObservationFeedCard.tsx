@@ -75,14 +75,12 @@ export default function ObservationFeedCard({ entry, showDate }: { entry: Observ
           kind={typeLabel}
           kindClassName={RECORD_TYPE_TAG[entry.recordType]}
           fields={[
-            ...(entry.taggedStudents.length > 0
-              ? [{ label: "관찰한 아이", value: <TagLinks tags={entry.taggedStudents} className="" />, wide: true }]
-              : []),
             { label: "기록 시각", value: formatKstDateTime(entry.createdAt) },
             ...(showOccurredAt ? [{ label: "발생 시각", value: formatKstDateTime(entry.occurredAt).slice(0, 16) }] : []),
           ]}
           bodyLabel={typeLabel === "상담" ? "상담 내용" : "관찰 내용"}
           body={entry.body}
+          footer={entry.taggedStudents.length > 0 ? <TagLinks tags={entry.taggedStudents} className="" /> : undefined}
         />
       </Modal>
     </>

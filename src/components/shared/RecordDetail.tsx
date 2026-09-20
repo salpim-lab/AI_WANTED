@@ -1,20 +1,21 @@
 // 담당: 이유민 (화면 담당은 김현우 — 기록 상세 모달의 모양만 맡는다)
 // 이미 쓴 기록을 눌렀을 때 뜨는 상세 모달의 본문. 학생관찰일지·학생 상담·학부모 상담이 같이 쓴다.
-// 작성 모달과 같은 말씨로 칸을 나눈다: 작은 굵은 라벨 + 연보라 테두리의 칸. 줄글로 죽 이어 쓰지 않고
-// [종류·🔒] → [시각 카드들] → [아이·대상 카드] → [내용 카드] 순서로 끊어서 보여준다.
+// 작성 모달과 같은 말씨로 칸을 나눈다: 작은 굵은 라벨 + 연회색 테두리의 흰 칸. 줄글로 죽 이어 쓰지 않고
+// [종류·🔒] → [시각·대상 카드들] → [내용 카드] → [@아이 태그] 순서로 끊어서 보여준다.
 // 읽기 전용이라 입력칸이 아니라 값 카드로 그린다(수정 불가 원칙).
 
 import type { ReactNode } from "react";
 import { immutableBadge } from "@/components/shared/ui";
 
-const valueBox = "rounded-xl border-[1.5px] border-[#e6e2fb] bg-[#faf9ff] px-3.5 py-2.5";
+// 흰 바탕에 연회색 테두리 — 연보라 칸은 어수선해 보여서 뺐다
+const valueBox = "rounded-xl border-[1.5px] border-[#e3e5ec] bg-white px-3.5 py-2.5";
 const label = "mb-1.5 block text-xs font-bold tracking-[0.5px] text-[#7d849b]";
 
 export type DetailField = {
   label: string;
   /** 칸 안에 그릴 내용. 글자 하나면 문자열, 태그 링크 같은 건 노드로 */
   value: ReactNode;
-  /** true면 두 칸을 다 차지한다 (여러 아이 태그처럼 긴 것) */
+  /** true면 두 칸을 다 차지한다 */
   wide?: boolean;
 };
 
@@ -24,6 +25,7 @@ export default function RecordDetail({
   fields,
   bodyLabel,
   body,
+  footer,
 }: {
   /** "관찰" · "학부모 상담" 같은 종류 이름 */
   kind: string;
@@ -33,6 +35,8 @@ export default function RecordDetail({
   fields: DetailField[];
   bodyLabel: string;
   body: string;
+  /** 맨 아래에 카드 없이 놓는 것 — @아이 태그 */
+  footer?: ReactNode;
 }) {
   return (
     <div className="grid gap-4">
@@ -60,6 +64,8 @@ export default function RecordDetail({
           {body}
         </div>
       </div>
+
+      {footer && <div className="border-t border-[#e3e5ec] pt-3">{footer}</div>}
     </div>
   );
 }
