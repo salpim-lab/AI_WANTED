@@ -435,7 +435,7 @@
   gap: 6px;
   flex: 0 1 auto;
   min-height: 44px;
-  max-height: 130px;
+  max-height: 104px;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
@@ -457,7 +457,7 @@
   /* 갈등 카드 한 건(머리글·요약·진술 둘)이 잘리지 않는 최소 높이를 먼저 확보한다.
      칸 전체가 고정 높이라 자리가 모자라면 위 .rd-quotes 가 대신 줄어든다 — 순서가 중요하다:
      발췌는 몇 줄 덜 보여도 되지만 진술은 한쪽만 보이면 읽는 뜻이 달라진다. */
-  min-height: 224px;
+  min-height: 260px;
   display: flex;
   flex-direction: column;
   /* 카드 위에 겹쳐 뜨는 ‹ › 의 기준 */
@@ -500,6 +500,7 @@
   border-radius: 99px;
   background: var(--surface);
   font-family: inherit;
+  padding: 0;
   font-size: var(--fs-name);
   line-height: 1;
   color: var(--muted);
@@ -569,13 +570,14 @@
   padding-top: 0;
   margin-bottom: 20px;
   font-size: var(--fs-label);
+  position: relative; /* 미참여 툴팁을 이 줄(=카드 안쪽 폭)에 맞춘다 */
 }
 .classroom-attend .ca-label { font-weight: var(--fw-bold); color: var(--muted); }
 .classroom-attend .ca-count { color: var(--muted); }
 .classroom-attend .ca-count strong { font-size: var(--fs-name); font-weight: var(--fw-bold); color: var(--text); }
 .classroom-attend .ca-all { margin-left: auto; font-weight: var(--fw-bold); color: var(--green-ink); }
 
-.ca-absent { position: relative; margin-left: auto; }
+.ca-absent { margin-left: auto; } /* position 을 주지 않아 툴팁이 .classroom-attend 폭 기준이 된다 */
 .ca-absent-trigger {
   padding: 4px 10px;
   border: 1px solid var(--red-ring);
@@ -590,8 +592,11 @@
 }
 .ca-absent:hover .ca-absent-trigger { background: var(--red-bg); }
 .ca-absent-trigger:focus-visible { outline: 2px solid var(--navy-ring); outline-offset: 2px; }
-/* 카드 오른쪽 끝에 붙어 있어 툴팁은 오른쪽 모서리 기준으로 펼친다 */
-.ca-absent .mood-tooltip { left: auto; right: 0; width: max-content; min-width: 150px; }
+/* 이름 길이만큼만 펼치되 참여 줄 폭(=카드 안쪽)을 넘지 않는다 */
+.ca-absent .mood-tooltip { left: auto; right: 0; width: max-content; max-width: 100%; min-width: 150px; }
+/* 이름을 5열로 세워 툴팁 폭이 가장 긴 줄(=이름이 끝나는 열)에 딱 맞게 줄어들게 한다.
+   머리글의 "N명"(margin-left:auto)은 그 마지막 열 끝에 붙는다. */
+.ca-absent .mood-name-list { display: grid; grid-template-columns: repeat(5, max-content); }
 
 .classroom-delta { margin: 14px 0 0; font-size: var(--fs-label); line-height: 1.65; color: var(--muted); }
 

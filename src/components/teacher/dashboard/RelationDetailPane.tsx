@@ -83,7 +83,7 @@ function ConflictCarousel({ rows, label }: { rows: ConflictRow[]; label: string 
             disabled={page === 0}
             aria-label={`${label} 이전`}
           >
-            ‹
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6.5 1.5 3 5l3.5 3.5" /></svg>
           </button>
           <button
             type="button"
@@ -92,7 +92,7 @@ function ConflictCarousel({ rows, label }: { rows: ConflictRow[]; label: string 
             disabled={page === last}
             aria-label={`${label} 다음`}
           >
-            ›
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" /></svg>
           </button>
         </div>
       )}
