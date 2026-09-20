@@ -37,15 +37,20 @@ export default function AiAnalysisBox({
   fallback: string | null;
   /** 미리 추론해 둔 결과 (목업) — 있으면 fetch하지 않는다 */
   precomputed?: { morning: string | null; full: string | null } | null;
-  /** DB에 저장돼 있던 요약 — 있으면(필요한 만큼 다 있으면) fetch하지 않는다 */
-  stored?: { morning: string | null; full: string | null } | null;
+  /**
+   * DB에 저장돼 있던 요약 — 있으면(필요한 만큼 다 있으면) fetch하지 않는다.
+   * expects: 서버가 요약 생성과 같은 판정으로 "이 날 만들 수 있는 요약"을 알려 준다(없으면 화면의 등교·하교 기록 유무로 추측).
+   */
+  stored?: { morning: string | null; full: string | null; expects?: { morning: boolean; full: boolean } } | null;
   /** 그 날 등교 기록이 있는지 — 없으면 등교 기준 분석을 내지 않는다 */
   hasMorning: boolean;
   /** 그 날 하교 기록이 있는지 — 없으면 통합 분석을 내지 않는다 */
   hasAfternoon: boolean;
 }) {
   // 저장된 요약이 "지금 보여줄 것"을 다 채우면 API를 부르지 않는다(등교 기준은 등교 기록이 있을 때, 통합은 등교·하교가 다 있을 때 필요).
-  const storedComplete = Boolean(stored) && (!hasMorning || Boolean(stored?.morning)) && (!(hasMorning && hasAfternoon) || Boolean(stored?.full));
+  const expectsMorning = stored?.expects ? stored.expects.morning : hasMorning;
+  const expectsFull = stored?.expects ? stored.expects.full : hasMorning && hasAfternoon;
+  const storedComplete = Boolean(stored) && (!expectsMorning || Boolean(stored?.morning)) && (!expectsFull || Boolean(stored?.full));
   const [state, setState] = useState<AnalysisState>(() =>
     precomputed
       ? readyState(precomputed, hasMorning, hasAfternoon)

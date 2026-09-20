@@ -17,7 +17,7 @@ import "server-only";
 
 import { ownerVisible, type DemoScope } from "@/lib/demo/scope";
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { selectSessionGroup, type SummaryScope, type TargetSession } from "@/lib/supabase/interpretation/analysisTargets";
+import { resolveAnalysisTargets, selectSessionGroup, type SummaryScope, type TargetSession } from "@/lib/supabase/interpretation/analysisTargets";
 
 export type SummaryDb = Pick<ReturnType<typeof createAdminClient>, "from">;
 
@@ -177,8 +177,10 @@ export function pickSummary(rows: StoredSessionSummary[], sourceId: string, scop
  *  - 현재 방문자 본인의 세션이 있으면 그 세션들의 요약만 본다(더 늦은 공용 세션의 요약이 본인 요약을 밀어내지 않고, 공용 요약이 본인 요약을
  *    대신하지도 않는다 — 본인 요약이 없으면 없는 것). 본인 세션이 없으면 공용 세션끼리(selectSessionGroup).
  *  - 그 부류의 마지막 세션에 붙은 요약을 우선, 그다음 명시 scope·최신순.
- *  - 그 부류에 하교 세션이 있으면(requireFullWhenAfternoon, 기본) "등교 기준" 요약은 하루 요약으로 쓰지 않는다 — 하교가 생긴 뒤에는
- *    통합(full) 요약이 만들어지기 전까지 요약 없음(챗봇은 색만). 등교 요약을 하루 전체 요약처럼 재사용하지 않기 위해서다.
+ *  - 그 부류에 통합(full) 요약을 만들 수 있는 하교 세션이 있으면(=resolveAnalysisTargets가 full 대상을 낸다. requireFullWhenAfternoon, 기본)
+ *    "등교 기준" 요약은 하루 요약으로 쓰지 않는다 — 통합 요약이 만들어지기 전까지 요약 없음(챗봇은 색만). 등교 요약을 하루 전체 요약처럼
+ *    재사용하지 않기 위해서다. 아이 발화가 없는 하교 세션(예: 발화 없이 중단)은 통합 요약을 만들 수 없으므로 여기서도 하교로 세지 않는다 —
+ *    유효한 등교 요약을 그대로 쓴다. (생성·상세 화면과 같은 판정 함수를 쓰므로 "요구는 하는데 만들 수는 없는" 상태가 생기지 않는다.)
  */
 export function pickDayAnalysis(
   rows: StoredSessionSummary[],
@@ -189,7 +191,7 @@ export function pickDayAnalysis(
   const group = selectSessionGroup(sessions, viewerId);
   const ids = group.map((s) => s.sessionId);
   const last = ids[ids.length - 1];
-  const needsFull = requireFullWhenAfternoon && group.some((s) => s.period === "afternoon");
+  const needsFull = requireFullWhenAfternoon && resolveAnalysisTargets(sessions, viewerId).full !== null;
   return (
     rows
       .filter((r) => ids.includes(r.sourceId) && (!needsFull || r.scope === "full"))

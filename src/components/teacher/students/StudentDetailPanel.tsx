@@ -52,7 +52,7 @@ export default function StudentDetailPanel({
   /** 목업에 미리 넣어 둔 그날 AI 분석·보낸 한마디 — 있으면 AI를 부르지 않는다 */
   precomputed?: FixtureDayAi | null;
   /** DB에 이미 저장된 그날 AI 요약 — 필요한 요약이 전부 있으면 분석 API를 부르지 않고 이것을 보여준다(새로고침해도 같은 요약) */
-  stored?: { morning: string | null; full: string | null } | null;
+  stored?: { morning: string | null; full: string | null; expects?: { morning: boolean; full: boolean } } | null;
 }) {
   const isToday = date === today;
   const shortName = givenName(student.name);

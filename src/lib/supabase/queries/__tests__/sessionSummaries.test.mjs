@@ -58,6 +58,12 @@ function session(id, date, period, owner, at, marker) {
     transcript: [{ speaker: "assistant", content: "오늘 어때?" }, { speaker: "student", content: marker }], prosody: null, demo_owner_id: owner,
   };
 }
+/** 상태·대화 내용을 지정하는 세션. transcript: undefined=발화 있는 기본 대화, null=대화 없음, 배열=그대로 */
+function sessionWith(id, date, period, owner, at, { status = "completed", transcript, marker = MARK.A } = {}) {
+  const base = session(id, date, period, owner, at, marker);
+  return { ...base, status, transcript: transcript === undefined ? base.transcript : transcript };
+}
+const ASSISTANT_ONLY = [{ speaker: "assistant", content: "오늘 어때?" }];
 let seedCounter = 0;
 const seedRun = (source, result) => ({
   id: uuid(800 + seedCounter++),
@@ -127,9 +133,14 @@ const reportAs = async (viewer, mods = base) => {
   globalThis.__TEST_VIEWER__ = viewer;
   return mods.students.getConsultationReport(MOCK_DB_CLASS_ID, STUDENT.student_id, "2026-09-01", D);
 };
-const storedAs = async (viewer, date, mods = base) => {
+const storedFullAs = async (viewer, date, mods = base) => {
   globalThis.__TEST_VIEWER__ = viewer;
   return mods.students.getStoredDayAnalyses(MOCK_DB_CLASS_ID, STUDENT.student_id, date);
+};
+/** 저장된 요약 문장만(expects 제외) */
+const storedAs = async (viewer, date, mods = base) => {
+  const { morning, full } = await storedFullAs(viewer, date, mods);
+  return { morning, full };
 };
 const summaryRows = () => db.data.analysis_runs.filter((r) => r.analysis_type === "session_summary" && r.provider === "openai");
 
@@ -531,6 +542,91 @@ test("재사용 경계 — 프롬프트 버전만 다른 기존 등교·통합 �
   assert.equal(analysisFor(await reportAs(A), D)?.summary, "v3-통합");
 });
 
+// ---- 하교 세션의 상태·발화에 따른 요약 대상 (stopped 하교 회귀) --------------------------------------------------------
+test("발화 없는 stopped 하교(대화 없음/어시스턴트 발화만)가 있어도 유효한 등교 요약이 챗봇·상세 화면에서 그대로 쓰인다", async () => {
+  for (const [label, transcript] of [["대화 없음(transcript null)", null], ["어시스턴트 발화만", ASSISTANT_ONLY]]) {
+    db = freshDb();
+    globalThis.__TEST_DB__ = db;
+    globalThis.__salpimDailyAnalysisInflight?.clear();
+    fetchBodies = [];
+    removeSessions(S.aPm, S.bAm);
+    db.data.checkin_sessions.push(sessionWith(S.aPm, D, "afternoon", A, "06:00", { status: "stopped", transcript }));
+    const out = await generateAs(A);
+    assert.ok(out.morning, `${label}: 등교 요약은 만들어진다`);
+    assert.equal(out.full, null, `${label}: 아이 발화 없는 하교로는 통합 요약을 만들 수 없다`);
+    assert.equal(fetchBodies.length, 1, `${label}: AI는 등교 요약 1회만`);
+    assert.equal(summaryRows().length, 1);
+    const detail = await storedFullAs(A, D);
+    assert.deepEqual([detail.morning, detail.full, detail.expects], ["AI-요약-문장", null, { morning: true, full: false }], `${label}: 상세 화면은 통합 요약을 기다리지 않는다`);
+    assert.equal(analysisFor(await reportAs(A), D)?.summary, "AI-요약-문장", `${label}: 챗봇은 유효한 등교 요약을 쓴다(제외되지 않음)`);
+    fetchBodies = [];
+    await generateAs(A);
+    assert.equal(fetchBodies.length, 0, `${label}: 다시 열어도 AI를 부르지 않는다`);
+    assert.deepEqual(await storedAs(B, D), { morning: null, full: null }, `${label}: B에게는 A의 요약이 없다`);
+  }
+});
+
+test("발화 있는 stopped 하교는 분석 가능한 하교다 — 통합(full) 요약이 요구되고, 생성 뒤에 챗봇이 통합 요약을 쓴다(기존 규칙 유지)", async () => {
+  removeSessions(S.aPm, S.bAm);
+  await generateAs(A); // 등교 요약만 존재
+  assert.equal(analysisFor(await reportAs(A), D)?.summary, "AI-요약-문장", "하교 전에는 등교 요약이 그날의 요약");
+  db.data.checkin_sessions.push(sessionWith(S.aPm, D, "afternoon", A, "06:00", { status: "stopped", transcript: [...ASSISTANT_ONLY, { speaker: "student", content: MARK.A }] }));
+  const before = await storedFullAs(A, D);
+  assert.deepEqual([before.full, before.expects.full], [null, true], "통합 요약이 요구된다");
+  assert.equal(analysisFor(await reportAs(A), D), undefined, "통합 요약이 생기기 전까지 챗봇은 색만");
+  fetchBodies = [];
+  summaryText = "통합-새요약";
+  const out = await generateAs(A);
+  assert.equal(fetchBodies.length, 1, "등교 요약은 재사용, 통합 요약만 새로 생성");
+  assert.equal(out.full.summary, "통합-새요약");
+  assert.deepEqual(summaryRows().find((r) => r.result.scope === "full").result.sourceSessionIds, [S.aAm, S.aPm]);
+  assert.equal(analysisFor(await reportAs(A), D)?.summary, "통합-새요약", "이제 챗봇의 하루 요약은 통합 요약");
+});
+
+test("정상 완료 하교: 등교·통합 요약이 모두 생기고 챗봇은 통합 요약을 쓴다(기존 동작 그대로)", async () => {
+  removeSessions(S.bAm);
+  const out = await generateAs(A);
+  assert.ok(out.morning && out.full);
+  const detail = await storedFullAs(A, D);
+  assert.deepEqual(detail.expects, { morning: true, full: true });
+  assert.equal(analysisFor(await reportAs(A), D)?.analysisId, summaryRows().find((r) => r.result.scope === "full").id);
+});
+
+test("등교만 있는 날: 등교 요약만 요구·생성된다(expects.full=false)", async () => {
+  removeSessions(S.aPm, S.bAm);
+  await generateAs(A);
+  const detail = await storedFullAs(A, D);
+  assert.deepEqual([detail.morning, detail.full, detail.expects], ["AI-요약-문장", null, { morning: true, full: false }]);
+});
+
+test("발화 없는 stopped 하교와 발화 있는 완료 하교가 함께 있으면: 통합 요약은 발화 있는 하교로만 만들고, 발화 없는 하교가 더 늦어도 대표 세션이 되지 않는다", async () => {
+  removeSessions(S.aPm, S.bAm);
+  db.data.checkin_sessions.push(
+    sessionWith(S.aPm, D, "afternoon", A, "06:00"), // 발화 있는 완료 하교
+    sessionWith(uuid(61), D, "afternoon", A, "07:00", { status: "stopped", transcript: null }), // 더 늦은, 발화 없는 stopped 하교
+  );
+  const out = await generateAs(A);
+  assert.ok(out.morning && out.full);
+  const full = summaryRows().find((r) => r.result.scope === "full");
+  assert.equal(full.source_id, S.aPm, "대표는 발화 있는 하교");
+  assert.deepEqual(full.result.sourceSessionIds, [S.aAm, S.aPm], "발화 없는 하교는 입력에서 빠진다");
+  assert.equal(analysisFor(await reportAs(A), D)?.analysisId, full.id, "챗봇도 그 통합 요약을 쓴다");
+});
+
+test("발화 없는 stopped 하교여도 공용·개인 분리와 방문자 우선 선택은 유지된다(공용 세션이 가장 늦어도 A의 등교 요약)", async () => {
+  removeSessions(S.aPm, S.bAm);
+  db.data.checkin_sessions.push(
+    sessionWith(S.aPm, D, "afternoon", A, "06:00", { status: "stopped", transcript: null }),
+    publicSession(uuid(62), "afternoon", "08:00"),
+  );
+  const out = await generateAs(A);
+  assert.ok(out.morning);
+  assert.equal(out.full, null);
+  assert.deepEqual(summaryRows().map((r) => r.result.sourceSessionIds), [[S.aAm]]);
+  assert.ok(fetchBodies.every((body) => body.includes(MARK.A) && !body.includes(MARK.PUB)));
+  assert.equal(analysisFor(await reportAs(A), D)?.summary, "AI-요약-문장");
+});
+
 // =====================================================================================================================
 // 5) 요약이 없거나 저장소가 실패해도 — 챗봇은 색만으로 정상
 test("요약이 없으면 챗봇 컨텍스트 원천(상담 리포트)은 색(세션)만 갖고 요약은 없다 — 원문은 챗봇이 쓰지 않는다", async () => {
@@ -632,4 +728,34 @@ test("요약 대상: 본인 세션이 없거나 방문자를 모르면 마지막
   assert.deepEqual(resolveAnalysisTargets([aAm, bPm], null).full.sessionIds, ["bPm"]);
   assert.deepEqual(resolveAnalysisTargets([pubAm, mockAm]).morning.sessionIds, ["pubAm", "mock-1"], "목업(소유자 없음)과 공용(null)은 같은 부류(정식 흐름)");
   assert.deepEqual(sameOwnerAsLast([]), []);
+});
+
+test("요약 대상: 아이 발화 없는 하교는 하교로 세지 않는다 — full 대상이 없고 등교 대상은 그대로", async () => {
+  const { resolveAnalysisTargets, hasStudentSpeech } = await makeJiti().import("../../interpretation/analysisTargets.ts");
+  const student = [{ speaker: "assistant" }, { speaker: "student" }];
+  const silent = [{ speaker: "assistant" }];
+  const am = { sessionId: "am", period: "morning", ownerId: A, turns: student };
+  assert.equal(hasStudentSpeech({ turns: silent }), false);
+  assert.equal(hasStudentSpeech({ turns: [] }), false);
+  assert.equal(hasStudentSpeech({ turns: student }), true);
+  assert.equal(hasStudentSpeech({}), true, "turns 정보가 없으면 발화가 있는 것으로 본다");
+  for (const turns of [[], silent]) {
+    const t = resolveAnalysisTargets([am, { sessionId: "pm", period: "afternoon", ownerId: A, turns }], A);
+    assert.equal(t.full, null);
+    assert.deepEqual(t.morning, { scope: "morning", sourceId: "am", sessionIds: ["am"] });
+  }
+  const withSpeech = resolveAnalysisTargets([am, { sessionId: "pm", period: "afternoon", ownerId: A, turns: student }], A);
+  assert.deepEqual(withSpeech.full, { scope: "full", sourceId: "pm", sessionIds: ["am", "pm"] });
+  const mixed = resolveAnalysisTargets([am, { sessionId: "pm1", period: "afternoon", ownerId: A, turns: student }, { sessionId: "pm2", period: "afternoon", ownerId: A, turns: silent }], A);
+  assert.deepEqual(mixed.full, { scope: "full", sourceId: "pm1", sessionIds: ["am", "pm1"] });
+});
+
+test("하루 요약 선택: 발화 없는 하교는 full을 요구하지 않고, 그 하교에 붙은 기존(시드) 통합 요약은 여전히 우선한다", async () => {
+  const day = (turns) => [{ sessionId: "am", period: "morning", ownerId: null, turns: [{ speaker: "student" }] }, { sessionId: "pm", period: "afternoon", ownerId: null, turns }];
+  const morningRow = { id: "m", sourceId: "am", scope: "morning", scopeDerived: false, summary: "등교", stateEstimate: null, provider: "openai", promptVersion: "v7", createdAt: "2026-09-20T01:00:00.000Z", sourceSessionIds: ["am"] };
+  const fullRow = { ...morningRow, id: "f", sourceId: "pm", scope: "full", summary: "통합", sourceSessionIds: ["am", "pm"] };
+  assert.equal(pickDayAnalysis([morningRow], day([{ speaker: "assistant" }]), A)?.id, "m", "발화 없는 하교: 등교 요약을 쓴다");
+  assert.equal(pickDayAnalysis([morningRow], day([{ speaker: "student" }]), A), null, "발화 있는 하교: 통합 요약이 생길 때까지 없음");
+  assert.equal(pickDayAnalysis([morningRow, fullRow], day([{ speaker: "assistant" }]), A)?.id, "f", "이미 통합 요약이 있으면(시드 등) 그것을 우선");
+  assert.equal(pickDayAnalysis([morningRow, fullRow], day([{ speaker: "student" }]), A)?.id, "f");
 });

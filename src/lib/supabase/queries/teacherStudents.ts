@@ -382,9 +382,9 @@ export async function getStoredDayAnalyses(
   classId: string,
   studentId: string,
   date: string,
-): Promise<{ morning: string | null; full: string | null }> {
+): Promise<{ morning: string | null; full: string | null; expects: { morning: boolean; full: boolean } }> {
   const row = await findRow(classId, studentId);
-  if (!row) return { morning: null, full: null };
+  if (!row) return { morning: null, full: null, expects: { morning: false, full: false } };
   const demoScope = await getDemoScope();
   const targets = resolveAnalysisTargets((await loadSessions([row], date, date))(row, date), demoScope.active ? demoScope.viewerId : null);
   const sourceIds = [targets.morning?.sourceId, targets.full?.sourceId].filter((id): id is string => Boolean(id));
@@ -392,6 +392,8 @@ export async function getStoredDayAnalyses(
   return {
     morning: targets.morning ? (pickSummary(stored, targets.morning.sourceId, "morning")?.summary ?? null) : null,
     full: targets.full ? (pickSummary(stored, targets.full.sourceId, "full")?.summary ?? null) : null,
+    // 만들 수 있는 요약(=분석 대상)이 있는가 — 생성 경로와 같은 판정(resolveAnalysisTargets). 화면이 "다 찼는지"를 추측하지 않고 이것으로 판단한다.
+    expects: { morning: targets.morning !== null, full: targets.full !== null },
   };
 }
 

@@ -13,7 +13,13 @@
 
 export type SummaryScope = "morning" | "full";
 
-export type TargetSession = { sessionId: string; period: "morning" | "afternoon"; ownerId?: string | null };
+/** turns는 아이 발화 유무를 판정하는 데만 쓴다. 없으면(단위 테스트·정보 없음) 발화가 있는 것으로 본다. */
+export type TargetSession = {
+  sessionId: string;
+  period: "morning" | "afternoon";
+  ownerId?: string | null;
+  turns?: { speaker: string }[];
+};
 
 export type AnalysisTarget = {
   scope: SummaryScope;
@@ -24,6 +30,13 @@ export type AnalysisTarget = {
 };
 
 const ownerOf = (session: { ownerId?: string | null }) => session.ownerId ?? null;
+
+/**
+ * 요약의 재료가 될 수 있는 세션인가 — 아이 발화가 있어야 한다(요약 생성이 "아이 발화 없음 → 만들지 않음"이라서).
+ * 아이 발화 없이 중단(stopped)된 하교 세션 같은 것은 통합(full) 요약을 만들 수도, 요구할 수도 없다.
+ */
+export const hasStudentSpeech = (session: { turns?: { speaker: string }[] }) =>
+  session.turns === undefined || session.turns.some((turn) => turn.speaker === "student");
 
 /** 마지막 세션과 소유자가 같은 세션만 남긴다(순서 유지). 공용(null)과 방문자, 서로 다른 방문자는 섞이지 않는다. */
 export function sameOwnerAsLast<T extends { ownerId?: string | null }>(sessions: T[]): T[] {
@@ -54,15 +67,21 @@ export function selectSessionGroup<T extends { ownerId?: string | null }>(sessio
 /**
  * 그날 세션에서 만들 수 있는 요약 대상 두 가지 — 위 selectSessionGroup으로 고른 한 부류 안에서만.
  *  - morning: 그 부류의 등교 세션만으로 만드는 "등교 기준" 요약
- *  - full: 그 부류의 등교·하교를 합친 "등교·하교 기준" 요약 (그 부류에 하교 세션이 있을 때만)
+ *  - full: 그 부류의 등교·하교를 합친 "등교·하교 기준" 요약 (그 부류에 **아이 발화가 있는** 하교 세션이 있을 때만).
+ *    아이 발화가 없는 하교 세션(예: 발화 없이 중단)은 하교로 세지 않고 입력에서도 뺀다 — 그런 세션 때문에 통합 요약이 요구되어
+ *    이미 만든 등교 요약까지 쓸 수 없게 되면 안 된다.
+ *
+ * 요약 생성(dailyAnalysis)·상세 화면의 저장 요약 조회(getStoredDayAnalyses)·챗봇/리포트의 하루 요약 선택(pickDayAnalysis)이
+ * 모두 이 함수로 "무슨 요약이 있을 수 있는가"를 정한다.
  */
 export function resolveAnalysisTargets(
   sessions: TargetSession[],
   viewerId?: string | null,
 ): { morning: AnalysisTarget | null; full: AnalysisTarget | null } {
   const group = selectSessionGroup(sessions, viewerId);
+  const fullGroup = group.filter((s) => s.period === "morning" || hasStudentSpeech(s));
   return {
     morning: targetOf(group.filter((s) => s.period === "morning"), "morning"),
-    full: group.some((s) => s.period === "afternoon") ? targetOf(group, "full") : null,
+    full: fullGroup.some((s) => s.period === "afternoon") ? targetOf(fullGroup, "full") : null,
   };
 }
