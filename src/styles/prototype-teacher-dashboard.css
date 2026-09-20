@@ -442,6 +442,10 @@
   padding-right: 4px;
   scrollbar-width: thin;
 }
+/* 갈등 기록이 없을 때: 발췌는 제 내용만큼만 서서 아래 안내가 바로 붙고,
+   패널 높이를 넘을 만큼 많으면 여기서만 스크롤한다 (flex-shrink 로 줄어든다) */
+.rd-quotes.fit { flex: 0 1 auto; max-height: none; }
+.rd-body > .rd-section-title { flex-shrink: 0; }
 .rd-quotes li {
   border-left: 2px solid var(--line);
   padding: 2px 0 2px 11px;
