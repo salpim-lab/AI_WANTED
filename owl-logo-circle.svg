@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Round owl logo</title>
+  <g id="owl" transform="translate(0 -32)">
+    <!-- 둥근 외곽에 맞춘 몸통 -->
+    <circle cx="256" cy="288" r="190" fill="#5F5CFA"/>
+    <!-- 날개 -->
+    <g stroke="#A9A7FF" stroke-width="11" stroke-linecap="round" fill="none">
+      <path id="wing" d="M150 338 C156 384 156 412 146 432"/>
+      <use href="#wing" transform="translate(512 0) scale(-1 1)"/>
+    </g>
+    <!-- 배 -->
+    <ellipse cx="256" cy="410" rx="82" ry="58" fill="#E6E4FF"/>
+    <path d="M200 414 a14 14 0 0 0 28 0 M242 414 a14 14 0 0 0 28 0 M284 414 a14 14 0 0 0 28 0 M221 440 a14 14 0 0 0 28 0 M263 440 a14 14 0 0 0 28 0" stroke="#A9A7FF" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <!-- 얼굴판 -->
+    <path d="M256 226 C244 192 216 172 182 174 C130 178 96 226 100 282 C102 348 160 396 256 396 C352 396 410 348 412 282 C416 226 382 178 330 174 C296 172 268 192 256 226 Z" fill="#7F7DFF"/>
+    <!-- 눈 -->
+    <circle cx="190" cy="268" r="56" fill="#fff"/>
+    <circle cx="322" cy="268" r="56" fill="#fff"/>
+    <circle cx="198" cy="276" r="28" fill="#2E2B8F"/>
+    <circle cx="314" cy="276" r="28" fill="#2E2B8F"/>
+    <circle cx="208" cy="264" r="10" fill="#fff"/>
+    <circle cx="324" cy="264" r="10" fill="#fff"/>
+    <!-- 부리 -->
+    <path d="M239 320 L273 320 L256 352 Z" fill="#FFC95C" stroke="#FFC95C" stroke-width="14" stroke-linejoin="round"/>
+  </g>
+</svg>

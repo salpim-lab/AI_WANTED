@@ -21,6 +21,7 @@ import RecordDateScope from "@/components/shared/RecordDateScope";
 import ObservationFeedCard from "./ObservationFeedCard";
 import ObservationTypeTabs from "./ObservationTypeTabs";
 import StudentConsultationComposer from "./StudentConsultationComposer";
+import "@/styles/record-toolbar.css";
 
 function matchesType(entry: ObservationLog, type: RecordTypeFilter): boolean {
   if (type === "all") return true;
@@ -63,10 +64,10 @@ export default function ObservationBoard({
 
   return (
     <div className={boardPageContainer}>
-      <div className="relative z-20 mb-5 flex flex-wrap items-center gap-1.5">
-        <h2 className={`${boardPageTitle} shrink-0`}>학생관찰일지</h2>
+      <div className="record-toolbar relative z-20 mb-5 flex flex-wrap items-center gap-1.5">
+        <h2 className={`${boardPageTitle} shrink-0`}>학생 관찰 일지</h2>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <RecordDateScope date={date} today={today} basePath="/observation" />
+          <RecordDateScope date={date} today={today} basePath="/observation" emptyLabel="날짜" />
           <RecordSearch basePath="/observation" students={students} filter={{ keyword, studentId }} />
           <ObservationTypeTabs type={type} />
           <DailyObservationButton students={students} date={date ?? today} today={today} />
@@ -115,4 +116,3 @@ export default function ObservationBoard({
     </div>
   );
 }
-
