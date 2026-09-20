@@ -151,7 +151,7 @@ export default function CheckinPage() {
         />
       )}
       {checkoutHandOff}
-      {flow.step >= 2 && !toCheckout && <StudentHomeButton onHome={goHome} />}
+      {!toCheckout && <StudentHomeButton onHome={goHome} />}
       {(
         flow.step === 2 ||
         (flow.step === 5 && !toCheckout) ||

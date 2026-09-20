@@ -209,7 +209,7 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.15s;
 }
-.student-home-btn .student-back__icon { width: 3.6cqh; height: 3.6cqh; stroke-width: 2; }
+.student-home-btn__icon { width: 3.6cqh; height: 3.6cqh; }
 .student-home-btn:hover { background: #fff; color: var(--sh-navy); }
 .student-home-btn:active { transform: translateY(0.2cqh) scale(0.97); }
 .student-home-btn:focus-visible { outline: 0.4cqh solid #b9b3ff; outline-offset: 0.3cqh; }
