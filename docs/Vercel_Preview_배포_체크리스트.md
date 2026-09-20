@@ -3,6 +3,7 @@
 > 범위: **Preview 배포 준비만.** 코드·DB 변경, main 병합, Production 배포, CAPTCHA 활성화는 이 문서의 대상이 아니다.
 > 기준 코드: `feature/jihyeon-demo-anon-isolation` (origin/main 병합 완료, 공유 DB에 1094 + 공용 시드 15종 적용 완료).
 > **비밀값은 이 문서에 적지 않는다 — 변수 이름만.** 값은 로컬 `.env.local`(gitignore 대상)과 각 서비스 콘솔에서만 다룬다.
+> Production 배포와 후속 작업은 [Production_배포_및_후속작업_인수인계.md](Production_배포_및_후속작업_인수인계.md)를 본다.
 
 ## 1. 환경변수 전수 조사 결과 (코드가 실제로 읽는 이름)
 조사 방법: `src/`·`next.config.ts` 전체에서 `process.env.*` 참조를 전수 grep. `vercel.json`·`.env.example`은 없고 `.env.local.example`만 있다. `next.config.ts`는 환경변수를 읽지 않는다.
