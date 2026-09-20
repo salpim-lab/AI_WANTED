@@ -39,6 +39,8 @@ export const SILENCE_THRESHOLD = 0.02;
 export const SILENCE_MIN_MS = 700;
 /** 녹음 상한. 마이크를 켜둔 채 방치되는 것을 막는다 */
 export const MAX_RECORDING_MS = 60_000;
+/** 말하기를 눌렀는데 이만큼 조용하면 가이드를 다시 띄운다. 무슨 말을 할지 몰라 멈춰 있는 것이다 */
+export const QUIET_HINT_MS = 3_500;
 /** 이만큼 조용하면 "다 말했어?" 하고 묻는다. 끄지는 않는다 */
 export const ASK_IF_DONE_MS = 8_000;
 

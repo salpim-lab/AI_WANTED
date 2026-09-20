@@ -129,6 +129,12 @@ export default function ChatScreen({
 
   const recorder = useVoiceRecorder({ getPromptShownAt, onResult: handleRecorded });
 
+  // 말하기를 누른 뒤에는 가이드를 치운다 — 아이가 말하는 중에 힌트가 보이면 방해가 된다.
+  // 누르고도 목소리가 없이 조용하면(무슨 말을 할지 모르는 것) 그때 다시 띄운다.
+  // 누르기 전에는 예전처럼 질문 뒤 잠시 조용하면 뜬다(아래 타이머).
+  const speaking = recorder.status === "requesting" || recorder.status === "recording" || recorder.status === "processing";
+  const guideVisible = showGuide && (!speaking || recorder.quiet);
+
   // 질문마다 대기 시간을 새로 잰다. 이전 질문에서 열렸던 가이드는 prompt id가 달라
   // 다음 턴에 이어지지 않으며, 두 번째 질문도 똑같이 망설임 시간이 지난 뒤에만 열린다.
   useEffect(() => {
@@ -154,7 +160,7 @@ export default function ChatScreen({
       });
     });
     return () => cancelAnimationFrame(id);
-  }, [messages.length, typing, thinking, showGuide, ended]);
+  }, [messages.length, typing, thinking, guideVisible, ended]);
 
 
   return (
@@ -196,7 +202,7 @@ export default function ChatScreen({
         {!voiceError && sessionNote && <p className="chat-session-note">{sessionNote}</p>}
         {/* 한 번 나타난 가이드는 아이가 말하는 동안에도 참고할 수 있게 유지한다.
             전사·AI 응답을 기다리는 동안에는 다음 질문이 아니므로 숨긴다. */}
-        {showGuide && hasOptions && !ended && !conversationOver && !waitingForAnswer && (
+        {guideVisible && hasOptions && !ended && !conversationOver && !waitingForAnswer && (
           <GuideChips
             key={latestPromptId}
             hints={hints}
