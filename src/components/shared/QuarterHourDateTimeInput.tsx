@@ -2,7 +2,7 @@
 // 날짜 + 오전/오후 + 시 + 분(15분 단위)을 따로 고르는 일시 입력. 상담 예약·일정 변경이 쓴다.
 // <input type="datetime-local">은 분을 1분 단위로 받고 오전/오후 표기도 기기 언어에 따라 달라서 쓰지 않는다.
 // 값은 datetime-local과 같은 "2026-09-12T14:15"(한국 시각) 문자열이라 서버 쪽(parseKstLocalDateTime)은 그대로다.
-// 오전/오후·시·분 목록은 브라우저 기본 <select>(열리는 방향을 못 정한다) 대신 직접 그린 목록(UpwardSelect)이라 항상 입력칸 위로 열린다.
+// 오전/오후·시·분 목록은 브라우저 기본 <select>(열리는 방향·모양을 못 정한다) 대신 직접 그린 목록(DropdownSelect)이라 항상 입력칸 아래로 열린다.
 // 값이 빈 문자열이면 날짜가 아직 안 골라진 상태다 — 시각 칸은 미리 채워 두고, 날짜를 고르는 순간 값이 만들어진다.
 // 이미 저장된 일정의 분이 15분 단위가 아니면(예: 14:10) 그 분도 선택지에 남겨서 다른 칸만 바꿔도 시각이 슬며시 바뀌지 않게 한다.
 
@@ -46,8 +46,8 @@ const selectClass = `${textInput} h-9`;
 
 type SelectOption = { value: string; label: string };
 
-/** 입력칸 위로 열리는 목록 선택 — 열면 고른 항목이 보이는 자리까지 스크롤하고, ↑↓로 옮기고 Esc·바깥 클릭으로 닫는다 */
-function UpwardSelect({
+/** 입력칸 아래로 열리는 목록 선택 — 열면 고른 항목이 보이는 자리까지 스크롤하고, ↑↓로 옮기고 Esc·바깥 클릭으로 닫는다 */
+function DropdownSelect({
   label,
   value,
   options,
@@ -104,16 +104,17 @@ function UpwardSelect({
         className={`${selectClass} flex min-w-[68px] cursor-pointer items-center justify-between gap-2 text-left`}
       >
         <span>{selected?.label}</span>
-        <span aria-hidden className="text-[10px] text-[#aab0c4]">
-          ▲
-        </span>
+        {/* 학생 드롭다운(StudentSelect)과 같은 꺾쇠. 열리면 뒤집힌다 */}
+        <svg viewBox="0 0 12 12" aria-hidden className={`size-3 shrink-0 text-[#aab0c4] transition-transform ${open ? "rotate-180" : ""}`}>
+          <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
         <ul
           id={listId}
           role="listbox"
           aria-label={label}
-          className="absolute bottom-full left-0 z-10 mb-1 max-h-56 min-w-full overflow-y-auto rounded-xl border border-[#e6e2fb] bg-white py-1 shadow-[0_8px_24px_rgba(16,42,86,.14)]"
+          className="absolute top-full left-0 z-10 mt-1 max-h-56 min-w-full overflow-y-auto rounded-xl border border-[#e6e2fb] bg-white py-1 shadow-[0_8px_24px_rgba(16,42,86,.14)]"
         >
           {options.map((option) => (
             <li
@@ -185,20 +186,20 @@ export default function QuarterHourDateTimeInput({
         onChange={(e) => update(e.target.value, time)}
         className={`${textInput} h-9`}
       />
-      <UpwardSelect
+      <DropdownSelect
         label="오전/오후"
         value={time.meridiem}
         options={MERIDIEM_OPTIONS}
         onChange={(next) => update(date, { ...time, meridiem: next as Meridiem })}
       />
       <div className="flex items-center gap-1.5">
-        <UpwardSelect
+        <DropdownSelect
           label="시"
           value={String(time.hour12)}
           options={HOUR_OPTIONS_12}
           onChange={(next) => update(date, { ...time, hour12: Number(next) })}
         />
-        <UpwardSelect
+        <DropdownSelect
           label="분"
           value={String(time.minute)}
           options={minuteOptions}
