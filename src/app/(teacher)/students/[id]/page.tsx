@@ -4,7 +4,7 @@
 // [id]는 student_id다. enrollment_id 변환은 queries/teacherStudents.ts 안에서만 한다.
 // 상세 화면 열람은 응답 후 view_log에 1행 남긴다 (기획안 9장 열람 이력).
 
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { after } from "next/server";
 import StudentDetailPanel from "@/components/teacher/students/StudentDetailPanel";
 import { todayKst } from "@/components/shared/datetime";
@@ -38,6 +38,11 @@ async function StudentDetailPageInMockScope({ params, searchParams }: PageProps<
   const today = todayKst();
   const requestedDate = dateParam(query.date);
   const date = requestedDate && requestedDate <= today ? requestedDate : today;
+
+  // 대시보드 링크는 DB student_id로 온다 — 자리 배치도의 선택 표시가 URL의 id로 아이를 찾으니 명단 id 주소로 옮긴다
+  if (student.studentId !== id) {
+    redirect(`/students/${student.studentId}${requestedDate ? `?date=${requestedDate}` : ""}`);
+  }
 
   // stored: 이미 DB에 저장된 그날 AI 요약 — 챗봇·상담 리포트와 같은 조회 함수(sessionSummaries)로 읽는다. 있으면 화면이 분석 API를 다시 부르지 않는다.
   const [sessions, history, preview, precomputed, stored] = await Promise.all([
