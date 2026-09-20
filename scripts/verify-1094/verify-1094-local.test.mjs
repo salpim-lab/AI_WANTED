@@ -11,7 +11,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const BASE = read("./base-schema-1093.sql");
-const MIGRATION = read("../../supabase/migrations/20260920130000_1094_demo_shared_island.sql");
+const MIGRATION = read("../../supabase/migrations/20260920012819_1094_demo_shared_island.sql");
 const ROLLBACK = read("../../supabase/rollbacks/1094_demo_shared_island_rollback.sql");
 const OWNER_CHECK = read("./verify-item-owner.sql");
 

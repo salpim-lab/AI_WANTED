@@ -118,13 +118,29 @@ export type Database = {
           },
         ]
       }
+      ai_rate_limits: {
+        Row: {
+          count: number
+          subject: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          subject: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          subject?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       analysis_runs: {
         Row: {
           analysis_type: string
           category_tags: string[]
           created_at: string
-          // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리용 — 1090/1092 마이그레이션 참고.
-          // source_type이 'student'|'class'일 때만 쓴다. 실제 supabase gen types 전까지 임시 수기 패치.
           demo_owner_id: string | null
           error_message: string | null
           id: string
@@ -260,11 +276,6 @@ export type Database = {
           attempt: number
           completed_at: string | null
           created_at: string
-          // 이지현 (제안, 2026-09-20): 공개 데모 방문자 격리용 — 마이그레이션
-          // 20260919184444_1090_demo_owner_isolation.sql 참고. 이 필드는 이 파일이
-          // 원래 자동 생성(supabase gen types)되는 파일이라, 그 마이그레이션이 실제
-          // DB에 적용된 뒤 다시 생성하면 자동으로 반영된다 — 그 전까지 리뷰/빌드가
-          // 가능하도록 수동으로 추가해둔 것이다.
           demo_owner_id: string | null
           enrollment_id: string
           id: string
@@ -702,6 +713,7 @@ export type Database = {
       island_placements: {
         Row: {
           current_asset_id: string | null
+          footprint_radius: number
           id: string
           island_id: string
           position_x: number
@@ -718,6 +730,7 @@ export type Database = {
         }
         Insert: {
           current_asset_id?: string | null
+          footprint_radius?: number
           id?: string
           island_id: string
           position_x?: number
@@ -734,6 +747,7 @@ export type Database = {
         }
         Update: {
           current_asset_id?: string | null
+          footprint_radius?: number
           id?: string
           island_id?: string
           position_x?: number
@@ -775,22 +789,28 @@ export type Database = {
       islands: {
         Row: {
           created_at: string
+          demo_owner_id: string | null
           enrollment_id: string
           id: string
+          is_public_demo: boolean
           name: string
           theme: string
         }
         Insert: {
           created_at?: string
+          demo_owner_id?: string | null
           enrollment_id: string
           id?: string
+          is_public_demo?: boolean
           name: string
           theme: string
         }
         Update: {
           created_at?: string
+          demo_owner_id?: string | null
           enrollment_id?: string
           id?: string
+          is_public_demo?: boolean
           name?: string
           theme?: string
         }
@@ -798,21 +818,21 @@ export type Database = {
           {
             foreignKeyName: "islands_enrollment_id_fkey"
             columns: ["enrollment_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "enrollments"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "islands_enrollment_id_fkey"
             columns: ["enrollment_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "v_signal_flags"
             referencedColumns: ["enrollment_id"]
           },
           {
             foreignKeyName: "islands_enrollment_id_fkey"
             columns: ["enrollment_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "v_students_current"
             referencedColumns: ["enrollment_id"]
           },
@@ -1134,33 +1154,39 @@ export type Database = {
       student_items: {
         Row: {
           asset_id: string
+          demo_owner_id: string | null
           earned_at: string
           earned_on: string
           enrollment_id: string
           id: string
           is_core: boolean
+          is_public_demo: boolean
           slot: number
           source_message_id: string | null
           source_session_id: string | null
         }
         Insert: {
           asset_id: string
+          demo_owner_id?: string | null
           earned_at?: string
           earned_on?: string
           enrollment_id: string
           id?: string
           is_core?: boolean
+          is_public_demo?: boolean
           slot: number
           source_message_id?: string | null
           source_session_id?: string | null
         }
         Update: {
           asset_id?: string
+          demo_owner_id?: string | null
           earned_at?: string
           earned_on?: string
           enrollment_id?: string
           id?: string
           is_core?: boolean
+          is_public_demo?: boolean
           slot?: number
           source_message_id?: string | null
           source_session_id?: string | null
@@ -1429,15 +1455,18 @@ export type Database = {
     }
     Functions: {
       current_actor: { Args: never; Returns: string }
-      // 이지현 (제안, 2026-09-20): 마이그레이션 20260919184555_1091_ai_rate_limits.sql 참고.
-      // 이 파일은 원래 자동 생성 — 그 마이그레이션이 실제 DB에 적용된 뒤 다시 생성하면 자동 반영됨.
-      increment_ai_rate_limit: {
-        Args: { p_subject: string; p_window_seconds: number; p_max_calls: number }
-        Returns: boolean
-      }
+      demo_seed_admin_enabled: { Args: never; Returns: boolean }
       get_student_context: {
         Args: { p_enrollment_id: string; p_since?: string }
         Returns: Json
+      }
+      increment_ai_rate_limit: {
+        Args: {
+          p_max_calls: number
+          p_subject: string
+          p_window_seconds: number
+        }
+        Returns: boolean
       }
       is_class_teacher: { Args: { p_class_id: string }; Returns: boolean }
       is_enrollment_homeroom_teacher: {
@@ -1450,6 +1479,21 @@ export type Database = {
       }
       is_enrollment_teacher: {
         Args: { p_enrollment_id: string }
+        Returns: boolean
+      }
+      is_verified_demo_record: { Args: { p_id: string }; Returns: boolean }
+      place_demo_item: {
+        Args: {
+          p_item_id: string
+          p_owner_id: string
+          p_radius: number
+          p_x: number
+          p_z: number
+        }
+        Returns: string
+      }
+      remove_demo_placement: {
+        Args: { p_item_id: string; p_owner_id: string }
         Returns: boolean
       }
       valid_checkin_transcript: { Args: { value: Json }; Returns: boolean }
