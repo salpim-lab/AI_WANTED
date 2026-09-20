@@ -59,6 +59,7 @@ type Runtime = {
   suggested: () => void;
   gifts: THREE.Group;
   giftScale: number;
+  frontFacing: number;
   toDisplayedWorld: (point: { x: number; z: number }, y?: number) => THREE.Vector3;
   heightAt: (x: number, z: number) => number;
   surfaceAt: (x: number, z: number) => number;
@@ -277,6 +278,9 @@ export default function IslandScene({
     const initialSize = host.getBoundingClientRect();
     let homeFit = fitIslandCamera(islandBox, Math.max(initialSize.width, 1), Math.max(initialSize.height, 1), mode);
     const { target, home } = homeFit;
+    // Models face the initial front view in world space; orbiting the camera
+    // should reveal their sides and backs instead of turning them with it.
+    const frontFacing = Math.atan2(home.x - target.x, home.z - target.z);
     const viewDistance = homeFit.distance;
     const camera = homeFit.camera;
 
@@ -294,7 +298,6 @@ export default function IslandScene({
     controls.maxZoom = homeFit.maxZoom;
     controls.rotateSpeed = 0.65;
     controls.zoomSpeed = 1.4;
-    controls.zoomToCursor = true;
     // Handle zoom in the frame loop: OrbitControls damping only smooths rotation/pan.
     controls.enableZoom = false;
     controls.minDistance = viewDistance * 0.1;
@@ -385,7 +388,7 @@ export default function IslandScene({
     // Where an interrupted shot snaps to: home, or the close-up for the landing shot.
     let shotEnd: { position: THREE.Vector3; target: THREE.Vector3; zoom: number } | null = null;
     let greetingStartAt: number | null = null;
-    let userZoom: { zoom: number; cursor: THREE.Vector3 } | null = null;
+    let userZoom: { zoom: number } | null = null;
     const movementKeys = new Set<string>();
     const arrowKeys = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
     const keyboardDirection = new THREE.Vector3();
@@ -426,10 +429,11 @@ export default function IslandScene({
     let homecoming: { points: THREE.Vector3[]; index: number; from: THREE.Vector3; start: number; facingFrom: number; stage: "facing" | "walking" | "greeting" | "opening" | "entering" | "closing"; threshold: THREE.Vector3; inside: THREE.Vector3; run: boolean } | null = null;
     let overview = false;
     let finishingHome = false;
+    let characterViewSelected = false;
     // Set once the student zooms out; until then the camera keeps the character close-up.
     let zoomedOut = false;
     let placementCamera = false;
-    let tween: { from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; target: THREE.Vector3; start: number; duration: number; zoom: number; nextZoom: number; home: boolean; easeInOut?: boolean; onDone?: () => void } | null = null;
+    let tween: { from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; target: THREE.Vector3; start: number; duration: number; zoom: number; nextZoom: number; home: boolean; easeInOut?: boolean; followCharacter?: boolean; onDone?: () => void } | null = null;
     introStartRef.current ??= calm || skipIntro ? -Infinity : performance.now();
     let intro: { start: number } | null = performance.now() - introStartRef.current < INTRO_MS ? { start: introStartRef.current } : null;
     if (intro) placeIntroCamera(1 - easeInOutCubic((performance.now() - intro.start) / INTRO_MS));
@@ -466,6 +470,7 @@ export default function IslandScene({
     function summonCharacter(pop: boolean) {
       const next = createChildCharacter();
       next.root.position.copy(initialCharacterPosition);
+      next.root.rotation.y = frontFacing;
       next.root.scale.setScalar(characterScale);
       characterBaseY = initialCharacterPosition.y;
       characterGroup.add(next.root);
@@ -485,6 +490,7 @@ export default function IslandScene({
     // Placement size, the same as the gift it becomes.
     function createItem() {
       const object = createAssetModel({ kind: "star", ...incomingAssetRef.current });
+      object.rotation.y = frontFacing;
       object.scale.setScalar(giftScale * (object.userData.sizeScale ?? 1));
       object.traverse((child) => { if (child instanceof THREE.Mesh) child.castShadow = true; });
       return object;
@@ -816,7 +822,7 @@ export default function IslandScene({
     function beginFarewellWave() {
       if (disposed || stateRef.current.phase !== "farewell" || !character) return;
       character.setPose("waving");
-      character.root.rotation.y = Math.atan2(camera.position.x - character.root.position.x, camera.position.z - character.root.position.z);
+      character.root.rotation.y = frontFacing;
       character.animate(calm ? 0 : performance.now() / 1000);
       if (calm) { moveCamera("home"); return; }
       // Frame the actual deposited gift and character together, including room
@@ -910,6 +916,7 @@ export default function IslandScene({
           const nextWalk = createClickWalk(destination);
           if (!nextWalk) { walk = null; stateRef.current.onChooseAgain(); return; }
           walk = { ...nextWalk, clickData: nextProposal ?? undefined };
+          if (characterViewSelected) moveCamera("placement");
         } else {
           walk = { ...straightWalk(destination), farewell: true };
         }
@@ -1001,6 +1008,12 @@ export default function IslandScene({
       }
 
       if (tween) {
+        if (tween.followCharacter) {
+          const offset = new THREE.Vector3().setFromSpherical(homeOffset);
+          const nextTarget = centredTarget(characterCentre(), offset);
+          tween.target.copy(nextTarget);
+          tween.to.copy(nextTarget).add(offset);
+        }
         const progress = Math.min((now - tween.start) / tween.duration, 1);
         const eased = finishingHome ? THREE.MathUtils.smootherstep(progress, 0, 1) : tween.easeInOut ? easeInOutCubic(progress) : 1 - (1 - progress) ** 3;
         let pan = eased;
@@ -1092,7 +1105,7 @@ export default function IslandScene({
             const settled = easeInOutCubic((LIFT_GRAB - reverse) / LIFT_GRAB);
             object.position.lerpVectors(motion.released.from, motion.to, settled);
             object.scale.setScalar(THREE.MathUtils.lerp(motion.released.scale, motion.scale, settled));
-            const facing = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(camera.position.x - motion.to.x, camera.position.z - motion.to.z));
+            const facing = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), frontFacing);
             object.quaternion.slerpQuaternions(motion.released.rotation, facing, settled);
           }
           if (progress === 1) {
@@ -1109,7 +1122,7 @@ export default function IslandScene({
           if (trip.stage === "facing") {
             const progress = Math.min(elapsed / (calm ? 350 : 1000), 1);
             root.position.copy(trip.from);
-            const facing = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+            const facing = frontFacing;
             const turn = Math.atan2(Math.sin(facing - trip.facingFrom), Math.cos(facing - trip.facingFrom));
             root.rotation.y = trip.facingFrom + turn * easeInOutCubic(Math.min(progress / 0.4, 1));
             character.animate(seconds, 0);
@@ -1134,7 +1147,7 @@ export default function IslandScene({
           } else if (trip.stage === "greeting") {
             const progress = Math.min(elapsed / (calm ? 700 : 1800), 1);
             root.position.copy(trip.threshold);
-            root.rotation.y = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+            root.rotation.y = frontFacing;
             // A single greeting finishes with the arm down, before opening the door.
             character.animate(seconds, 0, calm ? undefined : progress);
             if (progress === 1) { trip.stage = "opening"; trip.start = now; }
@@ -1235,7 +1248,7 @@ export default function IslandScene({
         } else {
           const hop = current.phase === "farewell" && !calm ? Math.abs(Math.sin(now * 0.006)) * 0.05 : 0;
           root.position.y = characterBaseY + hop;
-          root.rotation.y = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
+          root.rotation.y = frontFacing;
           const greetingProgress = greetingStartAt === null ? undefined : THREE.MathUtils.clamp((now - greetingStartAt) / CHARACTER_HOLD_MS, 0, 1);
           character.animate(seconds, 0, greetingProgress);
         }
@@ -1245,7 +1258,7 @@ export default function IslandScene({
 
       if (item) {
         const object = item.object;
-        if (object.parent === scene && !settingDown) object.rotation.set(0, Math.atan2(camera.position.x - object.position.x, camera.position.z - object.position.z), 0);
+        if (object.parent === scene && !settingDown) object.rotation.set(0, frontFacing, 0);
         if (item.drop) {
           const { from, to, start } = item.drop;
           const progress = calm ? 1 : THREE.MathUtils.clamp((now - start) / DROP_MS, 0, 1);
@@ -1259,11 +1272,10 @@ export default function IslandScene({
         if (item.lift && progress !== null && character) {
           const lift = item.lift;
           const root = character.root;
-          // Face the item while grabbing it, then turn back to the viewer while raising it.
+          // Face the item while grabbing it, then turn back to the fixed front while raising it.
           const toItem = Math.atan2(lift.from.x - root.position.x, lift.from.z - root.position.z);
-          const toViewer = Math.atan2(camera.position.x - root.position.x, camera.position.z - root.position.z);
           const turn = THREE.MathUtils.clamp((progress - 0.5) / 0.5, 0, 1);
-          root.rotation.y = toItem + Math.atan2(Math.sin(toViewer - toItem), Math.cos(toViewer - toItem)) * turn;
+          root.rotation.y = toItem + Math.atan2(Math.sin(frontFacing - toItem), Math.cos(frontFacing - toItem)) * turn;
           if (progress >= LIFT_GRAB && !lift.grabbed) {
             character.grip.attach(object);
             lift.grabbed = { position: object.position.clone(), rotation: object.quaternion.clone(), scale: object.scale.x };
@@ -1290,13 +1302,8 @@ export default function IslandScene({
         const remaining = Math.log(motion.zoom / camera.zoom);
         const settled = Math.abs(remaining) < USER_ZOOM_EPSILON;
         const nextZoom = settled ? motion.zoom : camera.zoom * Math.exp(remaining * (1 - Math.exp(-USER_ZOOM_RESPONSE * deltaSeconds)));
-        camera.updateMatrixWorld(true);
-        const before = motion.cursor.clone().unproject(camera);
         camera.zoom = nextZoom;
         camera.updateProjectionMatrix();
-        const shift = before.sub(motion.cursor.clone().unproject(camera));
-        camera.position.add(shift);
-        controls.target.add(shift);
         if (settled) userZoom = null;
         else keepAnimating = true;
       }
@@ -1304,7 +1311,6 @@ export default function IslandScene({
       // After controls.update(), so the cloud layer tracks this frame's camera.
       if (sky.update(now, camera, controls.target, calm)) keepAnimating = true;
       giftGroup.children.forEach((gift) => {
-        gift.rotation.y = Math.atan2(camera.position.x - gift.position.x, camera.position.z - gift.position.z);
         if (gift.userData.sparkle && !calm) {
           gift.scale.setScalar(giftScale * (gift.userData.sizeScale ?? 1) * (1 + Math.sin(now * 0.006) * 0.035));
         }
@@ -1325,6 +1331,7 @@ export default function IslandScene({
       }
       intro = null;
       userZoom = null;
+      characterViewSelected = preset === "character";
       if (preset === "placement") {
         zoomedOut = false;
         overview = false;
@@ -1332,14 +1339,9 @@ export default function IslandScene({
         const offset = new THREE.Vector3().setFromSpherical(homeOffset);
         const nextTarget = centredTarget(characterCentre(), offset);
         if (movementKeys.size || walk) {
-          // Walking must own the camera from its first frame. A preset tween
-          // would otherwise keep replacing the follow position until it ends.
-          tween = null;
-          camera.position.copy(nextTarget).add(offset);
-          camera.zoom = characterZoom();
-          controls.target.copy(nextTarget);
-          camera.updateProjectionMatrix();
-          controls.enabled = true;
+          // Follow the moving character while the viewing angle eases back.
+          controls.enabled = false;
+          tween = { from: camera.position.clone(), to: nextTarget.clone().add(offset), fromTarget: controls.target.clone(), target: nextTarget, start: performance.now(), duration: HOME_TWEEN_MS, zoom: camera.zoom, nextZoom: characterZoom(), home: false, easeInOut: true, followCharacter: true };
           render();
           return;
         }
@@ -1504,6 +1506,7 @@ export default function IslandScene({
           controls.enabled = true;
           character.setPose("walking");
           walk = { ...nextWalk, inspectIncoming: faceOnArrival ? "front" : "reason" };
+          if (characterViewSelected) moveCamera("placement");
           render();
           return;
         }
@@ -1541,6 +1544,7 @@ export default function IslandScene({
           controls.enabled = true;
           character.setPose("walking");
           walk = { ...nextWalk, inspectGift: id };
+          if (characterViewSelected) moveCamera("placement");
           render();
           return;
         }
@@ -1583,6 +1587,7 @@ export default function IslandScene({
         const nextWalk = createClickWalk(destination);
         if (!nextWalk) return;
         walk = nextWalk;
+        if (characterViewSelected) moveCamera("placement");
         render();
         return;
       }
@@ -1678,6 +1683,7 @@ export default function IslandScene({
         userZoom = null;
         controls.enabled = true;
         walk = null;
+        if (characterViewSelected) moveCamera("placement");
         // A short press may end before the next animation frame. Apply its
         // first step on pointer/key down, then let the frame loop keep walking.
         const now = performance.now();
@@ -1760,12 +1766,10 @@ export default function IslandScene({
       if (hoverPointer) onMove(hoverPointer);
       render();
     };
-    const requestUserZoom = (zoom: number, clientX: number, clientY: number) => {
+    const requestUserZoom = (zoom: number) => {
       if (zoom < (userZoom?.zoom ?? camera.zoom)) zoomedOut = true;
-      const rect = canvas.getBoundingClientRect();
       userZoom = {
         zoom: THREE.MathUtils.clamp(zoom, controls.minZoom, controls.maxZoom),
-        cursor: new THREE.Vector3((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1, 0),
       };
       render();
     };
@@ -1778,7 +1782,7 @@ export default function IslandScene({
       tween = null;
       controls.enabled = true;
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientHeight : 1);
-      requestUserZoom((userZoom?.zoom ?? camera.zoom) * Math.exp(-THREE.MathUtils.clamp(delta, -240, 240) * (event.ctrlKey ? 0.008 : 0.0025)), event.clientX, event.clientY);
+      requestUserZoom((userZoom?.zoom ?? camera.zoom) * Math.exp(-THREE.MathUtils.clamp(delta, -240, 240) * (event.ctrlKey ? 0.008 : 0.0025)));
     };
     const onTouchDown = (event: PointerEvent) => {
       if (event.pointerType !== "touch") return;
@@ -1795,7 +1799,7 @@ export default function IslandScene({
       const [a, b] = [...touchPoints.values()];
       const distance = a.distanceTo(b);
       if (pinchDistance > 0 && distance > 0) {
-        requestUserZoom((userZoom?.zoom ?? camera.zoom) * distance / pinchDistance, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        requestUserZoom((userZoom?.zoom ?? camera.zoom) * distance / pinchDistance);
       }
       pinchDistance = distance;
     };
@@ -1854,6 +1858,7 @@ export default function IslandScene({
       },
       gifts: giftGroup,
       giftScale,
+      frontFacing,
       toDisplayedWorld: displayedCoordinates.toDisplayedWorld.bind(displayedCoordinates),
       heightAt,
       surfaceAt: pieceLandscape.surfaceAt,
@@ -1939,6 +1944,7 @@ export default function IslandScene({
       const scale = runtime.giftScale * (model.userData.sizeScale ?? 1);
       // Rest on the visible ground and sink 2% of the item so round bottoms read as touching it.
       model.position.copy(runtime.toDisplayedWorld(gift, runtime.surfaceAt(gift.x, gift.z) - scale * 0.02));
+      model.rotation.y = runtime.frontFacing;
       model.scale.setScalar(scale);
       model.name = gift.name;
       model.userData.giftId = gift.id;

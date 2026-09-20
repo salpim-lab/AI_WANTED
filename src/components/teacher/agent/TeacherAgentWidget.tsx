@@ -141,7 +141,7 @@ export default function TeacherAgentWidget() {
       >
         {/* (2026-09-20) 헤더의 ✕ 제거 — 닫기는 오른쪽 아래 플로팅 버튼(✕로 바뀜) 하나로 통일 */}
         <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
-          <AgentOwlIcon className="h-10 w-10" />
+          <AgentOwlIcon className="h-12 w-12" />
           <span className="text-sm font-bold text-gray-900">살핌 도우미</span>
         </div>
 
@@ -199,7 +199,7 @@ export default function TeacherAgentWidget() {
           {sending && <TypingDots />}
         </div>
 
-        <div className="border-t border-gray-100 px-2.5 pt-2">
+        <div className="border-t border-gray-100 px-2.5 pb-2 pt-2">
           {/* 안내 문구를 칩 위에 둔다 — 행동(칩 선택)보다 먼저 읽혀야 하는 정보라 위가 자연스럽고,
               가로 폭을 혼자 다 쓰니 줄바꿈 걱정도 없다. */}
           <p className="mb-1 text-[10px] text-gray-400">관점을 선택하면 그 영역을 자세히 답해요!</p>
@@ -252,7 +252,7 @@ export default function TeacherAgentWidget() {
       <button
         onClick={() => setOpen(!open)}
         aria-label={open ? "살핌 도우미 닫기" : "살핌 도우미 열기"}
-        className={`pointer-events-auto grid h-[72px] w-[72px] place-items-center overflow-hidden rounded-full shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-all duration-200 hover:scale-105 active:scale-95 ${
+        className={`pointer-events-auto grid h-[84px] w-[84px] place-items-center overflow-hidden rounded-full shadow-lg shadow-indigo-500/30 ring-1 ring-black/5 transition-all duration-200 hover:scale-105 active:scale-95 ${
           open
             ? // 열린 상태(✕, 인디고~바이올렛 그라데이션 배경)에서는 흰색 글로우가 배경색과 안 어울려서
               // 부자연스러워 보였다 — 버튼 색과 어울리는 바이올렛 톤 글로우로 맞춘다.
@@ -260,7 +260,7 @@ export default function TeacherAgentWidget() {
             : "bg-white hover:shadow-[0_0_30px_8px_rgba(255,255,255,0.9)] hover:ring-2 hover:ring-white/90"
         }`}
       >
-        {open ? <span className="text-xl text-white">✕</span> : <AgentOwlIcon className="h-full w-full" />}
+        {open ? <span className="text-xl text-white">✕</span> : <AgentOwlIcon className="h-[88%] w-[88%]" />}
       </button>
     </div>
   );

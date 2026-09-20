@@ -122,9 +122,9 @@ function CountBadge({ n }: { n: number }) {
   return n > 0 ? <span className="cnt">{n}건</span> : null;
 }
 
-function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
+function QuoteList({ quotes, fit }: { quotes: RelationDetail["quotes"]; fit?: boolean }) {
   return (
-    <ul className="rd-quotes">
+    <ul className={fit ? "rd-quotes fit" : "rd-quotes"}>
       {quotes.map((q, i) => (
         <li key={i}>
           <p>&ldquo;{q.text}&rdquo;</p>
@@ -190,9 +190,9 @@ export default function RelationDetailPane({
             : "서로 언급한 기록은 없어요"
         }
       >
-        <div className="rd-section-title">이 선이 생긴 이유</div>
+        <div className="rd-section-title">대화에서</div>
         {pair.quotes.length > 0 ? (
-          <QuoteList quotes={pair.quotes} />
+          <QuoteList quotes={pair.quotes} fit={pair.conflicts.length === 0} />
         ) : (
           <p className="conflict-empty">
             대화에서 서로를 말한 기록은 없고, 아래 갈등 기록 때문에 이어져 있어요.
@@ -235,12 +235,14 @@ export default function RelationDetailPane({
     );
   }
 
+  // 갈등 기록이 없으면 갈등 칸은 안내 한 줄로 줄어 대화 발췌 바로 아래에 붙는다.
+  const noConflicts = detail.conflicts.length === 0;
   return (
     <Pane title={detail.name} note={`다른 아이 대화에 ${detail.mentionCount}번 나왔어요`}>
       {detail.quotes.length > 0 && (
         <>
           <div className="rd-section-title">대화에서</div>
-          <QuoteList quotes={detail.quotes} />
+          <QuoteList quotes={detail.quotes} fit={noConflicts} />
         </>
       )}
 
@@ -248,7 +250,7 @@ export default function RelationDetailPane({
         갈등 기록
         <CountBadge n={detail.conflicts.length} />
       </div>
-      {detail.conflicts.length === 0 ? (
+      {noConflicts ? (
         <p className="conflict-empty">{periodLabel} 갈등 기록이 없어요.</p>
       ) : (
         <ConflictCarousel

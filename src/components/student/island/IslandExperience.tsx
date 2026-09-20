@@ -80,7 +80,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   const [proposal, setProposal] = useState<PlacementProposal | null>(null);
   const [phase, setPhase] = useState<PlacementPhase>("ready");
   const [cameraView, setCameraView] = useState<"free" | "top">("free");
-  const [overview, setOverview] = useState(false);
+  const [, setOverview] = useState(false);
   const [waitingTick, setWaitingTick] = useState(0);
   const [placementInteractionStarted, setPlacementInteractionStarted] = useState(false);
   const [placementNotice, setPlacementNotice] = useState<string | null>(null);
@@ -189,16 +189,6 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
     }
   }
 
-  function cancelPlacement() {
-    if (phase !== "choosing" && phase !== "confirming") return;
-    setProposal(null);
-    setSelected(null);
-    setPhase("ready");
-    setEntryStage("cta");
-    setOverview(false);
-    window.setTimeout(() => sceneRef.current?.camera("home"), 0);
-  }
-
   function confirmPlacement() {
     if (!proposal || phase !== "confirming") return;
     if (plain) {
@@ -278,7 +268,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   return <div lang="ko" className={`island-experience ${compact ? "island-compact flex min-h-0 flex-1 flex-col text-[#2f3560]" : "min-h-dvh bg-[#f7f8f2] text-[#294638] [font-family:'Apple_SD_Gothic_Neo','Malgun_Gothic',sans-serif]"} [&_button]:cursor-pointer`}>
     {!compact && <header className="border-b border-[#e1e7dc] bg-[#fcfcf7]">
       <div className="mx-auto flex h-[82px] max-w-[1440px] items-center justify-between gap-4 px-6 lg:px-12">
-        <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><SalpimLogo size={40} tagline={false} /><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
+        <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><SalpimLogo size={40} /><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
         <nav className="flex items-center gap-1 rounded-full bg-[#edf0e7] p-1" aria-label="섬 둘러보기">
           <button disabled={placementActive} onClick={() => changeMode("island")} aria-pressed={mode === "island"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "island" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="home" size={16}/>나의 섬</button>
           <button disabled={placementActive} onClick={() => changeMode("classroom")} aria-pressed={mode === "classroom"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "classroom" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="puzzle" size={16}/>우리 반 섬</button>
@@ -363,8 +353,6 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
               {([ ["in", "plus", "확대", ""], ["out", "minus", "축소", ""], ["left", "turn", "왼쪽으로 회전", ""], ["right", "turn", "오른쪽으로 회전", "-scale-x-100"], ["top", "top", "위에서 보기", ""] ] as [CameraPreset, IconName, string, string][]).map(([preset, icon, label, flip]) => <button key={preset} title={label} aria-label={label} onClick={() => camera(preset)} className={`${button} h-9 w-9 border border-white/60 bg-white/35 text-[#3f4863] backdrop-blur-md backdrop-saturate-150 hover:bg-white/60 max-sm:h-8 max-sm:w-8`}><Icon name={icon} size={17} className={flip}/></button>)}
             </div>
           </div>
-          {mode === "island" && (phase === "choosing" || phase === "confirming") && entryStage === "placement" && <button onClick={cancelPlacement} className="absolute right-4 bottom-5 rounded-full bg-white/85 px-3 py-1.5 text-[11px] text-[#5b6478]">배치 취소</button>}
-          {mode === "island" && phase === "choosing" && entryStage === "placement" && <button onClick={() => sceneRef.current?.toggleOverview()} className="absolute right-4 bottom-14 rounded-full bg-white/85 px-3 py-1.5 text-[11px] text-[#5b6478]">{overview ? "캐릭터 보기" : "전체 보기"}</button>}
         </div>}
       </section>
 
