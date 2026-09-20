@@ -24,11 +24,10 @@ export type LetterMotion = {
 };
 
 // 어른 눈에 맞던 속도가 아이에게는 정신없을 수 있어서 조금씩 늦췄다(2026-09-19).
-// 내려가는 시간은 1.15 → 1.7 로 더 늦췄다(2026-09-20): 닫기 뒤 인사 화면을 없애고 바로 마음 신호등으로 넘기면서,
-// 봉투가 사라지는 걸 눈으로 따라갈 시간이 짧게 느껴졌다.
+// (내려가는 시간을 1.7s 로 늘려 본 적이 있는데, 편지·덮개·봉투가 따로 노는 느낌이 나서 원래 1.15s 로 되돌렸다. 2026-09-20)
 export const DEFAULT_LETTER_MOTION: LetterMotion = {
   dropDelay: 0.5,
-  dropDuration: 1.7,
+  dropDuration: 1.15,
   dropDistance: 34,
   tilt: 1,
   greetDelay: 1.2,
