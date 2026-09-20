@@ -99,6 +99,27 @@ export type ChatTurnInput = {
  * 요청 객체를 만든다. 네트워크를 타지 않으므로 테스트에서 그대로 검증할 수 있다.
  * 모델은 환경변수로 바꿀 수 있게 둔다 — 벤더·모델 결정이 코드 수정 없이 반영되도록.
  */
+/**
+ * 말 모양 힌트. 프롬프트만으로는 매번 "받아주는 한 문장 + 질문 한 문장" 의 같은 틀로 나왔다.
+ * 온도를 올려도 틀은 안 바뀌어서, 코드가 아이 말마다 다른 모양을 정해 준다.
+ * 내용 규칙(캐묻지 않기·missing 채우기)은 그대로고, 힌트는 길이와 말투의 결만 바꾼다.
+ */
+const STYLE_HINTS = [
+  "받아주는 말은 아주 짧게(한 마디), 질문은 아이 말을 한 번 더 짚어 한 문장(40자 안팎)으로 쓴다.",
+  "받아주는 말을 두 마디로 쓴다: 아이 말을 되짚고, **아이가 말한 내용 안에서** 마음에 남을 만한 부분을 한 마디로 짚는다. 아이가 말하지 않은 상황·사람·장면·하루를 덧붙이거나 짐작하지 않는다. 질문은 짧게.",
+  "받아주는 말은 감탄이나 짧은 반응 한 마디(우와 / 아이고 / 저런 / 오 등)로만 하고, 바로 질문한다.",
+  "질문을 '~해 줄래?' '~들려줄래?' 처럼 부드러운 권유 모양으로 쓴다.",
+  "받아주는 말과 질문을 각각 담백한 한 문장으로, 꾸밈 없이 쓴다.",
+] as const;
+
+/** 마지막 아이 말로 힌트를 고른다. 같은 말에는 같은 힌트라 다시 돌려도 재현되고, 다른 말에는 골고루 섞인다. */
+export function pickStyleHint(transcript: TranscriptMessage[], turnCount: number): string {
+  const last = [...transcript].reverse().find((m) => m.speaker === "student")?.content ?? "";
+  let hash = turnCount * 7;
+  for (const ch of last) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return STYLE_HINTS[hash % STYLE_HINTS.length];
+}
+
 export function buildChatTurnRequest(input: ChatTurnInput) {
   const model = chatModel();
   return {
@@ -113,6 +134,7 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
           turn_count: input.turnCount,
           recent_context: input.recentContext ?? null,
           student_name: input.studentName ?? null,
+          style_hint: pickStyleHint(input.transcript, input.turnCount),
           transcript: input.transcript,
         }),
       },
