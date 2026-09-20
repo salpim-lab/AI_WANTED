@@ -69,14 +69,14 @@ type RelationGraph = {
     studentId: string;
     name: string;
     mentionCount: number;
-    quotes: { from: string; date: string; text: string }[];
+    quotes: { from: string; to?: string; date: string; text: string }[];
     conflicts: ConflictRow[];
   }>;
   pairs: Record<string, {
     a: { studentId: string; name: string };
     b: { studentId: string; name: string };
     mentionCount: number;
-    quotes: { from: string; date: string; text: string }[];
+    quotes: { from: string; to?: string; date: string; text: string }[];
     conflicts: ConflictRow[];
   }>;
   conflicts: ConflictRow[];
@@ -537,10 +537,8 @@ export function buildRelation(
   const aliases = roster.map((student) => ({ student, aliases: aliasesFor(student.name) }));
   const mentioned = new Map<string, number>(roster.map((student) => [student.studentId, 0]));
   const pairCount = new Map<string, number>();
-  const studentQuotes = new Map<string, { from: string; date: string; text: string }[]>(
-    roster.map((student) => [student.studentId, []]),
-  );
-  const pairQuotes = new Map<string, { from: string; date: string; text: string }[]>();
+  type Quote = { from: string; to: string; date: string; text: string };
+  const pairQuotes = new Map<string, Quote[]>();
 
   for (const session of windowSessions) {
     const speaker = byEnrollment.get(session.enrollment_id);
@@ -555,8 +553,7 @@ export function buildRelation(
         const key = pairKey(speaker.studentId, target.studentId);
         pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
 
-        const quote = { from: speaker.name, date: session.session_date, text };
-        studentQuotes.get(target.studentId)!.push(quote);
+        const quote = { from: speaker.name, to: target.name, date: session.session_date, text };
         if (!pairQuotes.has(key)) pairQuotes.set(key, []);
         pairQuotes.get(key)!.push(quote);
       }
@@ -615,6 +612,18 @@ export function buildRelation(
     }
   }
 
+  // 아이 한 명의 대화 발췌 — 그 아이가 낀 관계선 전부에서 모은다.
+  // 예전에는 "그 아이 이름이 나온 대목 중 최근 3개"만 보여서, 최근 3개가 한 친구 이야기면
+  // 관계선이 여러 개여도 그 친구 이야기만 떴다. 이제 관계(짝)마다 최근 것을 골라 담는다.
+  // 그 아이가 말한 것(누구를 언급했나)과 그 아이가 언급된 것(누가 말했나)을 둘 다 담는다 —
+  // 지도의 선은 방향 없이 이야기가 오갔다는 뜻이라, 한쪽만 담으면 선이 있는데 근거가 없는 경우가 생긴다.
+  const QUOTES_PER_PAIR = 2;
+  const quotesOf = (studentId: string) =>
+    [...pairQuotes]
+      .filter(([key]) => key.split("::").includes(studentId))
+      .flatMap(([, quotes]) => quotes.slice(-QUOTES_PER_PAIR))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
   const details = Object.fromEntries(
     roster.map((student) => [
       student.studentId,
@@ -622,7 +631,7 @@ export function buildRelation(
         studentId: student.studentId,
         name: student.name,
         mentionCount: mentioned.get(student.studentId) ?? 0,
-        quotes: (studentQuotes.get(student.studentId) ?? []).slice().reverse().slice(0, 3),
+        quotes: quotesOf(student.studentId),
         conflicts: records.filter((c) => c.pairIds.includes(student.studentId)),
       },
     ]),

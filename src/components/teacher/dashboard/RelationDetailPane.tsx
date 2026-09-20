@@ -122,14 +122,14 @@ function CountBadge({ n }: { n: number }) {
   return n > 0 ? <span className="cnt">{n}건</span> : null;
 }
 
-function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] }) {
+function QuoteList({ quotes }: { quotes: RelationDetail["quotes"] | RelationPairDetail["quotes"] }) {
   return (
     <ul className="rd-quotes">
       {quotes.map((q, i) => (
         <li key={i}>
           <p>&ldquo;{q.text}&rdquo;</p>
           <span className="rd-quote-by">
-            {q.from} | {q.date.slice(5).replace("-", "/")}
+            {q.to ? `${q.from} → ${q.to}` : q.from} | {q.date.slice(5).replace("-", "/")}
           </span>
         </li>
       ))}
