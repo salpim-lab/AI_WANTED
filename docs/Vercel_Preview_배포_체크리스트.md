@@ -46,10 +46,10 @@
 ## 2. Vercel 설정 체크리스트 (배포 전)
 - [ ] **변수 스코프는 Preview만**(Production·Development에는 넣지 않는다). Sensitive는 위 표시 4개(`SUPABASE_SECRET_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `ITEM_WORKER_SECRET`).
 - [ ] **`NEXT_PUBLIC_*`는 빌드 때 번들에 고정**된다 → 값을 바꾸면 재배포가 필요하다. 변수를 **먼저** 넣고 나서 Preview를 빌드한다(이 저장소가 Vercel에 연결돼 있으면 feature 브랜치 푸시마다 Preview 빌드가 자동 생성된다 — 변수 없이 빌드된 Preview는 오동작하므로 무시하고 다시 배포. 연결 여부는 이 환경에서 확인하지 못했다).
-- [ ] **Deployment Protection**: Preview 기본값(Vercel 로그인 필요)을 유지한다. 공개 링크로 열지 않는다 — AI 호출 한도 제안(§11: 방문자 외 총량 한도)이 **미구현**이라 공개 노출 시 비용·남용 위험이 있다.
+- [ ] **Deployment Protection은 유지한다**: Preview 기본값(Vercel 로그인 필요)을 끄지 않고 공개 링크로 열지 않는다. Preview의 접근 제한은 이 보호가 담당한다(AI 비용 제한 현황은 §5).
 - [ ] 함수 실행 시간: `item-generation`은 `maxDuration=180`, `chat`·`transcribe`·`vocab-growth`·`item-extract`는 60이다. **Vercel 플랜의 함수 최대 실행 시간 한도를 확인**한다(한도를 넘으면 배포 또는 실행에서 실패할 수 있다 — 이 환경에서는 확인 못 함).
 - [ ] 빌드: `npm run build`(로컬 통과). `vercel.json` 없음(기본 설정).
-- [ ] AI 제공자 콘솔에서 **월 지출 한도·알림** 설정(§11-5). 스모크 1회에 OpenAI·Anthropic 호출이 여러 번 생긴다.
+- [x] AI 제공자 콘솔의 **월 사용금액 한도**: OpenAI·Anthropic 각각 **이미 설정돼 있다**(담당자 확인 사항 — 이 저장소·환경에서는 검증하지 못함). 스모크 1회에 두 업체 호출이 여러 번 생기므로 알림 설정 여부만 확인.
 
 ## 3. Supabase·DB 사전 조건 (이미 충족 — 배포 직전 재확인만)
 - [x] 마이그레이션 1094 적용, 공용 시드 15종 적용(§14-7·§14-8·§14-10).
@@ -67,7 +67,32 @@
 6. **교사 화면 격리**: A의 발화(`A-마커`)가 B의 교사 화면(학생 상세·관찰일지·대시보드)에는 **안 보이고**, A 자신의 화면에는 보인다. 대조군: 공용 시드 문장(예: `2026-09-10`의 "발표 잘했어요")은 A·B 모두에게 보인다.
 7. **상담 신청 격리**: A가 상담을 신청하면 A의 `/consultation`·대시보드 브리핑에는 뜨고 B에는 안 뜬다(main 병합으로 새로 들어온 조회의 격리 확인).
 8. **응답 위생**: A의 브라우저 개발자 도구 Network에서 `/api/island` 응답에 `name`·모양·좌표·`locked` 외의 정보(세션 id·job·발화 문구)가 **없다**.
-9. **개발용 경로 차단**: `/api/dev/login`, `/api/dev/reset-today`, `/api/dev/demo-island-preview`가 **404**다(`NODE_ENV=production`, `DEMO_ISLAND_PREVIEW` 미설정). 참고: `/item-lab/*` 화면은 프로덕션 빌드에서도 열린다(저장 API는 404라 동작하지 않는 개발용 화면) — 공개 전 처리 여부를 팀에서 결정.
+9. **개발용 경로 차단**: `/api/dev/login`, `/api/dev/reset-today`, `/api/dev/demo-island-preview`가 **404**다(`NODE_ENV=production`, `DEMO_ISLAND_PREVIEW` 미설정). 참고: `/item-lab/*` 화면은 프로덕션 빌드에서도 열린다(저장 API는 404라 동작하지 않는 개발용 화면). Preview에서는 Deployment Protection 아래 **내부 확인 용도로만** 쓴다. **Production 공개 전 필수 인계 항목은 §6.**
 10. **재입장**: A의 쿠키를 지우고(또는 새 시크릿 창) 다시 들어오면 **새 익명 계정**이라 이전 개인 아이템은 안 보이고 공용 15종만 보인다. (이 단계가 익명 계정을 늘리므로 마지막에 한 번만)
 
 통과 기준: 1~10 전부 예상대로. 하나라도 어긋나면 **즉시 중단**하고 `DEMO_LOCKDOWN=true`(비상 정지)로 데이터 경로를 닫은 뒤 원인을 확인한다.
+
+## 5. AI 비용 제한 현황 (코드·DB로 확인한 사실, 2026-09-20)
+**한 문장 요약(정정본)**: 앱은 **협진 챗봇(`/api/ai/teacher-agent`) 호출만** **방문자별(익명 세션 uid, 세션을 못 읽으면 IP)로 시간당 30회**로 제한한다. **그 외 AI 경로에는 앱 수준 호출 제한이 없다.** OpenAI·Anthropic 콘솔에는 각각 월 사용금액 한도가 설정돼 있다. 앱 내부에는 **두 업체의 비용을 합산하는 월간 통합 금액 상한이 없으며**(이번 Preview 범위에서 구현하지 않음), Preview는 **Vercel Deployment Protection**으로 접근을 제한한다.
+
+| 계층 | 상태 | 근거 |
+|---|---|---|
+| 앱: 시간당 30회 | **`teacher-agent`(협진 챗봇) 한 경로에만**, **방문자별** — 프로젝트 전체 한도가 아님 | `src/app/api/ai/teacher-agent/route.ts`: `checkAndIncrementRateLimit(subject, { windowSeconds: 3600, maxCalls: 30 })`. subject = `user:<auth.uid>`(익명 방문자 포함), 세션이 없으면 `ip:<x-forwarded-for>`. `lib/ai/rateLimit.ts`를 쓰는 곳은 이 라우트 하나뿐 |
+| DB 카운터 | 주체(subject)별 행 하나씩 세는 원자적 카운터 — 전체 합계를 세지 않는다 | `ai_rate_limits(subject pk, window_start, count)` + `increment_ai_rate_limit()`(1091). 실행 권한은 service_role만(anon·authenticated는 false — 2026-09-20 공유 DB에서 확인). 초과 시 429, 확인 실패 시 502(fail-closed). 조회 시점 `ai_rate_limits` 0행(이 제한 경로가 아직 사용된 적 없음) |
+| 앱: 그 외 AI 경로 | **호출 제한 없음** — 학생 대화(`/api/ai/chat`)·음성 전사(`transcribe`)·아이템 생성(`item-generation`)·일일 분석·코멘트 초안·어휘 성장(`vocab-growth`)·`item-extract` | 위 경로들은 `rateLimit.ts`를 부르지 않는다(`docs/데모_방문자_격리_적용_절차.md` §11 표). 아이템 생성은 세션당 job 1개지만 체크인 세션 수에는 제한이 없다 |
+| 우회 가능성 | 방문자별 키라서 쿠키를 지우면 새 익명 uid가 생겨 카운터가 새로 시작된다(IP 키는 세션을 못 읽을 때만 쓰임). 그래서 **방문자별 한도만으로는 총 비용을 못 막는다** | `docs/데모_방문자_격리_적용_절차.md` §11 |
+| 공급자 콘솔 | OpenAI·Anthropic **각각 월 사용금액 한도 설정됨**(담당자 확인 — 이 환경에서 검증 불가). 두 업체를 합산한 한도는 아님 | — |
+| 앱 내부 통합 금액 상한 | **없음.** 두 업체 비용을 합산하는 월간 통합 금액 제한은 코드에 없고 **이번 Preview 범위에서 추가 구현하지 않는다** | — |
+| Preview 접근 제한 | **Vercel Deployment Protection 유지**(끄지 않는다, 공개 링크로 열지 않는다) | §2 |
+
+**Production 공개 전 후속 검토 항목(이번에는 구현하지 않음)**
+- **프로젝트 전체 일일 호출 상한**: 현재 30회/시간은 방문자별이라 총량이 아니다. Production 공개 전에 `docs/데모_방문자_격리_적용_절차.md` §11 제안(3단: 방문자·IP·전체 일일 총량, `AI_DAILY_MAX_<ROUTE>` 환경변수)을 검토한다.
+- `teacher-agent` 외 AI 경로(대화·전사·아이템 생성·분석·어휘)의 방문자/IP 호출 제한과 한 요청당 처리량(예: 어휘 성장의 한 요청 12세션) 제한.
+- 두 업체 비용을 합산하는 통합 월간 금액 상한(앱 내부 계산 또는 외부 모니터링).
+- 총량 소진 시 우아한 저하(고정 응답·캐시·목업)와 화면 안내.
+
+## 6. Production 배포 담당자에게 넘길 필수 인계 항목 — `/item-lab/*` (이번 Preview 범위에서는 구현하지 않음)
+- **현황**: `/item-lab`, `/item-lab/pipeline`, `/item-lab/village`, `/item-lab/wait`, `/item-lab/minjun-island`, `/item-lab/demo-island-preview` 페이지는 **프로덕션 빌드에서도 열린다**(정적 페이지로 빌드됨, 인증·환경 게이트 없음). 저장 등 서버 동작은 `/api/dev/*`가 `NODE_ENV=production`에서 404라 동작하지 않지만, 개발용 화면 자체가 외부에 노출된다.
+- **이번 Vercel Preview**: Deployment Protection 아래에서만, **내부 확인 용도**로만 사용한다.
+- **필수 조치(Production을 외부에 공개하기 전)**: `/item-lab/*`를 **404 처리하거나 인증/접근 제한**한다(예: 프로덕션에서 `notFound()`, 또는 `proxy.ts` 게이트). **Production 담당자가 반드시 수행해야 하는 필수 인계 항목이며, 이번 작업에서는 코드를 바꾸지 않았다.**
+- **`DEMO_ISLAND_PREVIEW` 환경변수는 Vercel(Preview·Production 모두)에 설정하지 않는다**(§1-D 원칙 유지). 설정하면 프로덕션 빌드에서도 `/api/dev/demo-island-preview`가 열린다.
