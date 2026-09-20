@@ -692,6 +692,30 @@
   .sh-teacher-tip { transition: none; }
 }
 
+/* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 끝자락에 화면이 흰 블러로 덮인다.
+   시간(0.85s)은 MorningHome 의 WHITEN_LEAD_MS + WHITEN_TAIL_MS 와 맞춘다. */
+@keyframes shToMoodIn {
+  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(1.6cqh); -webkit-backdrop-filter: blur(1.6cqh); }
+}
+.sh-to-mood {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: rgba(252, 252, 255, 0.94);
+  animation: shToMoodIn 0.85s ease-in-out both;
+}
+/* 마음 신호등 화면은 그 흰 블러 속에서 떠오른다 */
+@keyframes shMoodRise {
+  from { opacity: 0; filter: blur(1.2cqh); }
+  to { opacity: 1; filter: blur(0); }
+}
+.mood-screen.active { animation: shMoodRise 0.7s ease-out backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .sh-to-mood, .mood-screen.active { animation: none; }
+}
+
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */
 .sh-cta-stack {
   display: flex;
