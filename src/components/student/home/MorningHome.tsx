@@ -2,8 +2,9 @@
 // 등교 홈.
 //  - 처음: 선생님 편지가 중앙에 열려 있고 CTA("오늘의 마음 이야기하기") 는 아래. 편지에는 닫기(X) 버튼이 없다.
 //  - CTA 를 누르면: 편지지가 봉투로 들어가고 덮개가 닫힌 뒤 봉투가 아래로 미끄러져 내려간다.
-//    봉투가 내려가는 끝자락에 화면이 흰 블러로 사르륵 덮이고, 그 위로 마음 신호등 화면이 떠오른다
-//    (인사를 다시 띄우지 않는다).
+//    봉투가 아직 내려가는 도중에 마음 신호등 화면이 그 위로 사악 떠오른다(랜딩 화면처럼 아래에서 위로 살짝).
+//    봉투는 StudentHome 이 잠시 더 붙들어 두므로 떠오르는 화면 아래에서 마저 내려간다.
+//    인사를 다시 띄우지 않는다.
 //  - 편지가 없는 날: 인사 화면의 CTA 로 바로 넘어간다.
 //  - 동작 값은 letterMotion.ts 한곳에 있다. 개발 중에는 /checkin?tune=1 에서 눈으로 맞출 수 있다.
 "use client";
@@ -19,10 +20,9 @@ const noopSubscribe = () => () => {};
 const MORNING_GREETING_ENTER_MS = 600;
 const MORNING_GREETING_HOLD_MS = 1200;
 const MORNING_GREETING_FADE_MS = 500;
-/** 봉투가 다 내려가기 이만큼 전에 흰 블러가 덮이기 시작한다 — 끝난 뒤에 시작하면 잠깐 빈 화면이 된다 */
-const WHITEN_LEAD_MS = 500;
-/** 흰 블러가 다 덮이고 나서 다음 화면으로 넘기기까지. CSS(.sh-to-mood)의 시간과 맞춘다 */
-const WHITEN_TAIL_MS = 350;
+/** 봉투가 다 내려가기 이만큼 전에 마음 신호등 화면이 떠오르기 시작한다.
+    떠오르는 시간(CSS .mood-screen)과 StudentHome 이 봉투를 붙들어 두는 시간(LINGER_MS)보다 짧아야 한다 */
+const CROSSFADE_LEAD_MS = 650;
 const readTuneFlag = () =>
   process.env.NODE_ENV !== "production" &&
   new URLSearchParams(window.location.search).get("tune") === "1";
@@ -53,8 +53,6 @@ export default function MorningHome({
   const closeStarted = useRef(false);
   /** CTA 로 닫는 중 — 끝나면 다음 화면으로 간다. 조절 패널의 "다시 열고 닫아 보기"는 넘어가지 않는다 */
   const [advancing, setAdvancing] = useState(false);
-  /** 봉투가 내려가는 끝에서 화면을 흰 블러로 덮는 중 */
-  const [whitening, setWhitening] = useState(false);
   // 부모가 onNext 를 매번 새로 만들어도 타이머가 다시 걸리지 않게 최신 값을 ref 로 들고 있는다
   const onNextRef = useRef(onNext);
   useEffect(() => {
@@ -115,15 +113,11 @@ export default function MorningHome({
     };
   }, [closing, exitMs]);
 
-  // CTA 로 닫았다면: 봉투가 내려가는 끝자락에 흰 블러를 덮고, 다 덮이면 마음 신호등으로 넘긴다
+  // CTA 로 닫았다면: 봉투가 아직 내려가는 도중에 마음 신호등으로 넘긴다(화면이 그 위로 떠오른다)
   useEffect(() => {
     if (!advancing) return;
-    const whitenTimer = setTimeout(() => setWhitening(true), Math.max(0, exitMs - WHITEN_LEAD_MS));
-    const nextTimer = setTimeout(() => onNextRef.current(), exitMs + WHITEN_TAIL_MS);
-    return () => {
-      clearTimeout(whitenTimer);
-      clearTimeout(nextTimer);
-    };
+    const nextTimer = setTimeout(() => onNextRef.current(), Math.max(0, exitMs - CROSSFADE_LEAD_MS));
+    return () => clearTimeout(nextTimer);
   }, [advancing, exitMs]);
 
   useEffect(
@@ -159,7 +153,6 @@ export default function MorningHome({
     closeStarted.current = false;
     setClosing(false);
     setAdvancing(false);
-    setWhitening(false);
     setHidden(false);
     setRun((r) => r + 1);
     // 편지지가 다 올라온 다음(2.4s)에 닫는다
@@ -229,9 +222,6 @@ export default function MorningHome({
           />
         </div>
       )}
-
-      {/* 마음 신호등으로 넘어가기 직전 — 흰 블러가 사르륵 덮인다 */}
-      {whitening && <div className="sh-to-mood" aria-hidden="true" />}
 
       {tune && <LetterMotionTuner value={motionValues} onChange={setMotionValues} onReplay={replay} />}
     </div>

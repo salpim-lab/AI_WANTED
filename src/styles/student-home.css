@@ -692,28 +692,22 @@
   .sh-teacher-tip { transition: none; }
 }
 
-/* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 끝자락에 화면이 흰 블러로 덮인다.
-   시간(0.85s)은 MorningHome 의 WHITEN_LEAD_MS + WHITEN_TAIL_MS 와 맞춘다. */
-@keyframes shToMoodIn {
-  from { opacity: 0; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(1.6cqh); -webkit-backdrop-filter: blur(1.6cqh); }
+/* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 도중에 마음 신호등 화면이 랜딩 화면처럼 사악 떠오른다.
+   바탕은 제자리에서 나타나고(아래 홈이 비쳐 보인다), 글과 판만 아래에서 위로 살짝 올라온다.
+   ⚠️ 시간은 MorningHome 의 CROSSFADE_LEAD_MS · StudentHome 의 LINGER_MS 와 맞춘다.
+   fill 은 backwards — both 로 두면 끝난 뒤에도 transform/filter 가 남아 자식 배치가 바뀐다. */
+@keyframes shMoodFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.sh-to-mood {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  pointer-events: none;
-  background: rgba(252, 252, 255, 0.94);
-  animation: shToMoodIn 0.85s ease-in-out both;
-}
-/* 마음 신호등 화면은 그 흰 블러 속에서 떠오른다 */
 @keyframes shMoodRise {
-  from { opacity: 0; filter: blur(1.2cqh); }
-  to { opacity: 1; filter: blur(0); }
+  from { opacity: 0; transform: translateY(3.2cqh); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.mood-screen.active { animation: shMoodRise 0.7s ease-out backwards; }
+.mood-screen.active { animation: shMoodFade 0.75s ease-out backwards; }
+.mood-screen.active .mood-rise { animation: shMoodRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards; }
 @media (prefers-reduced-motion: reduce) {
-  .sh-to-mood, .mood-screen.active { animation: none; }
+  .mood-screen.active, .mood-screen.active .mood-rise { animation: none; }
 }
 
 /* 주 버튼 + 보조 버튼을 같은 너비로 위아래에 */

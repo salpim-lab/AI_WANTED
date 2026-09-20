@@ -43,7 +43,7 @@ export default function MoodPicker({
         <SalpimHeader />
         <StudentProfile name={studentFullName} photoSrc={studentPhotoSrc} />
 
-        <div className="absolute left-1/2 top-[19cqh] z-[2] flex w-full -translate-x-1/2 flex-col items-center">
+        <div className="mood-rise absolute left-1/2 top-[19cqh] z-[2] flex w-full -translate-x-1/2 flex-col items-center">
           <h1 className="sh-cute text-[5.6cqh] leading-[1.25] tracking-tight text-[var(--sh-navy)]">
             지금, 너의 <span className="text-[var(--sh-violet)]">마음</span>은 어떤 색이야?
           </h1>
