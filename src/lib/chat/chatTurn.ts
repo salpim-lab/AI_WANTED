@@ -9,6 +9,9 @@
 //   실제 fetch      벤더가 정해지면 이 부분만 작성한다
 //
 // 덕분에 API 없이도 오프라인 테스트가 가능하다.
+//
+// 벤더: Claude(Anthropic Messages API). 처음엔 OpenAI(gpt-4o-mini)였는데 후속 질문이 마음에 들지 않아
+// 바꿨다(2026-09-20). 요청은 system / messages / output_config(JSON 스키마) 모양이다.
 import type { SignalColor } from "@/lib/types/signal";
 import type { TranscriptMessage } from "@/lib/supabase/raw/wholeTranscript";
 import type { RiskLevel } from "./gates";
@@ -97,10 +100,11 @@ export type ChatTurnInput = {
  * 모델은 환경변수로 바꿀 수 있게 둔다 — 벤더·모델 결정이 코드 수정 없이 반영되도록.
  */
 export function buildChatTurnRequest(input: ChatTurnInput) {
+  const model = chatModel();
   return {
-    model: process.env.CHAT_MODEL || "gpt-4o-mini",
-    instructions: CHAT_TURN_PROMPT,
-    input: [
+    model,
+    system: CHAT_TURN_PROMPT,
+    messages: [
       {
         role: "user" as const,
         content: JSON.stringify({
@@ -113,21 +117,13 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
         }),
       },
     ],
-    text: {
-      format: {
-        type: "json_schema" as const,
-        name: "chat_turn",
-        strict: true,
-        schema: CHAT_TURN_SCHEMA,
-      },
-    },
+    output_config: { format: { type: "json_schema" as const, schema: CHAT_TURN_SCHEMA } },
     // 짧게 답하도록 강제한다. 아이가 읽을 분량이고 비용도 여기서 갈린다.
-    max_output_tokens: 200,
+    // 한글은 토큰이 많이 들어서 JSON 이 잘리지 않을 만큼(ack 60자 + question 80자 + 나머지)은 준다.
+    max_tokens: 400,
     // 기본값(1)은 같은 말에도 매번 다르게 굴어서, 사람마다 테스트 결과가 갈렸다.
     // 질문 문장은 조금씩 달라도 되지만 형식은 흔들리면 안 된다.
-    temperature: 0.5,
-    // 벤더 대시보드에 응답을 남기지 않는다. 학습 사용 차단과는 별개 설정이다.
-    store: false,
+    ...temperatureFor(model, 0.5),
   };
 }
 
@@ -142,29 +138,39 @@ export function buildChatTurnRequest(input: ChatTurnInput) {
  * 두 호출은 동시에 보낸다. 지연은 늘지 않고 비용은 세션당 1센트 아래다.
  */
 export function buildRiskCheckRequest(input: Pick<ChatTurnInput, "transcript">) {
+  const model = chatModel();
   return {
-    model: process.env.CHAT_MODEL || "gpt-4o-mini",
-    instructions: RISK_CHECK_PROMPT,
-    input: [
+    model,
+    system: RISK_CHECK_PROMPT,
+    messages: [
       {
         role: "user" as const,
         // 오늘 대화만. recent_context 를 넣지 않는다.
         content: JSON.stringify({ transcript: input.transcript }),
       },
     ],
-    text: {
-      format: {
-        type: "json_schema" as const,
-        name: "risk_check",
-        strict: true,
-        schema: RISK_CHECK_SCHEMA,
-      },
-    },
-    max_output_tokens: 50,
+    output_config: { format: { type: "json_schema" as const, schema: RISK_CHECK_SCHEMA } },
+    max_tokens: 60,
     // 분류다. 같은 말에는 같은 판정이 나와야 한다.
-    temperature: 0,
-    store: false,
+    ...temperatureFor(model, 0),
   };
+}
+
+/** 학생 대화에 쓸 Claude 모델. 기본은 Sonnet 4.6 — 아이템 추론과 같은 등급이라 키·한도가 같다.
+ *  더 빠른 답이 필요하면 CHAT_MODEL=claude-haiku-4-5-20251001 (실측 약 2초 vs 3초). */
+export const DEFAULT_CHAT_MODEL = "claude-sonnet-4-6";
+const chatModel = () => process.env.CHAT_MODEL?.trim() || DEFAULT_CHAT_MODEL;
+
+/** Sonnet 5 이후 모델은 temperature 를 받지 않는다(400 "deprecated"). 받는 모델에만 붙인다 */
+function temperatureFor(model: string, value: number): { temperature?: number } {
+  return /^claude-(sonnet|opus|fable)-5/.test(model) ? {} : { temperature: value };
+}
+
+/** Claude 응답에서 본문을 꺼낸다. 거부·중단은 따로 알려 준다 */
+export function readClaudeText(data: unknown): { text: string; refused: boolean; truncated: boolean } {
+  const body = (data ?? {}) as { stop_reason?: string; content?: { type: string; text?: string }[] };
+  const text = (body.content ?? []).filter((block) => block.type === "text").map((block) => block.text ?? "").join("");
+  return { text, refused: body.stop_reason === "refusal", truncated: body.stop_reason === "max_tokens" };
 }
 
 export const RISK_CHECK_SCHEMA = {

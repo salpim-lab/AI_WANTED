@@ -210,15 +210,47 @@ t('한국어 음절 수를 센다', () => {
 });
 
 // ── 요청/응답 계약 ────────────────────────────────────────
-t('요청은 네트워크 없이 만들어지고 store:false 다', () => {
+t('요청은 네트워크 없이 Claude(Messages API) 모양으로 만들어진다', () => {
   const req = turn.buildChatTurnRequest({
     flow: 'checkin', color: 'red', turnCount: 1,
     transcript: [{ speaker: 'assistant', content: '무슨 일 있었어?', input_method: 'fixed' }],
   });
-  assert.equal(req.store, false);
-  assert.equal(req.text.format.strict, true);
-  assert.ok(req.max_output_tokens <= 200, '출력 상한이 없으면 비용이 샌다');
-  assert.ok(req.instructions.includes('캐묻지 않는다'));
+  assert.ok(req.model.startsWith('claude-'), `Claude 모델이어야 한다: ${req.model}`);
+  assert.equal(req.output_config.format.type, 'json_schema');
+  assert.equal(req.output_config.format.schema, turn.CHAT_TURN_SCHEMA);
+  assert.ok(req.max_tokens <= 400, '출력 상한이 없으면 비용이 샌다');
+  assert.ok(req.system.includes('캐묻지 않는다'));
+  assert.equal(req.messages[0].role, 'user');
+  assert.equal(req.temperature, 0.5);
+  assert.equal('instructions' in req || 'input' in req || 'store' in req, false, 'OpenAI 필드가 남았다');
+});
+
+t('위험 판단 요청은 오늘 대화만 보고 temperature 0 이다', () => {
+  const tr = [{ speaker: 'student', content: '싸웠어요', input_method: 'voice' }];
+  const req = turn.buildRiskCheckRequest({ transcript: tr });
+  assert.equal(req.temperature, 0);
+  assert.equal(req.output_config.format.schema, turn.RISK_CHECK_SCHEMA);
+  assert.ok(!req.messages[0].content.includes('recent_context'));
+});
+
+t('temperature 를 받지 않는 모델(Sonnet 5 이후)에는 temperature 를 붙이지 않는다', () => {
+  const prev = process.env.CHAT_MODEL;
+  process.env.CHAT_MODEL = 'claude-sonnet-5';
+  try {
+    const req = turn.buildChatTurnRequest({ flow: 'checkin', color: 'red', turnCount: 1, transcript: [] });
+    assert.equal('temperature' in req, false);
+    process.env.CHAT_MODEL = 'claude-haiku-4-5-20251001';
+    assert.equal(turn.buildChatTurnRequest({ flow: 'checkin', color: 'red', turnCount: 1, transcript: [] }).temperature, 0.5);
+  } finally {
+    if (prev === undefined) delete process.env.CHAT_MODEL; else process.env.CHAT_MODEL = prev;
+  }
+});
+
+t('Claude 응답에서 본문·거부·잘림을 읽는다', () => {
+  assert.deepEqual(turn.readClaudeText({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"risk":"none"}' }] }), { text: '{"risk":"none"}', refused: false, truncated: false });
+  assert.equal(turn.readClaudeText({ stop_reason: 'refusal', content: [] }).refused, true);
+  assert.equal(turn.readClaudeText({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"a' }] }).truncated, true);
+  assert.equal(turn.readClaudeText(null).text, '');
 });
 
 t('받아주는 말과 질문을 한 줄로 잇는다', () => {
