@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ASK_IF_DONE_MS,
   MAX_RECORDING_MS,
+  QUIET_HINT_MS,
   countSilences,
   meanLoudness,
   type UtteranceProsody,
@@ -47,6 +48,8 @@ export function useVoiceRecorder({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [level, setLevel] = useState(0);
   const [askIfDone, setAskIfDone] = useState(false);
+  /** 녹음 중 목소리가 QUIET_HINT_MS 이상 없다(시작하자마자 조용한 경우 포함). 가이드를 다시 띄우는 신호 */
+  const [quiet, setQuiet] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -78,6 +81,7 @@ export function useVoiceRecorder({
   const start = useCallback(async () => {
     setStatus("requesting");
     setAskIfDone(false);
+    setQuiet(false);
     levelsRef.current = [];
 
     let stream: MediaStream;
@@ -114,6 +118,7 @@ export function useVoiceRecorder({
       setElapsedMs(0);
       setLevel(0);
       setAskIfDone(false);
+      setQuiet(false);
       onResult({
         audio,
         prosody: {
@@ -147,10 +152,11 @@ export function useVoiceRecorder({
       setElapsedMs(now - startedAtRef.current);
       // 조용하면 물어보기만 한다. 끄지 않는다.
       setAskIfDone(now - lastVoiceAtRef.current >= ASK_IF_DONE_MS);
+      setQuiet(now - lastVoiceAtRef.current >= QUIET_HINT_MS);
       // 상한은 지킨다 — 마이크를 켜둔 채 방치되는 것을 막는다.
       if (now - startedAtRef.current >= MAX_RECORDING_MS) stop();
     }, SAMPLE_MS);
   }, [cleanup, getPromptShownAt, onResult, stop]);
 
-  return { status, elapsedMs, level, askIfDone, start, stop };
+  return { status, elapsedMs, level, askIfDone, quiet, start, stop };
 }
