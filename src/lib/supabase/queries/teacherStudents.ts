@@ -4,14 +4,15 @@
 // 서버 전용 — Server Component / Server Action에서만 import한다 ("use client" 파일에서 import 금지).
 // 모든 함수가 classId를 받는다: 서버는 service_role로 RLS를 우회하므로 담당 학급 범위를 코드에서 직접 건다.
 //
-// 지금은 mock 구현(raw/_mockTeacherData.ts)이다. Supabase 연결 시 함수 본문만 교체하고 시그니처는 유지한다.
-// 예외 — 등하교 세션(색·대화 전문·발화 측정값)은 이미 실제 DB를 먼저 읽는다 (2026-09-19):
-//   학생 화면이 checkin_sessions에 실제로 쓰고 있어서, 그 아이·그 날짜에 실제 세션이 있으면 실제를, 없으면 mock을 쓴다.
-//   mock 명단 ↔ 시드 학급은 성 뺀 이름으로 잇는다(MOCK_DB_CLASS_ID). TEACHER_REAL_CHECKINS=off면 mock만 쓴다.
+// 등하교 세션(색·대화 전문·발화 측정값)·자리·AI 하루 요약·리포트 인사이트는 실제 DB를 읽는다 (2026-09-20):
+//   env가 있으면 그날 세션이 없는 날은 "빈 날"이다 — mock으로 채우지 않는다. mock은 DB를 못 읽는 환경
+//   (env 없음·TEACHER_REAL_CHECKINS=off)의 대체일 뿐이다. mock 명단 ↔ 시드 학급은 성 뺀 이름으로 잇는다(MOCK_DB_CLASS_ID).
+//   명단·student_id 자체는 아직 mock 명단(00000000-…)이다 — v_students_current 명단으로 옮기는 건 별도 작업.
 //   학생·자리   v_students_current (UI는 student_id, enrollment_id 변환은 이 파일 안에서만)
 //   세션·대화   checkin_sessions(enrollment_id, session_date) ⨝ conversation_messages order by sequence
 //   AI 분석     analysis_runs where analysis_type='session_summary' and source_type='session' and status='completed'
 
+import { cache } from "react";
 import { addDays } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { getDemoScope, ownerOrFilter, scopedKey } from "@/lib/demo/scope";
@@ -24,9 +25,10 @@ import {
   pickSummary,
   type StoredSessionSummary,
 } from "@/lib/supabase/queries/sessionSummaries";
-// 대시보드(진승혜) mock 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
-// mock 단계 한정 크로스 참조다: 대시보드가 실제 쿼리(lib/supabase/queries/relationshipMap.ts 등)로
-// 바뀌면 buildInsights()도 그쪽을 부르도록 바꾸고, 이 import는 없앤다.
+// 대시보드(진승혜) 스냅샷 — 상담 리포트의 어휘·관계 인사이트용 읽기 전용 참조.
+// DB를 읽는 환경에서는 대시보드가 쓰는 실제 조립 함수(getDashboardDataFromSupabase)를 그대로 부른다(대시보드와 같은 숫자).
+// mock 스냅샷은 DB를 못 읽는 환경(env 없음)의 대체일 뿐이다.
+import { getDashboardDataFromSupabase } from "@/lib/supabase/queries/dashboardSnapshot";
 import {
   DEFAULT_RELATION_PERIOD,
   dashboardToday,
@@ -36,6 +38,8 @@ import { listObservationLogsForStudent } from "@/lib/supabase/raw/observationLog
 import {
   MOCK_DB_CLASS_ID,
   MOCK_STUDENTS,
+  loadDbSeats,
+  recordDb,
   mockAnalysisRuns,
   mockBriefingBadge,
   mockCheckinsFor,
@@ -67,10 +71,12 @@ import type {
 export const REPORT_DEFAULT_DAYS = 30;
 
 async function classRows(classId: string): Promise<MockStudentRow[]> {
-  // 교사가 자리 바꾸기로 저장한 자리가 있으면 그 자리를 쓴다 (Supabase 연결 시 v_students_current가 바로 최신 자리를 준다)
+  // 자리: DB(v_students_current)가 기본, 교사가 자리 바꾸기로 저장한 자리가 있으면 그 자리가 이긴다
+  // (자리 저장은 아직 서버 메모리다 — enrollments 쓰기 권한·유니크 인덱스 협의 전, raw/seatLayout.ts 참고)
   const savedSeats = mockSeatLayouts()[scopedKey(await getDemoScope(), classId)]?.seats ?? {};
+  const dbSeats = await loadDbSeats(classId);
   return MOCK_STUDENTS.filter((s) => s.class_id === classId && s.status === "active")
-    .map((s) => ({ ...s, ...savedSeats[s.enrollment_id] }))
+    .map((s) => ({ ...s, ...dbSeats?.get(s.student_id), ...savedSeats[s.enrollment_id] }))
     .sort(
     (a, b) => a.seat_row - b.seat_row || a.seat_col - b.seat_col,
   );
@@ -79,7 +85,26 @@ async function classRows(classId: string): Promise<MockStudentRow[]> {
 async function findRow(classId: string, studentId: string): Promise<MockStudentRow | null> {
   // 대시보드(진승혜) mock이 아직 1..N 번호를 studentId로 넘긴다 — mock 단계 한정 브리지.
   const id = /^\d+$/.test(studentId) ? mockStudentIdFromNumber(Number(studentId)) : studentId;
-  return (await classRows(classId)).find((s) => s.student_id === id) ?? null;
+  const rows = await classRows(classId);
+  const direct = rows.find((s) => s.student_id === id);
+  if (direct) return direct;
+
+  // 대시보드는 DB의 student_id(30000000-…)로 링크를 만든다 — 이 화면의 명단 id(00000000-…)로 바꿔 찾는다.
+  // 명단 자체가 DB로 옮겨지면(v_students_current) 이 변환은 필요 없어진다.
+  const appId = await appStudentIdOfDbId(classId, id);
+  return appId ? (rows.find((s) => s.student_id === appId) ?? null) : null;
+}
+
+async function appStudentIdOfDbId(classId: string, dbStudentId: string): Promise<string | null> {
+  if (!realCheckinsEnabled()) return null;
+  try {
+    const db = await recordDb(classId);
+    if (!db) return null;
+    for (const [appId, dbId] of db.dbStudentOf) if (dbId === dbStudentId) return appId;
+  } catch (error) {
+    console.warn("[teacherStudents] DB student_id를 명단 id로 바꾸지 못했습니다:", error instanceof Error ? error.message : error);
+  }
+  return null;
 }
 
 function toClassStudent(row: MockStudentRow): ClassStudent {
@@ -312,9 +337,8 @@ async function loadStoredSummaries(sessionIds: string[]): Promise<StoredSessionS
 type SessionSource = (row: MockStudentRow, date: string) => AnalysisInputSession[];
 
 /**
- * rows × [from, to] 세션 — 그 아이·그 날짜에 실제 세션이 하나라도 있으면 실제만, 없으면 mock (두 출처를 섞지 않는다).
- * 단 목업 범위(김현우 화면)에서는: 실제로 쓰는 아이(김민준)는 실제 기록만, 나머지 아이는 목업이 있는 날짜면 목업이 먼저다
- * (테스트로 쌓인 실제 기록이 목업 이야기를 덮지 않게).
+ * rows × [from, to] 세션 — DB를 읽는 환경에서는 실제 세션만(없는 날은 빈 날). mock은 DB를 못 읽는 환경의 대체일 뿐이다.
+ * 목업 범위(TEACHER_MOCK_FIXTURE=on, 로컬 전용)에서만: 실제로 쓰는 아이(김민준)는 실제 기록만, 나머지 아이는 목업이 있는 날짜면 목업이 먼저다.
  */
 async function loadSessions(rows: MockStudentRow[], from: string, to: string): Promise<SessionSource> {
   const real = await loadRealSessions(rows, from, to);
@@ -323,7 +347,10 @@ async function loadSessions(rows: MockStudentRow[], from: string, to: string): P
     // 실제로 쓰는 아이(김민준)는 목업 범위에서 실제 체크인만 — 없는 날은 빈 날이다
     if (isLiveInMockScope(row.enrollment_id)) return real.get(key) ?? [];
     if (usesMockFixture(row.enrollment_id, date)) return mockDaySessions(row.enrollment_id, date);
-    return real.get(key) ?? mockDaySessions(row.enrollment_id, date);
+    // DB를 읽는 환경에서는 그날 세션이 없으면 빈 날이다 — 없는 기록을 mock으로 만들어 채우지 않는다.
+    // (DB를 못 읽는 환경 — env 없음·TEACHER_REAL_CHECKINS=off — 에서만 예전 mock으로 화면을 채운다)
+    if (realCheckinsEnabled()) return real.get(key) ?? [];
+    return mockDaySessions(row.enrollment_id, date);
   };
 }
 
@@ -484,6 +511,8 @@ export async function getMockAiPreview(
 ): Promise<{ analysis: string | null; draft: string | null }> {
   const row = await findRow(classId, studentId);
   if (!row) return { analysis: null, draft: null };
+  // DB를 읽는 환경에서는 예시를 만들지 않는다 — 저장된 요약은 getStoredDayAnalyses가, 없으면 API가 채운다
+  if (realCheckinsEnabled()) return { analysis: null, draft: null };
   const { analyses } = mockCheckinsFor(row.enrollment_id, date);
   return {
     analysis: analyses.at(-1)?.result.summary ?? null,
@@ -500,12 +529,54 @@ export async function getPrecomputedDayAi(classId: string, studentId: string, da
   return row ? mockFixtureDayAi(row.enrollment_id, date) : null;
 }
 
+/** 같은 요청 안에서 대시보드 조립을 한 번만 돌린다 (리포트 화면이 여러 함수에서 부른다) */
+const dashboardOf = cache((classId: string, date: string) => getDashboardDataFromSupabase(classId, date));
+
+type Insights = { vocab: VocabInsight; relation: RelationInsight };
+
 /**
- * 대시보드(진승혜) 스냅샷에서 이 아이의 감정 어휘·관계만 뽑는다.
- * 리포트 기간(from~to)과 무관하게 항상 "현재 기준" 스냅샷 하나만 쓴다 — 대시보드 mock이 날짜별
- * 이력이 아니라 오늘 시점 스냅샷이기 때문(감정 어휘 성장 카드도 화면에서 같은 방식으로 보여준다).
+ * 대시보드(진승혜)에서 이 아이의 감정 어휘·관계만 뽑는다.
+ * 리포트 기간(from~to)과 무관하게 항상 "현재 기준" 하나만 쓴다 — 대시보드 카드도 화면에서 같은 방식으로 보여준다.
+ * DB를 읽는 환경에서는 실제 대시보드 데이터, 못 읽으면 mock 스냅샷.
  */
-function buildInsights(studentId: string): { vocab: VocabInsight; relation: RelationInsight } {
+async function buildInsights(classId: string, studentId: string): Promise<Insights> {
+  if (realCheckinsEnabled()) {
+    try {
+      const db = await recordDb(classId);
+      const dbId = db?.dbStudentOf.get(studentId);
+      if (db && dbId) {
+        const data = await dashboardOf(db.classId, dashboardToday());
+        // 대시보드는 DB student_id, 이 화면은 앱 student_id를 쓴다 — 관계 상대는 되돌려서 넘긴다
+        const appIdOf = new Map([...db.dbStudentOf].map(([appId, dbStudentId]) => [dbStudentId, appId]));
+        const students = data.vocab.students;
+        const relation = data.relation[DEFAULT_RELATION_PERIOD];
+        const connections = relation.edges
+          .filter((e) => e.from === dbId || e.to === dbId)
+          .map((e) => {
+            const otherDbId = String(e.from === dbId ? e.to : e.from);
+            const other = relation.nodes.find((n) => String(n.studentId) === otherDbId);
+            const appId = appIdOf.get(otherDbId);
+            return other && appId ? { studentId: appId, name: other.name, kind: e.kind } : null;
+          })
+          .filter((c): c is { studentId: string; name: string; kind: "normal" | "conflict" } => c !== null);
+        return {
+          vocab: {
+            studentCount: students.find((s) => s.studentId === dbId)?.count ?? 0,
+            classAverage: students.length ? Math.round((students.reduce((sum, s) => sum + s.count, 0) / students.length) * 10) / 10 : 0,
+          },
+          relation: { connections },
+        };
+      }
+    } catch (error) {
+      console.warn("[teacherStudents] 대시보드 데이터를 읽지 못해 어휘·관계를 비웁니다:", error instanceof Error ? error.message : error);
+      return { vocab: { studentCount: 0, classAverage: 0 }, relation: { connections: [] } };
+    }
+  }
+  return mockInsights(studentId);
+}
+
+/** 대시보드 mock 스냅샷 기반 — DB를 못 읽는 환경 전용 */
+function mockInsights(studentId: string): Insights {
   const dashboardId = MOCK_STUDENTS.findIndex((s) => s.student_id === studentId) + 1;
   const snapshot = getDashboardSnapshot(dashboardToday());
 
@@ -524,7 +595,7 @@ function buildInsights(studentId: string): { vocab: VocabInsight; relation: Rela
       const otherId = e.from === dashboardId ? e.to : e.from;
       const other = relation.nodes.find((n) => n.studentId === otherId);
       // relation.edges 의 from/to 는 실제 데이터(uuid 문자열)와 타입을 공유하느라 넓어졌지만,
-      // 이 파일은 mock 스냅샷만 쓰므로 여기서는 늘 숫자다.
+      // 이 함수는 mock 스냅샷만 쓰므로 여기서는 늘 숫자다.
       return other ? { studentId: mockStudentIdFromNumber(Number(otherId)), name: other.name, kind: e.kind } : null;
     })
     .filter((c): c is { studentId: string; name: string; kind: "normal" | "conflict" } => c !== null);
@@ -570,7 +641,8 @@ function existingDayAnalysis(
   if (generated) {
     return { analysisId: generated.id, sessionId: generated.source_id, date, summary: String(generated.result.summary) };
   }
-  const isMockDay = sessions.every((s) => s.sessionId.startsWith("mock-"));
+  // 세션이 하나도 없는 날은 목업 날이 아니다(빈 배열의 every는 true라서 따로 막는다)
+  const isMockDay = sessions.length > 0 && sessions.every((s) => s.sessionId.startsWith("mock-"));
   const seeded = isMockDay ? mockCheckinsFor(enrollmentId, date).analyses.at(-1) : undefined;
   return seeded ? { analysisId: seeded.id, sessionId: seeded.source_id, date, summary: seeded.result.summary } : null;
 }
@@ -616,7 +688,7 @@ export async function getConsultationReport(
     ...observations.map((o) => ({ table: "work_records" as const, id: o.id })),
   ];
 
-  const { vocab, relation } = buildInsights(row.student_id);
+  const { vocab, relation } = await buildInsights(classId, row.student_id);
 
   return {
     student: toClassStudent(row),

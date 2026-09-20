@@ -98,7 +98,7 @@ export default function CheckoutPage() {
           <span>선생님 화면으로 이동할게요</span>
         </div>
       )}
-      {flow.step >= 2 && !toTeacher && <StudentHomeButton onHome={goHome} />}
+      {!toTeacher && <StudentHomeButton onHome={goHome} />}
       {(
         flow.step === 2 ||
         (flow.step === 5 && !toTeacher) ||
