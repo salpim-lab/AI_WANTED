@@ -103,6 +103,7 @@ set search_path = ''
 as $$ select coalesce(current_setting('salpim.seed_admin', true), '') = 'on' $$;
 
 -- student_items INSERT: 방문자 아이템의 demo_owner_id는 부모 체크인 세션(및 그 세션의 생성 job)의 소유자와 같아야 한다.
+-- 생략하면 부모 세션 값이 자동 입력되고(구 코드 호환), 다른 uid를 명시하면 거부한다.
 create or replace function public.student_items_owner_guard()
 returns trigger
 language plpgsql
@@ -131,6 +132,11 @@ begin
   end if;
   if v_session.enrollment_id is distinct from new.enrollment_id then
     raise exception 'ITEM_PARENT_ENROLLMENT_MISMATCH: 부모 세션의 수강 정보와 다릅니다' using errcode = '23514';
+  end if;
+  -- 하위 호환(배포 순서 의존성 제거): demo_owner_id를 생략한 INSERT(1094 이전 코드)는 부모 세션의 소유자를 자동으로 기록한다.
+  -- 부모 소유자가 NULL인 기존 비데모 흐름은 NULL 그대로다. 다른 uid를 명시하면 아래에서 거부한다.
+  if new.demo_owner_id is null and v_session.demo_owner_id is not null then
+    new.demo_owner_id := v_session.demo_owner_id;
   end if;
   if new.demo_owner_id is distinct from v_session.demo_owner_id then
     raise exception 'ITEM_OWNER_MISMATCH: 아이템 소유자가 부모 체크인 세션의 소유자와 다릅니다' using errcode = '23514';

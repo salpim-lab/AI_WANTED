@@ -93,10 +93,10 @@ test("1094 적용 + 자기 검증 블록 통과, 기존(레거시) 행은 손대
   }
 });
 
-test("소유자 트리거: 부모 세션 소유자와 다른/누락된 demo_owner_id, 부모 없는 비공용 아이템은 거부", async () => {
+test("소유자 트리거: 부모 세션 소유자와 다른 demo_owner_id, 부모 없는 비공용 아이템은 거부", async () => {
   const insert = (owner, session, slot) => db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, demo_owner_id) values ($1,$2,$3,'2026-09-21',$4,$5)", [E, uuid(101), session, slot, owner]);
   await assert.rejects(insert(U.B, ID.sA1, 1), /ITEM_OWNER_MISMATCH/);          // 타인 uid
-  await assert.rejects(insert(null, ID.sA1, 2), /ITEM_OWNER_MISMATCH/);         // 소유자 누락(부모는 방문자 소유)
+  // (소유자를 생략/NULL로 넣는 경우는 부모 값이 자동 입력된다 — 아래 '하위 호환' 테스트)
   await assert.rejects(insert(U.A, null, 3), /ITEM_PARENT_REQUIRED/);           // 부모 없는 비공용
   await insert(U.A, ID.sA1, 4);                                                 // 일치 → 통과
   // 부모 세션과 다른 enrollment
@@ -341,4 +341,49 @@ test("공용 시드 SQL: 15종 공용 아이템+배치가 생기고, 방문자�
   await assert.rejects(d.exec(sql), /이미 있다|already|중복/);
   await d.exec("rollback");
   await d.close();
+});
+
+// ============================================================================
+// 하위 호환(배포 순서 의존성 제거): 1094를 먼저 적용해도 구 코드의 아이템 지급이 깨지지 않는다.
+test("하위 호환: 구 코드 방식(소유자 생략) INSERT는 부모 세션의 소유자가 자동 기록된다", async () => {
+  // 구 issueStudentItem과 같은 방식: enrollment·날짜 단위로 최대 slot을 읽어 +1, demo_owner_id 컬럼은 아예 쓰지 않는다.
+  const oldCodeIssue = async (sessionId) => {
+    const { rows: latest } = await db.query("select slot from public.student_items where enrollment_id = $1 and earned_on = '2026-10-01' order by slot desc limit 1", [E]);
+    const slot = (latest[0]?.slot ?? 0) + 1;
+    return (await db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, is_core) values ($1,$2,$3,'2026-10-01',$4,false) returning id, demo_owner_id, slot", [E, uuid(101), sessionId, slot])).rows[0];
+  };
+  const forA = await oldCodeIssue(ID.sA1);
+  const forB = await oldCodeIssue(ID.sB1);
+  assert.equal(forA.demo_owner_id, U.A, "A의 세션으로 지급한 아이템은 A 소유로 자동 기록");
+  assert.equal(forB.demo_owner_id, U.B, "B의 세션으로 지급한 아이템은 B 소유로 자동 기록(방문자끼리 슬롯이 섞여도 충돌 없음)");
+  // demo_owner_id를 명시적 NULL로 넣어도 생략과 같다
+  const explicitNull = (await db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, demo_owner_id) values ($1,$2,$3,'2026-10-02',1,null) returning demo_owner_id", [E, uuid(101), ID.sA2])).rows[0];
+  assert.equal(explicitNull.demo_owner_id, U.A);
+  // 자동 기록된 행은 이후 RLS·RPC에서 정상 방문자 아이템으로 취급된다
+  assert.ok(ids(await as(db, visitor(U.A), () => db.query("select id from public.student_items"))).includes(forA.id));
+  assert.ok(!ids(await as(db, visitor(U.B), () => db.query("select id from public.student_items"))).includes(forA.id));
+  await as(db, server, () => db.query("select public.place_demo_item($1,$2,-9,25,0.5)", [U.A, forA.id]));
+});
+
+test("하위 호환: 다른 owner를 명시하면 여전히 거부된다(생략만 자동 기록)", async () => {
+  const insert = (owner, session, slot) => db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, demo_owner_id) values ($1,$2,$3,'2026-10-03',$4,$5)", [E, uuid(101), session, slot, owner]);
+  await assert.rejects(insert(U.B, ID.sA1, 1), /ITEM_OWNER_MISMATCH/);          // A의 세션에 B를 명시
+  await assert.rejects(insert(U.A, ID.sB1, 2), /ITEM_OWNER_MISMATCH/);          // B의 세션에 A를 명시
+  await assert.rejects(insert(U.A, ID.sNull1, 3), /ITEM_OWNER_MISMATCH/);       // 소유자 없는 세션에 uid를 명시
+});
+
+test("하위 호환: 부모 owner가 NULL인 기존 비데모 흐름은 기존대로 동작한다(owner NULL 유지)", async () => {
+  const omitted = (await db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot) values ($1,$2,$3,'2026-10-04',1) returning demo_owner_id, is_public_demo", [E, uuid(101), ID.sNull1])).rows[0];
+  assert.deepEqual(omitted, { demo_owner_id: null, is_public_demo: false });
+  const explicitNull = (await db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, demo_owner_id) values ($1,$2,$3,'2026-10-04',2,null) returning demo_owner_id", [E, uuid(101), ID.sNull2])).rows[0];
+  assert.equal(explicitNull.demo_owner_id, null);
+  // 레거시 슬롯 인덱스는 그대로 동작(같은 (enrollment,날짜,슬롯) 중복은 거부)
+  await assert.rejects(db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot) values ($1,$2,$3,'2026-10-04',1)", [E, uuid(101), ID.sNull2]), /student_items_daily_slot_legacy/);
+});
+
+test("신규 코드 방식: 올바른 owner를 명시하면 정상 동작하고 소유자별 슬롯이 독립이다", async () => {
+  const insert = (owner, session, slot) => db.query("insert into public.student_items (enrollment_id, asset_id, source_session_id, earned_on, slot, demo_owner_id) values ($1,$2,$3,'2026-10-05',$4,$5) returning demo_owner_id", [E, uuid(101), session, slot, owner]);
+  assert.equal((await insert(U.A, ID.sA1, 1)).rows[0].demo_owner_id, U.A);
+  assert.equal((await insert(U.B, ID.sB1, 1)).rows[0].demo_owner_id, U.B, "같은 슬롯 번호라도 소유자가 다르면 충돌하지 않는다");
+  await assert.rejects(insert(U.A, ID.sA2, 1), /student_items_daily_slot_owner/);
 });
