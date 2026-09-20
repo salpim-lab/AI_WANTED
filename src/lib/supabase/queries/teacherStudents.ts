@@ -13,11 +13,16 @@
 //   AI 분석     analysis_runs where analysis_type='session_summary' and source_type='session' and status='completed'
 
 import { cache } from "react";
-import { addDays } from "@/components/shared/datetime";
+import { addDays, toKstDate } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
+import { listOpenMeetingRequests } from "@/lib/checkins/meetingRequests";
 import { getDemoScope, ownerOrFilter, scopedKey } from "@/lib/demo/scope";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveAnalysisTargets } from "@/lib/supabase/interpretation/analysisTargets";
+import {
+  hasStudentSpeech,
+  resolveAnalysisTargets,
+  selectSessionGroup,
+} from "@/lib/supabase/interpretation/analysisTargets";
 import {
   isRealSessionId,
   loadSessionSummaries,
@@ -354,9 +359,15 @@ async function loadSessions(rows: MockStudentRow[], from: string, to: string): P
   };
 }
 
-/** 같은 날 같은 시간대에 재시도(attempt)가 있으면 마지막 시도의 색을 대표값으로 쓴다 */
+/**
+ * 같은 날 같은 시간대에 회차가 여럿이면 가장 최근에 시작한 것의 색을 대표값으로 쓴다.
+ * attempt만 보면 안 된다 — attempt는 (방문자·학생·날짜·시간대)마다 1부터 다시 세서, 서로 다른 방문자가 남긴 회차는 전부 1이라
+ * 동점이 되고 가장 오래된 것이 뽑힌다. 대시보드(dashboardSnapshot.latestColor)와 같은 기준(시작 시각 → attempt)이다.
+ */
 function latestColor(sessions: DaySession[], period: DaySession["period"]): SignalColor | null {
-  const matched = sessions.filter((s) => s.period === period).sort((a, b) => b.attempt - a.attempt);
+  const matched = sessions
+    .filter((s) => s.period === period)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.attempt - a.attempt);
   return matched[0]?.color ?? null;
 }
 
@@ -401,6 +412,26 @@ export async function getStudentDaySessions(classId: string, studentId: string, 
 }
 
 /**
+ * AI 요약의 입력 세션 — 시간대(등교/하교)마다 가장 최근 회차 **하나**. 여러 회차를 묶어 요약하지 않는다.
+ * 같은 시간대에 회차를 여럿 남겨도(다시 하기·테스트) 상세 화면은 가장 최근 회차만 보여주니, 요약도 그 회차만 본다.
+ * "가장 최근"은 shownSession(상세 화면)과 같은 기준이다: 아이 발화가 있는 가장 최근 회차, 없으면 가장 최근 회차(시작 시각 → attempt).
+ * 소유자 부류(공개 데모 방문자 격리)는 resolveAnalysisTargets와 같은 selectSessionGroup으로 먼저 고르고, 그 안에서 고른다.
+ * 결과는 시작 시각 오름차순이다(analysisTargets가 기대하는 순서).
+ */
+function pickAnalysisSessions<T extends DaySession>(sessions: T[], viewerId: string | null): T[] {
+  const group = selectSessionGroup(sessions, viewerId);
+  const picked: T[] = [];
+  for (const period of ["morning", "afternoon"] as const) {
+    const latestFirst = group
+      .filter((s) => s.period === period)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.attempt - a.attempt);
+    const one = latestFirst.find((s) => hasStudentSpeech(s)) ?? latestFirst[0];
+    if (one) picked.push(one);
+  }
+  return picked.sort((a, b) => a.startedAt.localeCompare(b.startedAt) || a.attempt - b.attempt);
+}
+
+/**
  * 상세 화면이 렌더 때 미리 읽는 "이미 저장된" 그날 AI 요약(등교 기준·등교-하교 기준). 새로고침해도 같은 DB 요약이 보이고,
  * 저장된 게 없을 때만 화면이 분석 API를 부른다. 챗봇·상담 리포트와 같은 loadSessionSummaries를 쓴다(요약 대상 세션 선택 규칙도 같다).
  * 목업 세션(uuid 아님)의 요약은 DB에 없으므로 null — 그 경우 화면은 기존처럼 분석 API를 부른다.
@@ -413,7 +444,8 @@ export async function getStoredDayAnalyses(
   const row = await findRow(classId, studentId);
   if (!row) return { morning: null, full: null, expects: { morning: false, full: false } };
   const demoScope = await getDemoScope();
-  const targets = resolveAnalysisTargets((await loadSessions([row], date, date))(row, date), demoScope.active ? demoScope.viewerId : null);
+  const viewerId = demoScope.active ? demoScope.viewerId : null;
+  const targets = resolveAnalysisTargets(pickAnalysisSessions((await loadSessions([row], date, date))(row, date), viewerId), viewerId);
   const sourceIds = [targets.morning?.sourceId, targets.full?.sourceId].filter((id): id is string => Boolean(id));
   const stored = await loadStoredSummaries(sourceIds);
   return {
@@ -452,7 +484,8 @@ export async function getDailyAnalysisInput(
     student: toClassStudent(row),
     classmates: (await classRows(classId)).map(toClassStudent),
     date,
-    sessions: sessionsOf(row, date),
+    // 그날 요약의 입력 — 시간대마다 가장 최근 회차 하나(여러 회차를 묶어 요약하지 않는다)
+    sessions: pickAnalysisSessions(sessionsOf(row, date), viewerId),
     pastDays,
   };
 }
@@ -469,7 +502,9 @@ function latestStateEstimate(sessions: DaySession[], stored: StoredSessionSummar
   const sessionIds = sessions.map((s) => s.sessionId);
   // 실제 세션은 DB 요약에서(현재 방문자 본인 세션 우선, 그 부류의 마지막 세션에 붙은 것 우선, 그다음 최신 — 다음 분석의 흐름 입력이라
   // 하교 전 등교 요약도 허용한다). 목업 세션만 아래 서버 메모리 경로.
-  const fromDb = pickDayAnalysis(stored.filter((r) => r.stateEstimate), sessions, viewerId, { requireFullWhenAfternoon: false })?.stateEstimate;
+  const fromDb = pickDayAnalysis(stored.filter((r) => r.stateEstimate), pickAnalysisSessions(sessions, viewerId), viewerId, {
+    requireFullWhenAfternoon: false,
+  })?.stateEstimate;
   if (fromDb) return fromDb;
   // 하루의 마지막 세션(하교)까지 본 분석을 우선 — 등교만 본 분석은 그게 없을 때만
   const coversLast = (sourceId: string) => sessionIds.indexOf(sourceId) === sessionIds.length - 1;
@@ -622,7 +657,7 @@ function existingDayAnalysis(
   const sessionIds = sessions.map((s) => s.sessionId);
   // 실제 세션의 요약은 DB(스코프·소유 검증을 거친 것)에서 — 상세 화면과 같은 함수가 읽어 온 결과다. 목업 세션만 아래 메모리·시드 경로.
   // 현재 방문자 본인 세션이 있으면 본인 요약만(공용 요약이 대신하지 않음), 하교가 있는 날은 통합 요약만 하루 요약으로 쓴다.
-  const fromDb = pickDayAnalysis(stored, sessions, viewerId);
+  const fromDb = pickDayAnalysis(stored, pickAnalysisSessions(sessions, viewerId), viewerId);
   if (fromDb) return { analysisId: fromDb.id, sessionId: fromDb.sourceId, date, summary: fromDb.summary };
   const lastSessionId = sessionIds.at(-1);
   const generated = mockAnalysisRuns()
@@ -690,10 +725,22 @@ export async function getConsultationReport(
 
   const { vocab, relation } = await buildInsights(classId, row.student_id);
 
+  // 리포트에 찍히는 기간은 "조회한 창"이 아니라 "실제로 기록이 있는 범위"다.
+  // 기본 30일로 조회하면 앞뒤에 기록 없는 날이 남는데, 그러면 AI 기간 요약이 말하는 "기간 초반"과
+  // 머리글 날짜가 어긋난다 (학부모에게 보여주는 자료라 맞춘다).
+  // 기록이 하나도 없으면 조회한 창을 그대로 쓴다. 좁힌 범위로 이 함수를 다시 불러도 결과는 같다(멱등).
+  const coveredDates = [
+    ...sessions.map((s) => s.date),
+    ...analyses.map((a) => a.date),
+    ...observations.map((o) => toKstDate(o.occurredAt)),
+  ].sort();
+  const coveredFrom = coveredDates[0];
+  const coveredTo = coveredDates[coveredDates.length - 1];
+
   return {
     student: toClassStudent(row),
-    from: dates[0] ?? from,
-    to,
+    from: coveredFrom ?? dates[0] ?? from,
+    to: coveredTo ?? to,
     sessions: sessions.reverse(),
     analyses: analyses.reverse(),
     observations,
@@ -701,4 +748,38 @@ export async function getConsultationReport(
     vocabInsight: vocab,
     relationInsight: relation,
   };
+}
+
+// ── 학생이 낸 상담 신청 (협진 챗봇 컨텍스트용, 읽기 전용) ──────────────────────
+
+export type OpenStudentRequest = {
+  /** 이 화면들이 쓰는 명단 student_id (DB student_id가 아니다) */
+  studentId: string;
+  name: string;
+  /** ISO — 아이가 신청한 시각(서버 기록) */
+  requestedAt: string;
+  priority: "normal" | "high";
+};
+
+/**
+ * 아이가 대화 끝에 낸 "선생님과 이야기하고 싶어요" 중 아직 처리되지 않은 것 (meeting_requests, status='requested').
+ * 조회와 방문자 격리("공용 시드 세션 + 현재 방문자 세션"만)는 lib/checkins/meetingRequests.ts(이유민)가 이미 걸어 두었다 —
+ * 여기서는 그 결과의 DB student_id를 이 화면들이 쓰는 명단 id로 바꿔서 돌려줄 뿐이다. 최신순, 급한 것(high)이 앞.
+ * DB를 못 읽는 환경이면 빈 목록이다 — 챗봇이 이 조회 하나 때문에 답을 못 하게 되지 않도록 실패를 삼킨다.
+ */
+export async function listOpenStudentRequests(classId: string): Promise<OpenStudentRequest[]> {
+  if (!realCheckinsEnabled()) return [];
+  try {
+    const db = await recordDb(classId);
+    if (!db) return [];
+    const appIdOfDbId = new Map([...db.dbStudentOf].map(([appId, dbId]) => [dbId, appId] as const));
+    const cards = await listOpenMeetingRequests([db.classId]);
+    return cards.flatMap((card) => {
+      const studentId = appIdOfDbId.get(card.studentId);
+      return studentId ? [{ studentId, name: card.studentName, requestedAt: card.requestedAt, priority: card.priority }] : [];
+    });
+  } catch (error) {
+    console.warn("[teacherStudents] 학생 상담 신청을 읽지 못했습니다:", error instanceof Error ? error.message : error);
+    return [];
+  }
 }

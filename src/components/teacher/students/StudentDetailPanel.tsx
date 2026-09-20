@@ -27,9 +27,10 @@ import MiniCalendar from "./MiniCalendar";
 import StudentAvatar from "./StudentAvatar";
 import DateControl from "@/components/teacher/shared/DateControl";
 
-/** 그 시간대에 보여줄 회차 — 대화가 남은 가장 최근 회차, 없으면 가장 최근 회차 */
+/** 그 시간대에 보여줄 회차 — 대화가 남은 가장 최근 회차, 없으면 가장 최근 회차.
+    "가장 최근"은 시작 시각이 기준이다(attempt는 방문자마다 1부터 다시 세서 동점이 나면 가장 오래된 것이 뽑힌다). */
 function shownSession(sessions: DaySession[]): DaySession | undefined {
-  const byLatest = [...sessions].sort((a, b) => b.attempt - a.attempt);
+  const byLatest = [...sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.attempt - a.attempt);
   return byLatest.find((s) => s.turns.length > 0) ?? byLatest[0];
 }
 
