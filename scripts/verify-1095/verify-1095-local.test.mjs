@@ -14,7 +14,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const BASE = read("./base-schema-1094.sql");
-const MIGRATION = read("../../supabase/migrations/20260920090000_1095_session_summary_guard.sql");
+const MIGRATION = read("../../supabase/migrations/20260920063259_1095_session_summary_guard.sql");
 const ROLLBACK = read("../../supabase/rollbacks/1095_session_summary_guard_rollback.sql");
 
 const E = "40000000-0000-4000-8000-000000000001"; // 시드 enrollment(민준) — 방문자 전원이 공유한다

@@ -11,7 +11,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const BASE = read("./base-schema-1094.sql");
-const MIGRATION = read("../../supabase/migrations/20260920090000_1095_session_summary_guard.sql");
+const MIGRATION = read("../../supabase/migrations/20260920063259_1095_session_summary_guard.sql");
 const PRE = read("./pre-apply-checks.sql");
 const POST = read("./post-apply-checks.sql");
 const BEHAVIOR = read("./post-apply-behavior-rolled-back.sql");
