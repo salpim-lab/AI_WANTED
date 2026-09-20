@@ -9,11 +9,12 @@
 // object-cover로 원 안에 꽉 채운다("동그라미 꽉차게" 요청).
 export default function AgentOwlIcon({ className }: { className?: string }) {
   return (
-    <img
-      src="/brand/salpim-chatbot-avatar.png"
-      alt=""
-      className={`rounded-full object-cover ${className ?? ""}`}
-      aria-hidden="true"
-    />
+    <span className={`block overflow-hidden rounded-full ${className ?? ""}`} aria-hidden="true">
+      <img
+        src="/brand/salpim-chatbot-thinking-avatar.png"
+        alt=""
+        className="h-full w-full translate-y-[8%] object-cover"
+      />
+    </span>
   );
 }

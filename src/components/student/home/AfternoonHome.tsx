@@ -4,7 +4,7 @@
 // "교사 시점으로 전환하기": 공개 링크로 들어온 사람이 학생 흐름(등교 → 섬 → 하교)을 다 겪은 뒤
 // 같은 데이터를 교사 쪽에서 보게 하는 출구다. 주 버튼과 같은 크기로 그 아래에 둔다.
 // 주 버튼은 라벤더로 칠하고, 이 버튼은 프로필 알약과 같은 반투명 흰색이라 무엇이 먼저인지 구분된다.
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import HomeIntro from "./HomeIntro";
 
 export default function AfternoonHome({
@@ -30,13 +30,13 @@ export default function AfternoonHome({
           secondary={
             // 마우스를 올리면 하교 기록이 남지 않는다고 먼저 알려 준다(키보드 포커스에도 뜬다)
             <span className="sh-teacher-switch">
-              <Link
+              <NavLink
                 href="/dashboard"
                 className="sh-cta sh-cta--ghost px-[7cqh] py-[2.4cqh] text-[3.1cqh]"
                 aria-describedby="sh-teacher-switch-tip"
               >
                 교사 시점으로 전환하기
-              </Link>
+              </NavLink>
               <span id="sh-teacher-switch-tip" role="tooltip" className="sh-teacher-tip">
                 {studentName}이의 하교 마음이 기록되지 않아요!
               </span>

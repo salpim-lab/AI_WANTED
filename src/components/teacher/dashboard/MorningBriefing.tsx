@@ -18,7 +18,7 @@
 // 데이터: page.tsx 가 선택 날짜의 morning checkin 기준으로 조립해 props 로 내려준다.
 // 링크는 기존 /students/[id], /consultation 유지 (김현우 담당 화면 — 구현은 건드리지 않는다)
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { toKstDate } from "@/components/shared/datetime";
 import HorizontalScroller from "@/components/shared/HorizontalScroller";
 // 오른쪽 위로 나가는 화살표 — 학부모상담기록 카드와 똑같은 SVG 를 그대로 쓴다 (김현우 담당 공용 조각)
@@ -74,10 +74,10 @@ function ConsultationRow({ kind, rows }: { kind: string; rows: ScheduledConsulta
 
 function Rows({ kind, rows }: { kind: string; rows: ScheduledConsultation[] }) {
   return (
-    <HorizontalScroller listClassName="briefing-list" label={`예정된 ${kind}`}>
+    <HorizontalScroller listClassName="briefing-list" label={`예정된 ${kind}`} showArrows={rows.length > 1}>
       {rows.map((c) => (
         <li key={c.id} className="briefing-consult-item">
-          <Link href={hrefFor(c)} className="briefing-row briefing-consult">
+          <NavLink href={hrefFor(c)} className="briefing-row briefing-consult">
             <span className="briefing-time">{formatKstTime(c.scheduledAt)}</span>
             <span className="briefing-info">
               <span className="briefing-line">
@@ -86,7 +86,7 @@ function Rows({ kind, rows }: { kind: string; rows: ScheduledConsultation[] }) {
               </span>
               <span className="breason">{c.counterpart}</span>
             </span>
-          </Link>
+          </NavLink>
           <EditScheduledConsultationButton consultation={c} variant="icon" className="briefing-edit" />
         </li>
       ))}
@@ -114,7 +114,7 @@ export default function MorningBriefing({
       <HorizontalScroller listClassName="briefing-list" label="먼저 살펴볼 아이">
         {watch.map((s) => (
           <li key={s.studentId}>
-            <Link href={`/students/${s.studentId}`} className={`briefing-row group ${TONE_CLASS[s.tone]}`}>
+            <NavLink href={`/students/${s.studentId}`} className={`briefing-row group ${TONE_CLASS[s.tone]}`}>
               <span className="briefing-avatar" aria-hidden />
               <span className="briefing-info">
                 <span className="briefing-line">
@@ -125,7 +125,7 @@ export default function MorningBriefing({
               </span>
               {/* 같은 화면 안에서 옆으로 가는 게 아니라 아이 상세로 빠져나간다 — 학부모상담기록과 같은 화살표 */}
               <ArrowUpRightIcon />
-            </Link>
+            </NavLink>
           </li>
         ))}
       </HorizontalScroller>

@@ -13,7 +13,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { givenName } from "@/components/shared/names";
 import {
   SIGNAL_DOT,
@@ -28,7 +28,6 @@ import {
   salpimToggleOff,
   salpimToggleOn,
   seatBoard,
-  seatCellHeight,
   seatChartCard,
 } from "@/components/shared/ui";
 import type { SeatGrid, SeatingStudent } from "@/lib/types/teacherRecord";
@@ -85,7 +84,9 @@ export default function SeatingChart({
   const doneCount = seats.filter((s) => colorOf(s, period)).length;
   const rows = Array.from({ length: grid.rows }, (_, i) => i + 1);
   const cols = Array.from({ length: grid.cols }, (_, i) => i + 1);
-  const cellHeight = compact ? "h-10" : seatCellHeight;
+  const cellHeight = compact ? "h-10" : "";
+  // 스크롤 없이 한 화면에 들어오게: 화면 높이에서 머리·여백·범례 몫(ponytail: 340px 추정치)을 뺀 만큼을 행 수로 나눈다
+  const cellStyle = compact ? undefined : { height: `clamp(56px, calc((100dvh - 340px) / ${grid.rows}), 120px)` };
   // 넓은 화면에서는 오른쪽(시간대 버튼 앞), 좁은 열에서는 제목 아래
   const progress = (
     <>
@@ -146,6 +147,7 @@ export default function SeatingChart({
                     <li
                       key={seatKey(row, col)}
                       aria-hidden
+                      style={cellStyle}
                       className={`${cellHeight} rounded-xl border border-dashed border-[#ded8ff]`}
                     />
                   );
@@ -158,6 +160,7 @@ export default function SeatingChart({
                       selected={seat.studentId === selectedStudentId}
                       compact={compact}
                       className={cellHeight}
+                      style={cellStyle}
                     />
                   </li>
                 );
@@ -190,12 +193,14 @@ function SeatCard({
   selected,
   compact,
   className,
+  style,
 }: {
   seat: SeatingStudent;
   period: Period;
   selected: boolean;
   compact: boolean;
   className: string;
+  style?: React.CSSProperties;
 }) {
   const mainColor = colorOf(seat, period);
   const amLabel = seat.todayMorning ? SIGNAL_MOOD_LABEL[seat.todayMorning] : "아직 안 함";
@@ -209,9 +214,10 @@ function SeatCard({
       : NOT_YET_CARD;
 
   return (
-    <Link
+    <NavLink
       href={`/students/${seat.studentId}`}
       scroll={false}
+      style={style}
       aria-current={selected ? "page" : undefined}
       aria-label={`${seat.name} — 등교 ${amLabel}, 하교 ${pmLabel}`}
       title={`${seat.name} - 등교 ${amLabel} → 하교 ${pmLabel}`}
@@ -219,10 +225,10 @@ function SeatCard({
         compact ? "rounded-xl" : "rounded-2xl"
       } ${tone} ${className}`}
     >
-      {!compact && <StudentAvatar name={seat.name} initial={givenName(seat.name).slice(0, 1)} size="sm" />}
+      {!compact && <StudentAvatar name={seat.name} initial={givenName(seat.name).slice(0, 1)} size="seat" />}
       <span className={`max-w-full min-w-0 truncate ${compact ? "text-xs font-semibold" : "text-[13px] font-bold"}`}>
         {seat.name}
       </span>
-    </Link>
+    </NavLink>
   );
 }

@@ -131,7 +131,7 @@ async function main() {
       assert.equal(options.headers['x-api-key'], 'offline-test-key');
       assert.equal(options.headers['anthropic-version'], '2023-06-01');
       const request = JSON.parse(options.body);
-      assert.equal(request.model, 'claude-sonnet-4-6');
+      assert.equal(request.model, 'claude-haiku-4-5-20251001');
       assert.equal(request.output_config.format.type, 'json_schema');
       return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] }));
     };

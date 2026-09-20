@@ -6,7 +6,7 @@
 
 "use client";
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { useState } from "react";
 import { formatKstDateTime } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
@@ -91,13 +91,13 @@ function TagLinks({ tags, className }: { tags: TaggedStudent[]; className: strin
   return (
     <div className={`flex flex-wrap gap-1.5 ${className}`}>
       {tags.map((tag) => (
-        <Link
+        <NavLink
           key={tag.studentId}
           href={`/students/${tag.studentId}`}
           className="rounded-full bg-[#ede9ff] px-2 py-0.5 text-[11px] font-semibold text-[#3f37c9] transition-colors hover:bg-[#ded8ff]"
         >
           @{tag.name}
-        </Link>
+        </NavLink>
       ))}
     </div>
   );

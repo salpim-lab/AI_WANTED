@@ -4,7 +4,7 @@
 // 그 이전 날짜는 헤더의 날짜 컨트롤(DateControl)로 고른다.
 // 참고: docs/prototype/prototype-teacher.html #mini-calendar
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { weekdayKst } from "@/components/shared/datetime";
 import { SIGNAL_DOT, SIGNAL_LABEL } from "@/components/shared/signalStyles";
 import type { ColorHistoryDay } from "@/lib/types/teacherRecord";
@@ -30,7 +30,7 @@ export default function MiniCalendar({
       {history.map((day) => {
         const selected = day.date === selectedDate;
         return (
-          <Link
+          <NavLink
             key={day.date}
             href={day.date === today ? `/students/${studentId}` : `/students/${studentId}?date=${day.date}`}
             scroll={false}
@@ -47,7 +47,7 @@ export default function MiniCalendar({
               <span className={`flex-1 ${day.morning ? SIGNAL_DOT[day.morning] : NO_RECORD}`} />
               <span className={`flex-1 ${day.afternoon ? SIGNAL_DOT[day.afternoon] : NO_RECORD}`} />
             </div>
-          </Link>
+          </NavLink>
         );
       })}
     </nav>

@@ -35,7 +35,6 @@ import {
 // mock 스냅샷은 DB를 못 읽는 환경(env 없음)의 대체일 뿐이다.
 import { getDashboardDataFromSupabase } from "@/lib/supabase/queries/dashboardSnapshot";
 import {
-  DEFAULT_RELATION_PERIOD,
   dashboardToday,
   getDashboardSnapshot,
 } from "@/components/teacher/dashboard/mockData";
@@ -584,7 +583,7 @@ async function buildInsights(classId: string, studentId: string): Promise<Insigh
         // 대시보드는 DB student_id, 이 화면은 앱 student_id를 쓴다 — 관계 상대는 되돌려서 넘긴다
         const appIdOf = new Map([...db.dbStudentOf].map(([appId, dbStudentId]) => [dbStudentId, appId]));
         const students = data.vocab.students;
-        const relation = data.relation[DEFAULT_RELATION_PERIOD];
+        const relation = data.relation.all;
         const connections = relation.edges
           .filter((e) => e.from === dbId || e.to === dbId)
           .map((e) => {
@@ -622,8 +621,8 @@ function mockInsights(studentId: string): Insights {
     ) / 10;
 
   // 대시보드는 기간 토글(1주/2주/4주/누적)로 관계를 보여주지만, 상담 리포트에는 고를 데가
-  // 없으니 대시보드 기본값과 같은 기간을 쓴다.
-  const relation = snapshot.relation[DEFAULT_RELATION_PERIOD];
+  // 없고 "누적 자료"이므로 가장 넓은 누적 기간을 쓴다(짧은 기간이면 오래된 갈등선이 빠진다).
+  const relation = snapshot.relation.all;
   const connections = relation.edges
     .filter((e) => e.from === dashboardId || e.to === dashboardId)
     .map((e) => {

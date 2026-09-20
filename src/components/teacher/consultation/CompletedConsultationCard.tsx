@@ -6,7 +6,7 @@
 
 "use client";
 
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 import { useState } from "react";
 import { formatKstDateTime } from "@/components/shared/datetime";
 import Modal from "@/components/shared/Modal";
@@ -80,9 +80,9 @@ export default function CompletedConsultationCard({ entry, showDate }: { entry: 
 function StudentTag({ entry, className }: { entry: ConsultationLog; className: string }) {
   return (
     <div className={`flex flex-wrap gap-1.5 ${className}`}>
-      <Link href={`/students/${entry.student.studentId}`} className={studentTagLink}>
+      <NavLink href={`/students/${entry.student.studentId}`} className={studentTagLink}>
         @{entry.student.name}
-      </Link>
+      </NavLink>
     </div>
   );
 }

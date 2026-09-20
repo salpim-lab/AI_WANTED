@@ -18,7 +18,7 @@ import CurrentDate from "@/components/teacher/CurrentDate";
 import TeacherAgentWidget from "@/components/teacher/agent/TeacherAgentWidget";
 import SalpimLogo from "@/components/shared/SalpimLogo";
 import HomeIcon from "@/components/shared/HomeIcon";
-import Link from "next/link";
+import NavLink from "@/components/shared/NavLink";
 
 export default function TeacherLayout({
   children,
@@ -37,9 +37,9 @@ export default function TeacherLayout({
             <strong>3학년 2반</strong> · <CurrentDate />
           </div>
           {/* 학생 화면과 같은 자리(맨 오른쪽 모서리)에서 서비스 첫 화면으로 나간다 */}
-          <Link href="/" className="home-link" aria-label="첫 화면으로 가기" title="첫 화면으로">
+          <NavLink href="/" className="home-link" aria-label="첫 화면으로 가기" title="첫 화면으로">
             <HomeIcon className="home-link__icon" />
-          </Link>
+          </NavLink>
         </header>
         {/* 네비(왼쪽 사이드바) + 본문을 가로로 묶는 래퍼.
             .app-body 의 스타일은 TabNav 가 import 하는

@@ -1,6 +1,6 @@
 // 담당: 진승혜
 // 대시보드 영역 5: 감정 어휘 성장 — 그래프가 카드의 중심이다.
-// 숫자/평균/변화량은 그래프를 보조만 한다 (제목 옆 한 줄, 카드 하단 한 줄).
+// 숫자/평균은 그래프를 보조만 한다 (제목 옆 한 줄, 카드 하단 한 줄).
 // 축·격자선을 그리지 않고 막대 위 값과 아래 이름만으로 읽히게 한다.
 // 막대에 올리면 그 아이가 실제로 쓴 표제어를 펼친다 — "14개"라는 숫자만으로는
 // 교사가 무엇을 칭찬하고 무엇을 더 끌어낼지 알 수 없다. 이번 달 새로 쓴 말은 따로 표시한다.
@@ -26,9 +26,6 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
     : 0;
 
   const thisMonth = trend.at(-1) ?? { month: "이번 달", average: 0 };
-  const lastMonth = trend.at(-2) ?? thisMonth;
-  const monthDelta = Math.round((thisMonth.average - lastMonth.average) * 10) / 10;
-  const deltaLabel = `${monthDelta > 0 ? "+" : ""}${monthDelta}`;
 
   /* 가운데 정렬이 기본이고, 양 끝 세 칸만 카드 안쪽으로 붙인다.
      툴팁 폭이 230px 이라 막대 세 칸 남짓을 덮는다 — 그만큼만 끝에서 당기면 잘리지 않는다. */
@@ -44,7 +41,6 @@ export default function VocabGrowthChart({ students, trend }: DashboardData["voc
         <span className="card-sub">이번달 누적 개수</span>
         <span className="vocab-trend-note">
           {thisMonth.month} 평균 {thisMonth.average}개
-          <em className={monthDelta < 0 ? "down" : undefined}>지난달 {deltaLabel}개</em>
         </span>
       </div>
 

@@ -158,8 +158,8 @@
 .briefing-empty { margin: 0; font-size: var(--fs-body); color: var(--faint); }
 /* 상담은 학생 줄 · 학부모 줄로 쌓인다. 줄 사이에 실선을 긋는 대신 소제목과 여백으로 가른다 —
    한 카드 안에 이미 제목 줄이 둘(살펴볼 아이 · 예정된 상담)이라 선을 더하면 칸이 잘게 쪼개 보인다. */
-.briefing-consult-rows { display: flex; flex-direction: column; gap: 14px; }
-.briefing-consult-row { display: flex; flex-direction: column; gap: 7px; }
+.briefing-consult-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.briefing-consult-row { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 /* 줄 이름 — 카드 제목(.card-title)보다 한 급 아래, 행 안 글씨보다는 위 */
 .briefing-row-label {
   display: flex;
@@ -634,18 +634,6 @@
   text-transform: none;
   letter-spacing: 0;
 }
-.vocab-trend-note em {
-  font-style: normal;
-  margin-left: 8px;
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-bold);
-  /* 예전엔 초록(늘었다=좋은 일)이었는데, 남색(신호 4색 중 하나, 이미 대시보드 곳곳에 쓰는 톤)으로 바꿨다 */
-  color: var(--navy-ink);
-  background: var(--navy-bg);
-  border-radius: 99px;
-  padding: 3px 9px;
-}
-.vocab-trend-note em.down { color: var(--yellow-ink); background: var(--yellow-bg); }
 
 .vocab-chart { display: flex; align-items: flex-end; gap: 10px; list-style: none; margin: 0; padding: 0; }
 .vocab-bar-group {
@@ -954,6 +942,7 @@
   .date-control { justify-content: flex-start; flex-wrap: wrap; }
   .page-dashboard .card { padding: 20px 18px; border-radius: 18px; }
   .briefing-list > li { flex-basis: 220px; }
+  .briefing-consult-rows { grid-template-columns: minmax(0, 1fr); }
   .classroom-legend { grid-template-columns: repeat(2, 1fr); }
   .vocab-chart { gap: 4px; }
   .vocab-track { height: 96px; }

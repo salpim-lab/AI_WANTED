@@ -219,5 +219,11 @@
 .page-dashboard .tt-table tbody td.tt-none { background: none; }
 .page-dashboard .tt-period em { font-size: var(--fs-caption); font-weight: var(--fw-regular); }
 
+/* 달력은 헤더 컨트롤 묶음의 오른쪽 끝(= 아래 "살펴볼 아이" 카드의 오른쪽 끝)에 맞춰 왼쪽으로 펼친다.
+   .date-control 의 relative 를 풀어 팝업 기준을 .dashboard-head-controls 로 올린다. */
+.page-dashboard .dashboard-head-controls { position: relative; }
+.page-dashboard .date-control { position: static; }
+.page-dashboard .cal { left: auto; right: 0; }
+
 /* 아이콘 버튼 두 개도 단계 안으로 — 목록 넘김 ‹ › 과 상담 일정 ✎ (Tailwind 쪽 크기) */
 .page-dashboard .briefing-edit { font-size: var(--fs-body); }

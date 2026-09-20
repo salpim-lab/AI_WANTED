@@ -42,7 +42,7 @@ export const seatChartCard =
 export const seatBoard = "rounded-[22px] border border-[#ece9fb] bg-white";
 
 /** 넓은 화면 자리 칸 높이 — 얼굴 + 이름이 들어간다 */
-export const seatCellHeight = "h-[76px]";
+export const seatCellHeight = "h-[76px] lg:h-[112px]";
 
 // ── 화면 공용 묶음 (위 톤으로) ────────────────────────────
 

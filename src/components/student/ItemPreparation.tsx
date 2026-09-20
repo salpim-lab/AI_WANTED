@@ -20,6 +20,9 @@ const PREPARATION_MESSAGES = [
   { title: "섬에서 조금 더 기다려 줘", sub: "아이템 준비가 끝나면 알려줄게.", image: "/brand/salpim-wait-gift.png" },
 ] as const;
 
+// 전부 미리 그려 두고 opacity만 바꿔서, 이미지 로딩 지연 없이 문구와 동시에 바뀐다.
+const PREPARATION_IMAGES = [...new Set(PREPARATION_MESSAGES.map(m => m.image))];
+
 function toItem(job: ItemGenerationJobState | null, demoItem: Item | null): Item {
   const inference = job?.inference_output;
   const fallback = job?.fallback_asset_id && !job.generated_asset_id;
@@ -102,7 +105,7 @@ export default function ItemPreparation({ sessionId, item, onReady, flow = "chec
     <StudentProfile name="김민준" />
     <div className="item-prep__body">
       <span className="item-prep__face" aria-hidden="true">
-        <Image src={message.image} alt="" width={1254} height={1254} priority className="item-prep__character" />
+        {PREPARATION_IMAGES.map(src => <Image key={src} src={src} alt="" width={1254} height={1254} priority className="item-prep__character" style={{ opacity: src === message.image ? 1 : 0 }} />)}
       </span>
       <div role="status" aria-live="polite">
         <h2 className="item-prep__title">{error ? "잠깐, 준비가 멈췄어" : message.title}</h2>

@@ -6,7 +6,7 @@ import { callClaude } from "../anthropic/client";
 import { ITEM_INFERENCE_PROMPT } from "./prompts/item-inference";
 export function buildItemInferenceRequest(messages: TranscriptMessage[]) {
   return {
-    model: process.env.ANTHROPIC_ITEM_MODEL?.trim() || "claude-sonnet-4-6",
+    model: process.env.ANTHROPIC_ITEM_MODEL?.trim() || "claude-haiku-4-5-20251001",
     system: ITEM_INFERENCE_PROMPT,
     messages: [{ role: "user", content: JSON.stringify({ transcript: messages }) }],
     output_config: { format: { type: "json_schema", schema: ITEM_INFERENCE_SCHEMA } },
