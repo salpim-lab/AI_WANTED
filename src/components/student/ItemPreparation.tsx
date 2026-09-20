@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ISLAND_ITEM_WAIT_MS, requestItemGeneration, waitForItemGeneration, type ItemGenerationJobState } from "@/lib/items/itemGenerationClient";
+import { ISLAND_ITEM_WAIT_MS, pollItemGeneration, requestItemGeneration, type ItemGenerationJobState } from "@/lib/items/itemGenerationClient";
 import type { Item } from "./mockScenarios";
 import { preloadIsland } from "./island/preloadIsland";
 import IslandBoard from "./IslandBoard";
@@ -19,15 +19,6 @@ const PREPARATION_MESSAGES = [
   ["이제 섬으로 가 볼까?", "아이템이 준비되는 동안 섬을 먼저 둘러보자."],
   ["섬에서 조금 더 기다려 줘", "아이템 준비가 끝나면 알려줄게."],
 ] as const;
-
-function delay(ms: number, signal: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    const stop = () => { clearTimeout(timer); reject(signal.reason); };
-    const timer = setTimeout(() => { signal.removeEventListener("abort", stop); resolve(); }, ms);
-    signal.addEventListener("abort", stop, { once: true });
-    if (signal.aborted) stop();
-  });
-}
 
 function toItem(job: ItemGenerationJobState | null, demoItem: Item | null): Item {
   const inference = job?.inference_output;
@@ -86,17 +77,11 @@ export default function ItemPreparation({ sessionId, item, onReady, flow = "chec
     async function prepare() {
       if (!sessionId) return;
       await requestItemGeneration(sessionId, signal);
-      while (!signal.aborted) {
-        // Short query windows publish intermediate inference without an extra UI stage.
-        const response = await waitForItemGeneration(sessionId, "placement", { signal, timeoutMs: 1_000 });
-        if (signal.aborted) return;
-        if (response.job) { result = response.job; setJob(result); }
-        if (response.ready && result?.asset?.geometry_spec) {
-          if (elapsed) complete(result);
-          return;
-        }
-        if (response.ready) await delay(500, signal);
-      }
+      // GET은 한 번에 하나씩, 진행 중인 요청은 폴링 주기로 취소하지 않는다(요청 타임아웃 12s ≠ 폴링 간격 1s). 오류는 백오프 뒤 재시도.
+      // 응답마다 onJob으로 중간 추론 결과를 화면에 바로 쓴다. 언마운트(abort) 시 즉시 중단된다.
+      const job = await pollItemGeneration(sessionId, { signal, onJob: (next) => { if (next) { result = next; setJob(next); } } });
+      if (signal.aborted || !job) return;
+      if (elapsed) complete(result);
     }
     void prepare().catch(() => { if (!signal.aborted) setError(true); });
     return () => { controller.abort(); clearInterval(messageTimer); clearTimeout(transitionTimer); clearTimeout(demoTimer); };

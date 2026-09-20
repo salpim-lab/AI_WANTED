@@ -104,7 +104,8 @@ loaded._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOpti
   global.fetch = async (_url, { signal }) => new Promise((_resolve, reject) => {
     signal.addEventListener('abort', () => reject(signal.reason), { once: true });
   });
-  assert.deepEqual(await waitForItemGeneration('session', 'placement', { timeoutMs: 15 }), { ready: false, job: null });
+  // 응답이 없는 요청은 (폴링 창이 아니라) 별도의 요청 타임아웃으로만 끊긴다 — 진행 중인 요청을 창 때문에 취소하지 않는다(2026-09-20).
+  assert.deepEqual(await waitForItemGeneration('session', 'placement', { timeoutMs: 15, requestTimeoutMs: 30 }), { ready: false, job: null });
   console.log('PASS: no claim/attempt/fallback before save; inference published before cached asset issuance.');
   console.log('PASS: two readiness stages, immediate completion, 12s default, timeout including slow fetch.');
   console.log('PASS: Minjun-only MVP access and repeated pre-save requests without login.');
