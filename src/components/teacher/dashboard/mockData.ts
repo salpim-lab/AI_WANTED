@@ -168,8 +168,8 @@ export type RelationDetail = {
   name: string;
   /** 다른 아이 대화에 이 아이 이름이 나온 횟수 — 지도의 원 크기와 같은 수 */
   mentionCount: number;
-  /** 이 아이가 낀 관계선마다 골라 담은 대화 대목(말한 아이 → 언급된 아이). 실제로는 전사에서 그대로 잘라 온다 */
-  quotes: { from: string; to?: string; date: string; text: string }[];
+  /** 다른 아이가 말하면서 이 아이 이름을 부른 대목 — 말한 친구마다 골라 담는다. 실제로는 전사에서 그대로 잘라 온다 */
+  quotes: { from: string; date: string; text: string }[];
   /** 이 아이가 낀 갈등 (최근 것부터) */
   conflicts: ConflictRow[];
 };
@@ -180,7 +180,7 @@ export type RelationPairDetail = {
   b: { studentId: string | number; name: string };
   /** 두 아이가 서로를 말한 총 횟수 */
   mentionCount: number;
-  quotes: { from: string; to?: string; date: string; text: string }[];
+  quotes: { from: string; date: string; text: string }[];
   conflicts: ConflictRow[];
 };
 
@@ -875,6 +875,7 @@ function buildRelationDetails(
   records: ConflictRow[],
 ): { details: Record<number, RelationDetail>; pairs: Record<string, RelationPairDetail> } {
   const byPair = new Map<string, RelationPairDetail["quotes"]>();
+  const byMentioned = new Map<number, Map<number, RelationDetail["quotes"]>>();
 
   for (const date of window) {
     for (const { from, to } of mentionsOn(date)) {
@@ -882,11 +883,15 @@ function buildRelationDetails(
       // 인용은 "말한 아이"의 발화다 — 그 안에 상대 이름이 들어간다
       const quote = {
         from: STUDENT_NAMES[from],
-        to: STUDENT_NAMES[to],
         date,
         text: template.replace("{to}", callName(STUDENT_NAMES[to].slice(1))),
       };
       const key = pairKey(from, to);
+      // 받은 쪽(to) 기준으로, 말한 쪽(from)별로 모은다 — 아이 상세용
+      if (!byMentioned.has(to)) byMentioned.set(to, new Map());
+      const bySpeaker = byMentioned.get(to)!;
+      if (!bySpeaker.has(from)) bySpeaker.set(from, []);
+      bySpeaker.get(from)!.push(quote);
       if (!byPair.has(key)) byPair.set(key, []);
       byPair.get(key)!.push(quote);
     }
@@ -898,15 +903,10 @@ function buildRelationDetails(
       {
         studentId,
         name: STUDENT_NAMES[studentId],
-        // "다른 아이 대화에 이 아이 이름이 나온 횟수" — 지도의 원 크기와 같은 수
-        mentionCount: [...byPair.entries()].reduce(
-          (sum, [key, list]) => sum + (key.split("-").map(Number).includes(studentId) ? list.filter((q) => q.to === STUDENT_NAMES[studentId]).length : 0),
-          0,
-        ),
-        // 이 아이가 낀 관계선마다 최근 것 둘씩 — 한 친구 이야기만 뜨지 않게(실제 집계와 같은 방식)
-        quotes: [...byPair]
-          .filter(([key]) => key.split("-").map(Number).includes(studentId))
-          .flatMap(([, list]) => list.slice(-2))
+        mentionCount: [...(byMentioned.get(studentId)?.values() ?? [])].reduce((sum, list) => sum + list.length, 0),
+        // 그 아이를 언급한 친구마다 최근 것 둘씩 — 한 친구 이야기만 뜨지 않게(실제 집계와 같은 방식)
+        quotes: [...(byMentioned.get(studentId)?.values() ?? [])]
+          .flatMap((list) => list.slice(-2))
           .sort((a, b) => (a.date < b.date ? 1 : -1)),
         conflicts: records.filter((c) => c.pairIds.includes(studentId)),
       },
