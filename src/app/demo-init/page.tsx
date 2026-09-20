@@ -18,48 +18,16 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+// Turnstile 로딩·미리 받은 토큰은 홈(/)과 함께 쓰는 공용 코드다 — 첫 진입 지연 개선(lib/demo/turnstile.ts 머리말 참고).
+import { TURNSTILE_SITE_KEY, loadTurnstile, takePrewarmedToken } from "@/lib/demo/turnstile";
 
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || "";
-const TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-
-type TurnstileApi = {
-  render: (
-    el: HTMLElement,
-    options: {
-      sitekey: string;
-      callback: (token: string) => void;
-      "error-callback"?: () => void;
-      "expired-callback"?: () => void;
-      appearance?: "always" | "execute" | "interaction-only";
-    },
-  ) => string;
-  remove: (widgetId: string) => void;
-};
-declare global {
-  interface Window {
-    turnstile?: TurnstileApi;
-  }
-}
+/** 이 시간이 지나도 화면이 안 넘어가면 새로고침 버튼을 보여 준다(멈춘 것처럼 보일 때 바로 다시 시도할 수 있게). */
+const SLOW_AFTER_MS = 7000;
 
 /** ?next= 는 사이트 안 경로만 허용한다 — 임의 주소로 보내는 오픈 리다이렉트 방지. */
 function safeNext(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/checkin";
   return raw;
-}
-
-function loadTurnstile(): Promise<TurnstileApi> {
-  return new Promise((resolve, reject) => {
-    if (window.turnstile) return resolve(window.turnstile);
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SRC}"]`);
-    const script = existing ?? document.createElement("script");
-    script.addEventListener("load", () => (window.turnstile ? resolve(window.turnstile) : reject(new Error("turnstile missing"))));
-    script.addEventListener("error", () => reject(new Error("turnstile script failed")));
-    if (!existing) {
-      script.src = TURNSTILE_SRC;
-      script.async = true;
-      document.head.appendChild(script);
-    }
-  });
 }
 
 type Status = "loading" | "challenge" | "error";
@@ -78,15 +46,28 @@ function DemoInitBody() {
     router.replace(safeNext(searchParams.get("next")));
   }, [router, searchParams]);
 
+  // 익명 로그인만 — 실패는 던지지 않고 돌려준다(미리 받은 토큰이 거절되면 위젯으로 넘어가야 해서).
+  const signIn = useCallback(async (captchaToken?: string) => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInAnonymously(captchaToken ? { options: { captchaToken } } : undefined);
+    return error;
+  }, []);
+
   const signInThenFinish = useCallback(
     async (captchaToken?: string) => {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInAnonymously(captchaToken ? { options: { captchaToken } } : undefined);
+      const error = await signIn(captchaToken);
       if (error) throw error;
       await finish();
     },
-    [finish],
+    [signIn, finish],
   );
+
+  // 7초 넘게 화면이 안 넘어가면 새로고침 버튼을 보여 준다(오류가 아니어도 오래 걸리면 다시 시도할 수 있게).
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), SLOW_AFTER_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     // React StrictMode(개발)가 effect를 두 번 돌려도 로그인은 한 번만 — 계정이 두 개 생기면 안 된다.
@@ -96,6 +77,10 @@ function DemoInitBody() {
 
     async function run() {
       try {
+        // 스크립트 내려받기는 세션 확인을 기다리지 않고 동시에 시작한다(서로 상관없는 일을 줄 세우지 않는다).
+        const scriptReady = TURNSTILE_SITE_KEY ? loadTurnstile() : null;
+        scriptReady?.catch(() => {}); // 아래에서 await하며 처리한다 — 여기서는 미처리 거부 경고만 막는다
+
         const supabase = createClient();
         const {
           data: { user },
@@ -104,7 +89,16 @@ function DemoInitBody() {
 
         if (!TURNSTILE_SITE_KEY) return await signInThenFinish();
 
-        const turnstile = await loadTurnstile();
+        // 홈에서 미리 받아 둔 사람 확인 토큰이 있으면 위젯을 기다리지 않고 바로 가입한다.
+        // 가입 요청이 거절되면(만료·이미 사용 등) 계정이 만들어지지 않았으므로 평소 흐름(위젯)으로 넘어간다.
+        const prewarmed = takePrewarmedToken();
+        if (prewarmed) {
+          const error = await signIn(prewarmed);
+          if (!error) return await finish();
+          console.warn("[demo-init] 미리 받은 토큰이 거절돼 위젯으로 넘어갑니다:", error.message);
+        }
+
+        const turnstile = await (scriptReady ?? loadTurnstile());
         setStatus("challenge");
         if (!widgetBox.current) throw new Error("no widget box");
         widgetId = turnstile.render(widgetBox.current, {
@@ -130,7 +124,7 @@ function DemoInitBody() {
     return () => {
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, [finish, signInThenFinish]);
+  }, [finish, signIn, signInThenFinish]);
 
   return (
     <div className="grid min-h-screen place-items-center bg-gray-50 px-4 text-center">
@@ -152,6 +146,18 @@ function DemoInitBody() {
           </p>
           {/* Turnstile 위젯 자리 — 확인이 자동으로 끝나면 보이지 않는다 */}
           <div ref={widgetBox} />
+          {slow && (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-gray-400">생각보다 오래 걸리고 있어요.</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
+              >
+                새로고침
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
