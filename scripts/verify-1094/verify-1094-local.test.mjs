@@ -313,3 +313,32 @@ test("롤백 SQL: 방문자/공용 데이터가 생긴 뒤에는 전체 롤백�
   assert.equal((await d.query("select count(*)::int n from pg_indexes where indexname = 'student_items_daily_slot_owner'")).rows[0].n, 1);
   await d.close();
 });
+
+// ============================================================================
+// 공용 시드 INSERT SQL(승인 전에는 공유 DB에서 실행하지 않는다) — 1094가 적용된 로컬 DB에서만 실행해 본다.
+import { buildSeedSql } from "../generate-demo-island-seed-sql.mjs";
+const SEED_CANDIDATES = JSON.parse(readFileSync(new URL("../demo-island-seed/candidates.json", import.meta.url), "utf8")).candidates;
+
+test("공용 시드 SQL: 15종 공용 아이템+배치가 생기고, 방문자에게 동일하게 보이며, 부모 링크가 없고, 재실행은 거부된다", async () => {
+  const d = await migratedDb();
+  for (const [index, candidate] of SEED_CANDIDATES.entries()) {
+    await d.query("insert into public.asset_catalog (id, dedup_key, name) values ($1,$2,$3)", [uuid(900 + index), candidate.dedupKey, candidate.name]);
+  }
+  const sql = buildSeedSql();
+  assert.equal(sql, readFileSync(new URL("../demo-island-seed/seed-public-island.sql", import.meta.url), "utf8"), "커밋된 seed-public-island.sql이 생성 결과와 같아야 한다");
+  await d.exec(sql);
+  const counts = (await d.query("select (select count(*)::int from public.student_items where is_public_demo) items, (select count(*)::int from public.island_placements) placements, (select count(*)::int from public.islands where is_public_demo) islands, (select count(*)::int from public.student_items where is_public_demo and (source_session_id is not null or demo_owner_id is not null)) linked")).rows[0];
+  assert.deepEqual(counts, { items: 15, placements: 15, islands: 1, linked: 0 });
+  assert.equal((await d.query("select count(*)::int n from public.student_items where id in ($1,$2)", [uuid(201), uuid(202)])).rows[0].n, 2, "기존(레거시) 행은 그대로");
+  for (const who of [visitor(U.A), visitor(U.B)]) {
+    const placed = await as(d, who, () => d.query("select student_item_id as id, position_x, position_z from public.island_placements order by student_item_id"));
+    assert.equal(placed.rows.length, 15, "모든 방문자에게 공용 15개가 보인다");
+    assert.equal((await as(d, who, () => d.query("select id from public.asset_catalog"))).rows.length, 15, "공용 아이템이 참조하는 자산 15종이 보인다");
+  }
+  const a = await as(d, visitor(U.A), () => d.query("select student_item_id, position_x, position_z from public.island_placements order by student_item_id"));
+  const b = await as(d, visitor(U.B), () => d.query("select student_item_id, position_x, position_z from public.island_placements order by student_item_id"));
+  assert.deepEqual(a.rows, b.rows, "A·B에게 동일");
+  await assert.rejects(d.exec(sql), /이미 있다|already|중복/);
+  await d.exec("rollback");
+  await d.close();
+});
