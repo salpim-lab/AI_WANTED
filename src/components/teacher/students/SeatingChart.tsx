@@ -19,7 +19,7 @@ import {
   SIGNAL_DOT,
   SIGNAL_MOOD_LABEL,
   SIGNAL_SEAT_FILL,
-  SIGNAL_SEAT_FILL_SELECTED,
+  SIGNAL_SEAT_RING_SELECTED,
 } from "@/components/shared/signalStyles";
 import {
   emptyState,
@@ -45,7 +45,7 @@ type Period = keyof typeof PERIOD_LABEL;
 
 /** 아직 체크인 안 한 아이 — 회색 카드와 범례 점 */
 const NOT_YET_CARD = "border border-[#e4e6ec] bg-[#f1f2f5] text-black";
-const NOT_YET_CARD_SELECTED = "border border-[#a9afc0] bg-[#b4b9c8] text-black";
+const NOT_YET_CARD_SELECTED = `${NOT_YET_CARD} ring-2 ring-inset ring-[#6b7288]`;
 const NOT_YET_DOT = "border-[#d5d8e0] bg-[#e4e6ec]";
 
 function colorOf(seat: SeatingStudent, period: Period): SignalColor | null {
@@ -201,9 +201,9 @@ function SeatCard({
   const amLabel = seat.todayMorning ? SIGNAL_MOOD_LABEL[seat.todayMorning] : "아직 안 함";
   const pmLabel = seat.todayAfternoon ? SIGNAL_MOOD_LABEL[seat.todayAfternoon] : "아직 안 함";
 
-  // 선택돼도 배경색 계열은 그대로, 테두리 없이 같은 색이 진해지는 것으로만 표시한다
+  // 선택돼도 배경색은 그대로, 같은 계열의 진한 색 테두리로만 표시한다
   const tone = mainColor
-    ? `${selected ? SIGNAL_SEAT_FILL_SELECTED[mainColor] : SIGNAL_SEAT_FILL[mainColor]} shadow-[0_1px_2px_rgba(0,0,0,.06)]`
+    ? `${SIGNAL_SEAT_FILL[mainColor]} ${selected ? SIGNAL_SEAT_RING_SELECTED[mainColor] : ""} shadow-[0_1px_2px_rgba(0,0,0,.06)]`
     : selected
       ? NOT_YET_CARD_SELECTED
       : NOT_YET_CARD;

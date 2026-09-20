@@ -44,11 +44,10 @@ export const SIGNAL_SEAT_FILL: Record<SignalColor, string> = {
   navy: "bg-[#26398c]/50 text-black",
 };
 
-/** 자리를 골랐을 때 — 같은 색이 투명 없이 꽉 차서 평소(50%)보다 확 진해진다. 테두리는 쓰지 않는다.
- *  남색은 원래 색(#26398c)을 꽉 채우면 검정 글자가 안 읽혀서 한 단계 밝은 남색(student-mood.css --dome-light)을 쓴다 */
-export const SIGNAL_SEAT_FILL_SELECTED: Record<SignalColor, string> = {
-  green: "bg-[#15c656] text-black",
-  yellow: "bg-[#f5c518] text-black",
-  red: "bg-[#f0403f] text-black",
-  navy: "bg-[#4560bd] text-black",
+/** 자리를 골랐을 때 — 배경은 그대로 두고 같은 계열의 진한 색 테두리만 얹는다(ring이라 칸 크기가 안 변한다) */
+export const SIGNAL_SEAT_RING_SELECTED: Record<SignalColor, string> = {
+  green: "ring-2 ring-inset ring-[#0c8a37]",
+  yellow: "ring-2 ring-inset ring-[#a88300]",
+  red: "ring-2 ring-inset ring-[#b12120]",
+  navy: "ring-2 ring-inset ring-[#26398c]",
 };
