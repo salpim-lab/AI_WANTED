@@ -5,6 +5,7 @@
 //    학생 화면을 직접 눌러 보면 봉인돼 지워지지 않는 체크인 세션이 남으므로, 문장만 볼 때는 이걸 쓴다.
 // 실행: node scripts/try-chat-quality.cjs
 //       CHAT_MODEL=claude-haiku-4-5-20251001 node scripts/try-chat-quality.cjs
+//       ONLY="발표,시험" node scripts/try-chat-quality.cjs     (그 낱말이 든 발화만)
 // 키: .env.local 의 ANTHROPIC_API_KEY. 발화를 바꾸려면 아래 cases 를 고친다.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -80,14 +81,19 @@ const cases = [
   ['checkout', 'red', [A('무슨 일이 있었어?'), S('짝이 제 필통을 말도 없이 가져갔어요.')]],
   ['checkout', 'navy', [A('오늘도 조용히 있고 싶었구나.'), S('네. 오늘도 그냥 피곤했어요.')]],
   ['checkout', 'red', [A('무슨 일이 있었어?'), S('친구들이 저만 빼고 놀았어요.'), A('그때 어떤 마음이 들었어?'), S('좀 외로웠어요.')]],
+  ['checkin', 'yellow', [A('오늘 마음은 어때?'), S('내일 시험인데 걱정돼요.')]],
+  ['checkin', 'green', [A('기분 좋은 일이 있었나 봐?'), S('내일 소풍 가요! 너무 기대돼요.')]],
   ['checkin', 'green', [A('무슨 일이 있었어?'), S('주말에 가족이랑 놀이공원 갔어요.'), A('갔을 때 마음이 어땠어?'), S('롤러코스터 탔는데 무서웠지만 재밌었어요.')]],
 ];
 
 const replies = [];
+// ONLY="발표,시험" 처럼 주면 그 낱말이 들어간 발화만 돌린다 — 한도를 아끼려고 일부만 볼 때 쓴다
+const only = (process.env.ONLY || '').split(',').map(w => w.trim()).filter(Boolean);
+const picked = only.length ? cases.filter(([, , t]) => only.some(w => JSON.stringify(t).includes(w))) : cases;
 (async () => {
   if (!env.ANTHROPIC_API_KEY) { console.error('.env.local 에 ANTHROPIC_API_KEY 가 없습니다.'); process.exit(1); }
   console.log('모델:', process.env.CHAT_MODEL || `(기본값 ${turn.DEFAULT_CHAT_MODEL})`, '\n');
-  for (const [flow, color, transcript] of cases) {
+  for (const [flow, color, transcript] of picked) {
     const studentTurns = transcript.filter(m => m.speaker === 'student').length;
     const started = Date.now();
     const [a, b] = await Promise.all([
