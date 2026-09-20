@@ -53,7 +53,6 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
   const keyword = firstParam(params.q);
   const requestedStudentId = firstParam(params.student);
   const studentId = students.some((s) => s.studentId === requestedStudentId) ? requestedStudentId : undefined;
-  const searching = Boolean(keyword || studentId);
 
   // 예정된 상담에서 넘어온 경우 — 우리 반 아이이고 시각을 읽을 수 있을 때만 팝업을 연다
   const consultStudentId = firstParam(params.consult);
@@ -68,7 +67,7 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
   // 다른 방문자가 새로 쓴 기록은 이 목록에 안 보이게 한다. 자세한 내용은 observationLog.ts 참고.
   const feedObservations = await listObservationLogs(
     teacher.classId,
-    searching || !date ? { keyword, studentId } : { from: date, to: date },
+    { keyword, studentId, ...(date && { from: date, to: date }) },
     teacher.id,
   );
 
