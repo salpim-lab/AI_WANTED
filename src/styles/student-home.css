@@ -692,6 +692,16 @@
   .sh-teacher-tip { transition: none; }
 }
 
+/* 칠판 손글씨("오늘도 좋은 하루 보내자!")는 편지를 닫기 시작하면 봉투보다 먼저 빠진다 */
+@keyframes shHandAway {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+.sh-hand--away { animation: shHandAway 0.45s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .sh-hand--away { animation: none; opacity: 0; }
+}
+
 /* 등교 홈 → 마음 신호등: 편지 봉투가 내려가는 도중에 마음 신호등 화면이 랜딩 화면처럼 사악 떠오른다.
    바탕은 제자리에서 나타나고(아래 홈이 비쳐 보인다), 글과 판만 아래에서 위로 살짝 올라온다.
    ⚠️ 시간은 MorningHome 의 CROSSFADE_LEAD_MS · StudentHome 의 LINGER_MS 와 맞춘다.
