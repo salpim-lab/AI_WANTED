@@ -61,11 +61,9 @@ function renderLine(line: string, key: number) {
 export default function TeacherLetter({
   data,
   closing,
-  onClose,
 }: {
   data: LetterData;
   closing: boolean;
-  onClose: () => void;
 }) {
   return (
     // 클립 바닥 77.6cqh는 유지한다. 봉투 높이를 늘리되 bottom:0으로 바닥을 맞춘다.
@@ -98,21 +96,9 @@ export default function TeacherLetter({
 
       {/* 편지지 — 정확히 한 장, 반듯하게. 목업 기준 세로 15~66%. */}
       <div className="sh-letter-paper sh-letter-entering absolute left-1/2 top-[11.5cqh] z-[2] w-[70cqh] max-w-[56cqw] -translate-x-1/2 px-[3cqh] pb-[20cqh] pt-[2.4cqh]">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={closing}
-          aria-label="편지 닫기"
-          className="sh-letter-close right-[1.6cqh] top-[1.8cqh]"
-          style={{ width: "4.4cqh", height: "4.4cqh" }}
-        >
-          <svg viewBox="0 0 20 20" style={{ width: "2cqh" }} aria-hidden="true">
-            <path d="M5 5 15 15M15 5 5 15" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-        </button>
 
         {/* 머리말 */}
-        <div className="flex items-center gap-[1.8cqh] pr-[6cqh]">
+        <div className="flex items-center gap-[1.8cqh] pr-[1cqh]">
           {/* 교사 사진은 넣지 않기로 했다(2026-09-16). 아바타 원 자체를 두지 않는다. */}
           {/* 아바타 원을 없앤 뒤로는 두 줄로 끊을 이유가 없어 한 줄로 쓴다 */}
           {/* 아이에게는 선생님 이름보다 "담임선생님" 이 바로 와닿는다 — 이름은 넣지 않는다(2026-09-20) */}

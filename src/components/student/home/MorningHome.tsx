@@ -1,8 +1,9 @@
 // 담당: 이유민 (Claude 세션)
 // 등교 홈.
-//  - 처음: 선생님 편지가 중앙에 열려 있고 CTA 는 아래
-//  - 편지를 X 로 닫으면: 편지지가 봉투로 들어가고 덮개가 닫힌 뒤 봉투가 아래로 미끄러져 내려간다.
-//    인사는 봉투가 내려가는 도중에 겹쳐 떠오른다 — 봉투가 다 사라진 뒤에 뜨면 화면이 뚝 끊긴다.
+//  - 처음: 선생님 편지가 중앙에 열려 있고 CTA("오늘의 마음 이야기하기") 는 아래. 편지에는 닫기(X) 버튼이 없다.
+//  - CTA 를 누르면: 편지지가 봉투로 들어가고 덮개가 닫힌 뒤 봉투가 아래로 미끄러져 내려간다.
+//    봉투가 다 내려가면 곧바로 마음 신호등 화면으로 넘어간다(인사를 다시 띄우지 않는다).
+//  - 편지가 없는 날: 인사 화면의 CTA 로 바로 넘어간다.
 //  - 동작 값은 letterMotion.ts 한곳에 있다. 개발 중에는 /checkin?tune=1 에서 눈으로 맞출 수 있다.
 "use client";
 
@@ -45,6 +46,8 @@ export default function MorningHome({
   const [introDismissed, setIntroDismissed] = useState(false);
 
   const closeStarted = useRef(false);
+  /** 닫기가 끝나면 다음 화면으로 갈지 (CTA 로 닫았을 때만 true, 조절 패널의 다시 보기는 false) */
+  const advanceAfterClose = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const replayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,6 +91,11 @@ export default function MorningHome({
       if (timer.current !== null) clearTimeout(timer.current);
       timer.current = null;
       setHidden(true);
+      // CTA 로 닫은 경우: 봉투가 다 내려가면 다음 화면으로
+      if (advanceAfterClose.current) {
+        advanceAfterClose.current = false;
+        onNext();
+      }
     }
     function onMotionChange() { if (motion.matches) finish(); }
     // 봉투가 다 내려간 시각. 값은 letterMotion.ts 에서 CSS 와 함께 온다.
@@ -98,6 +106,8 @@ export default function MorningHome({
       timer.current = null;
       motion.removeEventListener("change", onMotionChange);
     };
+    // onNext 는 부모가 매번 새로 만들 수 있어 의존성에 넣지 않는다 — 넣으면 닫는 중에 타이머가 다시 걸린다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closing, exitMs]);
 
   useEffect(
@@ -107,11 +117,16 @@ export default function MorningHome({
     [],
   );
 
-  function close() {
+  function close(advance = false) {
     if (closeStarted.current) return;
     closeStarted.current = true;
+    advanceAfterClose.current = advance;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setHidden(true);
+      if (advance) {
+        advanceAfterClose.current = false;
+        onNext();
+      }
       return;
     }
     setClosing(true);
@@ -133,12 +148,13 @@ export default function MorningHome({
     setHidden(false);
     setRun((r) => r + 1);
     // 편지지가 다 올라온 다음(2.4s)에 닫는다
-    replayTimer.current = setTimeout(close, 2700);
+    replayTimer.current = setTimeout(() => close(), 2700);
   }
 
   const showPrelude =
     !introDismissed && !closing && !hidden && (waitingForLetter || hasLetter);
-  const showIntro = !waitingForLetter && (!view || closing || hidden);
+  // 편지가 있는 날은 편지를 닫으면 바로 다음 화면으로 가므로 인사 화면을 다시 띄우지 않는다
+  const showIntro = !waitingForLetter && !view;
   const showLetter = view && letterStarted && !hidden;
 
   return (
@@ -172,11 +188,12 @@ export default function MorningHome({
 
       {showLetter && (
         <>
-          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} onClose={close} />
+          <TeacherLetter key={`letter-${run}`} data={view} closing={closing} />
           <div
             className={`absolute top-[82cqh] left-1/2 z-[4] -translate-x-1/2 ${closing ? "sh-letter-cta-away" : "sh-letter-cta-in"}`}
           >
-            <CtaButton onClick={next} />
+            {/* 누르면 편지를 닫는 동작을 먼저 하고, 봉투가 내려간 뒤 마음 신호등으로 넘어간다 */}
+            <CtaButton onClick={() => close(true)} />
           </div>
         </>
       )}
