@@ -1,7 +1,7 @@
 // 담당: 김현우
 // 학부모상담기록 — 왼쪽 "예정된 상담"(아직 안 함, 누적 자료로 준비) / 오른쪽 "완료한 상담"(끝난 것,
 // 실제 나눈 이야기 열람) 두 칼럼. 예정 카드는 가로 한 줄짜리 행이고, 완료한 상담 카드는 학생관찰일지 피드 카드와 같은 세로 모양이다. 머리줄에 날짜(DateControl)·검색과 [상담 예약]·[상담 기록] 버튼을 같이 둔다.
-// 두 칼럼 모두 고른 날짜의 상담만 보여주고, 날짜를 안 골랐으면(기본, "전체") 기간 제한 없이 다 보여준다. 학생·키워드로 검색 중이면 완료한 상담은 전체 기간에서 찾는다.
+// 두 칼럼 모두 고른 날짜의 상담만 보여주고, 날짜를 안 골랐으면(기본, "전체") 기간 제한 없이 다 보여준다. 학생·키워드는 날짜와 함께 적용된다.
 // 검색(RecordSearch)은 입력하는 대로 URL을 바꾸고 서버가 다시 조회한다 — 완료한 상담에만 적용한다
 // (예정은 보통 몇 건 안 돼서 검색이 필요 없다).
 // 예정 카드(ScheduledConsultationCard): 카드를 누르면 상담 내용 작성 팝업, ✎는 일정 변경.
@@ -31,7 +31,7 @@ export default function ConsultationBoard({
   scheduled: ScheduledConsultation[];
   students: ClassStudent[];
   filter: ConsultationFilter;
-  /** YYYY-MM-DD (KST) — 예정 목록은 이 날짜부터 앞으로, 완료 목록은 이 날짜 하루로 거른다 (검색 중이면 완료 목록은 전체 기간). null이면 "전체" — 날짜로 거르지 않는다 */
+  /** YYYY-MM-DD (KST) — 예정 목록은 이 날짜부터 앞으로, 완료 목록은 이 날짜 하루로 거른다 (학생·키워드와 함께 적용된다). null이면 "전체" — 날짜로 거르지 않는다 */
   date: string | null;
   today: string;
   reportDays: number;
@@ -80,7 +80,7 @@ export default function ConsultationBoard({
             <ul className="grid gap-2.5">
               {entries.map((entry) => (
                 <li key={entry.id}>
-                  <CompletedConsultationCard entry={entry} showDate={hasFilter || !date} />
+                  <CompletedConsultationCard entry={entry} showDate={!date} />
                 </li>
               ))}
             </ul>

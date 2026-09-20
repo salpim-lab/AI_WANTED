@@ -44,7 +44,7 @@ export default function ObservationBoard({
   date: string | null;
   today: string;
   type: RecordTypeFilter;
-  /** keyword·studentId 중 하나라도 있으면 날짜 제한 없이 전체 기간에서 검색한 결과를 보고 있는 상태다 */
+  /** date·keyword·studentId는 함께 적용된다 */
   keyword?: string;
   studentId?: string;
   observations: ObservationLog[];
@@ -54,6 +54,7 @@ export default function ObservationBoard({
   const items = observations.filter((entry) => matchesType(entry, type));
   const searching = Boolean(keyword || studentId);
   const searchLabel = [
+    date && formatKstDate(date),
     studentId && students.find((s) => s.studentId === studentId)?.name,
     keyword && `"${keyword}"`,
   ]
@@ -91,7 +92,7 @@ export default function ObservationBoard({
               <ul className="grid gap-2.5">
                 {soloItems.map((entry) => (
                   <li key={entry.id}>
-                    <ObservationFeedCard entry={entry} showDate={searching || date === null} />
+                    <ObservationFeedCard entry={entry} showDate={date === null} />
                   </li>
                 ))}
               </ul>
@@ -105,7 +106,7 @@ export default function ObservationBoard({
               <ul className="grid gap-2.5">
                 {multiItems.map((entry) => (
                   <li key={entry.id}>
-                    <ObservationFeedCard entry={entry} showDate={searching || date === null} />
+                    <ObservationFeedCard entry={entry} showDate={date === null} />
                   </li>
                 ))}
               </ul>
