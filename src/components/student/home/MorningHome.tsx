@@ -169,10 +169,7 @@ export default function MorningHome({
     // display: contents — 자리를 차지하지 않고 CSS 변수만 아래로 내려보낸다
     <div style={{ ...letterMotionVars(motionValues), display: "contents" }}>
       {/* 칠판 오른쪽 손글씨 — 편지 유무와 관계없이 유지 */}
-      {/* 편지를 닫기 시작하면 먼저 사라진다. 마음 신호등 화면이 떠오른 뒤까지 남아 있으면 그 위에 늦게 빠져 보였다 */}
-      <p
-        className={`sh-hand sh-hand--chalk absolute right-[3.2cqw] top-[36cqh] z-[2] text-right text-[2.6cqh]${closing || hidden ? " sh-hand--away" : ""}`}
-      >
+      <p className="sh-hand sh-hand--chalk absolute right-[3.2cqw] top-[36cqh] z-[2] text-right text-[2.6cqh]">
         오늘도
         <br />
         좋은 하루
