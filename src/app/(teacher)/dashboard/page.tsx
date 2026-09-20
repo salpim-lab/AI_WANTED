@@ -45,9 +45,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const { date } = await searchParams;
   const dateKey = resolveDashboardDate(date);
   const teacher = await getActingTeacher();
-  const data = await getDashboardDataFromSupabase(teacher.classId, dateKey);
+  // 대시보드 데이터와 그날 예정 상담은 서로 무관하다 — 차례로 기다리지 않고 동시에 읽는다
+  const [data, consultations] = await Promise.all([
+    getDashboardDataFromSupabase(teacher.classId, dateKey),
+    listScheduledConsultationsOn(teacher.classId, dateKey),
+  ]);
   const { isToday } = data;
-  const consultations = await listScheduledConsultationsOn(teacher.classId, dateKey);
 
   return (
     <SalpimBackdrop>

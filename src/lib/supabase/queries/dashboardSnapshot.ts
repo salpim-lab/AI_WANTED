@@ -1,7 +1,7 @@
 import { addDays, todayKst, toKstDate } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
 import { getDemoScope, ownerOrFilter } from "@/lib/demo/scope";
-import { loadOpenMeetingRequests, loadVisibleConflictRecords } from "@/lib/supabase/queries/dashboardScope";
+import { loadOpenMeetingRequests, loadVisibleConflictRecords, type OpenMeetingRequest } from "@/lib/supabase/queries/dashboardScope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 import { canonicalize } from "@/lib/vocab/lexicon";
@@ -322,6 +322,41 @@ function buildMood(students: StudentSignal[]): MoodShare[] {
 
 type EmotionRun = { source_id: string; created_at: string; result: unknown };
 
+/** IN 조건 묶음을 이만큼씩 동시에 보낸다 — 세션이 수천 개로 늘어도 한꺼번에 수십 개 요청이 나가지 않게 */
+const ANALYSIS_QUERY_CONCURRENCY = 8;
+
+/**
+ * 세션들의 감정 어휘 분석(analysis_runs.emotion_vocab) — 아침 브리핑과 감정 어휘 성장 카드가 같은 행을 쓰므로 한 번만 읽는다.
+ * source_id는 이미 방문자 스코프로 좁혀진 세션 id라, 여기서 따로 스코프를 걸 필요가 없다(예전과 같다).
+ * IN 조건은 URL 길이 때문에 100개씩 나누되, 차례로 기다리지 않고 묶음끼리 동시에 보낸다.
+ */
+async function loadEmotionRuns(sessionIds: string[]): Promise<EmotionRun[]> {
+  if (!envReady() || sessionIds.length === 0) return [];
+  const client = createAdminClient();
+  const batches: string[][] = [];
+  for (let index = 0; index < sessionIds.length; index += ANALYSIS_QUERY_BATCH_SIZE) {
+    batches.push(sessionIds.slice(index, index + ANALYSIS_QUERY_BATCH_SIZE));
+  }
+  const runs: EmotionRun[] = [];
+  for (let index = 0; index < batches.length; index += ANALYSIS_QUERY_CONCURRENCY) {
+    const results = await Promise.all(
+      batches.slice(index, index + ANALYSIS_QUERY_CONCURRENCY).map(async (ids) => {
+        const { data, error } = await client
+          .from("analysis_runs")
+          .select("source_id, created_at, result")
+          .eq("analysis_type", ANALYSIS_TYPE)
+          .eq("source_type", "session")
+          .eq("status", "completed")
+          .in("source_id", ids);
+        if (error) throw error;
+        return (data ?? []) as EmotionRun[];
+      }),
+    );
+    for (const batch of results) runs.push(...batch);
+  }
+  return runs;
+}
+
 function latestSession(sessions: DashboardSession[], enrollmentId: string, date: string, period: CheckinPeriod) {
   return sessions
     .filter((session) => session.enrollment_id === enrollmentId && session.session_date === date && session.period === period)
@@ -372,27 +407,21 @@ function prosodyRatios(today: DashboardSession | undefined, history: DashboardSe
   return { speechRatio: current.speech / speechBase, latencyRatio: current.latency / latencyBase };
 }
 
-async function buildBriefing(roster: RosterStudent[], sessions: DashboardSession[], dateKey: string, conflicts: ConflictRow[]): Promise<BriefingStudent[]> {
+/** emotionRuns·requests는 호출부(getDashboardDataFromSupabase)가 미리, 다른 조회와 동시에 읽어 넘긴다 — 이 함수는 계산만 한다.
+    emotionRuns는 브리핑이 보는 세션보다 넓을 수 있지만(감정 어휘 카드와 공유), 아래에서 세션 id로만 꺼내 쓰므로 결과는 같다. */
+function buildBriefing(
+  roster: RosterStudent[],
+  sessions: DashboardSession[],
+  dateKey: string,
+  conflicts: ConflictRow[],
+  emotionRuns: EmotionRun[],
+  requests: OpenMeetingRequest[],
+): BriefingStudent[] {
   if (!envReady() || roster.length === 0) return [];
-  const client = createAdminClient();
   const briefingSessions = sessions.filter((session) => session.session_date >= addDays(dateKey, -BRIEFING_HISTORY_DAYS));
-  const sessionIds = briefingSessions.map((session) => session.id);
-  const emotionRuns: EmotionRun[] = [];
-  for (let index = 0; index < sessionIds.length; index += ANALYSIS_QUERY_BATCH_SIZE) {
-    const { data, error } = await client.from("analysis_runs").select("source_id, created_at, result")
-      .eq("analysis_type", ANALYSIS_TYPE).eq("source_type", "session").eq("status", "completed")
-      .in("source_id", sessionIds.slice(index, index + ANALYSIS_QUERY_BATCH_SIZE));
-    if (error) throw error;
-    emotionRuns.push(...((data ?? []) as EmotionRun[]));
-  }
   const emotionBySession = new Map<string, EmotionRun>();
   for (const run of emotionRuns) if (!emotionBySession.get(run.source_id) || emotionBySession.get(run.source_id)!.created_at < run.created_at) emotionBySession.set(run.source_id, run);
 
-  // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 상담 신청은 enrollment 단위로 읽으면 방문자 전원이 같은 학생(민준)을
-  // 공유해서 다른 방문자의 신청이 섞인다. source_session_id의 부모 세션 소유자로 좁힌다: "공용 시드 세션 + 현재 방문자 세션"만
-  // (checkins/meetingRequests.ts와 같은 규칙). 세션이 없는 신청은 소유자를 못 가려서 방문자에게는 안 보인다(fail-closed).
-  // 구현은 dashboardScope.ts(스코프를 인자로 받아 실제 DB 대조 테스트가 가능하다).
-  const requests = await loadOpenMeetingRequests(client, roster.map((student) => student.enrollmentId), await getDemoScope());
   const requestByEnrollment = new Map(requests.sort((a, b) => a.requested_at.localeCompare(b.requested_at)).map((row) => [row.enrollment_id, row]));
 
   const aliases = roster.map((student) => ({ enrollmentId: student.enrollmentId, aliases: aliasesFor(student.name) }));
@@ -631,7 +660,13 @@ export function buildRelation(
     분석이 아직 없는 세션은 그냥 "표제어 0개"로 잡힌다 — 평균을 0으로 깎아내리지 않으려면
     호출부에서 분석 진행 상황(pending)을 따로 보여줘야 하지만, 지금 카드는 그 자리가 없어
     숫자만 정직하게 낮게 나온다("분석 대기" 문구는 UI 변경 없이는 넣을 곳이 없다). */
-export async function buildVocab(roster: RosterStudent[], sessions: DashboardSession[], dateKey: string): Promise<DashboardData["vocab"]> {
+export async function buildVocab(
+  roster: RosterStudent[],
+  sessions: DashboardSession[],
+  dateKey: string,
+  /** 이미 읽어 둔 감정 어휘 분석(아침 브리핑과 공유). 안 넘기면 여기서 읽는다 */
+  preloadedRuns?: EmotionRun[],
+): Promise<DashboardData["vocab"]> {
   const withTranscript = sessions.filter((session) => session.transcript !== null && session.session_date <= dateKey);
   if (roster.length === 0) {
     return { students: [], trend: [{ month: monthLabel(dateKey.slice(0, 7)), average: 0 }] };
@@ -643,21 +678,7 @@ export async function buildVocab(roster: RosterStudent[], sessions: DashboardSes
     };
   }
 
-  const client = createAdminClient();
-  const runs = [] as { source_id: string; result: unknown }[];
-  const sourceIds = withTranscript.map((session) => session.id);
-  for (let index = 0; index < sourceIds.length; index += ANALYSIS_QUERY_BATCH_SIZE) {
-    const { data, error } = await client
-      .from("analysis_runs")
-      .select("source_id, result")
-      .eq("analysis_type", ANALYSIS_TYPE)
-      .eq("source_type", "session")
-      .eq("status", "completed")
-      .in("source_id", sourceIds.slice(index, index + ANALYSIS_QUERY_BATCH_SIZE));
-
-    if (error) throw error;
-    runs.push(...((data ?? []) as { source_id: string; result: unknown }[]));
-  }
+  const runs = preloadedRuns ?? (await loadEmotionRuns(withTranscript.map((session) => session.id)));
 
   const lemmasBySession = new Map<string, string[]>();
   for (const run of runs) {
@@ -713,25 +734,28 @@ async function loadConflicts(classId: string): Promise<ConflictRow[]> {
 
   const recordIds = records.map((r) => r.id);
 
-  const { data: links, error: linksError } = await client
-    .from("work_record_students")
-    .select("work_record_id, enrollment_id")
-    .in("work_record_id", recordIds);
+  // 관련 학생 연결과 진술은 서로 무관하다 — 동시에 읽는다
+  const [
+    { data: links, error: linksError },
+    { data: statementRows, error: statementsError },
+  ] = await Promise.all([
+    client.from("work_record_students").select("work_record_id, enrollment_id").in("work_record_id", recordIds),
+    client
+      .from("conflict_statements")
+      .select("work_record_id, speaker_label, content, created_at")
+      .in("work_record_id", recordIds)
+      .order("created_at"),
+  ]);
   if (linksError) throw linksError;
-
-  const { data: statementRows, error: statementsError } = await client
-    .from("conflict_statements")
-    .select("work_record_id, speaker_label, content, created_at")
-    .in("work_record_id", recordIds)
-    .order("created_at");
   if (statementsError) throw statementsError;
   // conflict_statements 는 speaker_label 을 자유 텍스트로 남기므로 tone 색은 따로 없다 —
   // RelationDetailPane 의 STATEMENT_COLOR.muted 로 통일해 둔다(색으로 판정을 덧붙이지 않는다).
 
   const enrollmentIds = [...new Set((links ?? []).map((l) => l.enrollment_id))];
+  // 학생 이름도 같은 조회에서 함께 읽는다 (loadRoster와 같은 임베드)
   const { data: enrollments, error: enrollError } = await client
     .from("enrollments")
-    .select("id, student_id")
+    .select("id, student_id, students(display_name)")
     .in("id", enrollmentIds.length ? enrollmentIds : ["00000000-0000-0000-0000-000000000000"]);
   if (enrollError) throw enrollError;
   const studentIdByEnrollment = new Map((enrollments ?? []).map((e) => [e.id, e.student_id as string]));
@@ -750,14 +774,8 @@ async function loadConflicts(classId: string): Promise<ConflictRow[]> {
   }
 
   const nameOf = new Map<string, string>();
-  for (const e of enrollments ?? []) nameOf.set(e.student_id, "");
-  if (nameOf.size) {
-    const { data: students, error: studentsError } = await client
-      .from("students")
-      .select("id, display_name")
-      .in("id", [...nameOf.keys()]);
-    if (studentsError) throw studentsError;
-    for (const s of students ?? []) nameOf.set(s.id, s.display_name);
+  for (const e of enrollments ?? []) {
+    nameOf.set(e.student_id, (e.students as { display_name?: string } | null)?.display_name ?? "");
   }
 
   const rows: ConflictRow[] = [];
@@ -800,20 +818,38 @@ function buildClassroomPeriod(
   return { weather: { ...weather, question }, mood: buildMood(students) };
 }
 
+async function loadOpenRequests(roster: RosterStudent[]): Promise<OpenMeetingRequest[]> {
+  if (!envReady() || roster.length === 0) return [];
+  return loadOpenMeetingRequests(createAdminClient(), roster.map((student) => student.enrollmentId), await getDemoScope());
+}
+
 export async function getDashboardDataFromSupabase(classId: string, dateKey: string): Promise<DashboardData> {
   const roster = await loadRoster(classId);
-  // 브리핑의 개인 기준선·친구 언급 규칙은 최근 이력이 필요하다. 관계 지도보다 넓은 90일을 읽는다.
-  const sessions = await loadSessions(roster, addDays(dateKey, -89), dateKey);
+
+  // 아래 세 조회는 서로 무관하다(명단만 있으면 된다) — 차례로 기다리지 않고 동시에 보낸다.
+  //  · 세션: 감정 어휘는 관계 지도의 "최근 N일" 창과 달리 학기 시작 이후 누적이라 90일보다 앞선 세션도 셀 수 있어야 한다.
+  //    그래서 넓게 한 번만 읽고, 브리핑·관계 지도가 쓰는 최근 90일은 아래에서 그 결과를 잘라 쓴다(같은 조건이라 같은 행이다).
+  //  · 갈등 기록
+  //  · 열린 상담 신청 — (2026-09-20, 이지현 제안) 공개 데모 방문자 격리: enrollment 단위로 읽으면 방문자 전원이 같은 학생(민준)을
+  //    공유해서 다른 방문자의 신청이 섞인다. source_session_id의 부모 세션 소유자로 좁힌다: "공용 시드 세션 + 현재 방문자 세션"만
+  //    (checkins/meetingRequests.ts와 같은 규칙). 세션이 없는 신청은 소유자를 못 가려서 방문자에게는 안 보인다(fail-closed).
+  //    구현은 dashboardScope.ts(스코프를 인자로 받아 실제 DB 대조 테스트가 가능하다).
+  const [vocabSessions, conflicts, requests] = await Promise.all([
+    loadSessions(roster, VOCAB_HISTORY_START, dateKey),
+    loadConflicts(classId),
+    loadOpenRequests(roster),
+  ]);
+  // 브리핑의 개인 기준선·친구 언급 규칙은 최근 이력이 필요하다. 관계 지도보다 넓은 90일을 쓴다.
+  const sessionsFrom = addDays(dateKey, -89);
+  const sessions = vocabSessions.filter((session) => session.session_date >= sessionsFrom);
   const students: StudentSignal[] = roster.map((student) => ({
     ...student,
     color: latestColor(sessions, student.enrollmentId, dateKey),
   }));
 
-  // 감정 어휘는 관계 지도의 "최근 N일" 창과는 다른 값이다 — 학기 시작 이후 누적이라
-  // 90일(누적 관계 창)보다 앞선 세션도 셀 수 있어야 한다. 그래서 따로, 넓게 불러온다.
-  const vocabSessions = await loadSessions(roster, VOCAB_HISTORY_START, dateKey);
+  // 아침 브리핑과 감정 어휘 카드가 같은 분석 행을 쓴다 — 한 번만(묶음끼리는 동시에) 읽는다
+  const emotionRuns = await loadEmotionRuns(vocabSessions.map((session) => session.id));
 
-  const conflicts = await loadConflicts(classId);
   const relation = Object.fromEntries(
     RELATION_PERIODS.map((period) => [
       period.id,
@@ -831,7 +867,7 @@ export async function getDashboardDataFromSupabase(classId: string, dateKey: str
   return {
     dateKey,
     isToday: dateKey === dashboardToday(),
-    briefing: { watch: await buildBriefing(roster, sessions, dateKey, conflicts) },
+    briefing: { watch: buildBriefing(roster, sessions, dateKey, conflicts, emotionRuns, requests) },
     classroom: {
       periods: {
         morning: buildClassroomPeriod(roster, sessions, dateKey, "morning"),
@@ -845,6 +881,6 @@ export async function getDashboardDataFromSupabase(classId: string, dateKey: str
     relation,
     // "누적"(가장 넓은 기간) 그래프의 갈등 목록을 폴백으로 쓴다 — 옆 패널이 아무도 안 고른 동안 보여주는 값.
     conflicts: relation.all.conflicts,
-    vocab: await buildVocab(roster, vocabSessions, dateKey),
+    vocab: await buildVocab(roster, vocabSessions, dateKey, emotionRuns),
   };
 }

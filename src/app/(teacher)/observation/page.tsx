@@ -70,7 +70,7 @@ async function ObservationPageInMockScope({ searchParams }: PageProps<"/observat
     teacher.classId,
     // 날짜·학생·키워드는 서로 겹쳐서 적용한다(AND). 예전에는 학생·키워드가 있으면 날짜를 무시해서
     // 학생을 고른 뒤 어느 날짜를 눌러도 그 학생의 전체 기록이 떴다.
-    { keyword, studentId, ...(date ? { from: date, to: date } : {}) },
+    { keyword, studentId, ...(date && { from: date, to: date }) },
     teacher.id,
   );
 
