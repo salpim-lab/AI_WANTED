@@ -300,7 +300,6 @@ export default function RelationshipMap({
                   y={n.y + 4}
                   textAnchor="middle"
                   fontSize={labelSize(shownR)}
-                  fontWeight="700"
                   fill="var(--rel-text)"
                 >
                   {n.name}
@@ -323,7 +322,7 @@ export default function RelationshipMap({
           <i className="legend-ring" /> 이름이 안 나온 아이 (점선)
         </span>
         <span>
-          <i className="legend-big" /> 원이 클수록 살펴볼 일이 많은 아이
+          <i className="legend-big" /> 더 살펴볼 아이 (큰 원)
         </span>
       </div>
     </div>

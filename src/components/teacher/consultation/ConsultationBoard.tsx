@@ -16,6 +16,7 @@ import ConsultationComposer from "./ConsultationComposer";
 import RecordSearch from "@/components/shared/RecordSearch";
 import ScheduleConsultationComposer from "./ScheduleConsultationComposer";
 import ScheduledConsultationCard from "./ScheduledConsultationCard";
+import "@/styles/record-toolbar.css";
 
 export default function ConsultationBoard({
   entries,
@@ -39,10 +40,10 @@ export default function ConsultationBoard({
 
   return (
     <div className={boardPageContainer}>
-      <div className="relative z-20 mb-5 flex flex-wrap items-center gap-2.5">
-        <h2 className={`${boardPageTitle} shrink-0`}>학부모상담기록</h2>
+      <div className="record-toolbar relative z-20 mb-5 flex flex-wrap items-center gap-2.5">
+        <h2 className={`${boardPageTitle} shrink-0`}>학부모 상담 기록</h2>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <RecordDateScope date={date} today={today} basePath="/consultation" />
+          <RecordDateScope date={date} today={today} basePath="/consultation" emptyLabel="날짜" />
           <RecordSearch basePath="/consultation" students={students} filter={filter} />
           <ScheduleConsultationComposer students={students} />
           <ConsultationComposer students={students} reportDays={reportDays} />

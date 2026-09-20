@@ -23,8 +23,8 @@ import "@/styles/prototype-teacher-sidebar.css";
 const TABS = [
   { href: "/dashboard", label: "대시보드", icon: "dashboard" },
   { href: "/students", label: "아이 상세", icon: "student" },
-  { href: "/observation", label: "업무기록", icon: "note" },
-  { href: "/consultation", label: "학부모상담", icon: "talk" },
+  { href: "/observation", label: "업무 기록", icon: "note" },
+  { href: "/consultation", label: "학부모 상담", icon: "talk" },
 ] as const;
 
 /** 접힌 사이드바의 메뉴 아이콘 — 선 하나 굵기로 차분하게 */

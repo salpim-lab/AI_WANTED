@@ -41,12 +41,14 @@ export default function RecordDateScope({
   date,
   today,
   basePath,
+  emptyLabel = "전체",
 }: {
   /** 고른 날짜 "YYYY-MM-DD". null이면 전체 */
   date: string | null;
   /** 고를 수 있는 마지막 날짜 — 오늘 */
   today: string;
   basePath: string;
+  emptyLabel?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,7 +105,7 @@ export default function RecordDateScope({
           <line x1="16" y1="3" x2="16" y2="6.5" />
         </svg>
         <span className="date-text">
-          {date === null ? "전체" : date === today ? (
+          {date === null ? emptyLabel : date === today ? (
             <>
               <em>오늘</em>
               {formatKstDate(date)}

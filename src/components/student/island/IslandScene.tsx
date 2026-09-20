@@ -963,7 +963,7 @@ export default function IslandScene({
       bubble.style.display = anchor ? "" : "none";
       if (!anchor) return;
       const rect = projectedBoxRect(new THREE.Box3().setFromObject(anchor), camera, canvas.clientWidth, canvas.clientHeight);
-      // 새 아이템의 사유 박스와 같은 자리: 아이템 왼쪽, 꼬리는 오른쪽.
+      // 새 아이템의 사유 박스와 같은 자리인 아이템 왼쪽에 둔다.
       const halfHeight = bubble.offsetHeight / 2;
       bubble.style.left = `${THREE.MathUtils.clamp(rect.left - 10, bubble.offsetWidth + 8, canvas.clientWidth - 8)}px`;
       bubble.style.top = `${THREE.MathUtils.clamp((rect.top + rect.bottom) / 2, halfHeight + 8, canvas.clientHeight - halfHeight - 8)}px`;
@@ -1564,6 +1564,7 @@ export default function IslandScene({
       if (!classroom && (current.phase === "ready" || current.phase === "complete")) {
         const picked = pickGiftId(event);
         const giftId = picked && current.gifts.find(gift => gift.id === picked)?.note ? picked : null;
+        if (walk?.inspectGift && giftId !== walk.inspectGift) walk = null;
         const wasOpen = inspectedIdRef.current;
         if (giftId || wasOpen) showGiftBubble(null);
         if (giftId) {
@@ -1617,7 +1618,9 @@ export default function IslandScene({
     const onLeave = () => { hoverPointer = null; marker.visible = false; canvas.style.cursor = ""; render(); };
     const onCancel = (event: PointerEvent) => { activePointers.delete(event.pointerId); pointerDown = null; onLeave(); };
     const onOtherElementPointerDown = (event: PointerEvent) => {
-      if (inspectedIdRef.current && event.target !== canvas) showGiftBubble(null);
+      if (event.target === canvas || giftBubbleRef.current?.contains(event.target as Node)) return;
+      if (walk?.inspectGift) walk = null;
+      if (inspectedIdRef.current) showGiftBubble(null);
     };
     function advanceHeldWalk(deltaSeconds: number) {
       if (!movementKeys.size || !canMoveWithKeyboard() || !character) return false;
@@ -2013,7 +2016,6 @@ export default function IslandScene({
       <p className="mt-0.5 text-center text-[11px] text-[#7d849b]">{inspectedNote.when}</p>
       <hr className="mt-1.5 border-0 border-t-[0.5px] border-[#3c445e]/25" />
       <p className="mt-0.5 whitespace-pre-line break-keep text-center font-[family-name:var(--font-hand)] text-[17px]">{inspectedNote.reason.replace(/,\s*/g, ",\n")}</p>
-      <span className="island-bubble-tail absolute h-3 w-3 rotate-45 border-white/70 bg-white/55" />
     </div>}
 
     {!ready && !error && <div className="absolute inset-0 z-40 grid place-items-center bg-[#dceee5] text-sm text-[#547766]" role="status">섬을 준비하고 있어요…</div>}

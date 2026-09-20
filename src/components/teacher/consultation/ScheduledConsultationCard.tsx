@@ -81,7 +81,7 @@ export default function ScheduledConsultationCard({ consultation }: { consultati
         </div>
 
         <ConsultationReportModal student={student} className="relative z-10 ml-auto" />
-        <span className="absolute top-3 right-3.5">
+        <span className="pointer-events-none absolute top-3 right-3.5">
           <ArrowUpRightIcon />
         </span>
       </article>
