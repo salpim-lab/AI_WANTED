@@ -11,7 +11,8 @@
     "test:1094-local": "node --test scripts/verify-1094/verify-1094-local.test.mjs",
     "demo-island:coords": "node scripts/generate-demo-island-coords.mjs",
     "demo-island:seed-sql": "node scripts/generate-demo-island-seed-sql.mjs",
-    "test:island": "node --test scripts/demo-island-seed/coords.test.mjs src/components/student/island/__tests__/placementRules.test.mjs"
+    "test:island": "node --test scripts/demo-island-seed/coords.test.mjs src/components/student/island/__tests__/placementRules.test.mjs",
+    "test:dashboard-scope": "node --test src/lib/supabase/queries/__tests__/dashboardScope.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,6 +1,7 @@
 import { addDays, todayKst, toKstDate } from "@/components/shared/datetime";
 import { givenName } from "@/components/shared/names";
-import { getDemoScope, ownerOrFilter, recordVisible } from "@/lib/demo/scope";
+import { getDemoScope, ownerOrFilter } from "@/lib/demo/scope";
+import { loadOpenMeetingRequests, loadVisibleConflictRecords } from "@/lib/supabase/queries/dashboardScope";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SignalColor } from "@/lib/types/signal";
 import { canonicalize } from "@/lib/vocab/lexicon";
@@ -390,14 +391,8 @@ async function buildBriefing(roster: RosterStudent[], sessions: DashboardSession
   // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 상담 신청은 enrollment 단위로 읽으면 방문자 전원이 같은 학생(민준)을
   // 공유해서 다른 방문자의 신청이 섞인다. source_session_id의 부모 세션 소유자로 좁힌다: "공용 시드 세션 + 현재 방문자 세션"만
   // (checkins/meetingRequests.ts와 같은 규칙). 세션이 없는 신청은 소유자를 못 가려서 방문자에게는 안 보인다(fail-closed).
-  const requestScope = ownerOrFilter(await getDemoScope());
-  let requestQuery = client.from("meeting_requests")
-    .select(requestScope ? "enrollment_id, requested_at, priority, checkin_sessions!inner ( id )" : "enrollment_id, requested_at, priority")
-    .in("enrollment_id", roster.map((student) => student.enrollmentId)).eq("status", "requested");
-  if (requestScope) requestQuery = requestQuery.or(requestScope, { referencedTable: "checkin_sessions" });
-  const { data: requestRows, error: requestsError } = await requestQuery;
-  if (requestsError) throw requestsError;
-  const requests = (requestRows ?? []) as unknown as { enrollment_id: string; requested_at: string; priority: string }[];
+  // 구현은 dashboardScope.ts(스코프를 인자로 받아 실제 DB 대조 테스트가 가능하다).
+  const requests = await loadOpenMeetingRequests(client, roster.map((student) => student.enrollmentId), await getDemoScope());
   const requestByEnrollment = new Map(requests.sort((a, b) => a.requested_at.localeCompare(b.requested_at)).map((row) => [row.enrollment_id, row]));
 
   const aliases = roster.map((student) => ({ enrollmentId: student.enrollmentId, aliases: aliasesFor(student.name) }));
@@ -712,21 +707,8 @@ async function loadConflicts(classId: string): Promise<ConflictRow[]> {
 
   // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — 이 함수는 class_id만으로 갈등 기록을 전부 읽었다. 방문자에게는
   // "내가 쓴 것 + (담임이 썼고 시드로 확인된 것)"만 보이게 한다(recordVisible, 1093과 같은 규칙). 스코프가 꺼져 있으면 그대로.
-  const scope = await getDemoScope();
-  const { data: allRecords, error: recordsError } = await client
-    .from("work_records")
-    .select("id, title, body, occurred_at, created_by")
-    .eq("class_id", classId)
-    .eq("record_type", "conflict")
-    .order("occurred_at");
-  if (recordsError) throw recordsError;
-  let homeroomId = "";
-  if (scope.active) {
-    const { data: homeroom, error: homeroomError } = await client.from("class_teachers").select("teacher_id").eq("class_id", classId).eq("role", "homeroom").limit(1).maybeSingle();
-    if (homeroomError) throw homeroomError;
-    homeroomId = homeroom?.teacher_id ?? "";
-  }
-  const records = (allRecords ?? []).filter((record) => recordVisible(scope, { id: record.id, created_by: record.created_by }, homeroomId));
+  // 구현은 dashboardScope.ts(스코프를 인자로 받아 실제 DB 대조 테스트가 가능하다).
+  const records = await loadVisibleConflictRecords(client, classId, await getDemoScope());
   if (!records.length) return [];
 
   const recordIds = records.map((r) => r.id);

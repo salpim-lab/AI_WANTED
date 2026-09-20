@@ -40,14 +40,18 @@ export default function IslandBoard({
     fetch("/api/island", { cache: "no-store", signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => { if (data) setRemote({ persisted: data.persisted === true, gifts: Array.isArray(data.gifts) ? data.gifts : [] }); })
-      .catch(() => { /* 섬 조회 실패는 화면을 막지 않는다 — 빈 섬으로 계속한다 */ });
+      .catch(() => { /* 섬 조회 실패는 화면을 막지 않는다 — 빈 섬으로 계속한다(remote가 null이면 아무 배치도 그리지 않는다) */ });
     return () => controller.abort();
   }, [active]);
 
   const incomingItemId = item?.studentItemId;
   const placedGifts = useMemo(() => {
-    // 지금 놓으려는(또는 다시 놓는) 아이템은 씬이 따로 그리므로 이미 저장된 배치에서는 뺀다.
-    if (remote?.persisted) return remote.gifts.filter((gift) => gift.id !== incomingItemId);
+    // 아직 모름(조회 중이거나 실패): 아무것도 그리지 않는다 — DEMO_MODE에서 main의 코드 기반 배치가 잠깐이라도 비치면 안 된다.
+    if (!remote) return undefined;
+    // DEMO_MODE: DB의 공용 15종 + 현재 방문자 개인 아이템만 그린다. main의 코드 기반 민준 18개(MINJUN_DEMO_GIFTS)와는 합치지 않는다
+    // (결정 2026-09-20). 지금 놓으려는(또는 다시 놓는) 아이템은 씬이 따로 그리므로 이미 저장된 배치에서는 뺀다.
+    if (remote.persisted) return remote.gifts.filter((gift) => gift.id !== incomingItemId);
+    // DEMO_MODE=false(서버가 persisted:false로 확인해 준 경우)에서만 main의 민준 데모 섬을 유지한다.
     return studentName === "민준" || studentName === "김민준" ? MINJUN_DEMO_GIFTS : undefined;
   }, [remote, incomingItemId, studentName]);
 
