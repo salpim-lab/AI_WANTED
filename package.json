@@ -14,6 +14,7 @@
     "test:island": "node --test scripts/demo-island-seed/coords.test.mjs src/components/student/island/__tests__/placementRules.test.mjs",
     "test:dashboard-scope": "node --test src/lib/supabase/queries/__tests__/dashboardScope.test.mjs",
     "test:item-polling": "node --test src/lib/items/__tests__/itemGenerationClient.test.mjs",
+    "test:consult-seed": "node --test scripts/demo-consultation-seed/seed.test.mjs",
     "test:1095-local": "node --test scripts/verify-1095/verify-1095-local.test.mjs scripts/verify-1095/verify-1095-check-sql.test.mjs",
     "test:session-summaries": "node --test src/lib/supabase/queries/__tests__/sessionSummaries.test.mjs"
   },
