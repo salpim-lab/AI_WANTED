@@ -40,10 +40,9 @@ async function ConsultationPageInMockScope({ searchParams }: PageProps<"/consult
     keyword: firstParam(params.q),
     studentId: students.some((s) => s.studentId === studentId) ? studentId : undefined,
   };
-  const searching = Boolean(filter.keyword || filter.studentId);
   // (2026-09-20, 이지현 제안) 공개 데모 방문자 격리 — teacher.id를 viewerTeacherId로.
   const [allEntries, allScheduled] = await Promise.all([
-    listConsultationLogs(teacher.classId, searching || !date ? filter : { ...filter, date }, teacher.id),
+    listConsultationLogs(teacher.classId, date ? { ...filter, date } : filter, teacher.id),
     listScheduledConsultations(teacher.classId),
   ]);
   // 달력이 오늘까지라 미래 상담은 날짜로 못 찾는다 — 고른 날짜부터 앞으로 잡힌 예정 상담을 모두 보여준다

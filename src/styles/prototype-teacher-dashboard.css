@@ -214,6 +214,8 @@
 }
 .briefing-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .briefing-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+/* 살펴볼 아이 카드: 이름 / 상태 / 이유 세 줄로 고정 (상담 행은 이름·방식이 한 줄 그대로) */
+.briefing-row:not(.briefing-consult) .briefing-line { flex-direction: column; align-items: flex-start; gap: 3px; }
 .briefing-line .bname { font-size: var(--fs-name); font-weight: var(--fw-bold); letter-spacing: -0.2px; }
 .briefing-line .bstatus { font-size: var(--fs-body); font-weight: var(--fw-bold); }
 .briefing-info .breason { font-size: var(--fs-label); color: var(--muted); line-height: 1.55; }

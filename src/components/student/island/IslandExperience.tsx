@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import SalpimLogo from "@/components/shared/SalpimLogo";
 import { createHeldWalk } from "./heldWalk";
 import styles from "./IslandExperience.module.css";
 import type { CameraPreset, GiftKind, IslandGift, PlacementPhase, PlacementProposal, SceneHandle, ViewMode } from "./types";
@@ -277,7 +278,7 @@ export default function IslandExperience({ flow = "checkin", compact = false, st
   return <div lang="ko" className={`island-experience ${compact ? "island-compact flex min-h-0 flex-1 flex-col text-[#2f3560]" : "min-h-dvh bg-[#f7f8f2] text-[#294638] [font-family:'Apple_SD_Gothic_Neo','Malgun_Gothic',sans-serif]"} [&_button]:cursor-pointer`}>
     {!compact && <header className="border-b border-[#e1e7dc] bg-[#fcfcf7]">
       <div className="mx-auto flex h-[82px] max-w-[1440px] items-center justify-between gap-4 px-6 lg:px-12">
-        <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><span className="grid h-10 w-10 place-items-center rounded-[14px] bg-[#2b7657] text-[#f9f8e9]"><Icon name="leaf" size={25}/></span><span className="text-[25px] font-extrabold tracking-[-1.5px]">살핌</span><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
+        <a href="/island" className="flex items-center gap-3" aria-label="살핌 나의 섬"><SalpimLogo size={40} tagline={false} /><span className="ml-2 hidden border-l border-[#dce2d8] pl-4 text-[12px] text-[#859083] sm:block">마음이 자라는 작은 섬</span></a>
         <nav className="flex items-center gap-1 rounded-full bg-[#edf0e7] p-1" aria-label="섬 둘러보기">
           <button disabled={placementActive} onClick={() => changeMode("island")} aria-pressed={mode === "island"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "island" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="home" size={16}/>나의 섬</button>
           <button disabled={placementActive} onClick={() => changeMode("classroom")} aria-pressed={mode === "classroom"} className={`${button} px-4 py-2.5 text-[13px] font-semibold ${mode === "classroom" ? "bg-white text-[#2c6d4f] shadow-sm" : "text-[#7e8a7d]"}`}><Icon name="puzzle" size={16}/>우리 반 섬</button>

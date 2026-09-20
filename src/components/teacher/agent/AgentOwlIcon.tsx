@@ -10,7 +10,7 @@
 export default function AgentOwlIcon({ className }: { className?: string }) {
   return (
     <img
-      src="/teacher_agent_logo.png"
+      src="/brand/salpim-chatbot-avatar.png"
       alt=""
       className={`rounded-full object-cover ${className ?? ""}`}
       aria-hidden="true"

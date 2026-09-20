@@ -29,7 +29,7 @@ export default function TeacherLayout({
     <div className="teacher-app">
       <div className="app">
         <header className="app-header">
-          {/* 학생 화면과 같은 로고(글자·얼굴·문구 구성과 비율). components/shared/SalpimLogo */}
+          {/* 학생 화면과 같은 브랜드 이미지와 문구. */}
           <div className="logo">
             <SalpimLogo />
           </div>
