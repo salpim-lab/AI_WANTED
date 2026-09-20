@@ -1,5 +1,5 @@
 // 개발 전용. 공용 데모 섬 좌표(scripts/demo-island-seed/coords.json)를 실제 자산 모양과 합쳐 미리 보기용 배치로 돌려준다.
-// DB에서는 asset_catalog만 읽는다(쓰기 없음). 프로덕션에서는 404. /api/dev/* 를 지울 때 함께 지울 것.
+// DB에서는 asset_catalog만 읽는다(쓰기 없음). 프로덕션에서는 404(DEMO_ISLAND_PREVIEW=1 이 아니면). /api/dev/* 를 지울 때 함께 지울 것.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
@@ -10,7 +10,8 @@ export const runtime = "nodejs";
 type CoordsFile = { placements: { dedupKey: string; name: string; x: number; z: number; radius: number }[] };
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") return new NextResponse("Not Found", { status: 404 });
+  // 프로덕션 빌드는 기본 404. 로컬에서 프로덕션 빌드로 미리 볼 때만 DEMO_ISLAND_PREVIEW=1 로 연다(Vercel에는 설정하지 않는다).
+  if (process.env.NODE_ENV === "production" && process.env.DEMO_ISLAND_PREVIEW !== "1") return new NextResponse("Not Found", { status: 404 });
   const coords = JSON.parse(await readFile(path.join(process.cwd(), "scripts/demo-island-seed/coords.json"), "utf8")) as CoordsFile;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = createAdminClient() as any;
