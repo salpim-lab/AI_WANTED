@@ -225,6 +225,16 @@ t('요청은 네트워크 없이 Claude(Messages API) 모양으로 만들어진�
   assert.equal('instructions' in req || 'input' in req || 'store' in req, false, 'OpenAI 필드가 남았다');
 });
 
+t('말 모양 힌트: 같은 말에는 같은 힌트, 다른 말에는 골고루 섞인다', () => {
+  const say = (c) => [{ speaker: 'student', content: c, input_method: 'voice' }];
+  assert.equal(turn.pickStyleHint(say('졸렸어요'), 1), turn.pickStyleHint(say('졸렸어요'), 1));
+  const seen = new Set(['졸렸어요', '친구랑 싸웠어요', '피구 이겼어요', '엄마가 화냈어요', '그냥 별로예요', '급식이 맛있었어요', '숙제가 많았어요']
+    .map((c) => turn.pickStyleHint(say(c), 1)));
+  assert.ok(seen.size >= 3, `힌트가 몰린다: ${seen.size}종`);
+  const req = turn.buildChatTurnRequest({ flow: 'checkin', color: 'red', turnCount: 1, transcript: say('졸렸어요') });
+  assert.ok(JSON.parse(req.messages[0].content).style_hint, '요청에 style_hint 가 없다');
+});
+
 t('위험 판단 요청은 오늘 대화만 보고 temperature 0 이다', () => {
   const tr = [{ speaker: 'student', content: '싸웠어요', input_method: 'voice' }];
   const req = turn.buildRiskCheckRequest({ transcript: tr });
