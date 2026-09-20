@@ -15,14 +15,14 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 // Turnstile 로딩·미리 받은 토큰은 홈(/)과 함께 쓰는 공용 코드다 — 첫 진입 지연 개선(lib/demo/turnstile.ts 머리말 참고).
 import { TURNSTILE_SITE_KEY, loadTurnstile, takePrewarmedToken } from "@/lib/demo/turnstile";
 
 /** 이 시간이 지나도 화면이 안 넘어가면 새로고침 버튼을 보여 준다(멈춘 것처럼 보일 때 바로 다시 시도할 수 있게). */
-const SLOW_AFTER_MS = 7000;
+const SLOW_AFTER_MS = 5000;
 
 /** ?next= 는 사이트 안 경로만 허용한다 — 임의 주소로 보내는 오픈 리다이렉트 방지. */
 function safeNext(raw: string | null): string {
@@ -33,7 +33,6 @@ function safeNext(raw: string | null): string {
 type Status = "loading" | "challenge" | "error";
 
 function DemoInitBody() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<Status>("loading");
   const widgetBox = useRef<HTMLDivElement>(null);
@@ -43,8 +42,12 @@ function DemoInitBody() {
   const finish = useCallback(async () => {
     const res = await fetch("/api/demo/init", { method: "POST" });
     if (!res.ok) throw new Error(`init ${res.status}`);
-    router.replace(safeNext(searchParams.get("next")));
-  }, [router, searchParams]);
+    // router.replace 대신 전체 이동을 쓴다. 홈에서 카드를 눌렀을 때 서버가 "세션 없음 → /demo-init"으로 답한 결과를
+    // Next 클라이언트 라우터가 기억해 두었다가, 가입 직후 router.replace("/checkin")을 다시 /demo-init으로 풀어 버려
+    // 화면이 안 넘어갔다(실측: init까지 끝났는데 이동 요청이 안 나가고, 새로고침하면 0.5초 만에 이동).
+    // 전체 이동은 그 기억을 거치지 않고 새 요청으로 간다(가입 쿠키는 이미 저장돼 있다).
+    window.location.replace(safeNext(searchParams.get("next")));
+  }, [searchParams]);
 
   // 익명 로그인만 — 실패는 던지지 않고 돌려준다(미리 받은 토큰이 거절되면 위젯으로 넘어가야 해서).
   const signIn = useCallback(async (captchaToken?: string) => {
@@ -93,9 +96,12 @@ function DemoInitBody() {
         // 가입 요청이 거절되면(만료·이미 사용 등) 계정이 만들어지지 않았으므로 평소 흐름(위젯)으로 넘어간다.
         const prewarmed = takePrewarmedToken();
         if (prewarmed) {
+          console.info("[demo-init] 미리 받은 토큰 사용");
           const error = await signIn(prewarmed);
           if (!error) return await finish();
           console.warn("[demo-init] 미리 받은 토큰이 거절돼 위젯으로 넘어갑니다:", error.message);
+        } else {
+          console.info("[demo-init] 미리 받은 토큰 없음 → 위젯으로 확인");
         }
 
         const turnstile = await (scriptReady ?? loadTurnstile());

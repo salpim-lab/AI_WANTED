@@ -107,6 +107,7 @@ export async function prewarmTurnstile(): Promise<void> {
   if (isFreshToken(readStored(), Date.now())) return;
   prewarming = true;
 
+  const startedAt = Date.now();
   let widgetId: string | null = null;
   let box: HTMLDivElement | null = null;
   let giveUp: number | null = null;
@@ -125,21 +126,31 @@ export async function prewarmTurnstile(): Promise<void> {
     const turnstile = await loadTurnstile();
     box = document.createElement("div");
     box.setAttribute("aria-hidden", "true");
-    // display:none은 확인이 멈출 수 있어 화면 밖에 둔다.
-    box.style.cssText = "position:fixed;left:-10000px;top:0;width:300px;height:65px;overflow:hidden;pointer-events:none;";
+    // 화면 안에 두되 보이지 않게 한다(투명 + 클릭 불가). display:none이나 화면 밖(left:-10000px)에 두면
+    // 확인이 시작되지 않거나 멈출 수 있어서 실측에서 미리 받은 토큰이 만들어지지 않았다.
+    box.style.cssText = "position:fixed;right:0;bottom:0;width:300px;height:65px;opacity:0;pointer-events:none;z-index:-1;";
     document.body.appendChild(box);
-    giveUp = window.setTimeout(cleanup, PREWARM_GIVE_UP_MS);
+    giveUp = window.setTimeout(() => {
+      console.info("[turnstile] 미리 받기 포기(30초 안에 끝나지 않음 — 사용자 조작이 필요한 확인일 수 있음)");
+      cleanup();
+    }, PREWARM_GIVE_UP_MS);
+    console.info("[turnstile] 미리 받기 시작");
     widgetId = turnstile.render(box, {
       sitekey: TURNSTILE_SITE_KEY,
       appearance: "interaction-only",
       callback: (token) => {
         writeStored({ token, at: Date.now() });
+        console.info(`[turnstile] 미리 받기 완료 (${Date.now() - startedAt}ms)`);
         cleanup();
       },
-      "error-callback": cleanup,
+      "error-callback": () => {
+        console.info(`[turnstile] 미리 받기 실패 (${Date.now() - startedAt}ms)`);
+        cleanup();
+      },
       "expired-callback": cleanup,
     });
-  } catch {
+  } catch (e) {
+    console.info("[turnstile] 미리 받기 오류", e instanceof Error ? e.message : e);
     cleanup();
   }
 }
