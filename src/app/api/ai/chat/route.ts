@@ -8,6 +8,9 @@
 //
 // 회피 판정도 코드가 한다(looksAvoidant). LLM 을 부를 필요가 없고,
 // 규칙이 명시적이라 교사에게 설명할 수 있다.
+//
+// LLM 은 Claude(Anthropic Messages API)다 — 예전엔 OpenAI 였다(2026-09-20 변경).
+// 음성 → 글(STT)은 그대로 OpenAI whisper 다(app/api/ai/transcribe).
 import { NextResponse } from "next/server";
 
 import { AI_DISABLED, isAiEnabled } from "@/lib/ai/enabled";
@@ -20,6 +23,7 @@ import {
   ChatTurnError,
   parseChatTurn,
   parseRiskCheck,
+  readClaudeText,
 } from "@/lib/chat/chatTurn";
 import { closingLines, decideNext, HANDOFF_MESSAGE, looksAvoidant } from "@/lib/chat/gates";
 import { SIGNAL_COLORS } from "@/lib/constants/colors";
@@ -71,8 +75,8 @@ export async function POST(request: Request) {
   // 스위치가 꺼져 있으면 키를 읽기도 전에 돌려보낸다.
   if (!isAiEnabled()) return fail(AI_DISABLED.code, AI_DISABLED.message, 503);
 
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) return fail("AI_NOT_CONFIGURED", "OPENAI_API_KEY 설정이 필요합니다.", 503);
+  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!key) return fail("AI_NOT_CONFIGURED", "ANTHROPIC_API_KEY 설정이 필요합니다.", 503);
 
   try {
     const session = await requireOwnStartedSession(body.session_id);
@@ -87,9 +91,9 @@ export async function POST(request: Request) {
     const avoidanceCount = studentTurns.filter((m) => looksAvoidant(m.content)).length;
 
     const call = (body: object) =>
-      fetch("https://api.openai.com/v1/responses", {
+      fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
         cache: "no-store",
@@ -122,24 +126,20 @@ export async function POST(request: Request) {
       return fail("AI_REQUEST_FAILED", "지금은 대답하기 어려워.", response.status === 429 ? 429 : 502);
     }
 
-    const data = (await response.json()) as {
-      status?: string;
-      output?: { type: string; content?: { type: string; text?: string; refusal?: string }[] }[];
-    };
-    const content = (data.output ?? [])
-      .filter((o) => o.type === "message")
-      .flatMap((o) => o.content ?? []);
+    const answer = readClaudeText(await response.json());
     // 거부도 위험 신호로 다룬다. 모델이 답하지 않기로 한 발화를 그냥 넘기지 않는다.
-    if (content.some((c) => c.type === "refusal") || data.status !== "completed") {
+    if (answer.refused) {
       return NextResponse.json(
         { reply: HANDOFF_MESSAGE, action: "handoff_to_teacher", risk: "flag", turn_count: turnCount },
         { headers: { "Cache-Control": "no-store" } },
       );
     }
-    const raw = content
-      .filter((c) => c.type === "output_text")
-      .map((c) => c.text ?? "")
-      .join("");
+    // 글자 수 상한에 걸려 JSON 이 잘렸다. 위험 신호가 아니므로 교사에게 넘기지 않고 오류로 돌려 다시 하게 한다.
+    if (answer.truncated) {
+      console.error("[chat] 응답이 max_tokens 에서 잘렸습니다");
+      return fail("AI_INCOMPLETE", "지금은 대답하기 어려워.", 502);
+    }
+    const raw = answer.text;
     // 바로 앞 살핌의 말 — 같은 어미("~구나")가 잇달아 오지 않게 받아주기를 다듬는 데 쓴다
     const previousAssistant = [...transcript].reverse().find((m) => m.speaker === "assistant")?.content;
     const turn = parseChatTurn(JSON.parse(raw), previousAssistant);
@@ -148,16 +148,7 @@ export async function POST(request: Request) {
     // 거기엔 며칠치 맥락이 들어가 있어서 판단이 부풀려진다.
     let risk = turn.risk;
     try {
-      const riskData = (await riskResponse.json()) as {
-        status?: string;
-        output?: { type: string; content?: { type: string; text?: string }[] }[];
-      };
-      const riskRaw = (riskData.output ?? [])
-        .filter((o) => o.type === "message")
-        .flatMap((o) => o.content ?? [])
-        .filter((c) => c.type === "output_text")
-        .map((c) => c.text ?? "")
-        .join("");
+      const riskRaw = readClaudeText(await riskResponse.json()).text;
       risk = riskResponse.ok && riskRaw ? parseRiskCheck(JSON.parse(riskRaw)) : turn.risk;
     } catch (error) {
       // 위험 판단만 실패하면 ① 의 값을 쓴다. 대화를 끊지는 않는다.
