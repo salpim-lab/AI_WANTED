@@ -75,6 +75,8 @@
   width: 78%;
   height: 78%;
   display: block;
+  /* svg(로고)는 viewBox 로 이미 맞춰져 있고, 캐릭터 그림(png)은 이걸로 안 잘리고 안 늘어난다 */
+  object-fit: contain;
 }
 .chat-row--ai { justify-content: flex-start; }
 .chat-row--mine { justify-content: flex-end; }
