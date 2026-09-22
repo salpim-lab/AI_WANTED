@@ -72,10 +72,11 @@
   overflow: hidden;
 }
 .chat-avatar__face {
-  width: 78%;
-  height: 78%;
+  /* 교사 화면 대화 전문(ConversationTurns)은 이 그림을 원 전체에 꽉 채운다. 78%로 두면 하얀 여백만 도드라져
+     같은 얼굴인데 학생 화면에서 훨씬 작아 보였다(2026-09-22) — 같은 크기로 맞춘다. */
+  width: 100%;
+  height: 100%;
   display: block;
-  /* svg(로고)는 viewBox 로 이미 맞춰져 있고, 캐릭터 그림(png)은 이걸로 안 잘리고 안 늘어난다 */
   object-fit: contain;
 }
 .chat-row--ai { justify-content: flex-start; }
