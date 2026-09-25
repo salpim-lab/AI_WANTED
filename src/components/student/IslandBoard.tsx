@@ -13,6 +13,45 @@ import { MINJUN_DEMO_GIFTS } from "@/lib/items/minjunDemoIsland";
 
 type RemoteIsland = { persisted: boolean; gifts: IslandGift[] };
 
+// 등교 섬에서 시작한 배치 저장. 등교 → 하교로 화면이 바뀌어도(컴포넌트가 새로 마운트돼도) 이어서 기다릴 수 있게 모듈에 둔다.
+const pendingSaves = new Set<Promise<unknown>>();
+const SAVE_RETRY_DELAYS_MS = [400, 1200, 2500];
+const SAVE_WAIT_BEFORE_LEAVE_MS = 6000;
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const settled = () => Promise.allSettled([...pendingSaves]);
+
+/** 일시 오류(네트워크·5xx)는 다시 시도한다. 서버가 거절한 것(4xx: 겹침·소유자 등)은 다시 해도 같으니 바로 멈춘다. */
+async function postPlacement(body: string) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch("/api/island", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      if (response.ok) return;
+      if (response.status < 500) { console.warn("[island] 배치를 저장하지 못했어요", response.status, await response.json().catch(() => null)); return; }
+    } catch (error) {
+      if (attempt >= SAVE_RETRY_DELAYS_MS.length) { console.warn("[island] 배치 저장 요청 실패", error); return; }
+    }
+    if (attempt >= SAVE_RETRY_DELAYS_MS.length) { console.warn("[island] 배치를 저장하지 못했어요(재시도 소진)"); return; }
+    await delay(SAVE_RETRY_DELAYS_MS[attempt]);
+  }
+}
+
+async function fetchIsland(signal: AbortSignal): Promise<RemoteIsland | null> {
+  // 방금 놓은 아이템의 저장이 끝나기 전에 조회하면 그 아이템이 빠진 섬을 받는다.
+  await Promise.race([settled(), delay(SAVE_WAIT_BEFORE_LEAVE_MS)]);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (signal.aborted) return null;
+    try {
+      const response = await fetch("/api/island", { cache: "no-store", signal });
+      if (response.ok) {
+        const data = await response.json();
+        return { persisted: data.persisted === true, gifts: Array.isArray(data.gifts) ? data.gifts : [] };
+      }
+    } catch { if (signal.aborted) return null; }
+    await delay(500 * (attempt + 1));
+  }
+  return null;
+}
+
 export default function IslandBoard({
   active = true,
   flow = "checkin",
@@ -37,10 +76,8 @@ export default function IslandBoard({
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    fetch("/api/island", { cache: "no-store", signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => { if (data) setRemote({ persisted: data.persisted === true, gifts: Array.isArray(data.gifts) ? data.gifts : [] }); })
-      .catch(() => { /* 섬 조회 실패는 화면을 막지 않는다 — 빈 섬으로 계속한다(remote가 null이면 아무 배치도 그리지 않는다) */ });
+    // 섬 조회 실패는 화면을 막지 않는다 — 몇 번 다시 시도하고, 그래도 안 되면 빈 섬으로 계속한다(remote가 null이면 아무 배치도 그리지 않는다)
+    void fetchIsland(controller.signal).then((data) => { if (data && !controller.signal.aborted) setRemote(data); });
     return () => controller.abort();
   }, [active]);
 
@@ -58,10 +95,17 @@ export default function IslandBoard({
   // 내려놓은 자리를 서버에 저장한다. 서버가 소유자·좌표(공용+내 배치와 겹침)를 다시 검증한다. 실패해도 화면은 계속된다.
   const savePlacement = useCallback((gift: IslandGift) => {
     if (remote?.persisted === false || !incomingItemId) return;
-    fetch("/api/island", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_item_id: incomingItemId, x: gift.x, z: gift.z }) })
-      .then(async (response) => { if (!response.ok) console.warn("[island] 배치를 저장하지 못했어요", response.status, await response.json().catch(() => null)); })
-      .catch((error) => console.warn("[island] 배치 저장 요청 실패", error));
+    const save = postPlacement(JSON.stringify({ student_item_id: incomingItemId, x: gift.x, z: gift.z }));
+    pendingSaves.add(save);
+    void save.finally(() => pendingSaves.delete(save));
   }, [remote?.persisted, incomingItemId]);
+
+  // 저장이 아직 끝나지 않았으면 잠깐 기다린 뒤 다음 화면(하교)으로 넘긴다 — 넘어가며 요청이 끊기거나 조회가 먼저 나가는 것을 막는다.
+  const completeAfterSave = useCallback(() => {
+    if (!onComplete) return;
+    if (!pendingSaves.size) { onComplete(); return; }
+    void Promise.race([settled(), delay(SAVE_WAIT_BEFORE_LEAVE_MS)]).then(() => onComplete());
+  }, [onComplete]);
 
   if (!active) return null;
   // The mock item only carries a name; give the island the same catalog model
@@ -71,6 +115,6 @@ export default function IslandBoard({
   return <div className={`screen active island-screen${preparing ? " island-screen--preparing" : ""}`} id="s5">
     <SalpimHeader />
     <StudentProfile name={studentFullName} />
-    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={placedGifts} baseItemCount={baseItemCount} preparing={preparing} onPlaced={savePlacement} onComplete={onComplete}/>
+    <IslandExperience flow={flow} compact incomingItem={incoming} studentName={studentName} placedGifts={placedGifts} baseItemCount={baseItemCount} preparing={preparing} onPlaced={savePlacement} onComplete={completeAfterSave}/>
   </div>;
 }

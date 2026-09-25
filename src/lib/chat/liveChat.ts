@@ -27,12 +27,13 @@ async function post(url: string, body: unknown) {
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new LiveChatError(data.code ?? "REQUEST_FAILED", data.message ?? "요청에 실패했습니다.");
+  if (!response.ok) throw new LiveChatError(data.code ?? "REQUEST_FAILED", data.message ?? "요청에 실패했습니다.", response.status);
   return data;
 }
 
 export class LiveChatError extends Error {
-  constructor(readonly code: string, message: string) {
+  /** httpStatus: 서버가 답한 상태 코드. 응답 자체를 못 받았으면(네트워크 오류) null */
+  constructor(readonly code: string, message: string, readonly httpStatus: number | null = null) {
     super(message);
   }
   /** 서버가 AI 를 끈 상태. 오류로 보여주지 않고 칩으로 되돌린다 */

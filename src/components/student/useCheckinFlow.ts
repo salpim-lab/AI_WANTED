@@ -89,6 +89,8 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   // 로그인 없이 보는 데모에서는 sessionId 가 null 로 남고, 아래 경로는 전부 건너뛴다.
   // 그때 화면은 기존 목업 칩 흐름 그대로 동작한다.
   const sessionIdRef = useRef<string | null>(null);
+  /** 세션 생성 요청(색 선택 직후 시작). 아직 안 끝났을 때 신청 버튼이 눌리면 이걸 기다린다 */
+  const sessionStartRef = useRef<Promise<unknown> | null>(null);
   const [itemSessionId, setItemSessionId] = useState<string | null>(null);
   /** color state 는 setColor 직후 아직 낡아 있다. 게이트 요청에는 이 ref 를 쓴다 */
   const activeColorRef = useRef<SignalColor | null>(null);
@@ -180,7 +182,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
       setVoiceError(null);
       setSessionNote(null);
       setLive(false);
-      void startSession(flow, c).then((result) => {
+      const starting = startSession(flow, c).then((result) => {
         if (result.sessionId !== null) {
           sessionIdRef.current = result.sessionId;
           setItemSessionId(result.sessionId);
@@ -195,6 +197,7 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
         console.warn(`[session] 대화를 기록하지 않습니다 — ${result.code}: ${result.reason}`);
         setSessionNote(result.code === "UNAUTHORIZED" ? null : result.reason);
       });
+      sessionStartRef.current = starting;
 
       void runScenario(scenario, c);
     },
@@ -406,11 +409,21 @@ export function useCheckinFlow(flow: "checkin" | "checkout") {
   /** "선생님과의 대화 신청하기" — 신청을 남기고 아이템 화면으로 넘어간다 */
   const requestConsult = useCallback(async () => {
     setConsultState("sending");
+    // 세션 생성은 색 선택 때 기다리지 않고 시작했다. 아직 안 끝났다면 여기서 끝나길 기다린다
+    // (안 기다리면 sessionId 가 비어 있어 요청도 보내지 않고 "못 전했어"가 뜬다).
+    if (!sessionIdRef.current) await sessionStartRef.current;
     const sessionId = sessionIdRef.current;
     let delivered = false;
     if (sessionId) {
       try {
-        await requestMeeting(sessionId, riskRef.current ? "high" : "normal");
+        try {
+          await requestMeeting(sessionId, riskRef.current ? "high" : "normal");
+        } catch (error) {
+          // 서버가 "안 된다"고 답한 것(4xx)은 다시 해도 같다. 네트워크·서버 일시 오류만 한 번 더 시도한다.
+          if (error instanceof LiveChatError && error.httpStatus !== null && error.httpStatus < 500) throw error;
+          await wait(600);
+          await requestMeeting(sessionId, riskRef.current ? "high" : "normal");
+        }
         delivered = true;
       } catch (error) {
         // 실패해도 아이를 붙잡아 두지는 않는다. 다만 전해졌다고 말하지도 않는다.
