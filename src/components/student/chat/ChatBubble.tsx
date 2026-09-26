@@ -6,7 +6,9 @@
 //
 // 아바타는 연속된 살핌 말풍선 중 첫 번째에만 붙인다.
 // 매 말풍선마다 붙이면 같은 얼굴이 반복돼 시끄럽다.
-import SalpimFace from "../SalpimFace";
+//
+// 얼굴은 옛 로고 SVG(SalpimFace) 대신 새 캐릭터 그림을 쓴다 — 교사 화면의 대화 전문(components/teacher/students/ConversationTurns)이
+// 먼저 이 그림으로 바뀌었고, 같은 대화인데 학생 화면만 옛 얼굴로 남아 있었다(2026-09-22).
 import type { ChatBubble as BubbleData } from "../useCheckinFlow";
 
 export default function ChatBubble({
@@ -57,7 +59,7 @@ export default function ChatBubble({
       {!mine &&
         (showAvatar ? (
           <span className="chat-avatar chat-avatar--ai" aria-hidden="true">
-            <SalpimFace className="chat-avatar__face" withSparkles={false} />
+            <img src="/brand/salpim-chatbot-avatar.png" alt="" className="chat-avatar__face" />
           </span>
         ) : (
           // 아바타가 없는 줄도 같은 자리에서 시작하도록 자리만 비워둔다
